@@ -1,0 +1,50 @@
+##
+## ignore files
+##
+/**/.DS_Store
+/**/package-lock.json
+/**/*.svg
+/**/*.afdesign~lock~
+/jsx/aws-exports.js
+/jsx/is_local.js*
+##
+## deploy: copied from 'deploy.replace' and filled in with the cognito ids of
+## the distribution being deployed to, so the working copy stays untracked
+##
+/deploy
+/jsx/aws-exports.js*
+/jsx/content.js
+/output.md
+/extract_*.py
+
+##
+## build output: 'deploy' compiles style.css then moves it into static/, so a
+## tracked copy only ever shows up as deleted after a build
+##
+/scss/style.css
+
+##
+## jest coverage output ('npm test')
+##
+/jsx/clover.xml
+/jsx/coverage-final.json
+/jsx/coverage-summary.json
+/jsx/lcov.info
+
+##
+## ignore directories
+##
+jsx/node_modules/
+scss/node_modules/
+static/
+certs/
+jsx/dist/
+jsx/lcov-report/
+**/__pycache__
+
+##
+## linter caches: regenerated on every run and machine-local, so they only ever
+## show up as churn in a diff
+##
+/.ruff_cache/
+/jsx/.eslintcache
