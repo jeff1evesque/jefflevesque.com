@@ -509,29 +509,38 @@ describe('re-rendering with new props', () => {
         expect(fills()).toEqual(before);
     });
 
-    it('does not sync a changed aspect_ratio', () => {
+    it('syncs a changed aspect_ratio', () => {
         //
-        // DOCUMENTS A DEFECT: the clause at area-chart.jsx:277 guards on
+        // FIXED. This used to assert the ratio did NOT change: the clause guarded on
         // 'Array.isArray(prevProps.aspect_ratio)' and 'prevProps.aspect_ratio.length',
         // but aspect_ratio is a NUMBER -- propTypes declares it so, and the constructor
-        // validates it with checkValidFloat. Array.isArray is therefore false for every
-        // value the prop can legally hold, and the branch can never be taken, so a chart
-        // re-rendered with a new ratio keeps the one it mounted with.
-        //
-        // Reaching this in the app needs a caller that both omits 'height' and varies
-        // 'aspect_ratio', which neither page does today -- the stream page passes a
-        // height, and the distribution page passes a fixed ratio. That is why it has
-        // gone unnoticed rather than why it is correct.
-        //
-        // The fix is to drop the two Array checks, matching the 'height' clause directly
-        // above it. Deliberately not made here.
+        // validates it with checkValidFloat. Both tests were false for every value the
+        // prop can legally hold, so the branch was unreachable and the constructor's
+        // ratio was permanent. The two array tests are now one checkValidFloat, which is
+        // how line-chart.jsx was fixed for the identical defect.
         //
         const { rerender } = render(<StackedAreaChart data={DATA} data_keys={KEYS} aspect_ratio={3} />);
         expect(lastContainer().aspect).toBe(3);
 
         rerender(<StackedAreaChart data={DATA} data_keys={KEYS} aspect_ratio={2} />);
 
+        expect(lastContainer().aspect).toBe(2);
+    });
+
+    it('ignores an aspect_ratio that is not a usable number', () => {
+        //
+        // the guard the fix had to keep: checkValidFloat still rejects a value the chart
+        // cannot size itself from, so a bad prop leaves the ratio it mounted with rather
+        // than handing recharts a NaN aspect and collapsing the container.
+        //
+        const quiet = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const { rerender } = render(<StackedAreaChart data={DATA} data_keys={KEYS} aspect_ratio={3} />);
+
+        rerender(<StackedAreaChart data={DATA} data_keys={KEYS} aspect_ratio='wide' />);
+
         expect(lastContainer().aspect).toBe(3);
+
+        quiet.mockRestore();
     });
 
     it('syncs a changed label format', () => {

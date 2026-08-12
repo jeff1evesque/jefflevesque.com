@@ -38,6 +38,50 @@ function bodyText() {
     return document.body.textContent.replace(/\s+/g, ' ');
 }
 
+//
+// Wednesday 2026-03-18, after daylight time begins, so both instants below are EDT
+// and the eastern hour the constructor reads is UTC-4. A fixed weekday matters as
+// much as a fixed hour: the market-hours test also gates on the day.
+//
+const DURING_THE_SESSION = '2026-03-18T15:00:00Z';   // 11:00 EDT
+const AFTER_THE_BELL = '2026-03-18T21:00:00Z';       // 17:00 EDT
+
+//
+// everything jest can fake EXCEPT Date. The component reads the wall clock in its
+// constructor, so that is the only thing worth pinning -- faking the timers as well
+// would stall react-spinners and MUI's transitions, which is a different test.
+//
+const TIMERS_LEFT_REAL = [
+    'hrtime',
+    'nextTick',
+    'performance',
+    'queueMicrotask',
+    'requestAnimationFrame',
+    'cancelAnimationFrame',
+    'requestIdleCallback',
+    'cancelIdleCallback',
+    'setImmediate',
+    'clearImmediate',
+    'setInterval',
+    'clearInterval',
+    'setTimeout',
+    'clearTimeout',
+];
+
+//
+// Note: the clock is restored before the assertions run. Only the constructor reads
+//       it, and leaving it faked would carry into RTL's own cleanup.
+//
+function setupAt(iso, props = {}) {
+    jest.useFakeTimers({ doNotFake: TIMERS_LEFT_REAL, now: new Date(iso) });
+
+    try {
+        return setup(props);
+    } finally {
+        jest.useRealTimers();
+    }
+}
+
 describe('the stream listing', () => {
     it('lists all five streams', () => {
         setup();
@@ -106,14 +150,33 @@ describe('each row before data arrives', () => {
         expect(bodyText()).not.toContain('0%');
     });
 
-    it('defaults every stream to the daily rate', () => {
+    it('defaults every stream to the daily rate outside market hours', () => {
         //
         // daily is the rate the page has always drawn, and the one every stream
         // supports -- minute coverage is only gradeable for stockmarket.
         //
-        setup();
+        setupAt(AFTER_THE_BELL);
 
-        expect(screen.getAllByText('Day').length).toBeGreaterThanOrEqual(5);
+        expect(screen.getAllByText('Day')).toHaveLength(5);
+        expect(screen.queryByText('Minute')).toBeNull();
+    });
+
+    it('opens the S&P 500 at the minute rate while the market is open', () => {
+        //
+        // the other half of the same rule, and the reason this pair needs a pinned
+        // clock. stream.jsx:234 reads the eastern wall clock in its constructor and
+        // gives stockmarket the minute rate between 09:30 and 16:00 on a weekday, so
+        // whichever regime is asserted, the assertion is only true for part of the day.
+        //
+        // This previously read 'defaults every stream to the daily rate' against the
+        // real clock and expected five 'Day' labels. It passed overnight and at
+        // weekends, and failed every weekday afternoon -- the suite was green or red
+        // depending on when it ran, which is worse than either answer.
+        //
+        setupAt(DURING_THE_SESSION);
+
+        expect(screen.getAllByText('Day')).toHaveLength(4);
+        expect(screen.getAllByText('Minute')).toHaveLength(1);
     });
 });
 
