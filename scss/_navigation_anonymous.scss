@@ -1,0 +1,158 @@
+// _navigation_anonymous.scss: generates css solution for general navigation,
+//     and menu links, for anonymous users.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+#bootstrap-override {
+  .small-viewport {
+    .anonymous {
+      .menu-container {
+        .main-navigation {
+          .dropdown-menu {
+            width: 100%;
+          }
+          margin-bottom: 1.5rem;
+        }
+
+        .menu-login {
+          background-color: transparent !important;
+        }
+
+        .menu-register {
+          background-color: transparent !important;
+        }
+
+        .navbar-header {
+          padding: 0 0 0 $gutter-1 / 2;
+        }
+      }
+    }
+  }
+
+  .medium-viewport,
+  .large-viewport {
+    .anonymous {
+      .menu-container {
+        .main-navigation {
+          margin: 0.75rem 0;
+        }
+
+        .menu-home-desktop {
+          justify-content: space-between;
+        }
+
+        .main-navigation-row {
+          width: 100%;
+        }
+
+        .home {
+          text-align: center;
+        }
+      }
+
+      .navbar-nav {
+        cursor: auto;
+      }
+    }
+  }
+
+  .anonymous {
+    .btn {
+      height: inherit !important;
+    }
+
+    .mn-2 {
+      color: inherit !important;
+    }
+
+    .mn-2:hover {
+      color: $gray-9 !important;
+    }
+
+    .main-navigation {
+      font-weight: 500;
+      text-align: right;
+    }
+
+    .menu-login,
+    .menu-register {
+      padding: .75rem 0;
+    }
+
+    .menu-home,
+    .menu-register {
+      .home {
+        float: left;
+        margin-left: .5rem;
+      }
+    }
+
+    .menu-login {
+      background-color: transparent;
+      text-align: center;
+
+      .home {
+        display: inline-block;
+      }
+    }
+
+    .navbar-nav {
+      margin-top: 0;
+    }
+
+    .navbar {
+      border-radius: 0;
+      margin-bottom: 0;
+
+      > #mr-auto {
+        margin-top: 1rem;
+      }
+
+      .menu-label {
+        color: $header-font-color;
+      }
+
+      .menu-label:hover {
+        color: $header-font-color-hover;
+      }
+
+      .navbar-collapse {
+        > .show {
+          background-color: $gray-9;
+        }
+      }
+
+      #basic-nav-dropdown {
+        padding-right: 1rem;
+      }
+
+      #basic-nav-dropdown:hover,
+      .navbar-brand:hover {
+        color: $white-1;
+      }
+
+      .dropdown-toggle {
+        padding: 0;
+      }
+
+      //
+      // @session, @nav_item are the same level
+      //
+      .nav-item {
+        border-bottom: 1px solid $gray-7;
+      }
+
+      .nav-item:last-of-type {
+        a {
+          margin-bottom: 0;
+          padding: 0;
+          text-decoration: none;
+        }
+      }
+    }
+  }
+}

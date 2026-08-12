@@ -1,0 +1,462 @@
+// _webform.scss: contains general webform variables.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+.checkbox-horizontal {
+  label input {
+    margin-right: 0.5rem;
+  }
+  label:first-of-type {
+    margin: 0 1rem 0 0;
+  }
+}
+
+.large-viewport {
+  div.MuiFormControl-root {
+    padding: 0 0.75rem 0 0;
+  }
+}
+
+.checkbox-horizontal {
+  label,
+  label:first-of-type {
+    margin-top: 1rem;
+    width: auto;
+  }
+}
+
+.checkbox-vertical > div {
+  margin-bottom: 1rem;
+  input {
+    margin-right: 0.5rem;
+  }
+
+  div.MuiFormControl-root {
+    margin: 1rem 0 0 0;
+    width: 100%;
+
+    label {
+      margin: 0.25rem 0 0 0.5rem;
+    }
+  }
+}
+
+.checkbox-vertical-expanded {
+  div.MuiFormControl-root {
+    padding: 0;
+  }
+}
+
+.border-bottom {
+  border-bottom: 1px solid rgb(229, 231, 235);
+  color: rgb(107, 114, 128);
+  padding: 0 0 1.25rem 0;
+}
+
+.checkbox-vertical > div.row:first-child {
+  margin-top: 1rem;
+}
+
+.home {
+  .checkbox-horizontal {
+    bottom: 1rem;
+    position: fixed;
+    right: 1rem;
+  }
+  .checkbox-vertical {
+    margin-top: 1rem;
+  }
+}
+
+.ul-two-columns {
+    columns: 2;
+    -webkit-columns: 2;
+    -moz-columns: 2;
+}
+
+#bootstrap-override {
+  .vertical-margin {
+    margin: 1.5rem 0;
+  }
+
+  .col-sm-6 {
+    label {
+      padding-right: 1rem;
+    }
+  }
+
+  .dataset-url:first-of-type {
+    clear: both;
+    float: left;
+  }
+
+  .dataset-url {
+    clear: both;
+    display: block;
+    margin: 0 0 $gutter-1 / 2;
+  }
+
+  .input-submit {
+    display: block;
+    text-align: center;
+    width: 100%;
+  }
+
+  .selected-flag {
+    background-color: $gray-2;
+    border-right: 1px solid $gray-4;
+  }
+
+  .h4-finesse {
+    border-bottom: 1px solid #f3f4f6;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .general-list {
+    li {
+      margin: 0.85rem 0;
+    }
+  }
+
+  form {
+    .note {
+      .invalid {
+        color: $red-1;
+        font-weight: 700;
+      }
+    }
+
+    input,
+    select,
+    textarea {
+      border: 1px solid #gray-5;
+      -moz-box-sizing: border-box;
+      -webkit-box-sizing: border-box;
+      box-sizing: border-box;
+      margin: 0;
+      outline: none;
+      padding: .438rem;
+      -moz-transition: all .30s ease-in-out;
+      -ms-transition: all .30s ease-in-out;
+      -o-transition: all .30s ease-in-out;
+      -webkit-transition: all .30s ease-in-out;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border: 1px solid $focus;
+      -moz-box-shadow: 0 0 .5rem $focus;
+      -webkit-box-shadow: 0 0 .5rem $focus;
+      box-shadow: 0 0 .5rem $focus;
+    }
+
+    fieldset {
+      padding: .75rem 1.5rem 1rem;
+    }
+
+    > fieldset {
+      > fieldset {
+        border: 1px solid $gray-1;
+        margin-bottom: $gutter-1 * .75;
+      }
+    }
+
+    .form-submit {
+      margin-top: $gutter-1 / 2;
+    }
+
+    label {
+      color: $gray-7;
+    }
+
+    .form-label.invalid::after {
+      color: $red-1;
+      content: ' *';
+    }
+
+    .input-block {
+      border: 1px solid $gray-4;
+      border-radius: .1875rem;
+      box-shadow: inset 0 1px 2px $gray-1;
+      box-sizing: border-box;
+      color: $gray-7;
+      display: block;
+      font-size: .875rem;
+      padding: .425rem .55rem;
+      width: 100%;
+    }
+
+    legend {
+      border-bottom: 0;
+      color: $gray-7;
+      font-size: 1.25rem;
+      margin-bottom: 0;
+      padding: 0 $gutter-1 / 4;
+      width: auto;
+    }
+
+    .invalid-pop {
+      background-color: $red-3;
+      border: 1px solid $gray-2;
+      border-radius: 5px;
+      border-style: solid;
+      border-width: 1px;
+      color: $red-2;
+      margin-bottom: 1rem;
+      padding: 1rem 1.25rem;
+
+      .link {
+        color: $blue-hyperlink;
+        cursor: pointer;
+      }
+
+      .link:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .form-group {
+    margin: 1.15rem 0;
+
+    .react-tel-input {
+      .flag {
+        width: 24px;
+      }
+
+      .form-control {
+        box-shadow: inset 0 1px 2px $gray-1;
+        border-radius: .1875rem;
+      }
+    }
+
+    .country-list {
+      .flag {
+        display: none;
+      }
+
+      .dial-code {
+        display: none;
+      }
+    }
+  }
+
+  fieldset .error {
+    float: right;
+  }
+
+  .form-note {
+    clear: both;
+    margin-bottom: .625rem;
+    padding-top: 1.25rem;
+  }
+
+  .analysis-container {
+    width: 100%;
+
+    label {
+      font-weight: normal;
+      padding-left: 0;
+    }
+
+    .checkbox {
+      input {
+        margin: .3rem 0 0 1rem;
+      }
+    }
+
+    .slider-value {
+      font-size: 1.25rem;
+      padding-top: .5rem;
+      text-align: center;
+    }
+  }
+
+  .login-form,
+  .register-form,
+  .reset-password-form {
+    .form-body, .form-highlight {
+      margin-bottom: 2rem;
+    }
+
+    .form-body {
+      border: 1px solid $gray-3;
+      border-radius: 5px;
+      padding: 1.25rem;
+
+      label {
+        display: block;
+        font-weight: normal;
+        margin-bottom: .5rem;
+      }
+
+      .input-block {
+        margin-bottom: 1rem;
+        margin-top: .35rem;
+      }
+
+      .input-submit {
+        margin-top: 1.25rem;
+      }
+    }
+
+    .form-highlight {
+      background-color: #f7f5f7 !important;
+      border: 1px solid $gray-2 !important;
+    }
+
+    .form-group-mui {
+      position: relative;
+
+      .MuiFormControlLabel-label {
+        position: absolute;
+        top: 0.71rem;
+      }
+    }
+  }
+
+  .login-form,
+  .reset-password-form {
+    margin: 0 auto;
+    width: $mobile-width;
+
+    .form-header {
+      margin-bottom: 1rem;
+      text-align: center;
+
+      h1 {
+        font-size: 1.65rem;
+        font-weight: 400;
+      }
+    }
+  }
+
+  .register-form {
+    color: $gray-7;
+    margin: 0 auto 2rem;
+    width: 32rem;
+
+    .form-highlight {
+      padding-bottom: 0;
+    }
+
+    h1 {
+      font-size: 2.813rem;
+      font-weight: 400;
+    }
+
+    label {
+      color: $gray-7;
+      display: block;
+      font-weight: 500;
+      margin: 0 0 .4rem;
+    }
+  }
+
+  .register-form-mobile {
+    width: $mobile-width;
+
+    .btn {
+      width: 100%;
+    }
+  }
+
+  .account-type {
+    max-width: 1200px;
+  }
+}
+
+.agreement {
+  border-radius: 0.75rem;
+  border: 1px solid rgb(229, 231, 235);
+  padding: 2rem;
+
+  .agreement-content {
+    svg {
+      margin: -0.2rem 0.65rem 0 0;
+    }
+
+    p {
+      border-bottom: 1px solid rgb(243, 244, 246);
+      border-top: 1px solid rgb(243, 244, 246);
+      margin-top: 1.25rem;
+      padding: 1.25rem 0;
+    }
+  }
+
+  .agreement-button {
+    margin-top: 1.25rem;
+
+    a.mn-2 {
+      margin: 0 0.5rem;
+    }
+  }
+
+  .agreement-button a.mn-2:first-child {
+    margin-left: 0;
+  }
+}
+
+.large-viewport {
+  .agreement {
+    min-height: 15rem;
+  }
+}
+
+div.agreement-mobile {
+  padding: 1.65rem;
+
+  .agreement-button {
+    text-align: center;
+  }
+}
+
+.account-type {
+  div.agreement-mobile {
+    margin-bottom: 1.5rem;
+  }
+}
+
+#bootstrap-override {
+  .small-viewport {
+    input {
+      font-size: 16px;
+    }
+  }
+
+  .summary-block {
+    margin-bottom: 2.5rem;
+  }
+
+  .summary-content > h4 {
+    text-align: center;
+    margin: 2rem 0 1rem 0;
+    width: 100%;
+  }
+
+  .summary-content > h5 {
+    margin: 1.25rem 0;
+  }
+
+  .summary-item {
+    margin-bottom: 1.25rem;
+
+    .accordion-description {
+      border-top: 1px solid rgb(243, 244, 246);
+      margin: 1.25rem 1.25rem 0;
+      padding-top: 1.25rem;
+    }
+  }
+
+  div.summary-item-mobile {
+    .accordion-description {
+      margin: 1.25rem 0.25rem 0;
+    }
+  }
+}

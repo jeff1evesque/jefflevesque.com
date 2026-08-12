@@ -1,0 +1,87 @@
+name: tests
+
+##
+## Push is scoped to the default branch. With a bare `push:` beside
+## `pull_request:`, every commit on a branch with an open pull request fires
+## this workflow twice and bills twice for the same answer -- see trivy.yml for
+## the longer note. Branch work stays covered by `pull_request`, and the
+## direct-to-master case by `push`.
+##
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  jest:
+    name: jest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jsx
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # jest 29 needs ^14.15 || ^16.10 || >=18, and @testing-library/react 16
+      # wants a current runtime; node 20 matches the `lint` workflow so both
+      # jobs run on one version.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 'npm install' rather than 'npm ci': package-lock.json is gitignored in
+      # this repository (see .gitignore), so there is no lock file in the
+      # checkout for 'npm ci' to read.
+      #
+      # Note: the full dependency tree is needed here, unlike the lint job which
+      #       installs only eslint -- the tests import the real components, which
+      #       pull in React, MUI, react-router and redux.
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run tests
+        run: npx jest --config jest.config.js
+
+      # The README badge is a shields.io 'endpoint' badge: shields fetches a small
+      # JSON document at render time and draws whatever number it finds, so the
+      # figure follows CI rather than someone's memory. This step rewrites that
+      # document after every master build.
+      #
+      # Only from a push to master. On a branch or a pull request the badge would
+      # otherwise advertise whatever was last pushed anywhere, and a fork's build
+      # has no access to the secrets in any case.
+      #
+      # Note: what gets published is built by scripts/coverage_badge.py, which emits
+      #       the overall statement percentage and refuses to emit anything holding a
+      #       path or a source-file extension. That matters because the gist is
+      #       PUBLIC and the report it is derived from is not: coverage-summary.json
+      #       carries one absolute path per source file.
+      - name: Publish the coverage badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GIST_ID: ${{ secrets.COVERAGE_GIST_ID }}
+          GIST_TOKEN: ${{ secrets.COVERAGE_GIST_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GIST_ID}" ] || [ -z "${GIST_TOKEN}" ]; then
+            echo "::warning::COVERAGE_GIST_ID or COVERAGE_GIST_TOKEN is not set -- the coverage badge will go stale. See the Coverage section of README.md."
+            exit 0
+          fi
+
+          payload="$(python3 ../scripts/coverage_badge.py coverage-summary.json)"
+          echo "publishing: ${payload}"
+
+          # --fail so an api error stops the step rather than leaving a stale badge
+          # and a green tick. The token is passed by header from the environment and
+          # never appears in the command line or the log.
+          curl -sS --fail-with-body -X PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GIST_TOKEN}" \
+            "https://api.github.com/gists/${GIST_ID}" \
+            -d "$(jq -n --arg content "${payload}" \
+                  '{files: {"coverage.json": {content: $content}}}')" \
+            -o /dev/null

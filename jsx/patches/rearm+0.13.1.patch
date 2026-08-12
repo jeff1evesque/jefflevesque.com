@@ -1,0 +1,46 @@
+diff --git a/node_modules/rearm/lib/Breakpoint.js b/node_modules/rearm/lib/Breakpoint.js
+index a4f432e..6a6a6ea 100644
+--- a/node_modules/rearm/lib/Breakpoint.js
++++ b/node_modules/rearm/lib/Breakpoint.js
+@@ -145,6 +145,16 @@ var BreakpointRender = function (_React$Component) {
+       previousKey: null,
+       bp: _this.createBp()
+     };
++
++    // seed the initial viewport breakpoint synchronously (previously done in
++    // componentWillMount) so the first render is correct without an UNSAFE_
++    // lifecycle; resize listeners + updates run in componentDidMount.
++    if (typeof window !== 'undefined' && props.type !== 'element') {
++      var _initialSize = _getSize.getViewportSize();
++      var _initialRelationships = calcBreakpoints(props.breakpoints, _initialSize);
++      _this.state.current = _initialRelationships;
++      _this.state.previousKey = _initialRelationships.key;
++    }
+     return _this;
+   }
+ 
+@@ -184,24 +194,6 @@ var BreakpointRender = function (_React$Component) {
+         }
+       };
+     }
+-  }, {
+-    key: 'componentWillMount',
+-    value: function componentWillMount() {
+-      if (typeof window === 'undefined') return;
+-      if (this.props.type === 'element') return;
+-
+-      // sets this.previousElement when type="element" which we use below
+-      this.setupListeners();
+-
+-      var size = this.previousElement ? (0, _getSize.getElementSize)(this.previousElement) : (0, _getSize.getViewportSize)();
+-
+-      var relationships = calcBreakpoints(this.props.breakpoints, size);
+-      this.setState({
+-        current: relationships,
+-        previousKey: relationships.key,
+-        bp: this.createBp()
+-      });
+-    }
+   }, {
+     key: 'maybeUpdate',
+     value: function maybeUpdate() {

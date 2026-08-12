@@ -1,0 +1,15 @@
+// _d3-chart: contains general d3 chart style.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+.small-viewport {
+  .d3-area-chart {
+    text {
+      font-size: 16px;
+    }
+  }
+}
