@@ -1,0 +1,72 @@
+name: lint
+
+##
+## Push is scoped to the default branch. With a bare `push:` beside
+## `pull_request:`, every commit on a branch with an open pull request fires
+## this workflow twice and bills twice for the same answer -- see trivy.yml for
+## the longer note. Branch work stays covered by `pull_request`, and the
+## direct-to-master case by `push`.
+##
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  ruff:
+    name: ruff
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Pinned deliberately: an unpinned linter means a new upstream release
+      # can turn an untouched branch red overnight. Bump this on purpose, so
+      # the new findings land in a commit that is about the bump.
+      - name: Install ruff
+        run: pip install ruff==0.16.1
+
+      # Rules and exclusions live in .ruff.toml, so this is byte-for-byte the
+      # same check that .githooks/pre-commit runs locally -- CI never surprises
+      # you with a rule the hook did not apply.
+      - name: Lint
+        run: ruff check --output-format=github .
+
+  # This repository is overwhelmingly JavaScript: 144 tracked .js/.jsx files
+  # against 2 Python ones, so eslint is the check that matters here. Separate
+  # job from ruff so a JS failure and a Python failure stay distinguishable.
+  eslint:
+    name: eslint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # All application code, and the eslint config, live under jsx/.
+        working-directory: jsx
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # eslint 9 requires Node ^18.18 || ^20.9 || >=21.1.
+          node-version: "20"
+
+      # Only the two lint packages, not the project's full runtime dependency
+      # tree (MUI, d3, webpack, ...). eslint.config.mjs deliberately hard-codes
+      # its globals rather than depending on the `globals` package so that this
+      # stays true, which keeps the job to a few seconds.
+      #
+      # Versions are pinned in package.json; installing them explicitly here
+      # avoids a full `npm install` and the patch-package postinstall hook.
+      - name: Install eslint
+        run: npm install --no-save --no-audit --no-fund eslint@9.39.5 eslint-plugin-react@7.37.5
+
+      - name: Lint
+        run: npx eslint .
