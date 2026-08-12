@@ -1,0 +1,80 @@
+#!/bin/sh
+#
+# Reject staged changes containing invisible or homoglyph-prone Unicode, or a
+# committed secret.
+#
+# Enable once per clone:
+#     git config core.hooksPath .githooks
+#
+# This mirrors the `unicode` and `gitleaks` GitHub Actions workflows so the same
+# rules apply locally and in CI. CI is the enforcement -- this hook only fails
+# faster, and can be bypassed with `git commit --no-verify`.
+#
+# Both checkers are stdlib-only and read their rules from files in the
+# repository, so a fresh clone is protected with nothing installed. The secret
+# check is a SUBSET of what CI runs: CI additionally scans full history with
+# gitleaks and its ~150 provider rules.
+#
+set -e
+
+python3 scripts/check_unicode.py --staged
+python3 scripts/check_secrets.py --staged
+
+#
+# Lint the staged Python files. Mirrors the `lint` GitHub Actions workflow,
+# which reads the same .ruff.toml, so the hook and CI cannot disagree about
+# which rules apply.
+#
+# Unlike the two checks above, this one is NOT stdlib-only -- it needs ruff on
+# PATH. A fresh clone may not have it, so a missing ruff is a skip with a
+# notice rather than a hard failure; CI remains the enforcement, which is the
+# same division of labour described at the top of this file.
+#
+staged_python=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.py$' || true)
+
+if [ -n "${staged_python}" ]; then
+    if command -v ruff >/dev/null 2>&1; then
+        # --force-exclude makes ruff honour the exclusions in .ruff.toml even
+        # though the paths are being named explicitly here.
+        echo "${staged_python}" | xargs ruff check --force-exclude --
+    else
+        echo 'Notice (pre-commit): ruff is not installed -- skipping the Python lint.'
+        echo '                     CI still enforces it. Install: pip install ruff==0.16.1'
+    fi
+fi
+
+#
+# Lint staged JavaScript. Mirrors the `eslint` job in the `lint` GitHub Actions
+# workflow, which reads the same jsx/eslint.config.mjs.
+#
+# Like the ruff step above, eslint is not part of any stdlib, so a missing
+# install is a skip with a notice rather than a hard failure -- CI remains the
+# enforcement. Paths are made relative to jsx/ because that is where the config
+# lives and where eslint resolves its plugins from.
+#
+staged_js=$(git diff --cached --name-only --diff-filter=ACMR \
+    | grep -E '^jsx/.*\.(js|jsx)$' || true)
+
+node_major=$(node --version 2>/dev/null | sed -n 's/^v\([0-9][0-9]*\).*/\1/p')
+
+if [ -n "${staged_js}" ]; then
+    if [ ! -x jsx/node_modules/.bin/eslint ]; then
+        echo 'Notice (pre-commit): eslint is not installed -- skipping the JavaScript lint.'
+        echo '                     CI still enforces it. Install: (cd jsx && npm install)'
+
+    # eslint 9 requires node ^18.18 || ^20.9 || >=21.1 and CRASHES on older
+    # versions rather than reporting anything useful -- on node 16 it dies
+    # inside its own config loader with "structuredClone is not defined".
+    # Without this guard that crash blocks every commit, which is exactly the
+    # failure mode this hook is supposed to avoid.
+    elif [ -z "${node_major}" ] || [ "${node_major}" -lt 18 ]; then
+        echo "Notice (pre-commit): node ${node_major:-(not found)} is too old for eslint 9 (needs >= 18.18)"
+        echo '                     -- skipping the JavaScript lint. CI runs it on node 20.'
+        echo '                     Locally: nvm use 20'
+
+    else
+        echo "${staged_js}" \
+            | sed 's|^jsx/||' \
+            | (cd jsx && xargs ./node_modules/.bin/eslint --)
+    fi
+fi

@@ -1,0 +1,207 @@
+#!/bin/bash
+
+###############################################################################
+##
+## intialization: requires earlier configured dependencies:
+##
+##   - https://github.com/jeff1evesque/jefflevesque.com#dependency
+##
+###############################################################################
+
+source ~/.bash_profile
+nvm use 14
+
+###############################################################################
+##
+## local variables
+##
+###############################################################################
+
+CWD="$PWD"
+REGION=$(aws configure get region)
+IDENTITY_POOL_ID="${REGION}:REPLACE-IDENTITY-POOL-ID"
+USER_POOL_ID="${REGION}_REPLACE-USER-POOL-ID"
+USER_POOL_CLIENT_ID='REPLACE-USER-POOL-WEB-CLIENT-ID'
+DEPLOY_JS='false'
+DEPLOY_CSS='false'
+DEPLOY_IMG='false'
+START_LOCAL_SERVER='false'
+CERT_NAME='localhost'
+ENVIRONMENT='dev'
+
+###############################################################################
+##
+## cli arguments
+##
+###############################################################################
+
+for i in "$@"; do
+    case $i in
+        --region=*)
+        REGION="${i#*=}"
+        ;;
+
+        --env=*|--environment=*)
+        ENVIRONMENT="${i#*=}"
+        ;;
+
+        --all)
+        DEPLOY_JS='true'
+        DEPLOY_CSS='true'
+        START_LOCAL_SERVER='true'
+        ;;
+
+        --js)
+        DEPLOY_JS='true'
+        ;;
+
+        --css)
+        DEPLOY_CSS='true'
+        ;;
+
+        --img)
+        DEPLOY_IMG='true'
+        ;;
+
+        --build-local-certs)
+        BUILD_LOCAL_CERTS='true'
+        ;;
+
+        --start|--start-local-server)
+        START_LOCAL_SERVER='true'
+        ;;
+
+        *)
+        echo "ERROR: ${i} is not a valid option"
+        ;;
+    esac
+done
+
+###############################################################################
+##
+## utility function(s)
+##
+###############################################################################
+
+configure_amplify () {
+    cd "$CWD/jsx"
+
+    echo 'Updating is_local.js with desired values'
+    cp -nf is_local.js.replace is_local.js
+
+    if [ "$(uname)" == "Darwin" ]; then
+        sed -i'' -e 's/REPLACE-IS-LOCAL/true/g' is_local.js
+    else
+        sed -i 's/REPLACE-IS-LOCAL/true/g' is_local.js
+    fi
+
+    echo 'Updating aws-exports.js with desired values'
+    cp -nf aws-exports.js.replace aws-exports.js
+
+    if [ "$(uname)" == "Darwin" ]; then
+        sed -i'' -e "s/REPLACE-IDENTITY-POOL-ID/${IDENTITY_POOL_ID}/g" aws-exports.js
+        sed -i'' -e "s/REPLACE-REGION/${REGION}/g" aws-exports.js
+        sed -i'' -e "s/REPLACE-IDENTITY-REGION/${REGION}/g" aws-exports.js
+        sed -i'' -e "s/REPLACE-USER-POOL-ID/${USER_POOL_ID}/g" aws-exports.js
+        sed -i'' -e "s/REPLACE-USER-POOL-WEB-CLIENT-ID/${USER_POOL_CLIENT_ID}/g" aws-exports.js
+    else
+        sed -i "s/REPLACE-IDENTITY-POOL-ID/${IDENTITY_POOL_ID}/g" aws-exports.js
+        sed -i "s/REPLACE-REGION/CognitoRegion/g" aws-exports.js
+        sed -i "s/REPLACE-IDENTITY-REGION/${REGION}/g" aws-exports.js
+        sed -i "s/REPLACE-USER-POOL-ID/${USER_POOL_ID}/g" aws-exports.js
+        sed -i "s/REPLACE-USER-POOL-WEB-CLIENT-ID/${USER_POOL_CLIENT_ID}/g" aws-exports.js
+    fi
+}
+
+compile_js () {
+    echo 'Notice: compiling javascript'
+    mkdir -p "${CWD}/static/js/"
+    cd "${CWD}/jsx"
+    npm run "build:${ENVIRONMENT}"
+    mv dist/content.js "${CWD}/static/js/content.js"
+}
+
+compile_css () {
+    echo 'Notice: compiling css'
+    mkdir -p "${CWD}/static/css/"
+    cd "${CWD}/scss"
+    npm run build:css
+    mv style.css "${CWD}/static/css/style.css"
+}
+
+compile_img () {
+    echo 'Notice: copying image(s)'
+    mkdir -p "${CWD}/static/img/"
+    cp -R "${CWD}/img/" "${CWD}/static/img/"
+}
+
+build_local_certs () {
+    echo 'Notice: building openssl local certificate and key'
+    mkdir -p "${CWD}/certs"
+    openssl \
+        req -x509 \
+        -newkey rsa:2048 \
+        -nodes \
+        -sha256 \
+        -subj '/CN=localhost' \
+        -keyout "${CWD}/certs/${CERT_NAME}.key" \
+        -out "${CWD}/certs/${CERT_NAME}.crt"
+}
+
+start_local_server () {
+    echo 'Notice: starting sirv --single'
+    cd "$CWD"
+
+    if npm list -g --depth 0 | grep 'sirv-cli' > /dev/null 2>&1;
+    then
+        if [ -f "${CWD}/certs/${CERT_NAME}.key" ] && [ -f "${CWD}/certs/${CERT_NAME}.crt" ]; then
+            sirv \
+                --single \
+                --http2 \
+                --key "${CWD}/certs/${CERT_NAME}.key" \
+                --cert "${CWD}/certs/${CERT_NAME}.crt"
+        else
+            sirv --single
+        fi
+    else
+        npm install -g sirv-cli
+    fi
+}
+
+###############################################################################
+##
+## compile
+##
+###############################################################################
+
+if [ "$DEPLOY_JS" = 'true' ];
+then
+    configure_amplify
+    compile_js
+fi
+
+if [ "$DEPLOY_CSS" = 'true' ];
+then
+    compile_css
+fi
+
+if [ "$DEPLOY_IMG" = 'true' ];
+then
+    compile_img
+fi
+
+if [ "$BUILD_LOCAL_CERTS" = 'true' ];
+then
+    build_local_certs
+fi
+
+###############################################################################
+##
+## start server
+##
+###############################################################################
+
+if [ "$START_LOCAL_SERVER" = 'true' ];
+then
+    start_local_server
+fi

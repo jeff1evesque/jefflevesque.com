@@ -1,0 +1,32 @@
+// _area_chart.scss: contains stacked area chart custom style.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+.area-chart-parent {
+  display: flex;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+
+  .refresh {
+    color: #555;
+    position: absolute;
+    right: 2rem;
+    top: 2rem;
+    cursor: pointer;
+    z-index: 1;
+  }
+
+  .refresh-disabled {
+    color: #ccc;
+    position: absolute;
+    right: 2rem;
+    top: 2rem;
+    cursor: auto;
+    z-index: 1;
+  }
+}
