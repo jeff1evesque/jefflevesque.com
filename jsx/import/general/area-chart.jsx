@@ -279,8 +279,19 @@ class StackedAreaChart extends Component {
             && checkValidFloat(this.props.aspect_ratio)
             && this.props.aspect_ratio > 0
             && 'aspect_ratio' in prevProps
-            && Array.isArray(prevProps.aspect_ratio)
-            && prevProps.aspect_ratio.length > 0
+            //
+            // 'checkValidFloat' -- this read 'Array.isArray(prevProps.aspect_ratio)'
+            // and 'prevProps.aspect_ratio.length > 0', and aspect_ratio is a NUMBER, so
+            // both tests were false for every value it could hold and the branch was
+            // unreachable: the constructor's ratio was permanent.
+            //
+            // the same defect line-chart.jsx carried and was fixed for, copied from the
+            // 'color' clause above -- where the array tests are correct, because that
+            // prop IS one. Fixed here second because this chart is given an explicit
+            // 'height' by the stream page, which wins over the ratio entirely, so the
+            // stale value had nothing to show through.
+            //
+            && checkValidFloat(prevProps.aspect_ratio)
             && this.props.aspect_ratio !== prevProps.aspect_ratio
         ) {
             this.setState({ aspect_ratio: this.props.aspect_ratio });
