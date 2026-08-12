@@ -299,3 +299,147 @@ describe('the listing figures as they are rendered', () => {
         expect(page.state.list_article.map(v => v.name)).toEqual(['BLS', 'SEC']);
     });
 });
+
+describe('clearing a stream before it is refetched', () => {
+    //
+    // 'reset_stream' runs on every rate change and on every click of the refresh
+    // control, immediately before the new request goes out. If it missed a key the old
+    // rows would still be in state when the response landed and the aggregator would
+    // merge two rates into one chart -- a daily series with an hour of minutes grafted
+    // onto the end of it.
+    //
+    it('clears the chart rows for the stream it names', () => {
+        const page = setup();
+
+        act(() => {
+            page.setState({ chart_data_bls: [row('bls', new Date(), 5)] });
+        });
+
+        act(() => {
+            page.reset_stream('BLS');
+        });
+
+        expect(page.state.chart_data_bls).toEqual([]);
+        expect(page.state.stream_throughput).toBe('n/a');
+    });
+
+    it('falls back to the selected stream when it is named none', () => {
+        //
+        // the refresh control calls it with no argument, on whichever stream the chart is
+        // currently showing.
+        //
+        const page = setup();
+
+        act(() => {
+            page.setState({
+                selected_stream: 'bls',
+                chart_data_bls: [row('bls', new Date(), 5)],
+            });
+        });
+
+        act(() => {
+            page.reset_stream();
+        });
+
+        expect(page.state.chart_data_bls).toEqual([]);
+    });
+
+    it('clears the per-source series alongside the merged one', () => {
+        //
+        // the merged rows and the per-source rows are separate state, and the callback
+        // reads the latter back when it merges. A stale per-source series would be
+        // re-merged into the next response.
+        //
+        const page = setup();
+
+        act(() => {
+            page.setState({
+                chart_data_bls_bls: [row('bls', new Date(), 5)],
+                stream_throughput_bls_bls: 42,
+            });
+        });
+
+        act(() => {
+            page.reset_stream('bls');
+        });
+
+        expect(page.state.chart_data_bls_bls).toEqual([]);
+        expect(page.state.stream_throughput_bls_bls).toBe(0);
+    });
+
+    it('zeroes the throughput for a stream whose partitions are its sources', () => {
+        //
+        // stockmarket and stocksplit reports are not partitioned by source -- their
+        // 'group_by' values ARE the series names -- so there is no per-source series to
+        // clear, only the one throughput figure.
+        //
+        const page = setup();
+
+        act(() => {
+            page.setState({ stream_throughput_stockmarket_stockmarket: 77 });
+        });
+
+        act(() => {
+            page.reset_stream('stockmarket');
+        });
+
+        expect(page.state.chart_data_stockmarket).toEqual([]);
+        expect(page.state.stream_throughput_stockmarket_stockmarket).toBe(0);
+    });
+});
+
+describe('the per-row control tray', () => {
+    function tray(page, stream, url_trigger = false) {
+        const { container } = render(
+            <MemoryRouter>{page.getControlTray(stream, url_trigger)}</MemoryRouter>
+        );
+
+        return container;
+    }
+
+    it('offers the query stats control only for the stockmarket stream', () => {
+        //
+        // the bottom sheet it opens shows candlestick triggers, which only that stream
+        // produces. Every other row renders the tray without it rather than rendering a
+        // control that opens an empty sheet.
+        //
+        const page = setup();
+
+        expect(tray(page, 'StockMarket').querySelector('[data-testid="QueryStatsIcon"]')).toBeTruthy();
+        expect(tray(page, 'BLS').querySelector('[data-testid="QueryStatsIcon"]')).toBeNull();
+    });
+
+    it('gives every stream a chart control and an alarm link', () => {
+        const page = setup();
+        const container = tray(page, 'BLS');
+
+        expect(container.querySelector('[data-testid="BarChartIcon"]')).toBeTruthy();
+        expect(container.querySelector('a[href="/stream/bls/alarm"]')).toBeTruthy();
+    });
+
+    it('routes the query stats control when asked for a url trigger', () => {
+        //
+        // the same control is a link on the trigger page and a sheet opener on the
+        // listing, which is what 'url_trigger' selects between.
+        //
+        const page = setup();
+
+        expect(tray(page, 'StockMarket', true).querySelector('a[href="/stream/stockmarket/trigger"]'))
+            .toBeTruthy();
+        expect(tray(page, 'StockMarket', false).querySelector('a[href="/stream/stockmarket/trigger"]'))
+            .toBeNull();
+    });
+
+    it('opens the sheet when the listing variant is clicked', () => {
+        const page = setup();
+        const container = tray(page, 'StockMarket');
+
+        expect(page.state.bottom_sheet_open).toBe(false);
+
+        act(() => {
+            container.querySelector('[data-testid="QueryStatsIcon"]').parentElement.click();
+        });
+
+        expect(page.state.bottom_sheet_open).toBe(true);
+    });
+});
