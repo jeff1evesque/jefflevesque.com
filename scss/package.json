@@ -1,0 +1,17 @@
+{
+  "name": "sass",
+  "version": "1.0.0",
+  "description": "packages needed for source files.",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "sass --no-source-map style.scss style.css",
+    "watch:scss": "onchange '**/*.scss' -- npm run build:css"
+  },
+  "author": "Jeffrey Levesque",
+  "license": "BSD-3-Clause",
+  "repository": "github:jeff1evesque/jefflevesque.com",
+  "dependencies": {
+    "onchange": "^7.1.0",
+    "sass": "~1.77.0"
+  }
+}

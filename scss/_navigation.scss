@@ -1,0 +1,173 @@
+// _navigation.scss: generates css solution for general navigation, and menu
+//     links, for all users.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+#bootstrap-override {
+  .small-viewport {
+    .menu-container {
+      .main-navigation {
+        background-color: black;
+      }
+    }
+  }
+
+  .small-viewport,
+  .medium-viewport {
+    .menu-container {
+      .dropdown {
+        position: relative;
+
+        ::after {
+          position: absolute;
+          right: 1.25rem;
+          top: 1.95rem;
+        }
+      }
+
+      .dropdown-menu {
+        .dropdown-item {
+          padding: 1.15rem $anon-dropdown-item-side;
+        }
+
+        .dropdown-item:hover {
+          background-color: rgba(0, 0, 0, 0.05);
+          border-left: $menu-border-left solid green;
+          padding-left: $anon-dropdown-item-side - $menu-border-left;
+        }
+      }
+    }
+
+    .menu-register {
+      background-color: none !important;
+    }
+
+    .menu-login {
+      background-color: none !important;
+    }
+  }
+
+  .medium-viewport,
+  .large-viewport {
+    .articles {
+      div.dropdown-menu {
+        width: 100%;
+        text-align: center;
+      }
+    }
+
+    .menu-container {
+      div.navbar-nav {
+        text-align: left;
+        margin-top: 0.85rem;
+      }
+    }
+  }
+
+  .menu-container {
+    position: relative;
+    z-index: 1;
+
+    .navbar {
+      a {
+        color: $white-1;
+        height: 4rem;
+        text-decoration: none;
+      }
+
+      a.main-navigation-large {
+        color: $gray-8;
+        font-size: 1.125rem;
+        letter-spacing: 0.02em;
+        padding: 0.5rem 1.5rem
+      }
+
+      a.main-navigation-large.active {color: $green-6;}
+      a.main-navigation-large.active,
+      a.main-navigation-large:hover {
+        text-decoration: underline;
+        text-decoration-color: $gray-1;
+        text-underline-offset: 0.5rem;
+      }
+
+      .dropdown-menu {
+        background: rgba(0, 0, 0, 0.85);
+
+        .dropdown-item:hover {
+          border-left: $menu-border-left solid green;
+        }
+      }
+
+      .navbar-brand {
+        padding-left: 1rem;
+      }
+
+      .nav-item,
+      .navbar-nav {
+        cursor: pointer;
+        position: relative;
+
+        .user {
+          top: 0.1rem;
+        }
+
+        .books {
+          top: 0.15rem;
+        }
+
+        svg {
+          position: absolute;
+          left: 1.5rem;
+          top: 0.9rem;
+        }
+
+        .menu-label {
+          position: absolute;
+          top: 1.25rem;
+          left: 6rem;
+        }
+      }
+
+      .nav-item:hover {
+        background-color: $gray-9;
+      }
+
+      .navbar-toggler {
+        padding: 0.1rem 0.5rem;
+        background-color: $gray-4;
+        border-color: $gray-6;
+        margin-right: 1rem;
+      }
+    }
+  }
+
+  .MuiBreadcrumbs-root {
+    text-align:center;
+
+    ol {
+      margin: 0;
+      padding: 0;
+      display:inline-block;
+      list-style: none;
+
+      li {
+        display:inline-block;
+      }
+    }
+  }
+
+  .MuiBreadcrumbs-li {
+    a.breadcrumb-inactive {
+      color: #aaa;
+    }
+
+    a.breadcrumb-inactive:hover {
+      color: $green-6;
+      text-decoration: none;
+    }
+  }
+}

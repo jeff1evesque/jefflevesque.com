@@ -1,0 +1,84 @@
+{
+    "version": "1.0",
+    "build_metadata": {
+        "time_period": "year=2024/month=12",
+        "build_timestamp": "2024-12-31T23:59:59Z",
+        "pipeline_config": {
+            "vector_dim": 1024,
+            "edge_vector_dim": 32,
+            "mock": true,
+            "note": "Representative mock derived from pyg-knowledge-graph-builder ontology inventory; swap for a live graph_schema.json when a build is published."
+        }
+    },
+    "node_types": {
+        "cpi_Index":            { "count": 1240,   "source_type_uri": "https://www.bls.gov/cpi/Index",              "category": "measurement", "has_features": true },
+        "ppi_Index":            { "count": 1180,   "source_type_uri": "https://www.bls.gov/ppi/Index",              "category": "measurement", "has_features": true },
+        "eci_Index":            { "count": 420,    "source_type_uri": "https://www.bls.gov/eci/Index",              "category": "measurement", "has_features": true },
+        "empsit_Series":        { "count": 3100,   "source_type_uri": "https://www.bls.gov/empsit/Series",          "category": "observation",  "has_features": true },
+        "jolts_Series":         { "count": 2050,   "source_type_uri": "https://www.bls.gov/jolts/Series",           "category": "observation",  "has_features": true },
+        "laus_Area":            { "count": 3210,   "source_type_uri": "https://www.bls.gov/laus/Area",              "category": "entity",       "has_features": true },
+        "metro_Area":           { "count": 389,    "source_type_uri": "https://www.bls.gov/metro/Area",             "category": "entity",       "has_features": true },
+
+        "filings_Filing":       { "count": 15230,  "source_type_uri": "http://www.sec.gov/filings#Filing",          "category": "entity",       "has_features": true },
+        "filings_Company":      { "count": 8240,   "source_type_uri": "http://www.sec.gov/filings#Company",         "category": "entity",       "has_features": true },
+        "filings_Sector":       { "count": 11,     "source_type_uri": "http://www.sec.gov/filings#Sector",          "category": "structural",   "has_features": false },
+        "sec_admin_Proceeding": { "count": 640,    "source_type_uri": "https://www.sec.gov/ontology/administrative-proceedings#Proceeding", "category": "observation", "has_features": true },
+        "sec_lit_Litigation":   { "count": 810,    "source_type_uri": "https://www.sec.gov/ontology/litigation#Litigation",                 "category": "observation", "has_features": true },
+        "sec_susp_Suspension":  { "count": 295,    "source_type_uri": "https://www.sec.gov/ontology/trading-suspensions#Suspension",        "category": "observation", "has_features": true },
+
+        "market_EquityQuote":   { "count": 42800,  "source_type_uri": "https://financial-data.org/market/EquityQuote", "category": "measurement", "has_features": true },
+        "market_OptionQuote":   { "count": 128400, "source_type_uri": "https://financial-data.org/market/OptionQuote", "category": "measurement", "has_features": true },
+
+        "alert_Alert":          { "count": 9540,   "source_type_uri": "https://api.weather.gov/alerts/Alert",       "category": "observation",  "has_features": true },
+        "cap_Area":             { "count": 4120,   "source_type_uri": "urn:oasis:names:tc:emergency:cap:1.2#Area",  "category": "structural",   "has_features": false },
+        "nws_Zone":             { "count": 3760,   "source_type_uri": "https://api.weather.gov/ontology#Zone",      "category": "entity",       "has_features": true },
+        "noaa_Station":         { "count": 2210,   "source_type_uri": "https://www.noaa.gov/Station",               "category": "entity",       "has_features": true },
+        "geosparql_Geometry":   { "count": 4120,   "source_type_uri": "http://www.opengis.net/ont/geosparql#Geometry", "category": "structural", "has_features": false },
+
+        "temporal_Month":       { "count": 12,     "source_type_uri": "https://www.bls.gov/temporal/Month",         "category": "temporal",     "has_features": false },
+        "temporal_Quarter":     { "count": 4,      "source_type_uri": "https://www.bls.gov/temporal/Quarter",       "category": "temporal",     "has_features": false },
+        "unified_Month":        { "count": 12,     "source_type_uri": "https://knowledge-graph.org/unified/Month",  "category": "temporal",     "has_features": false },
+        "unified_Quarter":      { "count": 4,      "source_type_uri": "https://knowledge-graph.org/unified/Quarter","category": "temporal",     "has_features": false }
+    },
+    "edge_types": {
+        "(cpi_Index, relatedTo, temporal_Month)":            { "src_type": "cpi_Index",            "relation": "relatedTo",       "dst_type": "temporal_Month",     "count": 1240,   "predicate_uri": "https://www.bls.gov/cpi/relatedTo",              "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(ppi_Index, relatedTo, temporal_Month)":            { "src_type": "ppi_Index",            "relation": "relatedTo",       "dst_type": "temporal_Month",     "count": 1180,   "predicate_uri": "https://www.bls.gov/ppi/relatedTo",              "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(eci_Index, relatedTo, temporal_Quarter)":          { "src_type": "eci_Index",            "relation": "relatedTo",       "dst_type": "temporal_Quarter",   "count": 420,    "predicate_uri": "https://www.bls.gov/eci/relatedTo",              "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(empsit_Series, relatedTo, temporal_Month)":        { "src_type": "empsit_Series",        "relation": "relatedTo",       "dst_type": "temporal_Month",     "count": 3100,   "predicate_uri": "https://www.bls.gov/empsit/relatedTo",           "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(jolts_Series, relatedTo, temporal_Month)":         { "src_type": "jolts_Series",         "relation": "relatedTo",       "dst_type": "temporal_Month",     "count": 2050,   "predicate_uri": "https://www.bls.gov/jolts/relatedTo",            "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(empsit_Series, relatedTo, laus_Area)":             { "src_type": "empsit_Series",        "relation": "relatedTo",       "dst_type": "laus_Area",          "count": 2980,   "predicate_uri": "https://www.bls.gov/empsit/relatedTo",           "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(laus_Area, belongsToSector, metro_Area)":          { "src_type": "laus_Area",            "relation": "belongsToSector", "dst_type": "metro_Area",         "count": 3210,   "predicate_uri": "https://www.bls.gov/laus/belongsToSector",       "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(temporal_Month, precedes, temporal_Month)":        { "src_type": "temporal_Month",       "relation": "precedes",        "dst_type": "temporal_Month",     "count": 11,     "predicate_uri": "https://www.bls.gov/temporal/precedes",          "origin": "raw",         "has_features": true,  "feature_dim": 32 },
+
+        "(filings_Filing, issuedBy, filings_Company)":       { "src_type": "filings_Filing",       "relation": "issuedBy",        "dst_type": "filings_Company",    "count": 15230,  "predicate_uri": "http://www.sec.gov/filings#issuedBy",            "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(filings_Company, belongsToSector, filings_Sector)":{ "src_type": "filings_Company",      "relation": "belongsToSector", "dst_type": "filings_Sector",     "count": 8240,   "predicate_uri": "http://www.sec.gov/filings#belongsToSector",     "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(sec_admin_Proceeding, refersToCompany, filings_Company)": { "src_type": "sec_admin_Proceeding", "relation": "refersToCompany", "dst_type": "filings_Company", "count": 610, "predicate_uri": "https://www.sec.gov/enrichment/refersToCompany", "origin": "enrichment", "has_features": false, "feature_dim": 0 },
+        "(sec_lit_Litigation, refersToCompany, filings_Company)":   { "src_type": "sec_lit_Litigation",   "relation": "refersToCompany", "dst_type": "filings_Company", "count": 780, "predicate_uri": "https://www.sec.gov/enrichment/refersToCompany", "origin": "enrichment", "has_features": false, "feature_dim": 0 },
+        "(sec_susp_Suspension, refersToCompany, filings_Company)":  { "src_type": "sec_susp_Suspension",  "relation": "refersToCompany", "dst_type": "filings_Company", "count": 290, "predicate_uri": "https://www.sec.gov/enrichment/refersToCompany", "origin": "enrichment", "has_features": false, "feature_dim": 0 },
+        "(sec_lit_Litigation, escalatesTo, sec_admin_Proceeding)":  { "src_type": "sec_lit_Litigation",   "relation": "escalatesTo",     "dst_type": "sec_admin_Proceeding", "count": 120, "predicate_uri": "https://www.sec.gov/enrichment/escalatesTo", "origin": "enrichment", "has_features": true, "feature_dim": 32 },
+
+        "(market_EquityQuote, refersToCompany, filings_Company)":   { "src_type": "market_EquityQuote", "relation": "refersToCompany", "dst_type": "filings_Company", "count": 7900, "predicate_uri": "https://financial-data.org/enrichment/refersToCompany", "origin": "enrichment", "has_features": false, "feature_dim": 0 },
+        "(market_OptionQuote, relatedTo, market_EquityQuote)":      { "src_type": "market_OptionQuote", "relation": "relatedTo",       "dst_type": "market_EquityQuote", "count": 118600, "predicate_uri": "https://financial-data.org/enrichment/relatedTo", "origin": "enrichment", "has_features": true, "feature_dim": 32 },
+        "(market_EquityQuote, relatedTo, temporal_Month)":          { "src_type": "market_EquityQuote", "relation": "relatedTo",       "dst_type": "temporal_Month",     "count": 42800, "predicate_uri": "https://financial-data.org/market/relatedTo", "origin": "raw", "has_features": false, "feature_dim": 0 },
+
+        "(alert_Alert, relatedTo, cap_Area)":                { "src_type": "alert_Alert",          "relation": "relatedTo",       "dst_type": "cap_Area",           "count": 9540,   "predicate_uri": "https://api.weather.gov/ontology#relatedTo",     "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(alert_Alert, relatedTo, nws_Zone)":                { "src_type": "alert_Alert",          "relation": "relatedTo",       "dst_type": "nws_Zone",           "count": 8820,   "predicate_uri": "https://api.weather.gov/ontology#relatedTo",     "origin": "raw",         "has_features": false, "feature_dim": 0 },
+        "(alert_Alert, escalatesTo, alert_Alert)":           { "src_type": "alert_Alert",          "relation": "escalatesTo",     "dst_type": "alert_Alert",        "count": 430,    "predicate_uri": "https://www.noaa.gov/enrichment/escalatesTo",    "origin": "enrichment",  "has_features": true,  "feature_dim": 32 },
+        "(cap_Area, relatedTo, geosparql_Geometry)":         { "src_type": "cap_Area",             "relation": "relatedTo",       "dst_type": "geosparql_Geometry", "count": 4120,   "predicate_uri": "http://www.opengis.net/ont/geosparql#relatedTo", "origin": "raw",        "has_features": false, "feature_dim": 0 },
+        "(nws_Zone, relatedTo, noaa_Station)":               { "src_type": "nws_Zone",             "relation": "relatedTo",       "dst_type": "noaa_Station",       "count": 2110,   "predicate_uri": "https://www.noaa.gov/enrichment/relatedTo",      "origin": "enrichment",  "has_features": false, "feature_dim": 0 },
+        "(alert_Alert, leadsTo, alert_Alert)":               { "src_type": "alert_Alert",          "relation": "leadsTo",         "dst_type": "alert_Alert",        "count": 210,    "predicate_uri": "https://www.noaa.gov/enrichment/leadsTo",        "origin": "enrichment",  "has_features": true,  "feature_dim": 32 },
+
+        "(temporal_Month, sameAs, unified_Month)":           { "src_type": "temporal_Month",       "relation": "sameAs",          "dst_type": "unified_Month",      "count": 12,     "predicate_uri": "http://www.w3.org/2002/07/owl#sameAs",           "origin": "unification", "has_features": false, "feature_dim": 0 },
+        "(temporal_Quarter, sameAs, unified_Quarter)":       { "src_type": "temporal_Quarter",     "relation": "sameAs",          "dst_type": "unified_Quarter",    "count": 4,      "predicate_uri": "http://www.w3.org/2002/07/owl#sameAs",           "origin": "unification", "has_features": false, "feature_dim": 0 },
+        "(unified_Month, precedes, unified_Month)":          { "src_type": "unified_Month",        "relation": "precedes",        "dst_type": "unified_Month",      "count": 11,     "predicate_uri": "https://knowledge-graph.org/unified/precedes",   "origin": "unification", "has_features": true,  "feature_dim": 32 }
+    },
+    "summary": {
+        "total_node_types": 24,
+        "total_edge_types": 26,
+        "total_nodes": 231797,
+        "total_edges": 234018,
+        "node_types_with_literal_features": 24,
+        "edge_types_with_features": 6,
+        "edge_types_without_features": 20
+    }
+}

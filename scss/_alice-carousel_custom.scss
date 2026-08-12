@@ -1,0 +1,84 @@
+//
+// _alice-carousel_custom.scss, custom style to accompany provided stylesheet
+//
+
+.featured-mobile,
+.featured-desktop,
+.featured-sheet-mobile,
+.featured-sheet-desktop {
+  h4 {
+    display: inline-block;
+  }
+
+  span.title-count {
+    color: $gray-6;
+    font-size: 18px;
+    padding-left: 1rem;
+  }
+}
+
+.featured-desktop,
+.featured-sheet-desktop {
+  li .MuiPaper-root:hover {
+    .MuiCardActions-root,
+    .MuiCardContent-root {
+      background-color: #fbfbfb;
+    }
+  }
+}
+
+.featured-mobile,
+.featured-sheet-mobile {
+  h4.header-featured,
+  div.header-featured {
+    text-align: center;
+    margin: 0.4rem 0 1.5rem;
+    width: 100%;
+  }
+}
+
+div.featured-sheet-desktop {
+  max-width: 1800px;
+  ul {
+    margin-bottom: -0.75rem;
+  }
+  li > div {
+    margin: 0 0.5rem;
+  }
+}
+
+div.featured-carousel-stock-market {
+  .alice-carousel {
+    button > a {
+      all: unset;
+    }
+  }
+
+  li .MuiPaper-root {
+    border-bottom: 1px solid rgba(0,0,0,.075);
+  }
+
+  li .MuiPaper-root .MuiCardActions-root {
+    padding-top: 0;
+  }
+
+  li svg {
+    background:
+      linear-gradient(-90deg, rgba(0,0,0,.05) 1px, transparent 1px),
+      linear-gradient(rgba(0,0,0,.05) 1px, transparent 1px),
+      linear-gradient(-90deg, rgba(0, 0, 0, .04) 1px, transparent 1px),
+      linear-gradient(rgba(0,0,0,.04) 1px, transparent 1px),
+      linear-gradient(transparent 3px, #f2f2f2 3px, #f2f2f2 78px, transparent 78px),
+      linear-gradient(-90deg, transparent 3px, #f2f2f2 3px, #f2f2f2 78px, transparent 78px),
+      #f2f2f2;
+    background-size:
+      4px 4px,
+      4px 4px,
+      80px 80px,
+      80px 80px,
+      80px 80px,
+      80px 80px,
+      80px 80px,
+      80px 80px;
+  }
+}

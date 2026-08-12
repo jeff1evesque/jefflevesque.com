@@ -1,0 +1,107 @@
+// _navigation_authenticated.scss: generates css solution for general
+//     navigation, and menu links, for authenticated users.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+#bootstrap-override {
+  .authenticated {
+    > .menu-container {
+      background-color: black;
+    }
+  }
+
+  .large-viewport {
+    .authenticated {
+      .menu-container {
+        .navbar {
+          > .navbar-collapse {
+            margin-right: 1rem;
+          }
+
+          border-color: transparent;
+          padding: 0 0 0 $gutter-1 / 2;
+
+          .container {
+            width: 100%;
+          }
+
+          .dropdown {
+            ::after {
+              position: absolute;
+              right: .5rem;
+              top: 1.95rem;
+            }
+          }
+        }
+      }
+
+      .navbar-collapse.in {
+        overflow-y: hidden;
+      }
+
+      div.navbar-nav {
+        margin-top: 0;
+        width: $user-menu-width;
+
+        > .nav-item {
+          padding: 0 0.35rem;
+          width: $user-menu-width;
+
+          svg {
+            padding-bottom: 0.3rem;
+            left: 0.75rem;
+            top: 0.4rem !important;
+          }
+        }
+
+        .dropdown-menu {
+          border-radius: 0;
+          margin-top: 0;
+          margin-left: $user-menu-width - $user-dropdown-menu-width - 0.45rem !important;
+          width: $user-dropdown-menu-width;
+
+          .disabled {
+            list-style: none;
+            padding: 1rem;
+          }
+
+          .dropdown-divider {
+            margin: 0;
+            border-bottom: 1px solid rgba(256, 256, 256, 0.05);
+          }
+
+          .dropdown-item {
+            color: $white-2;
+            padding: 1rem $user-dropdown-item-side;
+          }
+
+          a.dropdown-item:hover,
+          a.dropdown-item:active,
+          a.dropdown-item:focus,
+          a.dropdown-item:visited {
+            background-color: $gray-7;
+            border-left: $menu-border-left solid green;
+            color: $white-1;
+            padding-left: $user-dropdown-item-side - $menu-border-left !important;
+          }
+        }
+      }
+    }
+  }
+
+  .medium-viewport {
+    .authenticated {
+      .menu-container {
+        .navbar {
+          .basic-nav-dropdown {
+            width: $user-menu-width;
+          }
+        }
+      }
+    }
+  }
+}

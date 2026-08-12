@@ -1,0 +1,280 @@
+// style.scss: contains general stylesheet definitions.
+//
+// Note: the following syntax selects all classnames [CLASS],
+//       except the first one:
+//
+//           .[CLASS] ~ .[CLASS] { }
+
+@import 'variables';
+@import 'navigation';
+@import 'navigation_anonymous';
+@import 'navigation_authenticated';
+@import 'webform';
+@import 'spinner';
+@import 'layout';
+@import 'animation';
+@import 'article';
+@import 'd3-chart';
+@import 'form/input_phone';
+@import 'react-datepicker';
+@import 'alice-carousel';
+@import 'alice-carousel_custom';
+@import 'area_chart';
+@import 'checkbox';
+@import 'bootstrap-5.0.0-beta2';
+
+html {
+  font-size: 14px;
+}
+
+.under-construction {
+  background-color: #ffd733;
+  font-weight: 700;
+  margin: 0 var(--bs-gutter-x, 0.75rem);
+  padding: 0.2rem 0;
+  text-align: center;
+}
+
+.margin-bottom {
+  margin-bottom: 2rem;
+}
+
+.header-featured {
+  margin: 0.4rem 0 1.5rem;
+}
+
+#bootstrap-override,
+.react-modal-sheet-container {
+  a,
+  a:active,
+  a:link,
+  a:visited {
+    color: $blue-hyperlink;
+    text-decoration: none;
+  }
+
+  a.anchor-hash, a.anchor-hash:hover {
+    margin: 0.3rem 0 0 0.4rem;
+    text-decoration: none;
+  }
+
+  .border-circle-radius,
+  .border-oval-radius  {
+    display: inline-block;
+    position: relative;
+    z-index: 1;
+  }
+
+  .border-circle-radius:hover:before {
+    opacity: 0.05;
+  }
+
+  .border-oval-radius:hover:before {
+      content: '';
+      background-color: black;
+      border-radius: 10%;
+      position: absolute;
+      top: -0.25rem;
+      right: 0.25rem;
+      bottom: -0.25rem;
+      left: 0.25rem;
+      opacity: 0.025;
+      z-index: -1
+  }
+
+  .border-circle-radius:before {
+      content: '';
+      background-color: black;
+      border-radius: 50%;
+      padding: 0 0.5rem;
+      position: absolute;
+      top: -0.5rem;
+      right: 0.25rem;
+      bottom: -0.5rem;
+      left: 0.25rem;
+      opacity: 0.025;
+      z-index: -1
+  }
+
+  .no-hover:hover {
+    text-decoration: none;
+  }
+
+  .listing {
+    .btn {
+      width: 100%;
+    }
+  }
+
+  a:hover {
+    text-decoration: underline;
+  }
+
+  a.mn-2,
+  .btn {
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: $gray-1;
+    background-image: -webkit-linear-gradient($white-2, $gray-1);
+    background-image: linear-gradient($white-2, $gray-1);
+    border: 1px solid $gray-4;
+    border-radius: 3px;
+    color: $gray-7;
+    cursor: pointer;
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+    padding: 6px 12px;
+    position: relative;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-user-select: none;
+    user-select: none;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background-color: $gray-1;
+    background-image: -webkit-linear-gradient($gray-1, $gray-2);
+    background-image: linear-gradient($gray-1, $gray-2);
+    border-color: $gray-3;
+    text-decoration: none;
+  }
+
+  a.btn-primary,
+  input.btn-primary {
+    background-color: $green-5;
+    background-image: -webkit-linear-gradient($green-2, $green-5);
+    background-image: linear-gradient($green-2, $green-5);
+    border-color: $green-7;
+    color: $white-1;
+  }
+
+  // hover is a small, uniform darkening of the resting gradient — the $green-*
+  // ramp steps too coarsely to express "slightly darker" on its own
+  a.btn-primary:hover,
+  input.btn-primary:hover {
+    background-color: darken($green-5, 5%);
+    background-image: -webkit-linear-gradient(darken($green-2, 5%), darken($green-5, 5%));
+    background-image: linear-gradient(darken($green-2, 5%), darken($green-5, 5%));
+    border-color: $green-7;
+    color: $white-1;
+  }
+
+  .mn-2 {
+    margin-right: .625rem;
+  }
+
+  a.btn,
+  a.btn-primary,
+  a.menu-item {
+    text-decoration: none;
+  }
+
+  body {
+    font-family: 'Segoe UI', Helvetica, sans-serif, 'Open Sans';
+    font-size: 14px;
+    word-wrap: break-word;
+  }
+
+  .header-big {
+    margin: 2rem 0 1rem 0;
+  }
+
+  .block {
+    display: block;
+  }
+
+  .fullspan {
+    width: 100%;
+  }
+
+  .fullspan-b75 {
+    margin-bottom: $gutter-1 * .75;
+    width: 100%;
+  }
+
+  .bold {
+    font-weight: 700;
+  }
+
+  .italic {
+    font-style: italic;
+  }
+
+  .grayed-font {
+    color: $gray-6;
+  }
+
+  .error {
+    color: $red-1;
+    font-weight: 700;
+  }
+
+  .left {
+    float: left;
+  }
+
+  .right {
+    float: right;
+  }
+
+  .center-text {
+    text-align: center;
+  }
+
+  .note {
+    color: $gray-6;
+    font-size: .75rem;
+    margin: .4rem 0 .3rem;
+  }
+
+  .no-vertical-margin {
+    margin-bottom: 0;
+    margin-top: 0;
+  }
+}
+
+#bootstrap-override {
+  .exit {
+    position: relative;
+
+    svg {
+      cursor: pointer;
+      position: absolute;
+      right: 1rem;
+      z-index: 1;
+    }
+  }
+
+  .left-column {
+    .header-featured {
+      text-align: center;
+      margin-bottom: 1.25rem;
+      width: 100%;
+    }
+  }
+}
+
+// react-modal-sheet v2 renders '.react-modal-sheet-container' directly (there is
+// no 'div.sheet-container'), so the previous selector never matched and the exit
+// icon fell back to the generic left placement. the .exit span is made an empty
+// (svg is out of flow), full-width block so the icon anchors to the sheet's
+// top-right corner
+.react-modal-sheet-container {
+  .exit {
+    display: block;
+    width: 100%;
+  }
+
+  .exit > svg {
+    cursor: pointer;
+    position: absolute;
+    top: 1.5rem;
+    right: 1rem;
+    z-index: 1;
+  }
+}

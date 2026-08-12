@@ -1,0 +1,378 @@
+// _article.scss: contains general listing styles.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+.article-listing {
+  a.highlight, div.highlight {
+    background-color: $gray-1;
+  }
+}
+
+.large-viewport {
+  .article-listing {
+    margin-top: 1.5rem;
+  }
+
+  .listing-graphic {
+    padding-bottom: 3rem;
+  }
+
+  // /data page only: the chart row sits directly above the listing row, so the
+  // full 3rem gap reads as excessive; tighten it without affecting the other
+  // pages that share .listing-graphic (model, stream, trigger, category)
+  .data-listing .listing-graphic {
+    padding-bottom: 1rem;
+  }
+}
+
+.medium-viewport {
+  .listing-graphic {
+    padding-bottom: 1.5rem;
+  }
+
+  .data-listing .listing-graphic {
+    padding-bottom: 0.75rem;
+  }
+}
+
+#bootstrap-override {
+  .small-viewport {
+    .listing-graphic {
+      padding-bottom: 1rem;
+    }
+
+    .data-listing .listing-graphic {
+      padding-bottom: 0.5rem;
+    }
+
+    a.article-link,
+    div.article-link {
+      .border-circle-radius:before {
+        top: -0.35rem;
+        right: 0.25rem;
+        bottom: -0.65rem;
+        left: 0.25rem;
+      }
+    }
+  }
+
+  .article-heading {
+    h5 {
+      padding-top: 0.35rem;
+    }
+  }
+}
+
+.medium-viewport,
+.small-viewport {
+  .article-heading {
+    margin-bottom: 1rem;
+
+    button,
+    .dropdown-menu {
+      text-align: center;
+      width: 100%;
+    }
+  }
+}
+
+.small-viewport {
+  .articles {
+    .article-link {
+      margin-bottom: 1rem;
+
+      // the base rule is 'inline-block', so a card shrink-wraps its own
+      // content. that has to become a full-width block here or the grid below
+      // has no free space to distribute: '1fr' would collapse to max-content,
+      // right-aligning the values would be a no-op, and each card would size
+      // its columns independently -- so they would not line up across rows
+      display: block;
+    }
+
+    //
+    // narrow viewport: the detail line is a run of inline 'key: value' spans
+    // joined by bullets, which wraps wherever it runs out of width -- a label
+    // can end up on a different line from its own value, and the bullets
+    // strand at the line ends.
+    //
+    // lay the pairs out as a two-column grid instead: one pair per row, labels
+    // in a shared left column, values right-aligned in a shared right column.
+    // because every row of the listing renders the same grid, the values also
+    // line up vertically across rows, so record counts can be compared down
+    // the column
+    //
+    .control-tray {
+      //
+      // do NOT touch '.control-icon' margins here. they are part of the
+      // '.border-circle-radius' span that the oval ':before' is drawn around,
+      // and that oval is 'border-radius: 50%' over a box measuring
+      //
+      //   height = icon + 0.35rem + 0.65rem   (the top/bottom insets above)
+      //   width  = icon + 2 * margin - 0.5rem (the 0.25rem side insets)
+      //
+      // which is only a circle where 2 * margin - 0.5rem == 1rem -- that is,
+      // at exactly the base margin of 0.75rem. shrinking it renders a tall
+      // ellipse, and making it asymmetric slides the icon off-centre inside
+      // the ring. note this holds for any icon size, so it is stable across
+      // the 'medium'/'large' fontSize split in getControlTray()
+      //
+      // to seat the icon on the card's 1rem padding line, cancel that 0.75rem
+      // at the tray level instead, where it cannot distort the ring
+      margin-right: -0.75rem;
+    }
+
+    //
+    // '.control-tray' floats right. a grid container establishes an independent
+    // formatting context, so this box cannot overlap that float and would be
+    // narrowed to whatever width is left beside it -- squeezing the two
+    // columns. clearing the float is enough.
+    //
+    // an earlier attempt made the header a flex row instead, which fixed the
+    // width but pulled the title and its loading spinner off the shared text
+    // baseline they sit on at every other width ('align-items' aligns margin
+    // boxes, and bootstrap puts a 0.5rem bottom margin on headings). clearing
+    // leaves the header exactly as it renders everywhere else
+    //
+    .detail {
+      clear: both;
+
+      // the oval ':before' hangs 0.65rem below the icon and is out of flow, so
+      // it contributes no height for 'clear' to get past -- without this the
+      // ring reaches down into the first row
+      padding-top: 0.75rem;
+
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.3rem 1rem;
+      align-items: baseline;
+    }
+
+    // promotes '.key' / '.value' to items of the '.detail' grid above, so the
+    // columns are shared by every pair rather than each pair sizing its own
+    .detail-pair {
+      display: contents;
+    }
+
+    // the bullets are a separator for the inline layout; the grid rows
+    // already separate the pairs
+    .bullet {
+      display: none;
+    }
+
+    .key:after {
+      // no nbsp needed -- the value sits in its own column, not adjacent text
+      content: ':';
+    }
+
+    .value {
+      text-align: right;
+      // digits share one advance width, so counts align on the ones place
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .home {
+    .article-stock-split {
+      margin-top: 2rem;
+    }
+  }
+}
+
+.small-viewport {
+  .filter {
+    .btn {
+      float: right;
+    }
+  }
+}
+
+.articles {
+  .bullet {
+    margin: 0 0.5rem;
+  }
+
+  //
+  // label and value are both dark, and the hierarchy is carried by weight
+  // rather than by lightening the label. $gray-6 (#777) measures 4.48:1 on
+  // white, which is under the 4.5:1 WCAG AA minimum for body text -- close
+  // enough to look deliberate while still failing
+  //
+  // the ':' after a key is css, not markup -- see renderDetail()
+  .key {
+    color: $gray-7;
+    font-weight: 400;
+
+    &:after {
+      // nbsp keeps the value from wrapping away from its own label
+      content: ':\00a0';
+    }
+  }
+
+  .value {
+    color: $gray-9;
+    font-weight: 600;
+  }
+
+  h5 {
+    display: inline-block;
+    margin: 0.075rem 0 0;
+  }
+
+  .article-link {
+    display: inline-block;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+
+    header {
+      margin-bottom: 0.75rem;
+    }
+  }
+
+  .title-count {
+    color: $gray-6;
+    font-size: 16px;
+    padding-left: 0.75rem;
+  }
+}
+
+.home {
+  .listing > div:first-of-type {
+    margin-top: 1rem;
+  }
+  .listing > div {
+    margin-top: 3rem;
+  }
+}
+
+.control-tray {
+  float: right;
+
+  // the oval is the control -- it carries the click handler, the hover shading
+  // and the cursor. the glyph inside it is decoration, so the cursor lives here
+  // rather than on '.control-icon', where it would advertise a smaller target
+  // than the one that actually responds
+  .border-circle-radius {
+    cursor: pointer;
+  }
+
+  // where the oval wraps a router link instead of a handler, stretch the anchor
+  // to fill it, so the hit area still matches the ring that highlights
+  .border-circle-radius > a {
+    display: block;
+  }
+
+  .control-icon {
+    color: #555;
+    margin: 0 0.75rem;
+  }
+
+  // the icon greens on hover of the surrounding oval rather than of the glyph
+  // itself, so the whole target lights up as one control. '.border-circle-radius'
+  // already shades its own ':before' on hover (style.scss), so both halves of
+  // the affordance now trigger off the same element instead of the ring
+  // responding to a larger area than the glyph does
+  .border-circle-radius:hover .control-icon {
+    color: $green-5;
+  }
+}
+
+// the chart control holds the hover green while its row is the one the chart
+// above is drawing, so the listing says which series is on screen rather than
+// leaving the green left border ('.article-link.highlight') to carry it alone.
+// only the chart glyph does this -- the alarm and query controls navigate away
+// and have no 'currently showing' state to report
+//
+// Note: written against the row class rather than per page, so /stream and
+//       /data pick it up from the one place both already render through
+//       (article-listing.jsx applies 'highlight' to the selected row, and both
+//       trays mark their glyph '.control-icon.chart')
+//
+.article-link.highlight .control-tray .control-icon.chart {
+  color: $green-5;
+}
+
+.not-mobile {
+  .article-listing {
+    .control-tray {
+      margin-top: 1rem;
+    }
+  }
+}
+
+#bootstrap-override {
+  .articles {
+    .dropdown-menu {
+      button.active, button:focus, button:active {
+        background-color: $green-7;
+      }
+    }
+  }
+  .apply-filter {
+    .btn {
+      width: 100%;
+    }
+    margin-top: 1rem;
+  }
+
+  section {
+    a.article-link {
+      cursor: auto;
+    }
+
+    a.article-link,
+    div.article-link {
+      color: #212529;
+      border-left: 0.75rem solid $gray-1;
+      width: 100%;
+
+      div {
+        color: $gray-7;
+      }
+    }
+
+    div.article-link.highlight,
+    div.article-link.highlight:hover {
+      border-left: 0.75rem solid $green-6;
+    }
+
+    a.article-link:hover,
+    div.article-link:hover {
+      background-color: $gray-1;
+      border-left: 0.75rem solid $gray-4;
+      text-decoration: none;
+    }
+  }
+
+  .listing-graphic-title {
+    display: inline-block;
+    margin-top: 0.54rem;
+    position: relative;
+
+    > h5 {
+      display: inline;
+    }
+
+    // the count sits in the normal inline flow, so the title box grows to hold
+    // it. it used to be absolutely positioned, which took it out of flow: the
+    // containing block then measured only the <h5>, and anything longer than
+    // the stream name wrapped inside that width -- '(Last 20 Days)' broke over
+    // three lines on a phone. 'relative' keeps the same optical nudge while
+    // still contributing width, and 'nowrap' keeps the range on one line
+    > .title-count {
+      margin-left: 0.25rem;
+      position: relative;
+      top: -0.025rem;
+      white-space: nowrap;
+    }
+  }
+}
+
+.svg-order {
+  >button svg {
+    height: 1rem;
+  }
+}
