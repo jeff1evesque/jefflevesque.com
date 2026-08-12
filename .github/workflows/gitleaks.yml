@@ -35,7 +35,11 @@ jobs:
           GITLEAKS_VERSION: "8.28.0"
         run: |
           set -euo pipefail
-          curl -sSfL -o /tmp/gitleaks.tar.gz \
+          # --retry, because pinning the download trades a supply-chain risk for
+          # an availability one: '-f' turns any 5xx from the release CDN into a
+          # red branch that has nothing to do with the commit under test. curl
+          # counts 5xx as transient, so this retries exactly those.
+          curl -sSfL --retry 5 --retry-delay 3 -o /tmp/gitleaks.tar.gz \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks

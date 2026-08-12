@@ -1,0 +1,9 @@
+/**
+ *
+ * indicate local build
+ *
+ */
+
+const is_local = REPLACE-IS-LOCAL;
+
+export default is_local;

@@ -1,0 +1,17 @@
+/**
+ *
+ * @aws_project_region, where general aws resources are provisioned
+ * @cognito_region, is specific to cognito
+ *
+ */
+
+const awsconfig = {
+    "aws_project_region": "REPLACE-REGION",
+    "aws_cognito_identity_pool_id": "REPLACE-IDENTITY-POOL-ID",
+    "aws_cognito_region": "REPLACE-IDENTITY-REGION",
+    "aws_user_pools_id": "REPLACE-USER-POOL-ID",
+    "aws_user_pools_web_client_id": "REPLACE-USER-POOL-WEB-CLIENT-ID",
+    "oauth": {}
+};
+
+export default awsconfig;

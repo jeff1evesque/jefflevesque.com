@@ -13,6 +13,15 @@
 ##
 /deploy
 /jsx/aws-exports.js*
+##
+## the '.replace' files are templates, and templates are INPUT rather than
+## generated output: a build copies each one and substitutes its REPLACE-*
+## tokens to produce the ignored file beside it. The globs above are broad
+## enough to catch 'aws-exports.js-e' and friends, so the templates have to be
+## exempted by name or a clean clone has nothing to build from
+##
+!/jsx/aws-exports.js.replace
+!/jsx/is_local.js.replace
 /jsx/content.js
 /output.md
 /extract_*.py
