@@ -181,10 +181,10 @@ The baseline is **86% on all four metrics**. Current figures:
 
 | metric | current | room above the baseline |
 | --- | --- | --- |
-| statements | 92.29% | 253 statements |
-| branches | 86.25% | 8 branches |
-| functions | 86.70% | 5 functions |
-| lines | 92.45% | 253 lines |
+| statements | 92.76% | 272 statements |
+| branches | 86.68% | 23 branches |
+| functions | 87.34% | 10 functions |
+| lines | 92.94% | 272 lines |
 
 The badge shows the statements figure.
 
@@ -196,10 +196,19 @@ the first margin; raising the baseline to 85 spent part of it deliberately, and
 covering the sample-data fallback in `get-data.js` and the distribution detail sheet
 in `data.jsx` bought it back. Raising it to 86 spent it again, and covering the
 listing's coverage figure in `stream.jsx` — untested until then, despite being the
-only number on the page that can see a scraper which never ran — plus
-`area-chart.jsx`'s prop syncing, is what paid for it.
+only number on the page that can see a scraper which never ran — along with that
+component's `reset_stream` and control tray and `area-chart.jsx`'s prop syncing, is
+what paid for it.
 
-Branches and functions are the two that bind — 8 and 5 of room against 253 for
+The figures still drift a little with the clock, because a few suites build fixtures
+from the rolling window and reach different schedule branches at different hours.
+Measure twice before concluding a change moved coverage. It used to be worse:
+`stream.jsx` picks a default rate from whether the market is open, and that block was
+only ever measured in whichever state the run caught — which also made
+`stream.test.jsx` pass overnight and fail every weekday afternoon. Both states are
+pinned now.
+
+Branches and functions are the two that bind — 23 and 10 of room against 272 for
 statements and lines. In practice a build reddens on a new untested BRANCH long
 before anything else. Keep the room: a baseline with none stops being a safety net
 and starts being an obstacle.
