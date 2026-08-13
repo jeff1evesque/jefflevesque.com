@@ -4,107 +4,127 @@
 [![tests](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/tests.yml/badge.svg)](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/tests.yml)
 [![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jeff1evesque/jefflevesque.com/badges/coverage.json)](jsx/jest.config.js)
 
-After [dependencies](https://github.com/jeff1evesque/jefflevesque.com#dependency) have been installed and configured, [local development](https://github.com/jeff1evesque/jefflevesque.com#local-development) can proceed.
+A React single-page application for watching data-ingestion pipelines. It charts how
+much each stream ingested and how much of it succeeded, lets you set trigger
+conditions against a stream, and surfaces alarms when one stops behaving. Sign-in is
+backed by Cognito.
 
-## Dependency
+The five streams it reports on are all public feeds: the Bureau of Labor Statistics,
+the SEC, stock market pricing, stock splits, and US National Weather alerts.
 
-The following general dependencies need to be installed:
+## What it does
 
-```bash
-$ brew update
-$ brew install nvm
-$ mkdir ~/.nvm
-$ echo 'export NVM_DIR=~/.nvm' >> ~/.bash_profile
-$ echo 'source $(brew --prefix nvm)/nvm.sh' >> ~/.bash_profile
-$ source ~/.bash_profile
-$ nvm install 14
-```
+| Route | |
+|---|---|
+| `/` | landing page, drawn over a D3 force-directed cluster of the knowledge-graph schema |
+| `/stream` | every stream's throughput, success rate and ingest coverage, at a chosen minute / hour / day rate |
+| `/stream/:stream/trigger` | trigger conditions for one stream, charted against its history |
+| `/stream/:stream/alarm` | alarms raised for a stream |
+| `/data` | data article listing, with distribution charts |
+| `/model` | model article listing, with filters and performance |
+| `/login`, `/logout`, `/register`, `/login/reset` | Cognito-backed authentication |
+| `/:user`, `/:user/settings` | account and account settings |
 
-The following packages need to be installed in order to compile javascript:
+**Ingest coverage** is the figure worth knowing about. Health divides successes by
+throughput, so an interval where the scraper never ran moves neither side of that
+ratio and disappears. Coverage is the only number on the page that can see it, and
+[`ingest-schedule.js`](jsx/import/general/ingest-schedule.js) exists to supply the
+denominator — what the schedule says *should* have run.
 
-```bash
-$ cd [PROJECT-ROOT]/jsx
-$ npm install -g browserify http-server
-$ npm install --force
-$ npm run prebuild:dos2unix
-```
+## Architecture
 
-The following packages need to be installed in order to compile css:
+| | |
+|---|---|
+| UI | React 18, `react-router-dom` 6, Redux, MUI and react-bootstrap |
+| Charts | recharts for area and line charts, D3 for the force-directed graph |
+| Auth | AWS Amplify `Auth` against Cognito |
+| Data | fetched in a web worker (`jsx/import/worker/`), one module per stream |
+| Bundler | webpack — `build:prod` and `build:dev` |
+| Styles | scss, compiled separately with `sass` |
 
-```bash
-$ cd [PROJECT-ROOT]/scss
-$ npm install
-```
+The application is a static bundle. It is compiled to `static/`, published to object
+storage and served through a CDN; there is no server-side rendering and no
+application server. Everything it displays comes from a reporting API it calls at
+runtime.
 
-## Local Compile
+Two files carry environment-specific configuration and are **not** committed —
+`jsx/aws-exports.js` and `jsx/is_local.js`. Each has a `.replace` template beside it
+holding `REPLACE-*` tokens, and whatever builds the application substitutes real
+values into a copy. That is why a fresh clone has the templates but not the files.
 
-Once above [dependencies](https://github.com/jeff1evesque/jefflevesque.com#dependency) have been met, code can be compiled as needed for [ReactJS](https://github.com/jeff1evesque/jefflevesque.com#reactjs) or [CSS](https://github.com/jeff1evesque/jefflevesque.com#stylesheet).
+## Quick start
 
-### Automated
-
-A sample [`deploy.replace`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/deploy.replace) script has been provided, and needs be copied as `deploy`.  Additionally, variables at the top of the script will need to be updated to correctly reflect the AWS cognito distribution to be used.  Once necessary configurations have been made, the script can deploy both ReactJS and CSS altogether:
-
-```bash
-$ ./deploy -all
-```
-
-It can be used to compile only [ReactJS](https://github.com/jeff1evesque/jefflevesque.com#reactjs) or [CSS](https://github.com/jeff1evesque/jefflevesque.com#stylesheet):
-
-```bash
-$ ./deploy --js
-```
-
-It can be used to compiled only [CSS](https://github.com/jeff1evesque/jefflevesque.com#stylesheet):
-
-```bash
-$ ./deploy --css
-```
-
-### ReactJS
-
-This section discusses javascript related syntax provided in [`deploy.replace`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/deploy.replace). Since the frontend code utilizes [AmplifyJS](https://docs.amplify.aws/start/?sc_icampaign=start&sc_ichannel=docs-home) integration with AWS, necessary configurations need to be copied into [`aws-exports.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/aws-exports.js) prior to the `build:browserify` compilation:
+Node **20** is required. Jest 29 and ESLint 9 both refuse to start on older runtimes,
+and it is the version CI pins.
 
 ```bash
-$ echo 'Updating aws-exports.js with desired values'
-$ sed -i 's/REPLACE-IDENTITY-POOL-ID/us-east-1:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/g' aws-exports.js
-$ sed -i 's/REPLACE-REGION/CognitoRegion/g' aws-exports.js
-$ sed -i 's/REPLACE-IDENTITY-REGION/us-east-1/g' aws-exports.js
-$ sed -i 's/REPLACE-USER-POOL-ID/us-east-1_xxxxxxxxx/g' aws-exports.js
-$ sed -i 's/REPLACE-USER-POOL-WEB-CLIENT-ID/xxxxxxxxxxxxxxxxxxxxxxx/g' aws-exports.js
+nvm install 20
+nvm use 20
 ```
 
-These values *should* correspond to the cognito distribution already deployed through a frontend cloudformation stack, and are supplied by the deployment pipeline rather than committed here.
-
-While none of the values in [`aws-export.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/aws-exports.js) is sensitive, some were hidden to ensure correct values are manually obtained.
-
-Once correct [`aws-exports.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/aws-exports.js) attributes have been defined, the following commands can be used to compile jsx/reactjs:
+Install both dependency trees:
 
 ```bash
-$ mkdir -p [PROJECT-ROOT]/static/js/
-$ cd [PROJECT-ROOT]/jsx
-$ npm run build:browserify
-$ mv content.js [PROJECT-ROOT]/static/js/content.js
+cd jsx  && npm install --force
+cd ../scss && npm install
 ```
 
-### Stylesheet
-
-This section discusses css related syntax provided in [`deploy.replace`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/deploy.replace). The following commands can be used to compile scss:
+Create the two local configuration files from their templates:
 
 ```bash
-$ mkdir -p [PROJECT-ROOT]/static/css/
-cd [PROJECT-ROOT]/scss
-$ npm run build:css
-$ mv style.css [PROJECT-ROOT]/static/css/style.css
+cd jsx
+cp aws-exports.js.replace aws-exports.js
+cp is_local.js.replace is_local.js
 ```
 
-## Local Server
+Then edit each, replacing every `REPLACE-*` token with a real value. `is_local.js`
+takes `true` for local work. The Cognito identifiers in `aws-exports.js` come from the
+deployed user pool — they ship in the browser bundle and are not secrets, but they do
+have to match the pool you are authenticating against.
 
-Once code has been [locally compiled](https://github.com/jeff1evesque/jefflevesque.com#local-compile), the local application can be started using the earlier installed `http-server`:
+Compile and serve:
 
-```bash_profile
-$ cd [PROJECT-ROOT]
-$ http-server
+```bash
+cd jsx  && npm run build:prod && mv content.js ../static/js/content.js
+cd ../scss && npm run build:css && mv style.css ../static/css/style.css
+cd ..   && npx http-server
 ```
+
+## Configuration
+
+Three files follow the same `.replace` pattern — a committed template with
+`REPLACE-*` tokens, and a real file that is gitignored:
+
+| Template | Becomes | Holds |
+|---|---|---|
+| `jsx/aws-exports.js.replace` | `jsx/aws-exports.js` | Cognito pool, client and region |
+| `jsx/is_local.js.replace` | `jsx/is_local.js` | whether this build is local |
+| `deploy.replace` | `deploy` | the identifiers the deploy script substitutes |
+
+The templates are exempted by name in `.gitignore`, because the globs that hide the
+generated files would otherwise hide the templates too — and a clone with no templates
+has nothing to build from.
+
+## Deployment
+
+For a full local build and publish, copy the deploy script and fill in the values at
+the top:
+
+```bash
+cp deploy.replace deploy
+chmod +x deploy
+./deploy --all              # javascript, css and images
+./deploy --js               # javascript only
+./deploy --css              # css only
+./deploy --env=prod         # build:prod rather than build:dev
+```
+
+Merges to `master` are built and published automatically. That path compiles the
+javascript and stylesheet, copies the result and the image assets to object storage,
+and invalidates the CDN so the new bundle is served immediately. It substitutes the
+same `REPLACE-*` tokens the local script does, taking the values from deployment
+configuration rather than from a file on disk — which is why no real identifier is
+committed here.
 
 ---
 
@@ -284,3 +304,9 @@ Some tests are labelled `DOCUMENTS A DEFECT`. Those assert what the code does **
 
 - **Registration validates nothing before submitting.** `webform.jsx` imports `valid-string`, `valid-email` and `valid-password`, but calls them only from `onChange` handlers that set state used for the `invalid` CSS class. `handleSubmit` never consults that state, so an empty form reaches `Auth.signUp` with `username: ''`. The field turns red and submits anyway; Cognito is the only thing actually enforcing the password policy.
 - **A single unknown URL segment is not a 404.** The route table carries `path='/:user'`, so `/no-such-page` renders the profile layout rather than the error page. Only deeper unmatched paths reach the 404.
+
+---
+
+## License
+
+BSD 3-Clause. See [`LICENSE`](LICENSE).
