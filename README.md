@@ -2,7 +2,7 @@
 
 [![unicode](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/unicode.yml/badge.svg)](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/unicode.yml)
 [![tests](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/tests.yml/badge.svg)](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/tests.yml)
-[![coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](jsx/jest.config.js)
+[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jeff1evesque/jefflevesque.com/badges/coverage.json)](jsx/jest.config.js)
 
 After [dependencies](https://github.com/jeff1evesque/jefflevesque.com#dependency) have been installed and configured, [local development](https://github.com/jeff1evesque/jefflevesque.com#local-development) can proceed.
 
@@ -218,18 +218,7 @@ branches and functions had been carried well past 80. Raising it to the statemen
 figure instead would leave the other three failing on the next push; leaving it at 80
 would let ten points be lost without CI noticing.
 
-The badge above is a **static number and will go stale.** shields.io renders whatever
-text sits in the badge URL — nothing reads the coverage report — so the figure is
-hardcoded and only correct until someone forgets. It already went wrong once: it read
-28% for a long stretch after coverage had passed 80%, which is precisely the failure
-mode this paragraph was warning about. Update it in the same commit that moves the
-baseline.
-
-A dynamic badge IS possible, and an earlier version of this note wrongly said
-otherwise. The pieces are in place; two steps need a GitHub account and so are left to
-be done by hand.
-
-CI already has the number: `tests.yml` runs jest with `collectCoverage` on. The
+The figure comes from CI: `tests.yml` runs jest with `collectCoverage` on. The
 `json-summary` reporter writes `jsx/coverage-summary.json`, and
 [`scripts/coverage_badge.py`](scripts/coverage_badge.py) turns it into the document
 shields.io reads:
@@ -238,40 +227,37 @@ shields.io reads:
 {"color":"brightgreen","label":"coverage","message":"90%","schemaVersion":1}
 ```
 
-The `Publish the coverage badge` step in `tests.yml` PATCHes that into a gist after
-every **master** build — not on branches or pull requests, where the badge would
-otherwise advertise whatever was pushed last.
+The `Publish the coverage badge` step in `tests.yml` force-pushes that document to the
+[`badges`](../../tree/badges) branch after every **master** build — not on branches or
+pull requests, where the badge would otherwise advertise whatever was pushed last.
 
 **Only the overall statement percentage is published.** That is deliberate and it is
-enforced rather than intended: the gist is public, `coverage-summary.json` is not, and
+enforced rather than intended: the branch is public, `coverage-summary.json` is not, and
 it carries one absolute path per source file — 131 of them at the time of writing,
 including the developer's home directory. `coverage_badge.py` refuses to emit a payload
 containing a path separator or a source extension, so a future change that widened it
 to a per-file breakdown fails the build instead of publishing the tree.
 
-To finish wiring it up:
+Three things about that destination are worth stating, because each was a choice:
 
-1. Create a **public** gist containing one file named `coverage.json`, with any
-   placeholder content. Its id is the hex string at the end of the gist url.
-2. Add two repository secrets: `COVERAGE_GIST_ID` (that id) and
-   `COVERAGE_GIST_TOKEN` (a fine-grained or classic PAT with **only** the `gist`
-   scope).
-3. Replace the badge at the top of this file with the endpoint form:
+- **Not master.** The branch ruleset requires a pull request there and permits no
+  bypass. A badge needing a review on every build is not published, it is
+  hand-maintained. The ruleset targets the default branch only, so `badges` is
+  writable from CI.
+- **An orphan branch.** Cutting `badges` from master would carry a full copy of the
+  source tree, frozen on the day it was cut and never updated. The step builds the
+  branch from scratch in a temporary directory and force-pushes, so it holds one file
+  and one commit — and never checks out source at all.
+- **No personal access token.** The push authenticates with the built-in
+  `GITHUB_TOKEN`, minted per run, scoped to this repository and expired with the job.
+  A gist would work equally well but needs a PAT: a long-lived credential to store and
+  rotate, for no extra capability. The job declares `permissions: contents: write`,
+  without which that token is read-only and the push fails with a 403.
 
-   ```
-   [![coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/<user>/<gist-id>/raw/coverage.json)](jsx/jest.config.js)
-   ```
-
-Until step 3 is done the badge is the static one and has to be updated by hand. The
-publish step emits a workflow **warning** when the secrets are absent, so an
-unconfigured badge is visible in the run summary rather than silently rotting.
-
-Coveralls and Codecov are the other route and do need a paid plan for a private
-repository.
-
-Note `jsx/package.json` still carries `coveralls` and a `report:coveralls` script.
-Nothing calls them and there is no `.coveralls.yml` — they predate this work and
-have never been wired up.
+Coveralls and Codecov are the other route, and both are free for a public repository.
+They also publish the full per-file tree — precisely what the guard above exists to
+prevent. Choosing them means deciding that tree is fine to publish, which is a
+different decision from wanting an accurate badge.
 
 ### React Testing Library, not enzyme
 

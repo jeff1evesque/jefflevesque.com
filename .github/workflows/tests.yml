@@ -17,6 +17,17 @@ jobs:
   jest:
     name: jest
     runs-on: ubuntu-latest
+
+    ##
+    ## 'contents: write' is what lets the publish step below push the badges
+    ## branch using the built-in GITHUB_TOKEN. Declared explicitly rather than
+    ## inherited: the default is read-only on newer repositories, and a token
+    ## that cannot push fails the step with a 403 that reads like a credential
+    ## problem rather than a permissions one.
+    ##
+    permissions:
+      contents: write
+
     defaults:
       run:
         working-directory: jsx
@@ -51,37 +62,53 @@ jobs:
       # document after every master build.
       #
       # Only from a push to master. On a branch or a pull request the badge would
-      # otherwise advertise whatever was last pushed anywhere, and a fork's build
-      # has no access to the secrets in any case.
+      # otherwise advertise whatever was last pushed anywhere, and a pull request
+      # from a fork gets a read-only token in any case.
       #
       # Note: what gets published is built by scripts/coverage_badge.py, which emits
       #       the overall statement percentage and refuses to emit anything holding a
-      #       path or a source-file extension. That matters because the gist is
+      #       path or a source-file extension. That matters because the branch is
       #       PUBLIC and the report it is derived from is not: coverage-summary.json
       #       carries one absolute path per source file.
+      #
+      # Note: the destination is a branch in this repository rather than a gist,
+      #       so the push authenticates with the built-in GITHUB_TOKEN. That token
+      #       is minted for this run, scoped to this repository and expires with
+      #       the job -- a gist needs a personal access token instead, which is a
+      #       long-lived credential to store and rotate for no extra capability.
+      #
+      # Note: master itself cannot hold the file. The ruleset requires a pull
+      #       request there and permits no bypass, and a badge that needs a review
+      #       on every build is not published, it is hand-maintained. The ruleset
+      #       targets the default branch only, so 'badges' is writable from here.
       - name: Publish the coverage badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         env:
-          GIST_ID: ${{ secrets.COVERAGE_GIST_ID }}
-          GIST_TOKEN: ${{ secrets.COVERAGE_GIST_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-
-          if [ -z "${GIST_ID}" ] || [ -z "${GIST_TOKEN}" ]; then
-            echo "::warning::COVERAGE_GIST_ID or COVERAGE_GIST_TOKEN is not set -- the coverage badge will go stale. See the Coverage section of README.md."
-            exit 0
-          fi
 
           payload="$(python3 ../scripts/coverage_badge.py coverage-summary.json)"
           echo "publishing: ${payload}"
 
-          # --fail so an api error stops the step rather than leaving a stale badge
-          # and a green tick. The token is passed by header from the environment and
-          # never appears in the command line or the log.
-          curl -sS --fail-with-body -X PATCH \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GIST_TOKEN}" \
-            "https://api.github.com/gists/${GIST_ID}" \
-            -d "$(jq -n --arg content "${payload}" \
-                  '{files: {"coverage.json": {content: $content}}}')" \
-            -o /dev/null
+          # Built from scratch in a temporary directory and force-pushed, so the
+          # branch stays at one commit holding one file. Committing onto the
+          # previous tip instead would add a commit per master build forever, and
+          # an orphan branch keeps the source tree out of it entirely -- a copy of
+          # master frozen on the day the branch was cut is worse than no copy.
+          tmp="$(mktemp -d)"
+          printf '%s' "${payload}" > "${tmp}/coverage.json"
+          cd "${tmp}"
+
+          git init -q
+          git checkout -q --orphan badges
+          git add coverage.json
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -q -m 'coverage badge'
+
+          # The token is interpolated into the remote rather than written to
+          # .git/config, so it never lands on disk. Actions masks it in the log.
+          git push -q --force \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            badges
