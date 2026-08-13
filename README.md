@@ -197,46 +197,18 @@ absent from the report.
 it.** The run fails if coverage falls below the baseline, so a regression reddens CI
 rather than passing quietly.
 
-The baseline is **86% on all four metrics**. Current figures:
+The baseline is **86% on all four metrics**, and tracks the weakest of them rather
+than the strongest — setting it at the statements figure would leave the other three
+failing on the next push. The badge carries the current statements percentage.
 
-| metric | current | room above the baseline |
-| --- | --- | --- |
-| statements | 92.76% | 272 statements |
-| branches | 86.68% | 23 branches |
-| functions | 87.34% | 10 functions |
-| lines | 92.94% | 272 lines |
+The figures drift a little with the clock, because a few suites build fixtures from
+the rolling window and reach different schedule branches at different hours. Measure
+twice before concluding a change moved coverage.
 
-The badge shows the statements figure.
-
-The room matters as much as the percentage. When the baseline was first set to 80 the
-margin was **8 branches and zero functions**, so a single untested function added
-anywhere would have reddened CI on the next push — a tripwire rather than a floor.
-Covering `animation/graph-cluster.jsx`, the largest file and the least tested, bought
-the first margin; raising the baseline to 85 spent part of it deliberately, and
-covering the sample-data fallback in `get-data.js` and the distribution detail sheet
-in `data.jsx` bought it back. Raising it to 86 spent it again, and covering the
-listing's coverage figure in `stream.jsx` — untested until then, despite being the
-only number on the page that can see a scraper which never ran — along with that
-component's `reset_stream` and control tray and `area-chart.jsx`'s prop syncing, is
-what paid for it.
-
-The figures still drift a little with the clock, because a few suites build fixtures
-from the rolling window and reach different schedule branches at different hours.
-Measure twice before concluding a change moved coverage. It used to be worse:
-`stream.jsx` picks a default rate from whether the market is open, and that block was
-only ever measured in whichever state the run caught — which also made
-`stream.test.jsx` pass overnight and fail every weekday afternoon. Both states are
-pinned now.
-
-Branches and functions are the two that bind — 23 and 10 of room against 272 for
-statements and lines. In practice a build reddens on a new untested BRANCH long
-before anything else. Keep the room: a baseline with none stops being a safety net
-and starts being an obstacle.
-
-The baseline tracks the **weakest** metric, which is branches — it moved 80 → 83 once
-branches and functions had been carried well past 80. Raising it to the statements
-figure instead would leave the other three failing on the next push; leaving it at 80
-would let ten points be lost without CI noticing.
+Branches and functions are the two that bind: they carry far less room above the
+baseline than statements and lines do. In practice a build reddens on a new untested
+BRANCH long before anything else. Keep the room — a baseline with none stops being a
+safety net and starts being an obstacle.
 
 The figure comes from CI: `tests.yml` runs jest with `collectCoverage` on. The
 `json-summary` reporter writes `jsx/coverage-summary.json`, and
