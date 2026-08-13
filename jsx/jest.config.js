@@ -80,30 +80,19 @@ module.exports = {
     //
     // Fail the run if coverage drops, rather than only reporting it.
     //
-    // A flat 86% baseline on all four metrics. Current figures are 92.76 statements /
-    // 86.68 branches / 87.34 functions / 92.94 lines, so this is the mechanism that
-    // actually holds coverage -- the README badge is a static number and will go stale
-    // on its own.
+    // A flat 86% baseline on all four metrics. This is the mechanism that actually
+    // holds coverage; the README badge only reports it.
     //
-    // Note: branches and functions are again the two that bind -- 23 branches and 10
-    //       functions of room at the time this was raised from 85. Statements and
-    //       lines carry ~6 points of slack, so in practice a build reddens on a new
-    //       untested BRANCH long before anything else. That is the point of a
-    //       baseline rather than a trailing floor, but it means new work needs its
-    //       tests in the same commit, not a follow-up.
+    // Note: branches and functions are the two that bind -- they carry far less room
+    //       above the baseline than statements and lines do, so in practice a build
+    //       reddens on a new untested BRANCH long before anything else. That is the
+    //       point of a baseline rather than a trailing floor, but it means new work
+    //       needs its tests in the same commit, not a follow-up.
     //
-    // Note: the figures still drift slightly with the clock, because a few suites
-    //       build their fixtures from the rolling window and so reach different
-    //       schedule branches at different hours. It used to be worse: stream.jsx
-    //       picks a default rate from whether the market is open, and that block was
-    //       measured only in whichever state the run happened to catch. Both states
-    //       are pinned now (stream.test.jsx fakes Date around the constructor), which
-    //       is also what stopped that suite failing every weekday afternoon.
-    //
-    // Note: raising this from 85 to 86 was paid for with ~35 new branch assertions --
-    //       stream.jsx's listing figures (streamCoverage had none at all), its
-    //       reset_stream and control tray, and area-chart.jsx's prop syncing. Do not
-    //       raise it again without measuring first.
+    // Note: the figures drift slightly with the clock, because a few suites build
+    //       their fixtures from the rolling window and so reach different schedule
+    //       branches at different hours. Measure twice before concluding a change
+    //       moved coverage.
     //
     // Raise these as coverage rises. They are a floor, not a target.
     //
