@@ -135,7 +135,7 @@ committed here.
 | Workflow | What it checks |
 |---|---|
 | [`lint.yml`](.github/workflows/lint.yml) | `ruff check .` — rules in [`.ruff.toml`](.ruff.toml) |
-| | `eslint` — 144 `.js`/`.jsx` files under `jsx/`, config in [`jsx/eslint.config.mjs`](jsx/eslint.config.mjs) |
+| | `eslint` — the `.js`/`.jsx` files under `jsx/`, config in [`jsx/eslint.config.mjs`](jsx/eslint.config.mjs) |
 
 The rule set is deliberately **correctness-only** (`E4`, `E7`, `E9`, `F`, `W6`): syntax errors, undefined names, unused imports and variables, bare `except`, invalid escape sequences. No formatting, import-ordering, or type-annotation rules are enabled, so a red build always means a real defect rather than a style preference. Notebooks are excluded — several carry pasted tabular output inside code cells and are not parseable Python.
 
@@ -251,26 +251,15 @@ They also publish the full per-file tree — precisely what the guard above exis
 prevent. Choosing them means deciding that tree is fine to publish, which is a
 different decision from wanting an accurate badge.
 
-### React Testing Library, not enzyme
+### Setup
 
-Component tests use [`@testing-library/react`](https://testing-library.com/react). Enzyme was removed: it has no React 18 adapter and has been unmaintained since 2021, while this project is on React 18. The previous suite was configured with `@wojtekmaj/enzyme-adapter-react-17` and **could not run** — all three files failed to load and zero tests executed.
+Component tests use [`@testing-library/react`](https://testing-library.com/react).
 
-Three things had to change for the suite to work at all, each worth knowing if it ever breaks again:
+`setup.js` stubs `Worker` and `URL.createObjectURL`, which jsdom does not implement. `jsx/import/worker/web-worker.js` subclasses `Worker` at module load, so anything importing `main-route.jsx` — most of the app — throws `ReferenceError: Worker is not defined` without them. These are environment shims, not test doubles, and removing them takes most of the suite down.
 
-- **`jest.config.js` named `setupTestFrameworkScriptFile`**, a key Jest removed in version 24. Against Jest 26 it was silently ignored, so `setup.js` never loaded and neither the storage shims nor the console trap were ever active. It is now `setupFilesAfterEnv`.
-- **`moduleDirectories` pinned resolution to an absolute `<rootDir>/node_modules`**, which replaces Jest's relative default and disables Node's upward walk. Anything npm nests rather than hoists then cannot be found — Jest 29 fails to start with `Cannot find module 'expect'`. The override is gone.
-- **`setup.js` threw from inside `console.error`.** React reports problems by calling `console.error` *during* render, so throwing there unwinds React mid-commit and every test dies with `Should not already be working.` rather than the real warning — react-router's future-flag notice alone was enough. Unexpected console output still fails a test, but the failure is now raised *after* the test body.
+Unexpected console output fails a test, but the failure is raised *after* the test body rather than from inside `console.error`. React reports problems by calling `console.error` during render, so throwing there unwinds React mid-commit and every test dies with `Should not already be working.` instead of the real warning.
 
-`setup.js` also stubs `Worker` and `URL.createObjectURL`, which jsdom does not implement. `jsx/import/worker/web-worker.js` subclasses `Worker` at module load, so anything importing `main-route.jsx` — most of the app — throws `ReferenceError: Worker is not defined` without them. These are environment shims, not test doubles.
-
-### What is covered
-
-| Suite | Covers |
-|---|---|
-| [`validator.test.js`](jsx/__tests__/validator/validator.test.js) | all 11 input validators, 100% |
-| [`login.test.jsx`](jsx/__tests__/content/login.test.jsx) | sign-in form: typing, submit, and that a *rejected* sign-in writes nothing to session storage |
-| [`webform.test.jsx`](jsx/__tests__/layout/register/webform.test.jsx) | registration form: fields, field-level validation styling, and what reaches Cognito |
-| [`page.test.jsx`](jsx/__tests__/layout/page.test.jsx) | url-to-layout routing through `main-route.jsx` |
+### Tests that document defects
 
 Some tests are labelled `DOCUMENTS A DEFECT`. Those assert what the code does **today**, not what it should do, so that a fix breaks the test loudly instead of the behaviour changing unnoticed. Two are worth reading:
 
