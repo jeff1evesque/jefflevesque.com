@@ -402,6 +402,30 @@ describe('toggleChartScale gap filling', () => {
         return b.valueOf();
     }
 
+    //
+    // the same date, stepped back to the nearest weekday on or before it.
+    //
+    // only the weekday-only case below needs this, and it needs it because the
+    // offsets above are relative to now: 'daysAgo(12)' is a Saturday on four days
+    // in every seven, and an OBSERVATION supplied on a Saturday is still a
+    // Saturday row in the result. The assertion cannot tell that apart from a
+    // weekend the fill invented, so it failed on those four days and passed on
+    // the other three -- see the note on the test itself.
+    //
+    // Stepping back rather than forward keeps the row inside the trailing window;
+    // a Saturday moved forward to Monday would sit later than the second row on
+    // the weeks that matter.
+    //
+    function weekdayOnOrBefore(d) {
+        const w = new Date(d.getTime());
+
+        while ([0, 6].includes(w.getDay())) {
+            w.setDate(w.getDate() - 1);
+        }
+
+        return w;
+    }
+
     it('draws a zero for a day the scraper never ran', () => {
         //
         // 'bls' is expected every day, so a skipped day is unambiguous -- no weekday
@@ -438,6 +462,14 @@ describe('toggleChartScale gap filling', () => {
         // across every weekend. 'stockmarketstocksplit' is weekday-only, and a ten day
         // span always contains one.
         //
+        // Note: both rows are snapped to a weekday. The assertion below reads every
+        //       weekend row in the result as a fill, and a row the CALLER supplied on
+        //       a Saturday is indistinguishable from one -- so an unsnapped
+        //       'daysAgo(12)' failed this on the four days in seven it lands on a
+        //       weekend, while the fill itself was correct throughout. The span
+        //       between the two rows still spans a weekend, which is the case under
+        //       test.
+        //
         const page = setup();
         let result;
 
@@ -445,7 +477,10 @@ describe('toggleChartScale gap filling', () => {
             result = page.toggleChartScale(
                 'stockmarketstocksplit',
                 'day',
-                [row(daysAgo(12)), row(daysAgo(2))]
+                [
+                    row(weekdayOnOrBefore(daysAgo(12))),
+                    row(weekdayOnOrBefore(daysAgo(2)))
+                ]
             );
         });
 
