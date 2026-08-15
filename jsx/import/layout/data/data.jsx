@@ -464,7 +464,6 @@ class DataLayout extends Component {
 
         this.getControlTray = this.getControlTray.bind(this);
         this.reset_stream = this.reset_stream.bind(this);
-        this.dateAddMonth = this.dateAddMonth.bind(this);
         this.openDistributionDetail = this.openDistributionDetail.bind(this);
         this.updateChartHeight = this.updateChartHeight.bind(this);
 
@@ -562,12 +561,6 @@ class DataLayout extends Component {
         if (height !== this.state.chart_height) {
             this.setState({ chart_height: height });
         }
-    }
-
-    dateAddMonth(date, month) {
-       const new_date = new Date(date.toLocaleString('en-US', {timeZone: 'America/New_York'}));
-       new_date.setMonth(new_date.getMonth() + month);
-       return new_date;
     }
 
     reset_stream(selected_stream=null) {
