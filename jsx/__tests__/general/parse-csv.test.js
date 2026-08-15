@@ -191,6 +191,41 @@ describe('papaParseCsv', () => {
         });
     });
 
+    it('tags the rows from a url the same way it tags a string', () => {
+        //
+        // the remote branch builds its own 'complete' with a signature that shadows
+        // the outer source and stream:
+        //
+        //     complete: (results, source, stream) => ...
+        //
+        // papaparse calls it with the file handle in those positions, so reading the
+        // parameters would tag every remote row with whatever papaparse passed. It
+        // reads the captured 'obj' instead, which is what this pins -- the shadowing
+        // is live, and only the closure keeps it correct.
+        //
+        const callback = jest.fn();
+        readRemoteFile.mockImplementation((csv, options) => {
+            options.complete({ data: ROWS }, 'shadowed', 'shadowed');
+        });
+
+        papaParseCsv(URL_CSV, callback, false, false, true, 'bls', 'cpi');
+
+        expect(callback).toHaveBeenCalledWith({
+            data: ROWS,
+            source: 'bls',
+            stream: 'cpi',
+        });
+    });
+
+    it('forwards the header flag to a remote read', () => {
+        papaParseCsv(URL_CSV, () => {}, false, false, false);
+
+        expect(readRemoteFile).toHaveBeenCalledWith(
+            URL_CSV,
+            expect.objectContaining({ header: false })
+        );
+    });
+
     it('forwards the worker flag, unlike parseCsv', () => {
         //
         // papaParseCsv does pass its arguments through properly, which is the

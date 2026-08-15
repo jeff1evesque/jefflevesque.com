@@ -100,6 +100,21 @@ describe('the coverage row', () => {
         const labels = screen.getAllByText('Coverage');
         expect(labels).toHaveLength(2);
     });
+
+    it('states the publication lag on bls alone', () => {
+        //
+        // bls is the one feed whose current month is always empty, so its row lands
+        // on 'Records 0' against a populated table. The bullet is what separates an
+        // unpublished month from an unpopulated stream.
+        //
+        // One label, not five: stream_lag() returns null for the other four, and a
+        // count here is what distinguishes a per-stream bullet from a page-level one.
+        //
+        setup();
+
+        expect(screen.getAllByText('Lag')).toHaveLength(1);
+        expect(screen.getByText('1-2 months')).toBeInTheDocument();
+    });
 });
 
 describe('each row before data arrives', () => {

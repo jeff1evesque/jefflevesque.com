@@ -136,6 +136,38 @@ export const BLS_PUBLICATION_LAG_MONTHS = 2;
 
 {/*
 
+    what the listing says about that lag.
+
+    deliberately NOT a rendering of BLS_PUBLICATION_LAG_MONTHS. that 2 is the
+    landing offset, chosen above for the eight feeds rather than the four, so
+    printing it would read '2 months' directly beneath a comment that just
+    measured cpi and ppi at one. the range is the honest description of the
+    spread, which makes these two separate facts that happen to be adjacent
+
+*/}
+export const BLS_PUBLICATION_LAG_LABEL = '1-2 months';
+
+{/*
+
+    the publication lag a stream carries, for the listing detail.
+
+    only bls qualifies: it is the one feed whose current month is always empty,
+    so its row would otherwise read 'Records 0' with nothing to say the month is
+    unpublished rather than the stream unpopulated. a stream absent from this map
+    renders no 'Lag' row rather than an empty one -- renderDetail prunes null,
+    which is the same mechanism that keeps 'Coverage' on two of the five rows
+
+*/}
+const STREAM_LAG = {
+    BLS: BLS_PUBLICATION_LAG_LABEL
+};
+
+function stream_lag(stream) {
+    return STREAM_LAG[stream] || null;
+}
+
+{/*
+
     the date bls should land on when it is selected, or null to leave the
     current selection alone.
 
@@ -444,6 +476,16 @@ class DataLayout extends Component {
 
                     */
                     ...(streamCoverage(v) ? { 'Coverage': streamCoverage(v) } : {}),
+                    /*
+
+                        before 'Records' rather than after: bls carries no row
+                        for the current month, so the count this lands on is
+                        always 0. the qualifier has to be met on the way to that
+                        number, not after it has already registered as an empty
+                        stream
+
+                    */
+                    ...(stream_lag(v) ? { 'Lag': stream_lag(v) } : {}),
                     'Records': 'n/a',
                     'Partitions': 'n/a',
                     'RDF': rdf_enabled(v) ? 'Available' : 'None'
@@ -591,6 +633,7 @@ class DataLayout extends Component {
                 'detail': {
                     'Type': 'Hive',
                     ...(streamCoverage(v) ? { 'Coverage': streamCoverage(v) } : {}),
+                    ...(stream_lag(v) ? { 'Lag': stream_lag(v) } : {}),
                     'Records': format_count(this.state[`records_${stream}`]),
                     'Partitions': format_count(this.state[`partitions_${stream}`]),
                     'RDF': rdf_enabled(v) ? 'Available' : 'None'

@@ -18,7 +18,7 @@
  */
 
 import React from 'react';
-import { render, act } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 global.__workers = [];
@@ -620,5 +620,49 @@ describe('the month label', () => {
         for (let mm = 2; mm <= 12; mm++) {
             expect(monthFor(page, mm, 2026).month).toEqual(expect.any(String));
         }
+    });
+});
+
+describe('the listing rebuild', () => {
+    //
+    // updateStreamListing rebuilds list_article from scratch every time counts
+    // arrive, so the per-stream detail bullets exist in two places: the constructor's
+    // map and this one. data.test.jsx only ever sees the constructor's, because it
+    // asserts against the pre-data render.
+    //
+    // That gap is the whole failure mode. A bullet added to the constructor alone
+    // renders correctly on load and then vanishes the instant the first count lands,
+    // which is both the common case and the one a mount-time test cannot see.
+    //
+    it('keeps the bls lag bullet when counts replace n/a', () => {
+        const page = setup();
+
+        act(() => {
+            page.setState({ records_bls: 345467, partitions_bls: 10 });
+        });
+
+        act(() => {
+            page.updateStreamListing();
+        });
+
+        // the counts really did replace 'n/a', so the rebuild under test ran
+        expect(screen.getByText('345,467')).toBeInTheDocument();
+
+        expect(screen.getAllByText('Lag')).toHaveLength(1);
+        expect(screen.getByText('1-2 months')).toBeInTheDocument();
+    });
+
+    it('leaves the other four streams without a lag bullet after a rebuild', () => {
+        //
+        // the asymmetry has to survive the rebuild too: stream_lag() returning null
+        // must still prune the row rather than render an empty one.
+        //
+        const page = setup();
+
+        act(() => {
+            page.updateStreamListing();
+        });
+
+        expect(screen.getAllByText('Lag')).toHaveLength(1);
     });
 });
