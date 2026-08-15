@@ -105,6 +105,69 @@ function rdf_enabled(stream) {
     return RDF_ENABLED[stream] === true;
 }
 
+{/*
+
+    how many months to step back when bls is selected.
+
+    the date defaults to today, which is right for stock-market -- that data
+    exists today. bls is the opposite: a reading is published the period AFTER
+    the one it measures, so no bls row is ever labelled with the current month.
+    the 12 aug 2026 cpi release carries JULY numbers, 4 aug jolts carries JUNE.
+    landing on today therefore lands on the one month guaranteed to be empty,
+    and the page reads 'Records 0' against a table holding 345,467 rows.
+
+    the lag is not uniform across the ten feeds, so this offset is a compromise
+    rather than a rule. measured against the 2026 objects:
+
+        offset 1 (july)   4 of 10 feeds,  3,619 rows   cpi empsit ppi realer
+        offset 2 (june)   8 of 10 feeds, 11,882 rows   + jolts laus metro ximpim
+
+    every one of those is a MONTHLY series -- the difference is how long after
+    the month ends bls publishes it. cpi and ppi take about two weeks, so the
+    august release covers july. jolts/laus/metro/ximpim take about five, so
+    their august release covers JUNE. eci and wkyeng are quarterly and only
+    land in jan/apr/jul/oct.
+
+    2 is chosen for the eight, not the four. no single month carries all ten
+    outside a quarter start.
+
+*/}
+export const BLS_PUBLICATION_LAG_MONTHS = 2;
+
+{/*
+
+    the date bls should land on when it is selected, or null to leave the
+    current selection alone.
+
+    only shifts FROM the current month, which makes it idempotent: clicking bls
+    twice must not walk two months back, and a month the reader chose
+    deliberately is theirs. so this moves the landing point without overriding
+    the date filter -- picking august by hand still shows august, and still
+    reports 0, because no bls row is labelled august.
+
+    exported and pure so the rule can be tested without driving the component:
+    the arithmetic has to go through a Date rather than subtracting from the
+    month number, or december underflows into month -1 of the same year.
+
+*/}
+export function blsLandingDate(selected, now, lag = BLS_PUBLICATION_LAG_MONTHS) {
+    if (!(selected instanceof Date) || !(now instanceof Date)) {
+        return null;
+    }
+
+    const on_current_month = selected.getMonth() === now.getMonth()
+        && selected.getFullYear() === now.getFullYear();
+
+    if (!on_current_month) {
+        return null;
+    }
+
+    const shifted = new Date(selected.getTime());
+    shifted.setMonth(shifted.getMonth() - lag);
+
+    return shifted;
+}
+
 
 {/*
 
@@ -401,7 +464,6 @@ class DataLayout extends Component {
 
         this.getControlTray = this.getControlTray.bind(this);
         this.reset_stream = this.reset_stream.bind(this);
-        this.dateAddMonth = this.dateAddMonth.bind(this);
         this.openDistributionDetail = this.openDistributionDetail.bind(this);
         this.updateChartHeight = this.updateChartHeight.bind(this);
 
@@ -501,12 +563,6 @@ class DataLayout extends Component {
         }
     }
 
-    dateAddMonth(date, month) {
-       const new_date = new Date(date.toLocaleString('en-US', {timeZone: 'America/New_York'}));
-       new_date.setMonth(new_date.getMonth() + month);
-       return new_date;
-    }
-
     reset_stream(selected_stream=null) {
         const stream = selected_stream
             ? selected_stream.toLowerCase()
@@ -566,12 +622,36 @@ class DataLayout extends Component {
                 <span
                     className='border-circle-radius'
                     onClick={() => {
+                        {/*
+
+                            selecting bls steps the date back off the current
+                            month, which never holds bls data -- see
+                            BLS_PUBLICATION_LAG_MONTHS.
+
+                            only from the CURRENT month, so the step is
+                            idempotent: clicking bls twice must not walk two
+                            months back, and a month the reader chose
+                            deliberately is left alone. that also means the date
+                            picker keeps working normally for bls -- this moves
+                            the landing point, it does not override the filter
+
+                        */}
+                        const shifted = stream === this.state.stream_bls
+                            ? blsLandingDate(this.state.selected_date, this.state.now)
+                            : null;
+
                         this.setState({
                             selected_stream: stream,
                             // keep the mobile chart header in sync with the selected
                             // stream (was stuck on the default 'StockMarket')
                             listing_graphic_title: stream_name,
-                            [`promise_get_data_${stream}`]: false
+                            [`promise_get_data_${stream}`]: false,
+                            ...(shifted ? {
+                                selected_date: shifted,
+                                dd: String(shifted.getDate()).padStart(2, '0'),
+                                mm: shifted.getMonth() + 1,
+                                yyyy: shifted.getFullYear()
+                            } : {})
                         }, () => {
                             this.updateStreamListing();
                             this.reset_stream(stream);
