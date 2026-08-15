@@ -80,7 +80,7 @@ module.exports = {
     //
     // Fail the run if coverage drops, rather than only reporting it.
     //
-    // A flat 86% baseline on all four metrics. This is the mechanism that actually
+    // A flat 87% baseline on all four metrics. This is the mechanism that actually
     // holds coverage; the README badge only reports it.
     //
     // Note: branches and functions are the two that bind -- they carry far less room
@@ -109,10 +109,10 @@ module.exports = {
     //
     'coverageThreshold': {
         global: {
-            statements: 86,
-            branches: 86,
-            functions: 86,
-            lines: 86,
+            statements: 87,
+            branches: 87,
+            functions: 87,
+            lines: 87,
         },
     },
     //
