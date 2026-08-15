@@ -80,8 +80,15 @@ module.exports = {
     //
     // Fail the run if coverage drops, rather than only reporting it.
     //
-    // A flat 87% baseline on all four metrics. This is the mechanism that actually
+    // A flat 88% baseline on all four metrics. This is the mechanism that actually
     // holds coverage; the README badge only reports it.
+    //
+    // Note: raised from 87 in #21. Statements and lines were already past 88 and only
+    //       needed the floor moved; branches (87.44) and functions (87.86) both had
+    //       to be earned first, which took the svg icon family from no tests at all
+    //       to 100%, plus the data layout's own helpers. Branches cleared by 0.3pp,
+    //       so it is the metric with the least room and the one that will redden
+    //       first.
     //
     // Note: branches and functions are the two that bind -- they carry far less room
     //       above the baseline than statements and lines do, so in practice a build
@@ -109,10 +116,10 @@ module.exports = {
     //
     'coverageThreshold': {
         global: {
-            statements: 87,
-            branches: 87,
-            functions: 87,
-            lines: 87,
+            statements: 88,
+            branches: 88,
+            functions: 88,
+            lines: 88,
         },
     },
     //
