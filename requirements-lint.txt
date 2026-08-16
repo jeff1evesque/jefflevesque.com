@@ -1,0 +1,15 @@
+#
+# Linters only, and the only Python dependency file in this repository -- the
+# site itself is JavaScript and SCSS, whose dependencies live in jsx/ and
+# scss/ package.json. The handful of Python here is scripts/, which is
+# otherwise stdlib-only.
+#
+# Not optional: .githooks/pre-commit refuses to commit staged Python without
+# ruff, so a clone that skips this file cannot commit Python at all.
+#
+# Pinned to the exact version .github/workflows/lint.yml installs, so the
+# pre-commit hook and CI cannot disagree about which findings exist. An
+# unpinned linter means a new upstream release can turn an untouched branch
+# red overnight -- bump this and the workflow together, on purpose.
+#
+ruff==0.16.1
