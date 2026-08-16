@@ -67,11 +67,10 @@ fi
 # Lint staged JavaScript. Mirrors the `eslint` job in the `lint` GitHub Actions
 # workflow, which reads the same jsx/eslint.config.mjs.
 #
-# eslint is not part of any stdlib either, but unlike the ruff step above a
-# missing install is still a skip with a notice rather than a hard failure --
-# CI remains the enforcement for JavaScript. The two differ because eslint also
-# needs a node new enough to run it (see the version guard below), so requiring
-# it would block commits on a toolchain problem the committer may not control.
+# eslint is not part of any stdlib either, and like the ruff step above a
+# missing install is a HARD FAILURE rather than a skip. So is a node too old to
+# run it: an unusable toolchain is the same buried opt-out as an absent tool,
+# and `nvm use 20` is the fix rather than a silently unlinted commit.
 # Paths are made relative to jsx/ because that is where the config lives and
 # where eslint resolves its plugins from.
 #
@@ -82,18 +81,19 @@ node_major=$(node --version 2>/dev/null | sed -n 's/^v\([0-9][0-9]*\).*/\1/p')
 
 if [ -n "${staged_js}" ]; then
     if [ ! -x jsx/node_modules/.bin/eslint ]; then
-        echo 'Notice (pre-commit): eslint is not installed -- skipping the JavaScript lint.'
-        echo '                     CI still enforces it. Install: (cd jsx && npm install)'
+        echo 'pre-commit: eslint is not installed, and the JavaScript lint is required.' >&2
+        echo '            Install: (cd jsx && npm install)' >&2
+        exit 1
 
     # eslint 9 requires node ^18.18 || ^20.9 || >=21.1 and CRASHES on older
     # versions rather than reporting anything useful -- on node 16 it dies
     # inside its own config loader with "structuredClone is not defined".
-    # Without this guard that crash blocks every commit, which is exactly the
-    # failure mode this hook is supposed to avoid.
+    # This guard turns that crash into a readable instruction.
     elif [ -z "${node_major}" ] || [ "${node_major}" -lt 18 ]; then
-        echo "Notice (pre-commit): node ${node_major:-(not found)} is too old for eslint 9 (needs >= 18.18)"
-        echo '                     -- skipping the JavaScript lint. CI runs it on node 20.'
-        echo '                     Locally: nvm use 20'
+        echo "pre-commit: node ${node_major:-(not found)} is too old for eslint 9 (needs >= 18.18)," >&2
+        echo '            and the JavaScript lint is required. CI runs it on node 20.' >&2
+        echo '            Locally: nvm use 20' >&2
+        exit 1
 
     else
         echo "${staged_js}" \
