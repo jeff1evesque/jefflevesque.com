@@ -261,6 +261,66 @@ function format_count(value) {
 
 {/*
 
+    the 'Records' value, qualified when a zero is the publication lag rather than
+    an empty stream.
+
+    bls is the case. the 'Lag' row above already states the reason, but it sits
+    BESIDE the number rather than on it: 'Lag 1-2 months' and 'Records 0' are two
+    facts the reader has to join, and 'RDF Available' further along the same row
+    reads as a live capability, which invites taking the 0 as the stream itself
+    being empty. attaching the qualifier to the number it qualifies closes that.
+
+    deliberately NOT applied to 'Partitions', which is zero for the same reason
+    at the same time: saying it twice in one row reads as two findings rather
+    than one, and the count that matters is the one the chart is drawn from.
+
+    two gates, and both are load-bearing:
+
+        the stream declares a lag     only bls does. a lag is the only thing that
+                                      makes a published month look unpublished,
+                                      so a stream without one has no excuse to
+                                      offer for a zero
+
+        the month is inside it        a zero for march 2024 is not 'unpublished',
+                                      it is ABSENT -- a genuine hole in the
+                                      datalake -- and the qualifier would excuse
+                                      it. the window runs 0..lag: the current
+                                      month is the always-empty one, and the
+                                      picker's maxDate keeps the reader from
+                                      selecting past it
+
+    everything else falls through to format_count untouched, 'n/a' and the empty
+    string from a failed query included. neither is zero, and a stream that
+    reported nothing must not claim it measured nothing
+
+*/}
+export function recordsLabel(stream, value, selected, now, lag = BLS_PUBLICATION_LAG_MONTHS) {
+    const formatted = format_count(value);
+
+    if (!stream_lag(stream) || !(selected instanceof Date) || !(now instanceof Date)) {
+        return formatted;
+    }
+
+    if (value === null || value === undefined || value === '' || Number(value) !== 0) {
+        return formatted;
+    }
+
+    {/*
+
+        the year term carries the difference across january rather than
+        subtracting the month numbers, which underflows: january 2027 against
+        november 2026 is 1 - 11 = -10 by month number alone, and 2 by this
+
+    */}
+    const months_behind = (now.getFullYear() - selected.getFullYear()) * 12
+        + (now.getMonth() - selected.getMonth());
+
+    return months_behind <= lag ? `${formatted} (unpublished)` : formatted;
+}
+
+
+{/*
+
     split the api's 'nvdl 3:1, mull 25:1' into [{ticker, ratio}], so both the
     hover and the click-through sheet can render the ticker left and its ratio
     right rather than one unreadable run-on string
@@ -634,7 +694,12 @@ class DataLayout extends Component {
                     'Type': 'Hive',
                     ...(streamCoverage(v) ? { 'Coverage': streamCoverage(v) } : {}),
                     ...(stream_lag(v) ? { 'Lag': stream_lag(v) } : {}),
-                    'Records': format_count(this.state[`records_${stream}`]),
+                    'Records': recordsLabel(
+                        v,
+                        this.state[`records_${stream}`],
+                        this.state.selected_date,
+                        this.state.now
+                    ),
                     'Partitions': format_count(this.state[`partitions_${stream}`]),
                     'RDF': rdf_enabled(v) ? 'Available' : 'None'
                 },
