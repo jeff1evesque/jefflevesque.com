@@ -18,9 +18,13 @@
  * Note: the hours are eastern for every stream. the cron expressions mostly
  *       name no timezone, and eventbridge reads a bare one as utc, so the
  *       intent was verified against the data: stockmarket lands in 9-15
- *       eastern, sec in 6-22 eastern, bls at 8/10/12/14 eastern. a utc reading
- *       would have put stockmarket at 4-10 eastern, which is not what the
- *       report shows
+ *       eastern, sec in 6-22 eastern, bls at 15 eastern. a utc reading would
+ *       have put stockmarket at 4-10 eastern, which is not what the report
+ *       shows
+ *
+ * Note: bls is the one entry whose collection schedule states its zone outright
+ *       rather than leaving it to be inferred, so its hour is the one below
+ *       that did not have to be verified against the report first
  *
  */
 
@@ -71,11 +75,17 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
           that much is true of both feeds, so the hourly and daily rates are
           still graded
 
-    Note: bls merges ten feeds the same way, each with its own release schedule
-          (some run days 8-18 of the month, some 1-16, one only on tuesdays).
-          their union covers every day, which the report confirms -- the 1st and
-          2nd of august were a saturday and a sunday and both carried data -- so
-          the stream as a whole is treated as daily
+    Note: bls merges ten feeds, and they no longer report in on schedules of
+          their own. between them they used to land at 8, 10, 12 and 14 eastern,
+          which is what this entry named; since 2026-08-15 all ten are collected
+          together once a day, and 15 eastern is the only hour the stream
+          reports in
+
+    Note: eight of the ten report daily and two ('eci', 'wkyeng') only on
+          tuesdays, so the union still covers every day and the stream stays
+          ungraded by weekday. the hourly rate is the only one this narrowing
+          reaches -- 'intervalExpected' answers true for a day or a month before
+          it ever consults the hours
 
 */}
 export const INGEST_SCHEDULE = {
@@ -83,7 +93,7 @@ export const INGEST_SCHEDULE = {
     sec: { hours: [6, 22], weekdays: true, every: null, partition: 'day' },
     stockmarket: { hours: [9, 15], weekdays: true, every: 10, partition: 'day' },
     stockmarketstocksplit: { hours: [0, 0], weekdays: true, every: null, partition: 'year' },
-    bls: { hours: [8, 10, 12, 14], weekdays: false, every: null, partition: 'year' }
+    bls: { hours: [15], weekdays: false, every: null, partition: 'year' }
 };
 
 

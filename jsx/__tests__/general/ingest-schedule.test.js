@@ -32,6 +32,8 @@ const MON_0900_EST = new Date('2026-01-19T14:00:00Z');   // Mon 09:00, winter
 const SUN_2200_EST = new Date('2026-03-16T02:00:00Z');   // Sun 22:00
 const MON_1700_EDT = new Date('2026-03-16T21:00:00Z');   // Mon 17:00
 const MON_0800_EDT = new Date('2026-03-16T12:00:00Z');   // Mon 08:00
+const MON_1500_EDT = new Date('2026-03-16T19:00:00Z');   // Mon 15:00
+const MON_1500_EST = new Date('2026-01-19T20:00:00Z');   // Mon 15:00, winter
 
 describe('INGEST_SCHEDULE', () => {
     it('describes all five streams', () => {
@@ -97,8 +99,8 @@ describe('intervalExpected', () => {
 
         it('does not exclude a weekend for a stream that runs every day', () => {
             //
-            // weather and bls both run at weekends -- bls because its ten feeds
-            // union to cover every day.
+            // weather and bls both report at weekends -- bls because eight of
+            // its ten feeds report daily, the other two only on tuesdays.
             //
             expect(intervalExpected('usnationalweather', 'day', SAT_1000_EDT)).toBe(true);
             expect(intervalExpected('bls', 'day', SAT_1000_EDT)).toBe(true);
@@ -142,18 +144,30 @@ describe('intervalExpected', () => {
 
     describe('the hourly rate, against a LIST of hours', () => {
         it('accepts an hour named in the list', () => {
-            // bls: hours [8, 10, 12, 14] is a list, not a range
-            expect(intervalExpected('bls', 'hour', MON_0800_EDT)).toBe(true);
-            expect(intervalExpected('bls', 'hour', MON_1000_EDT)).toBe(true);
+            // bls: hours [15] is a list, not a range
+            expect(intervalExpected('bls', 'hour', MON_1500_EDT)).toBe(true);
         });
 
-        it('rejects an hour between the named ones', () => {
+        it('rejects every hour the list does not name', () => {
             //
-            // the distinction that makes the two-element convention matter: bls
-            // runs at 8, 10, 12 and 14 and at no hour between them. Read as a
-            // range, 09:00 would wrongly be expected.
+            // the hours the stream used to report in. since 2026-08-15 all ten
+            // feeds are collected together at 15 eastern, so an interval at
+            // 08:00 is no longer owed anything and grading one would report an
+            // outage that cannot happen.
             //
-            expect(intervalExpected('bls', 'hour', MON_0900_EST)).toBe(false);
+            [MON_0800_EDT, MON_1000_EDT, MON_1700_EDT].forEach(d => {
+                expect(intervalExpected('bls', 'hour', d)).toBe(false);
+            });
+        });
+
+        it('reads the hour on eastern time, not UTC', () => {
+            //
+            // 20:00Z is 15:00 eastern in january and 16:00 in march. read as
+            // utc the run would look scheduled at 20:00 year round, and the one
+            // hour bls actually reports in would count as a gap every day.
+            //
+            expect(intervalExpected('bls', 'hour', MON_1500_EST)).toBe(true);
+            expect(intervalExpected('bls', 'hour', new Date('2026-03-16T20:00:00Z'))).toBe(false);
         });
     });
 
