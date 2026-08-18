@@ -296,6 +296,26 @@ describe('the ingest types, through get_promise', () => {
         quiet.mockRestore();
     });
 
+    it('logs a non-object rejection as itself', async () => {
+        //
+        // the catch splits on 'typeof e', because JSON.stringify of a bare string
+        // yields a quoted string rather than the message. fetch rejects with an
+        // Error in practice, so only the object arm above had ever run -- the
+        // same untested pair sits in all four distribution loaders.
+        //
+        const callback = jest.fn();
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+        global.fetch = jest.fn().mockRejectedValue('offline');
+
+        await getData('bls-ingest', URL, callback);
+
+        expect(callback).not.toHaveBeenCalled();
+        expect(quiet).toHaveBeenCalledWith(expect.stringContaining('offline'));
+        expect(quiet).not.toHaveBeenCalledWith(expect.stringContaining('"offline"'));
+
+        quiet.mockRestore();
+    });
+
     it.each([
         ['sec-ingest'],
         ['us-national-weather-ingest'],
