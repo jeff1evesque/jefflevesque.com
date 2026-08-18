@@ -398,3 +398,85 @@ describe('the partition count', () => {
         expect(posted[1].count).toBe(2);
     });
 });
+
+describe('an item carrying no stream', () => {
+    //
+    // 'stream' is optional on the message, and both sections read it through the
+    // same guard. data.jsx always sets it, so the absent case had never run --
+    // but the two sections disagree about what to do without it, which is only
+    // visible when it is missing.
+    //
+    it.each(WORKERS)('%s refuses to transform the distribution', (name, worker, stream, k, s, c) => {
+        worker();
+
+        self.onmessage(payload({ 'data-distribution': [row(k, s, c, 'A', 'X', 5)] }));
+
+        expect(posted).toEqual([null]);
+        expect(quiet).toHaveBeenCalledWith(expect.stringContaining('selected_stream=null'));
+    });
+
+    it.each(WORKERS)('%s still reports the partition count, tagged null', (name, worker) => {
+        //
+        // the asymmetry: the distribution section treats a missing stream as
+        // fatal, while the partition section posts the count anyway and lets the
+        // consumer sort out who it belongs to.
+        //
+        worker();
+
+        self.onmessage(payload({ partition: [{ count: '4' }] }));
+
+        expect(posted).toEqual([{ count: 4, selected_stream: null }]);
+    });
+});
+
+describe('two rows sharing an aggregate key', () => {
+    //
+    // the case the 'merge objects from array of objects having common field'
+    // branch exists for: one key, two stacked categories. The two workers do NOT
+    // agree on it, so they are asserted separately rather than from the table.
+    //
+    it('us-weather-alert merges both events onto the one severity', () => {
+        weatherWorker();
+
+        self.onmessage(payload({
+            'data-distribution': [
+                row('severity', 'event', 'total_events', 'Severe', 'Flood', 3),
+                row('severity', 'event', 'total_events', 'Severe', 'Wind', 4),
+            ],
+            stream: 'usnationalweather',
+        }));
+
+        expect(posted[0].data_distribution).toEqual([
+            { severity: 'Severe', Flood: 3, Wind: 4 },
+        ]);
+        expect(posted[0].records).toBe(7);
+    });
+
+    it('sec drops the first category instead of merging', () => {
+        //
+        // NOT the intended behaviour, and inert only because the chart rarely
+        // sees two categories for one form. The merge arm tests
+        // 'trim(v.form) in data_reformat', but the insert below it stores under
+        // `Form ${trim(v.form)}` -- the prefix the axis needs. The two keys never
+        // match, so the arm is unreachable and the second row overwrites the
+        // first through the insert path instead. Weather has no prefix and so
+        // merges correctly, which is why only sec loses data here.
+        //
+        // 'records' still totals both rows, so the count and the bars disagree.
+        //
+        secWorker();
+
+        self.onmessage(payload({
+            'data-distribution': [
+                row('form', 'category', 'total_records', '8-K', 'Filings', 3),
+                row('form', 'category', 'total_records', '8-K', 'Amendments', 4),
+            ],
+            stream: 'sec',
+        }));
+
+        expect(posted[0].data_distribution).toEqual([
+            { form: 'Form 8-K', Amendments: 4 },
+        ]);
+        expect(posted[0].records).toBe(7);
+    });
+});
