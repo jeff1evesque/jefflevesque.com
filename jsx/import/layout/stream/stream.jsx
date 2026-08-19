@@ -48,7 +48,7 @@ import THROUGHPUT_KEY from '../../general/throughput-key.js';
     ran, which is a question about the chart rather than about the request.
 
 */}
-import { expectedIntervals } from '../../general/ingest-schedule.js';
+import { coverageBucket, expectedIntervals } from '../../general/ingest-schedule.js';
 {/*
 
     the chart's own gap fill, and deliberately NOT the report's
@@ -117,6 +117,15 @@ function streamCoverage(chart_data, stream, rate, field_datetime, stream_source)
         state the same fault twice
 
     */}
+    {/*
+
+        the row is filed under the interval it counts toward rather than under
+        its own instant. For all but one case those are the same thing; for a
+        stream scheduled 'rate(5 minutes)' the schedule fixes the spacing and
+        not the offset, so the run is on time anywhere in its window (see
+        'coverageBucket')
+
+    */}
 
     const carried = new Set();
     chart_data.forEach((item) => {
@@ -126,7 +135,7 @@ function streamCoverage(chart_data, stream, rate, field_datetime, stream_source)
         }, 0);
 
         if (throughput > 0 && item[field_datetime] instanceof Date) {
-            carried.add(item[field_datetime].valueOf());
+            carried.add(coverageBucket(stream, rate, item[field_datetime]).valueOf());
         }
     });
 
