@@ -25,6 +25,19 @@ function mount(Component, props = {}) {
     return held.current;
 }
 
+//
+// mount, then re-render the same instance with different props, which is how a
+// caller drives the diagram after it is on the page.
+//
+function remount(Component, before, after) {
+    const held = React.createRef();
+    const { rerender } = render(<Component ref={held} {...before} />);
+
+    rerender(<Component ref={held} {...after} />);
+
+    return held.current;
+}
+
 describe('the sliding window diagram', () => {
     it('falls back to its own labels when given no props', () => {
         const svg = mount(Sliding);
@@ -179,5 +192,39 @@ describe('the tumbling window diagram', () => {
 
         expect(early.state.late_arrival).toBe(false);
         expect(late.state.late_arrival).toBe(true);
+    });
+
+    describe('following its props after mount', () => {
+        //
+        // Tumbling seeds state in its constructor AND mirrors six props in
+        // componentDidUpdate, so unlike Sliding it is genuinely controlled: a
+        // trigger panel toggling a window flag moves the diagram. Each prop has its
+        // own guard, all six identical, and a diagram wired to a control that does
+        // not move it is a defect with no error to notice it by.
+        //
+        // Note: the guard compares against prevProps rather than against state, so a
+        //       prop set back to the value the constructor already chose still counts
+        //       as a change and still syncs.
+        //
+        const CHANGES = [
+            ['x_unit', 'min', 'hour'],
+            ['x_increment', 1, 5],
+            ['window_1_purple', true, false],
+            ['window_1_green', true, false],
+            ['window_2_blue', true, false],
+            ['late_arrival', false, true],
+        ];
+
+        it.each(CHANGES)('mirrors a changed %s', (prop, before, after) => {
+            const svg = remount(Tumbling, { [prop]: before }, { [prop]: after });
+
+            expect(svg.state[prop]).toEqual(after);
+        });
+
+        it.each(CHANGES)('leaves %s alone when it did not change', (prop, before) => {
+            const svg = remount(Tumbling, { [prop]: before }, { [prop]: before });
+
+            expect(svg.state[prop]).toEqual(before);
+        });
     });
 });

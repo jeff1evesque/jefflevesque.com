@@ -80,7 +80,7 @@ module.exports = {
     //
     // Fail the run if coverage drops, rather than only reporting it.
     //
-    // A flat 88% baseline on all four metrics. This is the mechanism that actually
+    // A flat 90% baseline on all four metrics. This is the mechanism that actually
     // holds coverage; the README badge only reports it.
     //
     // Note: raised from 88 alongside the BLS group_by fix. Statements, functions and
@@ -124,10 +124,10 @@ module.exports = {
     //
     'coverageThreshold': {
         global: {
-            statements: 89,
-            branches: 89,
-            functions: 89,
-            lines: 89,
+            statements: 90,
+            branches: 90,
+            functions: 90,
+            lines: 90,
         },
     },
     //

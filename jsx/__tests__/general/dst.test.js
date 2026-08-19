@@ -83,6 +83,29 @@ describe('dstOffset', () => {
         expect(() => dstOffset(false)).toThrow(TypeError);
     });
 
+    it('answers 0 in winter and -1 in summer', () => {
+        //
+        // both arms, which need the clock pinned: the function reads 'new Date()'
+        // itself and answers about TODAY, so on the real clock only one of the two is
+        // ever reachable in a given half of the year.
+        //
+        // Note: Date alone is faked. The suite's TZ pin makes 'America/New_York' the
+        //       machine zone as well as the one read here, so a january instant is
+        //       genuinely outside dst and a july one genuinely inside it.
+        //
+        jest.useFakeTimers({ doNotFake: ['setTimeout', 'setInterval', 'nextTick'] });
+
+        try {
+            jest.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+            expect(dstOffset()).toBe(0);
+
+            jest.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+            expect(dstOffset()).toBe(-1);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
     it('is dead code: nothing imports it', () => {
         //
         // recorded rather than asserted about behaviour. Only 'dstDate' appears in
@@ -127,6 +150,21 @@ describe('dstDateAdjusted', () => {
         //
         expect(() => dstDateAdjusted('2026-01-15')).toThrow();
         expect(() => dstDateAdjusted(null)).toThrow();
+    });
+
+    it('THROWS when est is false, the same way dstOffset does', () => {
+        //
+        // DOCUMENTS THE SAME DEFECT, in a second copy.
+        //
+        // dstDateAdjusted carries its own 'stdTimezoneOffset', identical to
+        // dstOffset's down to the ternaries: with est=false the two sample dates stay
+        // localeString TEXT, and getTimezoneOffset is called on a string. So this
+        // argument cannot be used here either -- and unlike dstOffset, this function
+        // IS reachable, since 'est' is its third parameter rather than its first.
+        //
+        const january = new Date(2026, 0, 15, 12, 0, 0);
+
+        expect(() => dstDateAdjusted(january, true, false)).toThrow(TypeError);
     });
 });
 

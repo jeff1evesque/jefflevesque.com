@@ -58,6 +58,7 @@ jest.mock('react-datepicker', () => ({
     ),
 }));
 
+import Auth from '@aws-amplify/auth';
 import getData from '../../import/general/get-data.js';
 import HomePage, { tradingDate } from '../../import/content/home-page.jsx';
 
@@ -308,6 +309,107 @@ describe('the stream and split checkboxes', () => {
         });
 
         expect(listings().length).toBe(2);
+    });
+
+    //
+    // the cases above call the toggles directly, which says what they DO and nothing
+    // about whether either checkbox reaches them. These click the boxes instead: a
+    // handler wired to the wrong toggle, or to none, passes every test above.
+    //
+    describe('driven by the checkboxes themselves', () => {
+        const boxFor = (text) => [...document.querySelectorAll('label')]
+            .find(l => l.textContent.trim() === text)
+            .querySelector('input');
+
+        it('unticks the Streams listing away', async () => {
+            await summary();
+
+            await userEvent.click(boxFor('Streams'));
+
+            expect(listings()).toEqual(['Stock Split']);
+        });
+
+        it('unticks the Stock Split listing away', async () => {
+            await summary();
+
+            await userEvent.click(boxFor('Stock Split'));
+
+            expect(listings()).toEqual(['Streams']);
+        });
+
+        it('leaves the other listing alone', async () => {
+            //
+            // the two checkboxes sit side by side and their handlers differ by one
+            // word, so a copy-paste between them would hide the wrong listing --
+            // which the assertions above would not notice on their own.
+            //
+            await summary();
+
+            await userEvent.click(boxFor('Streams'));
+            await userEvent.click(boxFor('Streams'));
+
+            expect(listings().sort()).toEqual(['Stock Split', 'Streams']);
+        });
+    });
+});
+
+describe('the presentation checkboxes', () => {
+    const horizontalBox = (text) => [...document.querySelectorAll('.checkbox-horizontal label')]
+        .find(l => l.textContent.includes(text))
+        .querySelector('input');
+
+    it('is driven back to the animation by the StockMarket checkbox', async () => {
+        //
+        // the return trip, which nothing covered: 'is driven by the Summary checkbox'
+        // clicks one way only, and setDisplay is otherwise called directly.
+        //
+        const { page } = await setup();
+
+        act(() => {
+            page.setDisplay('summary');
+        });
+
+        await userEvent.click(horizontalBox('StockMarket'));
+
+        expect(document.querySelector('[data-testid="graph-cluster"]')).toBeTruthy();
+        expect(listings()).toEqual([]);
+    });
+});
+
+describe('the session lookup', () => {
+    it('logs a live session rather than doing anything with it', async () => {
+        //
+        // the resolve arm. It logs the session object and stops -- nothing on the page
+        // reads it, so a signed-in visitor sees exactly what a signed-out one sees.
+        //
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+        Auth.currentSession.mockResolvedValueOnce({ token: 'live' });
+        const { page } = await setup();
+
+        await page.currentUser();
+        await act(async () => {});
+
+        expect(quiet).toHaveBeenCalledWith({ token: 'live' });
+
+        quiet.mockRestore();
+    });
+
+    it('logs the rejection rather than surfacing it', async () => {
+        //
+        // 'currentUser' is called by nothing on this page -- it neither renders from
+        // the session nor gates anything on it. Both arms only log, so an expired
+        // session and a live one are indistinguishable to the caller, and the method
+        // cannot reject: the catch swallows it.
+        //
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+        const { page } = await setup();
+
+        await expect(page.currentUser()).resolves.toBeUndefined();
+        await act(async () => {});
+
+        expect(quiet).toHaveBeenCalled();
+
+        quiet.mockRestore();
     });
 });
 

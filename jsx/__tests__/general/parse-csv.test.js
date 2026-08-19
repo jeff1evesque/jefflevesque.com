@@ -176,6 +176,20 @@ describe('papaParseCsv', () => {
         });
     });
 
+    it('parses without a callback rather than throwing', () => {
+        //
+        // the default callback is a no-op, and it is the only thing standing between
+        // a caller that wants the parse for its side effects and a TypeError -- the
+        // completion handler calls it unconditionally once the rows are in.
+        //
+        readString.mockImplementation((csv, options) => {
+            options.complete({ data: ROWS });
+        });
+
+        expect(() => papaParseCsv(CSV)).not.toThrow();
+        expect(readString).toHaveBeenCalled();
+    });
+
     it('defaults source and stream to null rather than leaving them undefined', () => {
         const callback = jest.fn();
         readString.mockImplementation((csv, options) => {

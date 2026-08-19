@@ -24,7 +24,7 @@
  */
 
 import THROUGHPUT_KEY from './throughput-key.js';
-import { expectedIntervals } from './ingest-schedule.js';
+import { coverageBucket, expectedIntervals } from './ingest-schedule.js';
 import { intervalStart, stepInterval } from './rolling-window.js';
 
 
@@ -46,15 +46,22 @@ const PADDED_MINIMUM = 3;
     is already drawn at zero, and adding a second row on the same instant would
     put two points on one x value
 
+    Note: filed through 'coverageBucket', the same way the listing's coverage
+          figure files them. The two answer one question between them -- which
+          intervals arrived -- and the whole point of counting against
+          'expectedIntervals' here is that the chart's gaps and that percentage
+          describe the same set. A row matched by one and not the other would
+          draw a zero over an interval coverage had just counted as covered
+
 */}
-function presentIntervals(chart_data, field_datetime) {
+function presentIntervals(chart_data, stream, rate, field_datetime) {
     const present = new Set();
 
     (chart_data || []).forEach((item) => {
         const when = item ? item[field_datetime] : null;
 
         if (when instanceof Date && !isNaN(when)) {
-            present.add(when.valueOf());
+            present.add(coverageBucket(stream, rate, when).valueOf());
         }
     });
 
@@ -92,7 +99,7 @@ export function missingIntervals(chart_data, stream, rate, field_datetime, now =
         return [];
     }
 
-    const present = presentIntervals(chart_data, field_datetime);
+    const present = presentIntervals(chart_data, stream, rate, field_datetime);
 
     if (!present.size) {
         return [];
@@ -194,13 +201,18 @@ function reportIsPadded(rows, rate, field_datetime) {
     'chart_data' with the report's own padding removed, so the area joins one
     observation to the next instead of collapsing to the axis between them.
 
-    this is the exact mirror of 'fillMissingIntervals' above, and the two can
-    never both act on one chart. that fill ADDS a zero where the schedule says a
-    run was due; this drops a zero the report invented where nothing was due at
-    all. the fill only has intervals to add when 'expectedIntervals' can name
-    them, which needs a graded rate -- and a graded rate is one whose report is
-    not padded, since the api pads exactly the streams whose cadence the
-    schedule cannot state.
+    this is the mirror of 'fillMissingIntervals' above: that fill ADDS a zero
+    where the schedule says a run was due, this drops a zero the report invented
+    where nothing was due at all.
+
+    the two used to be mutually exclusive -- the fill needs a graded rate, and
+    the api padded exactly the streams whose cadence the schedule could not
+    state. that no longer holds: 'usnationalweather' is padded AND graded at the
+    minute rate, so both run on one chart. the order they run in is what keeps
+    them from fighting, and it is the order the caller uses: the padding comes
+    off first, so the fill is asked its question about the runs the stream
+    actually made. the other way round, every interval would already carry a row
+    and the fill would find no gap to draw at all.
 
     Note: the S&P 500's missing monday survives this untouched, and by
           construction rather than by luck. its daily report has no row for that

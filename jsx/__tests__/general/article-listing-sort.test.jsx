@@ -312,6 +312,155 @@ describe('handleSelect, by ratio', () => {
     });
 });
 
+describe('handleSelect, by the keys that share the ratio rebuild', () => {
+    //
+    // 'date', 'runtime' and 'health'/'coverage' each rebuild every entry exactly the
+    // way the ratio branch above does: four copied blocks differing only in which
+    // detail field becomes 'temp'. Driven from one table, so a fix applied to one of
+    // them and not the rest is visible rather than silent.
+    //
+    // Note: 'health' and 'coverage' are one branch in the source, not two -- both read
+    //       as a percentage string and are stripped to a number the same way. They are
+    //       listed separately here because the key each picks out is chosen inside that
+    //       branch, and picking the wrong one would sort a row by its neighbour's
+    //       figure.
+    //
+    const REBUILDS = [
+        ['Date', 'Date', { AAPL: '2026-01-03', MSFT: '2026-01-01', TSLA: '2026-01-02' }],
+        ['Runtime', 'Runtime', { AAPL: '3m', MSFT: '1m', TSLA: '2m' }],
+        ['Health', 'Health', { AAPL: '92.50%', MSFT: '10.00%', TSLA: '88.00%' }],
+        ['Coverage', 'Coverage', { AAPL: '92.50%', MSFT: '10.00%', TSLA: '88.00%' }],
+    ];
+
+    const listing = (key, values) => Object.entries(values).map(
+        ([name, value]) => ({ name, detail: { [key]: value } })
+    );
+
+    it.each(REBUILDS)('%s orders on the figure it names', (label, key, values) => {
+        const page = setup({ list_article: listing(key, values) });
+
+        expect(select(page, label)).toEqual(['MSFT', 'TSLA', 'AAPL']);
+    });
+
+    it.each(REBUILDS)('%s accepts the key in any casing', (label, key, values) => {
+        //
+        // the branch compares 'e.toLowerCase()', so the dropdown's own capitalisation
+        // is not load-bearing -- a caller listing 'HEALTH' gets the same sort.
+        //
+        const page = setup({ list_article: listing(key, values) });
+
+        expect(select(page, label.toUpperCase())).toEqual(['MSFT', 'TSLA', 'AAPL']);
+    });
+
+    it.each(REBUILDS)('%s maps an entry with no detail to null rather than dropping it', (label, key, values) => {
+        const page = setup({
+            list_article: [...listing(key, values), { name: 'NODETAIL' }],
+        });
+
+        expect(select(page, label)).toEqual(['MSFT', 'TSLA', 'AAPL', null]);
+    });
+
+    it.each(REBUILDS)('%s carries link, performance and type through the rebuild', (label, key, values) => {
+        //
+        // the rebuild constructs a fresh entry rather than adding a key to the old
+        // one, so anything it forgets to copy is gone from the row -- the link most
+        // visibly, since the name stops being clickable.
+        //
+        const page = setup({
+            list_article: [{
+                name: 'AAPL',
+                link: '/data?x=1',
+                type: 'split',
+                performance: { runtime: 5 },
+                detail: { [key]: values.AAPL },
+            }],
+        });
+
+        select(page, label);
+
+        const [entry] = page.state.list_article;
+        expect(entry.link).toBe('/data?x=1');
+        expect(entry.type).toBe('split');
+        expect(entry.performance).toEqual({ runtime: 5 });
+        expect(entry.detail).toEqual({ [key]: values.AAPL });
+    });
+
+    it.each(REBUILDS)('%s nulls a link, performance and type it cannot use', (label, key, values) => {
+        //
+        // Note: 'performance' is null rather than a wrong-typed value on purpose.
+        //       'checkValidObject(k, v)' tests the ENTRY, not v[k] -- it asks that the
+        //       key be present, non-undefined and non-null, and nothing more. A string
+        //       under 'performance' passes it and is carried through as a string, so
+        //       null is the only shape the guard actually rejects.
+        //
+        const page = setup({
+            list_article: [{
+                name: 'AAPL',
+                link: 42,
+                type: 7,
+                performance: null,
+                detail: { [key]: values.AAPL },
+            }],
+        });
+
+        select(page, label);
+
+        const [entry] = page.state.list_article;
+        expect(entry.link).toBeNull();
+        expect(entry.type).toBeNull();
+        expect(entry.performance).toBeNull();
+    });
+
+    it.each([['Health'], ['Coverage']])('%s sorts a stream that cannot state one to the bottom', (label) => {
+        //
+        // 'n/a' is what both figures sit at until a report resolves, and what a stream
+        // whose rate cannot be graded shows permanently. Stripping it of everything
+        // that is not a digit leaves the empty string, which Number() reads as 0 -- so
+        // it sorts below every real percentage rather than throwing.
+        //
+        const page = setup({
+            list_article: [
+                { name: 'AAPL', detail: { [label]: '92.50%' } },
+                { name: 'MSFT', detail: { [label]: 'n/a' } },
+                { name: 'TSLA', detail: { [label]: '10.00%' } },
+            ],
+        });
+
+        expect(select(page, label)).toEqual(['MSFT', 'TSLA', 'AAPL']);
+    });
+});
+
+describe('the argument defaults', () => {
+    it('sorts ascending when no direction is given', () => {
+        //
+        // 'sorter' is always called internally with both arguments, so its default is
+        // only reachable from a caller reaching for the comparator itself.
+        //
+        const page = setup();
+        const compare = page.sorter('name');
+
+        expect(compare({ name: 'a' }, { name: 'b' })).toBe(-1);
+    });
+
+    it('treats a sort chosen with no type as a sort rather than an order flip', () => {
+        //
+        // 'type' distinguishes choosing a KEY from toggling the direction, and the
+        // dropdown omits it entirely for the former.
+        //
+        const page = setup({
+            list_article: [{ name: 'TSLA' }, { name: 'AAPL' }],
+        });
+        const before = page.state.listing_ascend;
+
+        act(() => {
+            page.handleSelect('A-Z');
+        });
+
+        expect(page.state.listing_ascend).toBe(before);
+        expect(page.state.list_article.map(v => v.name)).toEqual(['AAPL', 'TSLA']);
+    });
+});
+
 describe('handleSelect, by date and runtime', () => {
     it('orders by the detail date', () => {
         const page = setup({

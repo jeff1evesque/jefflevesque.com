@@ -246,6 +246,30 @@ describe('the shared failure paths', () => {
         quiet.mockRestore();
     });
 
+    it.each(LOADERS)('%s logs a non-object rejection without stringifying it', async (name, loader) => {
+        //
+        // the catch reads 'typeof e === "object"' and JSON.stringify()s anything that
+        // is. A body that fails to parse rejects with whatever the parser threw, and a
+        // primitive there would otherwise be logged as the string '"..."' with its
+        // quotes -- so the two shapes are formatted separately. Both arrive here as a
+        // swallowed request either way.
+        //
+        const callback = jest.fn();
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.reject('malformed'),
+        });
+
+        await loader('data-distribution', URL, callback);
+
+        expect(callback).not.toHaveBeenCalled();
+        expect(quiet).toHaveBeenCalledWith(expect.stringContaining('malformed'));
+        expect(quiet).not.toHaveBeenCalledWith(expect.stringContaining('"malformed"'));
+
+        quiet.mockRestore();
+    });
+
     it.each(LOADERS)('%s swallows a network failure', async (name, loader) => {
         const callback = jest.fn();
         const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -290,6 +314,55 @@ describe('the fallback path, given no url', () => {
         const keys = callback.mock.calls.map(c => Object.keys(c[0]).filter(k => k !== 'source' && k !== 'stream')[0]);
         expect(keys).toContain('partition');
         expect(keys).not.toContain('count');
+    });
+
+    it.each(LOADERS)('%s calls back with nulls when its own sample parses to nothing', async (name, loader) => {
+        //
+        // the fallback carries its own copy of the null handling rather than sharing
+        // the fetch path's -- the same twelve lines again, one branch per section. A
+        // parser that returns nothing here is not a real scenario for embedded csv,
+        // which is the point: the copy is unreachable in practice and would go stale
+        // unnoticed.
+        //
+        const callback = jest.fn();
+        readString.mockImplementation((csv, options) => {
+            options.complete({});
+            return {};
+        });
+
+        await loader('data-distribution', null, callback);
+
+        expect(callback).toHaveBeenCalledWith({ 'data-distribution': null, source: null, stream: null });
+        expect(callback).toHaveBeenCalledWith({ partition: null, source: null, stream: null });
+    });
+
+    it.each(LOADERS)('%s serves its sample with no callback at all', async (name, loader) => {
+        //
+        // the default callback, which is a no-op: a caller wanting only the returned
+        // promise gets one, and the two per-section calls land nowhere rather than
+        // throwing. The fetch path has no such luxury -- see the rejection cases
+        // above, which need the argument to log against.
+        //
+        await expect(loader('data-distribution', null)).resolves.toEqual(
+            expect.objectContaining({ 'data-distribution': expect.anything() })
+        );
+    });
+});
+
+describe('the argument defaults', () => {
+    it.each(LOADERS)('%s defaults its url, and so takes the sample path', async (name, loader) => {
+        //
+        // 'get' is reached with a type and nothing else by data.jsx's error handling.
+        // The url defaults to null, which is the fallback's own trigger, so a caller
+        // that names only a type is served sample data rather than being refused.
+        //
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+        global.fetch = jest.fn();
+
+        expect(loader('not-a-type')).toBeUndefined();
+        expect(global.fetch).not.toHaveBeenCalled();
+
+        quiet.mockRestore();
     });
 });
 

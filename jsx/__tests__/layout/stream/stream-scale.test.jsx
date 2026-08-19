@@ -504,6 +504,17 @@ describe('toggleChartScale padding removal', () => {
     // the aggregator calls it, calls it before the fill, and calls it with this
     // stream's own source list.
     //
+    //
+    // 'count' minutes before now, on no particular minute of the clock.
+    //
+    // Note: deliberately NOT snapped to the five minute grid, and that is the
+    //       assertion. Both streams here are scheduled 'rate(5 minutes)', which fixes
+    //       the spacing and not the offset, so their runs are graded against the
+    //       window they fall in rather than against an exact instant. A fixture that
+    //       had to be aligned to pass would mean the grading still depended on which
+    //       minute the suite happened to start on -- which is the failure the windows
+    //       exist to remove.
+    //
     function minutesAgo(count) {
         const d = new Date();
         d.setSeconds(0, 0);
@@ -523,11 +534,16 @@ describe('toggleChartScale padding removal', () => {
     // the whole trailing minute window as the api returns it: a row on every one of the
     // 60 minutes, carrying a run on every fifth and a filled-in zero on the rest.
     //
+    // Note: the run is placed by the row's OFFSET rather than by its index, so the
+    //       twelve of them sit a true five minutes apart from the newest backwards.
+    //       Indexed from the oldest, the newest run landed four minutes short of now
+    //       and the spacing assertion below read the gap rather than the cadence.
+    //
     function paddedMinuteReport() {
-        return Array.from(
-            { length: 60 },
-            (v, i) => wxRow(minutesAgo(59 - i), i % 5 === 0 ? 190 + i : 0)
-        );
+        return Array.from({ length: 60 }, (v, i) => {
+            const back = 59 - i;
+            return wxRow(minutesAgo(back), back % 5 === 0 ? 190 + i : 0);
+        });
     }
 
     function scaleFor(page, stream, rate, rows) {
@@ -558,7 +574,11 @@ describe('toggleChartScale padding removal', () => {
         const result = scaleFor(page, 'usnationalweather', 'minute', paddedMinuteReport());
         const spacing = result.slice(1).map((v, i) => v[FIELD] - result[i][FIELD]);
 
-        expect(result[0][FIELD].valueOf()).toBe(minutesAgo(59).valueOf());
+        //
+        // the oldest RUN, which is 55 minutes back rather than 59: the four rows older
+        // than it are padding, and fall outside the trailing window besides.
+        //
+        expect(result[0][FIELD].valueOf()).toBe(minutesAgo(55).valueOf());
         expect(spacing.every(ms => ms === 5 * 60 * 1000)).toBe(true);
     });
 
