@@ -57,20 +57,24 @@ describe('INGEST_SCHEDULE', () => {
         });
     });
 
-    it('names a minute spacing only for stockmarket', () => {
+    it('names a minute spacing for the three streams that have one', () => {
         //
-        // the documented reason: stockmarket schedules its minutes outright
-        // ('0,10,20,30,40,50'), so it is the one stream whose minute intervals can
-        // be divided by. weather is 'rate(5 minutes)' counted from whenever the
-        // rule was created, so its offset is unknowable; bls and stock-split run a
-        // handful of times a day at fixed minutes.
+        // stockmarket schedules its minutes outright ('0,10,20,30,40,50'), so its
+        // spacing comes off the cron. weather and sec are both 'rate(5 minutes)',
+        // whose offset the expression does not fix -- theirs is read off the live
+        // report instead, where every bucket of a trailing hour sits on a multiple
+        // of five. bls and stock-split run a handful of times a day at fixed
+        // minutes and are the two that stay ungraded.
         //
         const withSpacing = Object.entries(INGEST_SCHEDULE)
             .filter(([, s]) => s.every)
-            .map(([name]) => name);
+            .map(([name]) => name)
+            .sort();
 
-        expect(withSpacing).toEqual(['stockmarket']);
+        expect(withSpacing).toEqual(['sec', 'stockmarket', 'usnationalweather']);
         expect(INGEST_SCHEDULE.stockmarket.every).toBe(10);
+        expect(INGEST_SCHEDULE.usnationalweather.every).toBe(5);
+        expect(INGEST_SCHEDULE.sec.every).toBe(5);
     });
 });
 
@@ -190,16 +194,50 @@ describe('intervalExpected', () => {
             expect(intervalExpected('stockmarket', 'minute', MON_1005_EDT)).toBe(false);
         });
 
+        it('accepts a five minute spacing on the five', () => {
+            //
+            // 10:05 is off stockmarket's ten minute spacing and on the five minute
+            // one the other two run, so the same instant answers differently per
+            // stream -- which is the whole point of reading 'every' rather than
+            // assuming one cadence.
+            //
+            expect(intervalExpected('usnationalweather', 'minute', MON_1005_EDT)).toBe(true);
+            expect(intervalExpected('sec', 'minute', MON_1005_EDT)).toBe(true);
+            expect(intervalExpected('usnationalweather', 'minute', MON_1010_EDT)).toBe(true);
+        });
+
+        it('rejects a minute off the five', () => {
+            // 10:07 is on no spacing this table names
+            const MON_1007_EDT = new Date('2026-03-16T14:07:00Z');
+
+            expect(intervalExpected('usnationalweather', 'minute', MON_1007_EDT)).toBe(false);
+            expect(intervalExpected('sec', 'minute', MON_1007_EDT)).toBe(false);
+        });
+
+        it('still applies the hour gate to a five minute stream', () => {
+            //
+            // sec is graded by minute now, but only inside the hours it runs: 23:05
+            // is past its 6-22 window, so a minute on the five there is owed
+            // nothing. weather has no hours at all and takes the same minute.
+            //
+            const MON_1705_EDT = new Date('2026-03-16T21:05:00Z');
+            const MON_2305_EDT = new Date('2026-03-17T03:05:00Z');
+
+            expect(intervalExpected('sec', 'minute', MON_1705_EDT)).toBe(true);
+            expect(intervalExpected('sec', 'minute', MON_2305_EDT)).toBe(false);
+            expect(intervalExpected('usnationalweather', 'minute', MON_2305_EDT)).toBe(true);
+        });
+
         it('rejects every minute for a stream with no spacing', () => {
             //
             // reached through arithmetic rather than a guard: 'every' is null, so
             // 'minute % null' is NaN and 'NaN === 0' is false. The outcome is the
-            // intended one -- these streams go ungraded at the minute rate -- and
-            // coverageSupported is what stops the question being asked at all.
+            // intended one -- bls and stock-split go ungraded at the minute rate --
+            // and coverageSupported is what stops the question being asked at all.
             //
-            expect(intervalExpected('usnationalweather', 'minute', MON_1000_EDT)).toBe(false);
             expect(intervalExpected('bls', 'minute', MON_0800_EDT)).toBe(false);
-            expect(intervalExpected('sec', 'minute', MON_1000_EDT)).toBe(false);
+            expect(intervalExpected('bls', 'minute', MON_1500_EDT)).toBe(false);
+            expect(intervalExpected('stockmarketstocksplit', 'minute', MON_1000_EDT)).toBe(false);
         });
     });
 
@@ -244,9 +282,10 @@ describe('coverageSupported', () => {
 
     it('supports the minute rate only where a spacing is known', () => {
         expect(coverageSupported('stockmarket', 'minute')).toBe(true);
-        expect(coverageSupported('usnationalweather', 'minute')).toBe(false);
-        expect(coverageSupported('sec', 'minute')).toBe(false);
+        expect(coverageSupported('usnationalweather', 'minute')).toBe(true);
+        expect(coverageSupported('sec', 'minute')).toBe(true);
         expect(coverageSupported('bls', 'minute')).toBe(false);
+        expect(coverageSupported('stockmarketstocksplit', 'minute')).toBe(false);
     });
 
     it('supports the hourly and daily rates for every stream', () => {
@@ -291,9 +330,21 @@ describe('expectedIntervals', () => {
         // stream could not fetch that window. It is graded now -- see the
         // coverageSupported case above.
         //
-        expect(expectedIntervals('usnationalweather', 'minute', NOW)).toEqual([]);
+        expect(expectedIntervals('stockmarketstocksplit', 'minute', NOW)).toEqual([]);
         expect(expectedIntervals('bls', 'minute', NOW)).toEqual([]);
         expect(expectedIntervals('nosuchstream', 'day', NOW)).toEqual([]);
+    });
+
+    it('enumerates a five minute window on the five', () => {
+        //
+        // twelve stops in a trailing hour for a stream on 'rate(5 minutes)', every
+        // one of them a multiple of five. weather is unrestricted, so this reaches
+        // the spacing alone with no hour or weekday gate in front of it.
+        //
+        const intervals = expectedIntervals('usnationalweather', 'minute', NOW);
+
+        expect(intervals).toHaveLength(12);
+        intervals.forEach(v => expect(v.getMinutes() % 5).toBe(0));
     });
 
     it('grades a monthly window for a day-partitioned stream', () => {
