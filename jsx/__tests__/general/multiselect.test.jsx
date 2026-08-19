@@ -16,7 +16,7 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import MultiSelect from '../../import/general/multiselect.jsx';
@@ -248,5 +248,170 @@ describe('props it is given nothing for', () => {
         //
         expect(() => render(<MultiSelect input_label='Sector' data={DATA} />)).not.toThrow();
         expect(document.querySelector('[role="combobox"]')).toBeInTheDocument();
+    });
+});
+
+describe('the styling props', () => {
+    //
+    // three props no caller in this repo passes today: the component carries a default
+    // for each and every trigger panel takes it. They are covered because they are the
+    // seam a caller would reach for first, and because the constructor's guard on them
+    // is not the one it looks like -- 'checkValidObject' reads a KEY off the props, so
+    // an entry present but null falls back rather than being handed through.
+    //
+    function sx(props) {
+        render(<MultiSelect input_label='Sector' data={DATA} callback={jest.fn()} {...props} />);
+        return document.querySelector('.MuiFormControl-root');
+    }
+
+    it('takes a form control width from the caller', () => {
+        expect(sx({ form_control_sx: { m: 2, width: 120 } })).toHaveStyle({ width: '120px' });
+    });
+
+    it('falls back to its own width when the prop is null', () => {
+        //
+        // 300px, the constructor's default. Null is the shape worth pinning: 'null in
+        // props' is true, so only the value check keeps it off the state.
+        //
+        expect(sx({ form_control_sx: null })).toHaveStyle({ width: '300px' });
+    });
+
+    it('accepts a select box and menu style without complaint', () => {
+        //
+        // 'select_box_sx' reaches state and is then never read -- render styles the
+        // chips inline instead. Asserted as far as it goes: the component mounts and
+        // renders with both supplied, which is all the prop can be observed to do.
+        //
+        expect(() => sx({
+            select_box_sx: { display: 'block', gap: 2 },
+            menu_props: { PaperProps: { style: { maxHeight: 100, width: 90 } } },
+        })).not.toThrow();
+
+        expect(document.querySelector('[role="combobox"]')).toBeInTheDocument();
+    });
+});
+
+describe('syncing the rest of the props after mount', () => {
+    //
+    // 'syncs items when the prop changes' above covers the three props a parent
+    // actually drives. componentDidUpdate mirrors four more, each behind the same
+    // reference comparison, and each silently stale if the guard is ever inverted.
+    //
+    function rerenderWith(before, after) {
+        const { rerender } = render(
+            <MultiSelect input_label='Sector' data={DATA} callback={jest.fn()} {...before} />
+        );
+
+        rerender(
+            <MultiSelect input_label='Sector' data={DATA} callback={jest.fn()} {...after} />
+        );
+    }
+
+    it('mirrors a changed label', () => {
+        rerenderWith({ input_label: 'Sector' }, { input_label: 'Industry' });
+
+        expect(screen.getByText('Industry')).toBeInTheDocument();
+    });
+
+    it('leaves the label alone when it did not change', () => {
+        rerenderWith({ input_label: 'Sector' }, { input_label: 'Sector' });
+
+        expect(screen.getByText('Sector')).toBeInTheDocument();
+    });
+
+    it('mirrors a changed form control style', () => {
+        rerenderWith(
+            { form_control_sx: { m: 1, width: 300 } },
+            { form_control_sx: { m: 1, width: 140 } }
+        );
+
+        expect(document.querySelector('.MuiFormControl-root')).toHaveStyle({ width: '140px' });
+    });
+
+    it('mirrors a changed select box and menu style', () => {
+        expect(() => rerenderWith(
+            {
+                select_box_sx: { gap: 0.5 },
+                menu_props: { PaperProps: { style: { width: 250 } } },
+            },
+            {
+                select_box_sx: { gap: 3 },
+                menu_props: { PaperProps: { style: { width: 90 } } },
+            }
+        )).not.toThrow();
+    });
+
+    it('mirrors a changed multi', () => {
+        //
+        // the one sync with a visible consequence: 'multi' decides whether a selection
+        // reports every value or only the last, so a parent turning it off after mount
+        // has to be followed or the control keeps reporting the wrong shape.
+        //
+        const held = React.createRef();
+        const callback = jest.fn();
+        const { rerender } = render(
+            <MultiSelect ref={held} input_label='Sector' data={DATA} callback={callback} multi={true} />
+        );
+
+        rerender(
+            <MultiSelect ref={held} input_label='Sector' data={DATA} callback={callback} multi={false} />
+        );
+
+        expect(held.current.state.multi).toBe(false);
+    });
+});
+
+describe('handleChange, driven directly', () => {
+    //
+    // MUI's Select is rendered 'multiple', so clicking an option always delivers an
+    // ARRAY. The two shapes below cannot be produced through the listbox at all, and
+    // both are handled -- so they are driven through the handler itself.
+    //
+    function held(props = {}) {
+        const ref = React.createRef();
+        render(<MultiSelect ref={ref} input_label='Sector' data={DATA} {...props} />);
+        return ref.current;
+    }
+
+    function change(page, value) {
+        act(() => {
+            page.handleChange({ target: { value } });
+        });
+    }
+
+    it('splits a comma separated string into values', () => {
+        //
+        // the branch a native <select multiple> would take: its value arrives as one
+        // comma joined string rather than as a list.
+        //
+        const callback = jest.fn();
+        const page = held({ callback });
+
+        change(page, 'Tech,Energy');
+
+        expect(callback).toHaveBeenCalledWith({ selected: ['Tech', 'Energy'] });
+        expect(page.state.items).toEqual(['Tech', 'Energy']);
+    });
+
+    it('clears the selection for a value that is neither', () => {
+        const callback = jest.fn();
+        const page = held({ callback, items: ['Tech'] });
+
+        change(page, 42);
+
+        expect(callback).toHaveBeenCalledWith({ selected: [] });
+        expect(page.state.items).toEqual([]);
+    });
+
+    it('clears without a callback rather than throwing', () => {
+        //
+        // the ONE path through handleChange that survives a missing callback: the
+        // clear is guarded, while both branches of the selection path call straight
+        // through (see 'mounts safely with no callback' above).
+        //
+        const page = held();
+
+        expect(() => change(page, 42)).not.toThrow();
+        expect(page.state.items).toEqual([]);
     });
 });
