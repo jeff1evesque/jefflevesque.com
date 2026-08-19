@@ -127,6 +127,60 @@ describe('the tumbling window diagram', () => {
         expect(svg.state.x_unit).toBe('min');
     });
 
+    it('follows all six props when a caller changes them after mount', () => {
+        //
+        // componentDidUpdate syncs six props into state through six copies of the
+        // same guard: present on both renders AND changed. Nothing had ever
+        // rerendered this component -- the diagrams are drawn once in article
+        // prose -- so every one of those arms was dead in test.
+        //
+        // Note: the update path does NOT re-validate the way the constructor
+        //       does. A value the constructor would reject is written to state
+        //       unchecked here, so the same prop is treated differently at mount
+        //       and on a change.
+        //
+        const held = React.createRef();
+        const before = {
+            x_unit: 'min',
+            x_increment: 1,
+            window_1_purple: false,
+            window_1_green: false,
+            window_2_blue: false,
+            late_arrival: false,
+        };
+        const after = {
+            x_unit: 'hr',
+            x_increment: 10,
+            window_1_purple: true,
+            window_1_green: true,
+            window_2_blue: true,
+            late_arrival: true,
+        };
+
+        const { rerender } = render(<Tumbling ref={held} {...before} />);
+        rerender(<Tumbling ref={held} {...after} />);
+
+        Object.entries(after).forEach(([prop, value]) => {
+            expect(held.current.state[prop]).toBe(value);
+        });
+    });
+
+    it('leaves state alone when a rerender changes nothing', () => {
+        //
+        // the other arm of the same six guards: an equal value must not write, or
+        // every parent rerender would setState six times over.
+        //
+        const held = React.createRef();
+        const props = { x_unit: 'hr', x_increment: 10, late_arrival: true };
+
+        const { rerender } = render(<Tumbling ref={held} {...props} />);
+        const held_state = held.current.state;
+
+        rerender(<Tumbling ref={held} {...props} />);
+
+        expect(held.current.state).toBe(held_state);
+    });
+
     it('moves the late arrival marker between the two windows', () => {
         //
         // late_arrival is the only flag the render branches on twice, once for each

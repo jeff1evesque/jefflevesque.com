@@ -414,6 +414,102 @@ describe('the trigger table', () => {
         expect(typeof page.state.rows_per_page).toBe('number');
     });
 
+    it('opens on the page a caller names', () => {
+        //
+        // 'page' is resolved in the constructor like every other prop, but no
+        // caller passes it -- the table is always entered at the first page and
+        // moved with handleChangePage. So the prop arm had never run, and a
+        // caller deep-linking to a page was relying on untested code.
+        //
+        const { page } = setup({
+            trigger_table: ROWS,
+            trigger_table_labels: LABELS,
+            page: 1,
+            ...PAGED,
+        });
+
+        expect(page.state.page).toBe(1);
+        expect(document.querySelectorAll('tbody tr')).toHaveLength(1);
+    });
+});
+
+describe('the table following its props', () => {
+    //
+    // componentDidUpdate syncs the table, its labels and the summary back into
+    // state when a parent changes them. The trigger pages hold these in their own
+    // state and re-render on every fetch, so this is the live path -- but nothing
+    // had ever re-rendered the component in test, leaving all three arms dead.
+    //
+    it('replaces the rows when the parent supplies a new array', () => {
+        const held = React.createRef();
+        const { rerender } = render(
+            <MemoryRouter>
+                <SummaryTrigger ref={held} trigger_table={ROWS} trigger_table_labels={LABELS} />
+            </MemoryRouter>
+        );
+
+        expect(document.querySelectorAll('tbody tr')).toHaveLength(3);
+
+        rerender(
+            <MemoryRouter>
+                <SummaryTrigger
+                    ref={held}
+                    trigger_table={[{ pattern: 'Doji', count: 1 }]}
+                    trigger_table_labels={LABELS}
+                />
+            </MemoryRouter>
+        );
+
+        expect(document.querySelectorAll('tbody tr')).toHaveLength(1);
+        expect(text()).toContain('Doji');
+    });
+
+    it('replaces the column labels when the parent supplies new ones', () => {
+        const held = React.createRef();
+        const { rerender } = render(
+            <MemoryRouter>
+                <SummaryTrigger ref={held} trigger_table={ROWS} trigger_table_labels={LABELS} />
+            </MemoryRouter>
+        );
+
+        rerender(
+            <MemoryRouter>
+                <SummaryTrigger
+                    ref={held}
+                    trigger_table={ROWS}
+                    trigger_table_labels={[{ id: 'pattern', label: 'Shape', align: 'left', minWidth: 100 }]}
+                />
+            </MemoryRouter>
+        );
+
+        const headers = [...document.querySelectorAll('th')].map(h => h.textContent);
+        expect(headers).toEqual(['Shape']);
+    });
+
+    it('replaces the summary element when the parent supplies a new one', () => {
+        //
+        // 'summary' is guarded only on having CHANGED, with no validity check --
+        // unlike the table above it, which also requires a valid array.
+        //
+        const held = React.createRef();
+        const { rerender } = render(
+            <MemoryRouter>
+                <SummaryTrigger ref={held} summary={<p>before</p>} />
+            </MemoryRouter>
+        );
+
+        expect(text()).toContain('before');
+
+        rerender(
+            <MemoryRouter>
+                <SummaryTrigger ref={held} summary={<p>after</p>} />
+            </MemoryRouter>
+        );
+
+        expect(text()).toContain('after');
+        expect(text()).not.toContain('before');
+    });
+
     it('counts every row, not just the visible page', () => {
         //
         // the pagination control reports the full length, so a visitor can see there is

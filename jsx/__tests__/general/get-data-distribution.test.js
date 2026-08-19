@@ -366,6 +366,69 @@ describe('the argument defaults', () => {
     });
 });
 
+describe('the fallback path, when a sample section parses to nothing', () => {
+    it.each(LOADERS)('%s calls back with nulls rather than omitting the section', async (name, loader) => {
+        //
+        // the same guard as the fetch path, written a second time further down
+        // the file -- the fallback builds its own pair of readString calls
+        // rather than routing the sample csv through the ones above. Only the
+        // fetch copy was exercised, so a caller of the fallback had no evidence
+        // it degraded the same way.
+        //
+        const callback = jest.fn();
+        global.fetch = jest.fn();
+        readString.mockImplementation((csv, options) => {
+            options.complete({});
+            return {};
+        });
+
+        await loader('data-distribution', null, callback);
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(callback).toHaveBeenCalledWith({ 'data-distribution': null, source: null, stream: null });
+        expect(callback).toHaveBeenCalledWith({ partition: null, source: null, stream: null });
+    });
+});
+
+describe('the shared failure paths, continued', () => {
+    it.each(LOADERS)('%s logs a non-object rejection without stringifying it', async (name, loader) => {
+        //
+        // the catch has two arms because JSON.stringify on a bare string yields
+        // a quoted string rather than the message, so a rejection that is not
+        // an object is logged as itself. fetch rejects with an Error in
+        // practice, which is why only the object arm had ever run.
+        //
+        const callback = jest.fn();
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+        global.fetch = jest.fn().mockRejectedValue('offline');
+
+        await loader('data-distribution', URL, callback);
+
+        expect(callback).not.toHaveBeenCalled();
+        expect(quiet).toHaveBeenCalledWith(expect.stringContaining('offline'));
+        expect(quiet).not.toHaveBeenCalledWith(expect.stringContaining('"offline"'));
+
+        quiet.mockRestore();
+    });
+});
+
+describe('the argument defaults', () => {
+    it.each(LOADERS)('%s serves the sample data when called with only a type', async (name, loader) => {
+        //
+        // 'url' defaults to null and 'callback' to a no-op, so the one argument
+        // form is a complete call rather than a crash: it takes the fallback
+        // branch and parses the sample csv with nothing to hand the rows to.
+        // data.jsx always passes both, which is why neither default was covered.
+        //
+        global.fetch = jest.fn();
+
+        await expect(loader('data-distribution')).resolves.toBeDefined();
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(readString).toHaveBeenCalled();
+    });
+});
+
 describe('the duplication itself', () => {
     it('all four behave identically on the shared failure path', async () => {
         //

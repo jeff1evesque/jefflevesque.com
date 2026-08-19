@@ -83,6 +83,14 @@ module.exports = {
     // A flat 90% baseline on all four metrics. This is the mechanism that actually
     // holds coverage; the README badge only reports it.
     //
+    // Note: raised from 88 alongside the BLS group_by fix. Statements, functions and
+    //       lines were already past 89; branches (88.35) again had to be earned, and
+    //       came from the paths a working system never takes -- the fallback and
+    //       non-object-rejection arms of the distribution loaders, and four
+    //       componentDidUpdate prop syncs that nothing had ever rerendered. Measured
+    //       across four timezones, branches land at 89.27-89.36, so the floor keeps
+    //       about the same 0.3pp it had before.
+    //
     // Note: raised from 87 in #21. Statements and lines were already past 88 and only
     //       needed the floor moved; branches (87.44) and functions (87.86) both had
     //       to be earned first, which took the svg icon family from no tests at all
