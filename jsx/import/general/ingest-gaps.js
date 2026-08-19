@@ -194,13 +194,18 @@ function reportIsPadded(rows, rate, field_datetime) {
     'chart_data' with the report's own padding removed, so the area joins one
     observation to the next instead of collapsing to the axis between them.
 
-    this is the exact mirror of 'fillMissingIntervals' above, and the two can
-    never both act on one chart. that fill ADDS a zero where the schedule says a
-    run was due; this drops a zero the report invented where nothing was due at
-    all. the fill only has intervals to add when 'expectedIntervals' can name
-    them, which needs a graded rate -- and a graded rate is one whose report is
-    not padded, since the api pads exactly the streams whose cadence the
-    schedule cannot state.
+    this is the mirror of 'fillMissingIntervals' above: that fill ADDS a zero
+    where the schedule says a run was due, this drops a zero the report invented
+    where nothing was due at all.
+
+    the two used to be mutually exclusive -- the fill needs a graded rate, and
+    the api padded exactly the streams whose cadence the schedule could not
+    state. that no longer holds: 'usnationalweather' is padded AND graded at the
+    minute rate, so both run on one chart. the order they run in is what keeps
+    them from fighting, and it is the order the caller uses: the padding comes
+    off first, so the fill is asked its question about the runs the stream
+    actually made. the other way round, every interval would already carry a row
+    and the fill would find no gap to draw at all.
 
     Note: the S&P 500's missing monday survives this untouched, and by
           construction rather than by luck. its daily report has no row for that
