@@ -73,6 +73,50 @@ function owed(stream, rate) {
     return expectedIntervals(stream, rate);
 }
 
+//
+// everything jest can fake EXCEPT Date, matching stream.test.jsx. Faking the timers
+// as well stalls react-spinners and MUI's transitions, which is a different test.
+//
+const TIMERS_LEFT_REAL = [
+    'hrtime',
+    'nextTick',
+    'performance',
+    'queueMicrotask',
+    'requestAnimationFrame',
+    'cancelAnimationFrame',
+    'requestIdleCallback',
+    'cancelIdleCallback',
+    'setImmediate',
+    'clearImmediate',
+    'setInterval',
+    'clearInterval',
+    'setTimeout',
+    'clearTimeout',
+];
+
+//
+// the daily and monthly rates are owed the same intervals whatever the clock says, so
+// most of the cases below read it live. The MINUTE rate is not: 'sec' runs on weekdays
+// between 6 and 22 eastern, so a suite starting at 03:00 or on a Saturday is owed
+// nothing at all and would divide by an empty denominator. Those cases pin the clock
+// to a Wednesday inside the window instead.
+//
+// Note: the clock has to stay faked across the assertion, not just the render --
+//       'streamCoverage' reads it again through 'expectedIntervals' when
+//       'updateMetrics' runs.
+//
+const MIDMORNING_WEDNESDAY = '2026-03-18T15:00:00Z';   // 11:00 EDT
+
+function at(iso, fn) {
+    jest.useFakeTimers({ doNotFake: TIMERS_LEFT_REAL, now: new Date(iso) });
+
+    try {
+        return fn();
+    } finally {
+        jest.useRealTimers();
+    }
+}
+
 function coverageOf(page, stream, rate, rows) {
     act(() => {
         page.setState({ [`stream_rate_${stream}`]: rate });
@@ -88,16 +132,51 @@ function coverageOf(page, stream, rate, rows) {
 describe('the listing coverage figure', () => {
     it('reports n/a for a rate the schedule cannot grade', () => {
         //
-        // 'usnationalweather' is scheduled 'rate(5 minutes)', which eventbridge counts
-        // from whenever the rule was created rather than from the top of the hour, so
-        // which MINUTE a run was due in is unknowable. A guessed alignment that happened
-        // to be wrong would match no interval at all and report 0% for a stream behaving
-        // exactly as scheduled, so the rate goes ungraded instead.
+        // 'bls' runs once a day, at 15 eastern. All but one of a trailing hour's
+        // minute intervals are legitimately empty for it, so a ratio over them would
+        // report an outage that never happened -- the rate goes ungraded instead.
         //
         const page = setup();
-        const rows = [row('usnationalweather', new Date(), 190)];
+        const rows = [row('bls', new Date(), 190)];
 
-        expect(coverageOf(page, 'usnationalweather', 'minute', rows)).toBe('n/a');
+        expect(coverageOf(page, 'bls', 'minute', rows)).toBe('n/a');
+    });
+
+    it('grades the minute rate for a stream on a five minute spacing', () => {
+        //
+        // 'usnationalweather' and 'sec' are both 'rate(5 minutes)'. The expression
+        // does not fix which minute a run lands on -- eventbridge counts from
+        // whenever the rule was created -- so the alignment was measured against the
+        // live report rather than assumed, and every bucket of a trailing hour sits
+        // on a multiple of five. Ungraded, these rows reported 'n/a' whatever they
+        // carried.
+        //
+        at(MIDMORNING_WEDNESDAY, () => {
+            const page = setup();
+
+            ['usnationalweather', 'sec'].forEach((stream) => {
+                const rows = owed(stream, 'minute').map(d => row(stream, d, 190));
+
+                expect(rows).toHaveLength(12);
+                expect(coverageOf(page, stream, 'minute', rows)).toBe('100.00');
+            });
+        });
+    });
+
+    it('states the ratio when a five minute stream missed slots', () => {
+        //
+        // the case that pushed the rate from ungraded to graded: 'sec' filled all
+        // twelve slots of an hour on one day and four of them the next. Ungraded,
+        // both hours read 'n/a' and the drop was invisible in the listing.
+        //
+        at(MIDMORNING_WEDNESDAY, () => {
+            const page = setup();
+            const expected = owed('sec', 'minute');
+            const rows = expected.slice(0, 4).map(d => row('sec', d, 190));
+
+            expect(expected).toHaveLength(12);
+            expect(coverageOf(page, 'sec', 'minute', rows)).toBe('33.33');
+        });
     });
 
     it('reports 100 when every interval the scraper owed carried data', () => {
