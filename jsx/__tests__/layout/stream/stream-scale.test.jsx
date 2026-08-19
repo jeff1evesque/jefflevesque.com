@@ -504,10 +504,22 @@ describe('toggleChartScale padding removal', () => {
     // the aggregator calls it, calls it before the fill, and calls it with this
     // stream's own source list.
     //
+    //
+    // 'count' minutes before the most recent instant on the five minute grid, rather
+    // than before now.
+    //
+    // Note: the alignment is what makes these deterministic. Both streams here are
+    //       GRADED at the minute rate, so the fill inserts a zero at every multiple of
+    //       five the rows do not occupy -- a fixture pinned to an arbitrary minute
+    //       matches the schedule only when the suite happens to start on the right
+    //       one, and gains eleven rows on the other four. Counting straight back from
+    //       now was safe only while sec and weather had no spacing to be graded
+    //       against: ungraded, the fill could name no interval and any offset passed.
+    //
     function minutesAgo(count) {
         const d = new Date();
         d.setSeconds(0, 0);
-        d.setMinutes(d.getMinutes() - count);
+        d.setMinutes(d.getMinutes() - (d.getMinutes() % 5) - count);
         return d;
     }
 
@@ -523,11 +535,16 @@ describe('toggleChartScale padding removal', () => {
     // the whole trailing minute window as the api returns it: a row on every one of the
     // 60 minutes, carrying a run on every fifth and a filled-in zero on the rest.
     //
+    // Note: the run is placed by the row's OFFSET rather than by its index, so the
+    //       twelve of them land on the five minute grid 'minutesAgo' is aligned to.
+    //       Indexing placed them four minutes off it, which the fill then read as
+    //       twelve missed runs.
+    //
     function paddedMinuteReport() {
-        return Array.from(
-            { length: 60 },
-            (v, i) => wxRow(minutesAgo(59 - i), i % 5 === 0 ? 190 + i : 0)
-        );
+        return Array.from({ length: 60 }, (v, i) => {
+            const back = 59 - i;
+            return wxRow(minutesAgo(back), back % 5 === 0 ? 190 + i : 0);
+        });
     }
 
     function scaleFor(page, stream, rate, rows) {
@@ -558,7 +575,11 @@ describe('toggleChartScale padding removal', () => {
         const result = scaleFor(page, 'usnationalweather', 'minute', paddedMinuteReport());
         const spacing = result.slice(1).map((v, i) => v[FIELD] - result[i][FIELD]);
 
-        expect(result[0][FIELD].valueOf()).toBe(minutesAgo(59).valueOf());
+        //
+        // the oldest RUN, which is 55 minutes back rather than 59: the four rows older
+        // than it are padding, and fall outside the trailing window besides.
+        //
+        expect(result[0][FIELD].valueOf()).toBe(minutesAgo(55).valueOf());
         expect(spacing.every(ms => ms === 5 * 60 * 1000)).toBe(true);
     });
 
