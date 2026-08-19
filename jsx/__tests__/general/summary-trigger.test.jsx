@@ -151,6 +151,33 @@ describe('the hover anchor', () => {
         expect(anchors()).toHaveLength(1);
     });
 
+    it('disappears again when the pointer leaves the integration heading', async () => {
+        //
+        // the leave handler is a second copy of the summary heading's, differing only
+        // in the state key -- and the key it clears is the failure worth catching,
+        // since clearing the other one leaves this anchor stuck on the page.
+        //
+        setup();
+
+        await userEvent.hover(heading('Trigger Integration'));
+        await userEvent.unhover(heading('Trigger Integration'));
+
+        expect(anchors()).toHaveLength(0);
+    });
+
+    it('scrolls the integration heading into view when its anchor is clicked', async () => {
+        const scroll = jest.fn();
+        Element.prototype.scrollIntoView = scroll;
+
+        setup({ header_integration: 'How It Connects' });
+        await userEvent.hover(heading('How It Connects'));
+        await userEvent.click(anchors()[0]);
+
+        expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth' });
+
+        delete Element.prototype.scrollIntoView;
+    });
+
     it('links to the heading id on the current path', async () => {
         setup({ header_summary: 'What It Does' });
 
@@ -276,6 +303,21 @@ describe('the accordions', () => {
         });
 
         expect(page.state.accordion_integration_current).toBe(false);
+    });
+
+    it('opens an integration panel that was clicked', async () => {
+        //
+        // the cases above call the handler directly, which leaves the integration
+        // panels' own onChange unexercised -- and those are a copy of the summary
+        // ones, so a panel wired to 'handleChangeSummaryAccordion' would open the
+        // wrong section and pass every assertion above.
+        //
+        const { page } = setup({ accordion_integration: ACCORDIONS });
+
+        await userEvent.click(panelButton('Second Panel'));
+
+        expect(page.state.accordion_integration_current).toBe('second');
+        expect(page.state.accordion_summary_current).toBe(false);
     });
 
     it('renders no panels when none are supplied', () => {
