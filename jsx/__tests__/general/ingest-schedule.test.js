@@ -15,6 +15,7 @@
 
 import {
     INGEST_SCHEDULE,
+    coverageBucket,
     coverageSupported,
     expectedIntervals,
     intervalExpected,
@@ -42,13 +43,27 @@ describe('INGEST_SCHEDULE', () => {
         ]);
     });
 
-    it('gives every stream all four fields', () => {
+    it('gives every stream all five fields', () => {
         Object.values(INGEST_SCHEDULE).forEach(s => {
             expect(s).toHaveProperty('hours');
             expect(s).toHaveProperty('weekdays');
             expect(s).toHaveProperty('every');
+            expect(s).toHaveProperty('minutes_named');
             expect(s).toHaveProperty('partition');
         });
+    });
+
+    it('names its minutes only where a cron states them', () => {
+        //
+        // the distinction 'coverageBucket' turns on. 'stockmarket' is a cron listing
+        // '0,10,20,30,40,50', so the instant is promised; the rest are 'rate(N)' or
+        // have no spacing at all, and promise at most how often.
+        //
+        const named = Object.entries(INGEST_SCHEDULE)
+            .filter(([, s]) => s.minutes_named)
+            .map(([name]) => name);
+
+        expect(named).toEqual(['stockmarket']);
     });
 
     it('partitions by day or year and nothing else', () => {
@@ -244,6 +259,84 @@ describe('intervalExpected', () => {
     it('is case insensitive about both stream and rate', () => {
         expect(intervalExpected('StockMarket', 'DAY', MON_1000_EDT)).toBe(true);
         expect(intervalExpected('SEC', 'Hour', MON_1000_EDT)).toBe(true);
+    });
+});
+
+describe('coverageBucket', () => {
+    //
+    // what makes a run comparable to the interval it was owed against. 'rate(5
+    // minutes)' fixes the spacing and not the offset -- eventbridge counts from
+    // whenever the rule was created -- so a rule firing on :02, :07, :12 is behaving
+    // exactly as scheduled. Measured against the exact instants :00, :05, :10 it
+    // matched nothing at all and reported 0%; measured against the window it falls
+    // in, which minute the rule happens to have been created on cannot move the
+    // figure.
+    //
+    const MON_1002_EDT = new Date('2026-03-16T14:02:00Z');   // Mon 10:02
+    const MON_1007_EDT = new Date('2026-03-16T14:07:00Z');   // Mon 10:07
+
+    it('files a five minute run under the window it lands in', () => {
+        expect(coverageBucket('usnationalweather', 'minute', MON_1002_EDT)).toEqual(MON_1000_EDT);
+        expect(coverageBucket('sec', 'minute', MON_1007_EDT)).toEqual(MON_1005_EDT);
+    });
+
+    it('leaves a run already on the window start alone', () => {
+        expect(coverageBucket('sec', 'minute', MON_1005_EDT)).toEqual(MON_1005_EDT);
+    });
+
+    it('holds a named-minute stream to the exact instant', () => {
+        //
+        // the point of keeping stockmarket exact: its cron promises :00, :10, :20, so
+        // a run at :02 IS off schedule and has to count as one. Windowing it would
+        // hide a real fault.
+        //
+        expect(coverageBucket('stockmarket', 'minute', MON_1002_EDT)).toEqual(MON_1002_EDT);
+    });
+
+    it('changes nothing at the coarser rates', () => {
+        //
+        // the aggregator has already filed each row under its own unit at those rates
+        // -- it dates an hourly row to the top of its hour -- so the row sits on the
+        // boundary 'expectedIntervals' enumerates and there is nothing left to snap.
+        //
+        ['hour', 'day', 'month'].forEach(rate => {
+            expect(coverageBucket('sec', rate, MON_1002_EDT)).toEqual(MON_1002_EDT);
+        });
+    });
+
+    it('changes nothing for a stream with no spacing at all', () => {
+        expect(coverageBucket('bls', 'minute', MON_1002_EDT)).toEqual(MON_1002_EDT);
+        expect(coverageBucket('stockmarketstocksplit', 'minute', MON_1002_EDT)).toEqual(MON_1002_EDT);
+    });
+
+    it('passes an unknown stream and an unusable date straight through', () => {
+        expect(coverageBucket('nosuchstream', 'minute', MON_1002_EDT)).toEqual(MON_1002_EDT);
+        expect(coverageBucket('sec', 'minute', null)).toBeNull();
+        expect(coverageBucket('sec', 'minute', 'not-a-date')).toBe('not-a-date');
+        expect(coverageBucket('sec', 'minute', new Date('nope')).toString()).toBe('Invalid Date');
+    });
+
+    it('does not move a run into the hour before it', () => {
+        //
+        // both spacings in the table divide 60, so a window cannot straddle the top of
+        // an hour -- a run at :01 belongs to :00 of its own hour, never to :55 of the
+        // one before.
+        //
+        const MON_1001_EDT = new Date('2026-03-16T14:01:00Z');
+
+        expect(coverageBucket('sec', 'minute', MON_1001_EDT)).toEqual(MON_1000_EDT);
+    });
+
+    it('leaves the original date untouched', () => {
+        //
+        // it returns a new Date rather than mutating -- the caller is iterating the
+        // rows the chart is drawing, and moving one would move the point on screen.
+        //
+        const when = new Date(MON_1002_EDT.getTime());
+
+        coverageBucket('sec', 'minute', when);
+
+        expect(when).toEqual(MON_1002_EDT);
     });
 });
 
