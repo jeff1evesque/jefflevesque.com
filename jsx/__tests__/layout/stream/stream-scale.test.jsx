@@ -505,21 +505,20 @@ describe('toggleChartScale padding removal', () => {
     // stream's own source list.
     //
     //
-    // 'count' minutes before the most recent instant on the five minute grid, rather
-    // than before now.
+    // 'count' minutes before now, on no particular minute of the clock.
     //
-    // Note: the alignment is what makes these deterministic. Both streams here are
-    //       GRADED at the minute rate, so the fill inserts a zero at every multiple of
-    //       five the rows do not occupy -- a fixture pinned to an arbitrary minute
-    //       matches the schedule only when the suite happens to start on the right
-    //       one, and gains eleven rows on the other four. Counting straight back from
-    //       now was safe only while sec and weather had no spacing to be graded
-    //       against: ungraded, the fill could name no interval and any offset passed.
+    // Note: deliberately NOT snapped to the five minute grid, and that is the
+    //       assertion. Both streams here are scheduled 'rate(5 minutes)', which fixes
+    //       the spacing and not the offset, so their runs are graded against the
+    //       window they fall in rather than against an exact instant. A fixture that
+    //       had to be aligned to pass would mean the grading still depended on which
+    //       minute the suite happened to start on -- which is the failure the windows
+    //       exist to remove.
     //
     function minutesAgo(count) {
         const d = new Date();
         d.setSeconds(0, 0);
-        d.setMinutes(d.getMinutes() - (d.getMinutes() % 5) - count);
+        d.setMinutes(d.getMinutes() - count);
         return d;
     }
 
@@ -536,9 +535,9 @@ describe('toggleChartScale padding removal', () => {
     // 60 minutes, carrying a run on every fifth and a filled-in zero on the rest.
     //
     // Note: the run is placed by the row's OFFSET rather than by its index, so the
-    //       twelve of them land on the five minute grid 'minutesAgo' is aligned to.
-    //       Indexing placed them four minutes off it, which the fill then read as
-    //       twelve missed runs.
+    //       twelve of them sit a true five minutes apart from the newest backwards.
+    //       Indexed from the oldest, the newest run landed four minutes short of now
+    //       and the spacing assertion below read the gap rather than the cadence.
     //
     function paddedMinuteReport() {
         return Array.from({ length: 60 }, (v, i) => {
