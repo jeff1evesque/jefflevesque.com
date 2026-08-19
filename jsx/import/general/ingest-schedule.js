@@ -53,27 +53,44 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
                    predictable minute
 
     Note: 'every' is what decides whether the minute rate can be graded at all,
-          and it is null in two different situations. a stream may run only a
-          couple of times a day at fixed minutes ('bls', 'stockmarketstocksplit'),
-          so all but a handful of minute intervals are legitimately empty and a
-          ratio over them would report an outage that never happened.
+          and it is null where a stream runs only a couple of times a day at
+          fixed minutes ('bls', 'stockmarketstocksplit'). all but a handful of
+          minute intervals are legitimately empty for those two, and a ratio
+          over them would report an outage that never happened.
 
-    Note: or a stream may run often but at an unknowable offset. 'weather' is
-          scheduled 'rate(5 minutes)', which eventbridge counts from whenever
-          the rule was last created rather than from the top of the hour -- the
-          runs could fall on :02, :07, :12 as easily as :00, :05, :10. an
-          assumed alignment that happens to be wrong would match no interval at
-          all and report 0%, so the minute rate goes ungraded rather than
-          guessed. 'stockmarket' names its minutes outright
-          ('0,10,20,30,40,50'), so it is the one stream safe to divide by
+    Note: 'stockmarket' names its minutes outright ('0,10,20,30,40,50'), so its
+          spacing is read straight off the cron. the other two spacings are
+          'rate(5 minutes)', which eventbridge counts from whenever the rule was
+          last created rather than from the top of the hour -- the runs could
+          fall on :02, :07, :12 as easily as :00, :05, :10, so the alignment is a
+          fact about the deployed rule and not about the expression. both were
+          left ungraded on that argument until it was measured. the live minute
+          report settles it: every 'weather' and 'sec' bucket in a trailing hour
+          sits on a multiple of five, with nothing off it
 
-    Note: or a stream may merge feeds that do not share a spacing. 'sec' is two
-          feeds -- one hourly at :00 from 6 to 22, one every five minutes from 6
-          to 21 -- so the 22:00 hour carries a single run where a five minute
-          spacing expects twelve, and grading it would report ~8% for a feed
-          behaving exactly as scheduled. an hour is either expected or not, and
-          that much is true of both feeds, so the hourly and daily rates are
-          still graded
+    Note: so these two spacings are read off the REPORT rather than off the
+          cron, and are the entries to re-measure if a rule is ever recreated. a
+          rule that comes back on :02 matches no interval at all and reports 0%,
+          which the listing renders as 'n/a' -- the same thing it showed while
+          the rate was ungraded, so a drift degrades quietly rather than lying
+
+    Note: 'sec' merges two feeds -- one hourly at :00, one every five minutes --
+          and it was the merge that kept it ungraded: the 22:00 hour was thought
+          to carry the hourly feed alone, where a five minute spacing expects
+          twelve runs and would report ~8% for a feed behaving exactly as
+          scheduled. the report does not bear that out. runs per hour come off it
+          as 'total_success / total_success_mean', and 2026-08-18 reads twelve
+          for every hour from 16:00 through 22:00 inclusive -- 22:00 included, so
+          the five minute feed covers the hour the objection was about
+
+    Note: what 'sec' does carry, and 'weather' does not, is quiet runs. its rows
+          are new filings, so a run that found none writes no artifact and leaves
+          no bucket -- indistinguishable here from a run that never happened, and
+          counted against coverage either way. seven consecutive hours at a full
+          twelve of twelve say a healthy hour fills every slot, so the figure is
+          reporting the stream rather than the filing rate; a market-wide lull
+          would still read low. 'weather' has no such gap, since the national
+          alert set is never empty
 
     Note: bls merges ten feeds, and they no longer report in on schedules of
           their own. between them they used to land at 8, 10, 12 and 14 eastern,
@@ -89,8 +106,8 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
 
 */}
 export const INGEST_SCHEDULE = {
-    usnationalweather: { hours: null, weekdays: false, every: null, partition: 'day' },
-    sec: { hours: [6, 22], weekdays: true, every: null, partition: 'day' },
+    usnationalweather: { hours: null, weekdays: false, every: 5, partition: 'day' },
+    sec: { hours: [6, 22], weekdays: true, every: 5, partition: 'day' },
     stockmarket: { hours: [9, 15], weekdays: true, every: 10, partition: 'day' },
     stockmarketstocksplit: { hours: [0, 0], weekdays: true, every: null, partition: 'year' },
     bls: { hours: [15], weekdays: false, every: null, partition: 'year' }
