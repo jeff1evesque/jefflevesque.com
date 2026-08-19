@@ -163,6 +163,53 @@ describe('the listing coverage figure', () => {
         });
     });
 
+    it('grades a five minute stream whatever minute its rule fires on', () => {
+        //
+        // THE case the windows exist for. 'rate(5 minutes)' fixes the spacing and not
+        // the offset -- eventbridge counts from whenever the rule was created -- so a
+        // rule made at 09:02 fires at :02, :07, :12 and one made at 09:00 fires at
+        // :00, :05, :10. Both are the schedule working.
+        //
+        // Measured against the exact instants, the second offset matched every
+        // interval and the first matched none, so an identical stream read 100% or 0%
+        // depending on a fact about its rule nobody can see from here. Each run is
+        // filed under the window it falls in instead, so all five offsets agree.
+        //
+        at(MIDMORNING_WEDNESDAY, () => {
+            const page = setup();
+
+            [0, 1, 2, 3, 4].forEach((offset) => {
+                const rows = owed('usnationalweather', 'minute').map(
+                    d => row('usnationalweather', new Date(d.getTime() + offset * 60000), 190)
+                );
+
+                expect(coverageOf(page, 'usnationalweather', 'minute', rows)).toBe('100.00');
+            });
+        });
+    });
+
+    it('holds a named-minute stream to the minutes its cron names', () => {
+        //
+        // the other half, and why stockmarket is left exact: its cron lists
+        // '0,10,20,30,40,50', so :02 is not a run that drifted, it is a run that
+        // should not have happened there. Windowing it would report a clean 100% over
+        // a stream firing on the wrong minutes.
+        //
+        // Note: the rows are built here rather than through 'row' above, which keys a
+        //       row by the one series its stream reports. This stream reports two.
+        //
+        at(MIDMORNING_WEDNESDAY, () => {
+            const page = setup();
+            const drifted = owed('stockmarket', 'minute').map(d => ({
+                [FIELD]: new Date(d.getTime() + 2 * 60000),
+                options: 190,
+                [`options${THROUGHPUT_KEY}`]: 190,
+            }));
+
+            expect(coverageOf(page, 'stockmarket', 'minute', drifted)).toBe('n/a');
+        });
+    });
+
     it('states the ratio when a five minute stream missed slots', () => {
         //
         // the case that pushed the rate from ungraded to graded: 'sec' filled all
