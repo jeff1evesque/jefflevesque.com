@@ -24,7 +24,7 @@
  */
 
 import THROUGHPUT_KEY from './throughput-key.js';
-import { expectedIntervals } from './ingest-schedule.js';
+import { coverageBucket, expectedIntervals } from './ingest-schedule.js';
 import { intervalStart, stepInterval } from './rolling-window.js';
 
 
@@ -46,15 +46,22 @@ const PADDED_MINIMUM = 3;
     is already drawn at zero, and adding a second row on the same instant would
     put two points on one x value
 
+    Note: filed through 'coverageBucket', the same way the listing's coverage
+          figure files them. The two answer one question between them -- which
+          intervals arrived -- and the whole point of counting against
+          'expectedIntervals' here is that the chart's gaps and that percentage
+          describe the same set. A row matched by one and not the other would
+          draw a zero over an interval coverage had just counted as covered
+
 */}
-function presentIntervals(chart_data, field_datetime) {
+function presentIntervals(chart_data, stream, rate, field_datetime) {
     const present = new Set();
 
     (chart_data || []).forEach((item) => {
         const when = item ? item[field_datetime] : null;
 
         if (when instanceof Date && !isNaN(when)) {
-            present.add(when.valueOf());
+            present.add(coverageBucket(stream, rate, when).valueOf());
         }
     });
 
@@ -92,7 +99,7 @@ export function missingIntervals(chart_data, stream, rate, field_datetime, now =
         return [];
     }
 
-    const present = presentIntervals(chart_data, field_datetime);
+    const present = presentIntervals(chart_data, stream, rate, field_datetime);
 
     if (!present.size) {
         return [];
