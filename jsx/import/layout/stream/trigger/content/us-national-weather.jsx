@@ -82,7 +82,7 @@ class USNationalWeather extends Component {
         ) {
             var x_increment = this.props.x_increment;
         } else {
-            var x_increment = 10;
+            var x_increment = 5;
         }
 
         if (

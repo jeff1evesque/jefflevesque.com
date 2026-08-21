@@ -242,7 +242,7 @@ describe('the page body, reached with a lower-cased id', () => {
     it.each([
         ['stockmarket', /between 9:30am through 4:30pm EDT/],
         ['stockmarketstocksplit', /daily at 12am EDT/],
-        ['usnationalweather', /every 10 minutes \(everyday\)/],
+        ['usnationalweather', /every 5 minutes \(everyday\)/],
         ['bls', /every 1 hour \(everyday\)/],
         ['sec', /every 1 hour \(everyday\)/],
     ])('%s states its own ingest interval', (stream, interval) => {

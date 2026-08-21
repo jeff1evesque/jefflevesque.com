@@ -63,8 +63,8 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
 
     Note: the two schedule kinds differ in what they promise, and that is what
           'minutes_named' records. 'stockmarket' is a cron naming its minutes
-          outright ('0,10,20,30,40,50'), so a run is due AT :00, :10, :20 and
-          landing anywhere else is a real fault. 'weather' and 'sec' are
+          outright ('0,20,40'), so a run is due AT :00, :20, :40 and landing
+          anywhere else is a real fault. 'weather' and 'sec' are
           'rate(5 minutes)', which promises only the spacing: eventbridge counts
           from whenever the rule was created, so a rule made at 09:02 fires at
           :02, :07, :12 and one made at 09:00 fires at :00, :05, :10. Both are
@@ -76,6 +76,20 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
           been created on can move the figure, which is what the exact match
           used to do: measured against :00, :05, :10, a rule firing on :02
           matched nothing at all and reported 0%.
+
+    Note: 'stockmarket' fires every TWENTY minutes, not ten. this entry said ten
+          until 2026-08-20, which put 42 runs a day in the denominator against
+          the 19 the stream actually makes, and reported ~45% for a scraper that
+          had missed nothing. the collection schedule ran every five minutes
+          until 2026-05-19 and every twenty since -- the ten matched neither
+
+    Note: the 9 eastern hour carries ONE run rather than three, because
+          collection gates on the market opening at 09:30 -- the 09:00 and 09:20
+          runs are skipped and only 09:40 collects. 'hours' cannot state that, so
+          a minute window spanning the open expects three runs where one was due.
+          the reach is bounded: 'ROLLING_WINDOW' gives the minute rate 60
+          minutes, so only a window overlapping 09:00-09:40 reads low, and the
+          hour, day and month rates never consult minutes at all
 
     Note: 'sec' merges two feeds -- one hourly at :00, one every five minutes --
           and it was the merge that kept it ungraded: the 22:00 hour was thought
@@ -111,7 +125,7 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
 export const INGEST_SCHEDULE = {
     usnationalweather: { hours: null, weekdays: false, every: 5, minutes_named: false, partition: 'day' },
     sec: { hours: [6, 22], weekdays: true, every: 5, minutes_named: false, partition: 'day' },
-    stockmarket: { hours: [9, 15], weekdays: true, every: 10, minutes_named: true, partition: 'day' },
+    stockmarket: { hours: [9, 15], weekdays: true, every: 20, minutes_named: true, partition: 'day' },
     stockmarketstocksplit: { hours: [0, 0], weekdays: true, every: null, minutes_named: false, partition: 'year' },
     bls: { hours: [15], weekdays: false, every: null, minutes_named: false, partition: 'year' }
 };
@@ -159,7 +173,7 @@ function easternParts(date) {
           move nothing.
 
     Note: and only for a stream whose schedule does NOT name its minutes. A
-          cron naming '0,10,20,30,40,50' promises the instant, so a run at :02
+          cron naming '0,20,40' promises the instant, so a run at :02
           really is off schedule and should count as a miss. A 'rate(5 minutes)'
           promises the spacing alone, so the run is on time wherever in its
           window it lands, and only the window can be graded.

@@ -6,7 +6,7 @@
  * but it serves one stream rather than two, and its copy is about alert attributes
  * rather than documents.
  *
- * What is covered here is what trigger.jsx actually renders (a ten-minute cadence,
+ * What is covered here is what trigger.jsx actually renders (a five-minute cadence,
  * passed as three separate props that have to agree), and the prop fallbacks that
  * decide what happens when they do not.
  *
@@ -31,8 +31,8 @@ import USNationalWeather from '../../../../../import/layout/stream/trigger/conte
 //
 const WEATHER = {
     x_unit: 'min',
-    x_increment: 10,
-    ingest_interval: 'every 10 minutes',
+    x_increment: 5,
+    ingest_interval: 'every 5 minutes',
     window_1_purple: false,
     window_1_green: false,
 };
@@ -60,15 +60,15 @@ describe('as trigger.jsx configures it', () => {
         expect(screen.getByText('US National Weather')).toBeInTheDocument();
     });
 
-    it('states the ten-minute cadence in the prose', () => {
+    it('states the five-minute cadence in the prose', () => {
         setup(WEATHER);
 
         const text = bodyText();
-        expect(text).toContain('ingest stream runs every 10 minutes');
-        expect(text).toContain('batched every 10 minutes');
+        expect(text).toContain('ingest stream runs every 5 minutes');
+        expect(text).toContain('batched every 5 minutes');
     });
 
-    it('scales the window graphic to the same ten minutes', () => {
+    it('scales the window graphic to the same five minutes', () => {
         //
         // the cadence reaches the page twice by different routes -- as prose through
         // ingest_interval, and as an axis through x_unit/x_increment -- so nothing
@@ -77,8 +77,8 @@ describe('as trigger.jsx configures it', () => {
         setup(WEATHER);
 
         const text = bodyText();
-        expect(text).toContain('10min');
-        expect(text).toContain('40min');
+        expect(text).toContain('5min');
+        expect(text).toContain('20min');
     });
 
     it('explains that alerts are captured as the service issues them', () => {
@@ -181,7 +181,7 @@ describe('the x_increment fallback', () => {
         //
         setup({ x_unit: 'hour' });
 
-        expect(bodyText()).toContain('10hour');
+        expect(bodyText()).toContain('5hour');
         expect(bodyText()).not.toContain('4min');
     });
 
@@ -235,6 +235,6 @@ describe('on mobile', () => {
         mockMobile = true;
         setup(WEATHER);
 
-        expect(bodyText().match(/40min/g)).toHaveLength(1);
+        expect(bodyText().match(/20min/g)).toHaveLength(1);
     });
 });
