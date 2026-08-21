@@ -191,7 +191,7 @@ describe('the listing coverage figure', () => {
     it('holds a named-minute stream to the minutes its cron names', () => {
         //
         // the other half, and why stockmarket is left exact: its cron lists
-        // '0,10,20,30,40,50', so :02 is not a run that drifted, it is a run that
+        // '0,20,40', so :02 is not a run that drifted, it is a run that
         // should not have happened there. Windowing it would report a clean 100% over
         // a stream firing on the wrong minutes.
         //

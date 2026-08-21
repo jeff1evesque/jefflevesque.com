@@ -57,7 +57,7 @@ describe('INGEST_SCHEDULE', () => {
     it('names its minutes only where a cron states them', () => {
         //
         // the distinction 'coverageBucket' turns on. 'stockmarket' is a cron listing
-        // '0,10,20,30,40,50', so the instant is promised; the rest are 'rate(N)' or
+        // '0,20,40', so the instant is promised; the rest are 'rate(N)' or
         // have no spacing at all, and promise at most how often.
         //
         const named = Object.entries(INGEST_SCHEDULE)
@@ -75,7 +75,7 @@ describe('INGEST_SCHEDULE', () => {
 
     it('names a minute spacing for the three streams that have one', () => {
         //
-        // stockmarket schedules its minutes outright ('0,10,20,30,40,50'), so its
+        // stockmarket schedules its minutes outright ('0,20,40'), so its
         // spacing comes off the cron. weather and sec are both 'rate(5 minutes)',
         // whose offset the expression does not fix -- theirs is read off the live
         // report instead, where every bucket of a trailing hour sits on a multiple

@@ -173,7 +173,7 @@ function easternParts(date) {
           move nothing.
 
     Note: and only for a stream whose schedule does NOT name its minutes. A
-          cron naming '0,10,20,30,40,50' promises the instant, so a run at :02
+          cron naming '0,20,40' promises the instant, so a run at :02
           really is off schedule and should count as a miss. A 'rate(5 minutes)'
           promises the spacing alone, so the run is on time wherever in its
           window it lands, and only the window can be graded.
