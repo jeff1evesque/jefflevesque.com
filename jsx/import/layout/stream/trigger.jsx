@@ -292,8 +292,8 @@ class StreamTriggerLayout extends Component {
                 ? (
                     <USNationalWeather
                         x_unit='min'
-                        x_increment={10}
-                        ingest_interval='every 10 minutes'
+                        x_increment={5}
+                        ingest_interval='every 5 minutes'
                         window_1_purple={false}
                         window_1_green={false}
                         window_2_blue={false}

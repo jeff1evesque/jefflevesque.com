@@ -238,27 +238,27 @@ class StreamAlarm extends Component {
                 var x_unit = 'min';
                 var x_increment = 1;
             } else if (stream.toLowerCase() === 'usnationalweather') {
-                var ingest_interval = 'every 10 minutes (everyday)';
+                var ingest_interval = 'every 5 minutes (everyday)';
                 var ingest_content_1 = `
                     Data is based on the National Weather Service alerts for the entire
                     United States. Raw content (i.e text format) is directly ingested
-                    into our datalake every 10 minutes. Simultaneously, a nearly identical
+                    into our datalake every 5 minutes. Simultaneously, a nearly identical
                     dataset is put into a stream, where each record may contain zero or
                     more failures before success. You can be notified upon existence of
                     failure(s) per window. However, it is important to know the number
                     of records from one window could be very different with any adjacent
                     window`;
                 var ingest_content_2_mobile = `
-                    National Weather Service alert(s) delivered in batches of 10 minutes`;
+                    National Weather Service alert(s) delivered in batches of 5 minutes`;
                 var ingest_content_2 = `
-                    The above figure shows the number of records from any 10 minute batch
+                    The above figure shows the number of records from any 5 minute batch
                     cycle can be different from another batch cycle. Lastly, when reviewing
                     the ingest performance via Archive (or datalake), window=0 indicates the
                     corresponding record did not ingest through normal processes, rather
                     from backfill operation`;
                 var late_arrival = true;
                 var x_unit = 'min';
-                var x_increment = 10;
+                var x_increment = 5;
                 var window_1_purple = false;
                 var window_1_green = false;
                 var window_2_blue = false;
