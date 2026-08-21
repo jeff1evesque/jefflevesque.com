@@ -27,6 +27,7 @@ import {
 //
 const MON_1000_EDT = new Date('2026-03-16T14:00:00Z');   // Mon 10:00
 const MON_1010_EDT = new Date('2026-03-16T14:10:00Z');   // Mon 10:10
+const MON_1020_EDT = new Date('2026-03-16T14:20:00Z');   // Mon 10:20
 const MON_1005_EDT = new Date('2026-03-16T14:05:00Z');   // Mon 10:05
 const SAT_1000_EDT = new Date('2026-03-21T14:00:00Z');   // Sat 10:00
 const MON_0900_EST = new Date('2026-01-19T14:00:00Z');   // Mon 09:00, winter
@@ -87,7 +88,7 @@ describe('INGEST_SCHEDULE', () => {
             .sort();
 
         expect(withSpacing).toEqual(['sec', 'stockmarket', 'usnationalweather']);
-        expect(INGEST_SCHEDULE.stockmarket.every).toBe(10);
+        expect(INGEST_SCHEDULE.stockmarket.every).toBe(20);
         expect(INGEST_SCHEDULE.usnationalweather.every).toBe(5);
         expect(INGEST_SCHEDULE.sec.every).toBe(5);
     });
@@ -202,16 +203,23 @@ describe('intervalExpected', () => {
     describe('the minute rate', () => {
         it('accepts a minute on the spacing', () => {
             expect(intervalExpected('stockmarket', 'minute', MON_1000_EDT)).toBe(true);
-            expect(intervalExpected('stockmarket', 'minute', MON_1010_EDT)).toBe(true);
+            expect(intervalExpected('stockmarket', 'minute', MON_1020_EDT)).toBe(true);
         });
 
         it('rejects a minute off the spacing', () => {
             expect(intervalExpected('stockmarket', 'minute', MON_1005_EDT)).toBe(false);
+
+            //
+            // 10:10 sat ON the spacing while this entry said ten minutes. the
+            // spacing is twenty, so :10 is now a miss -- the case is kept to pin
+            // the cadence the table actually claims
+            //
+            expect(intervalExpected('stockmarket', 'minute', MON_1010_EDT)).toBe(false);
         });
 
         it('accepts a five minute spacing on the five', () => {
             //
-            // 10:05 is off stockmarket's ten minute spacing and on the five minute
+            // 10:05 is off stockmarket's twenty minute spacing and on the five minute
             // one the other two run, so the same instant answers differently per
             // stream -- which is the whole point of reading 'every' rather than
             // assuming one cadence.
