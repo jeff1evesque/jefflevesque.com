@@ -249,6 +249,142 @@ tags = ["aws", "access-key"]
 # The key AWS itself prints in every code sample.
 regexes = ['''AKIAIOSFODNN7EXAMPLE''']
 
+# --------------------------------------------------------------------------- #
+# S3 buckets
+# --------------------------------------------------------------------------- #
+
+[[rules]]
+id = "hardcoded-s3-bucket"
+description = "Real S3 bucket name in code or documentation"
+# A bucket name is not a credential, which is why the bundled provider rules do
+# not look for one. It is still worth refusing: this application is a static
+# bundle published to object storage and served through a CDN, so the bucket IS
+# the deployment's storage layout, and a README that names it publishes that
+# layout to everyone who reads the repository. The same reasoning already keeps
+# the Cognito identifiers behind `REPLACE-` tokens rather than in the tree.
+#
+# Matched only in a BUCKET CONTEXT, never on a bare domain. `jefflevesque.com`
+# is this project's own name and appears throughout -- in the README, in
+# package.json, in the workflow badge URLs -- so a rule keyed on the domain
+# would report the repository to itself several dozen times and be switched off
+# by the end of the week.
+#
+# Only UNAMBIGUOUS anchors here: a URI scheme, an ARN, or a virtual-host URL.
+# Each can only be addressing S3, so the value after it needs no shape of its
+# own, and a separator-less name like `s3://<bucket>/x` is still caught.
+#
+# The assignment anchor deliberately does NOT live here, which is where this
+# diverges from pyg's equivalent. `bucket(?:_name)?\s*=\s*["']` with a
+# permissive value is safe in a python graph builder. It is not safe here: see
+# the rule below, which takes assignments along with prose because in this
+# repository they share the problem that makes both ambiguous.
+regex = '''(?i)(?:s3://|s3a://|arn:aws:s3:::|https?://[a-z0-9.-]+\.s3[.-])([a-z0-9][a-z0-9.-]{2,62})'''
+secretGroup = 1
+tags = ["aws", "s3", "portability"]
+
+[rules.allowlist]
+# A README SHOULD write 's3://bucket/path'. That is how a path is documented,
+# and blocking it teaches people to write worse documentation rather than fewer
+# leaks. The global 'documentation and placeholders' allowlist below covers
+# REPLACE- and <angle-bracket> forms already; these are the bucket-shaped words
+# that carry no such marker.
+regexes = [
+  '''(?i)(?://|:::|["'])(?:bucket|my-bucket|my-archive|my-data|my-data-lake|example|example-bucket|test|test-bucket|placeholder|your-bucket|some-bucket|sample|demo)(?:[/"'`\s]|$)''',
+]
+regexTarget = "match"
+
+[[rules]]
+id = "hardcoded-s3-bucket-prose"
+description = "Real S3 bucket name written as documentation rather than as code"
+# A SECOND rule rather than one more alternative above, for two reasons. The
+# value has a different shape here, so it cannot share that rule's trailing
+# capture group. And expressing "the quoted value must carry a separator"
+# inside a single alternation needs a LOOKAHEAD, which RE2 does not have.
+# gitleaks does not degrade on one, it panics:
+#
+#     panic: regexp: Compile(...): bad perl operator: `(?=`
+#     Error: Process completed with exit code 2
+#
+# Exit 2 means no scan ran at all, so a config that merges these two rules is
+# worse than one missing them -- the branch reports clean while nothing looked.
+# `scripts/check_secrets.py` uses python's `re`, which accepts a lookahead
+# happily, so the hook would pass every commit on the way there.
+#
+# WHAT IT CATCHES, and why the other rule cannot. Every anchor above is a URI
+# scheme or an ARN. A bucket name written as prose has neither:
+#
+#     bucket: S3 bucket name (e.g., "<a real bucket>")
+#
+# No scheme, no anchor, so no finding -- from the hook or from CI. A README
+# sentence slips through identically, and this repository's documentation is
+# exactly where a deployment detail gets written down.
+#
+# It takes ASSIGNMENTS too, and that is deliberate. `bucket[^"'\n]{0,40}["']`
+# already contains `bucket: "` and `bucket_name = "` as special cases, so a
+# separate assignment rule would be a subset of this one -- and javascript
+# writes the AWS SDK parameter as an object property anyway
+# (`new PutObjectCommand({ Bucket: '<bucket>', Key: k })`), which is the same
+# shape as prose to a regex. One rule, keyed on the word and the quotes.
+#
+# THE VALUE MUST CARRY A SEPARATOR -- a dot or a hyphen between alphanumerics.
+# That constraint is doing the real work, and this repository needs it more
+# than pyg does. `bucket` here is TIME vocabulary: the chart aggregators bucket
+# by an eastern wall clock, and the word appears on 126 lines across 21 files,
+# almost none of them about storage. Without the separator this rule reports
+#
+#     const bucket = 'minute';
+#     { bucket: 'day', partition: 'year' }
+#
+# which is `ingest-schedule.js` describing a schedule, not a leak. A rule that
+# noisy gets switched off within a week, which costs more than the hole it
+# closes. Measured with the separator in place: zero findings across the
+# tracked tree.
+#
+# Known gap, stated rather than discovered later. Two shapes get past this:
+#
+#   * a bucket name with no separator at all -- `bucket = "photos"`. It is
+#     indistinguishable from the time vocabulary above, so the separator buys
+#     quiet at that price. Every URI and ARN anchor in the rule above still
+#     catches it.
+#   * the word AFTER the value -- `published to the "<bucket>" bucket`. The
+#     anchor reads left to right. Closing it needs a second capture group,
+#     which `secretGroup` cannot select between, so it would take a third
+#     rule; not worth one until that shape actually appears.
+regex = '''(?i)bucket[^"'\n]{0,40}["']([a-z0-9][a-z0-9-]*(?:[.-][a-z0-9-]+)+)["']'''
+secretGroup = 1
+tags = ["aws", "s3", "portability"]
+
+[rules.allowlist]
+# Placeholders documentation should still be able to write, the RFC 2606
+# reserved domains, this project's own name, and -- the one this repository
+# needs that pyg's equivalent does not -- a QUOTED FILENAME.
+#
+# A filename is dot-joined labels too, indistinguishable from `some.bucket.name`
+# to the regex above. Combined with `bucket` being time vocabulary here, that
+# produced exactly one finding across the tracked tree before this entry
+# existed, and it was a comment:
+#
+#     // caller can name the bucket an instant falls in. 'ingest-gaps.js' ...
+#
+# One false positive is one more than the budget. A scanner people learn to
+# scroll past protects nothing.
+#
+# Note: the global 'values that are not secrets by construction' allowlist below
+#       already carries a filename shape, and gitleaks would apply it here --
+#       it declares `regexTarget = "secret"`. check_secrets.py does not honour
+#       regexTarget and tests global allowlists against the LINE only, where an
+#       anchored `^name.ext$` cannot match. So the hook reports what CI would
+#       not, which inverts the subset the two are supposed to stand in. Handled
+#       locally here, where a RULE allowlist is checked against the secret by
+#       both engines. The divergence itself is worth its own issue.
+regexes = [
+  '''(?i)^(?:bucket|my-bucket|my-archive|my-data|my-data-lake|example|example-bucket|test|test-bucket|placeholder|your-bucket|some-bucket|sample|demo)\.''',
+  '''(?i)(?:^|\.)(?:example\.(?:com|org|net|edu)|localhost|invalid|test)$''',
+  '''(?i)^jefflevesque\.com$''',
+  # a quoted filename, not a bucket: the extensions this tree actually holds
+  '''(?i)\.(jsx?|mjs|json|md|ya?ml|py|toml|s?css|html?|txt|png|svg|patch|replace|lock|sh|cfg|ipynb)$''',
+]
+
 # Shapes that cannot be a secret, whatever rule matched them. Kept as SHAPES
 # rather than as a list of waived findings: waiving one file at a time is how an
 # allowlist quietly becomes an inventory of real leaks nobody rechecks.
