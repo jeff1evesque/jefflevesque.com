@@ -17,8 +17,21 @@ Notebook OUTPUTS are scanned like any other content and are the reason this
 matters: a stored CDK bootstrap line published an AWS account id, and nobody
 reads an output cell in a diff.
 
-Python's ``re`` is a superset of the RE2 engine gitleaks uses, so every pattern
-that compiles there compiles here.
+Python's ``re`` is a SUPERSET of the RE2 engine gitleaks uses. Every pattern
+that compiles for gitleaks compiles here -- but not the reverse, and that
+asymmetry is a trap rather than a convenience. A rule using a lookahead,
+lookbehind or backreference compiles here, passes this hook on every commit,
+and then panics gitleaks in CI:
+
+    panic: regexp: Compile(...): error parsing regexp: bad perl operator: `(?=`
+    Error: Process completed with exit code 2
+
+Exit 2 means no scan ran at all, so the branch reports clean while nothing
+looked at it -- a broken rule is worse than a missing one, and the local hook
+is the last place that failure will show. Express the constraint inside the
+capture group, or split the rule in two: ``hardcoded-s3-bucket-prose`` is a
+separate rule from ``hardcoded-s3-bucket`` for exactly this reason.
+``jsx/__tests__/meta/secret-rules.test.js`` fails on any such construct.
 
 Usage:
     python scripts/check_secrets.py              # scan everything tracked
