@@ -1,0 +1,17 @@
+##
+## Keep the "Open a blank issue" link in the chooser.
+##
+## The three templates are a skeleton, not a gate. Issues here get drafted in
+## full -- sometimes offline, in an editor -- and pasted in one piece, and a
+## chooser that admits only three shapes obstructs that more often than it
+## helps. The same reasoning is why these are markdown templates rather than
+## issue forms (.yml): a form's fixed textareas cannot be overwritten wholesale.
+##
+## Worth revisiting if outside contributors ever start filing, where required
+## fields and validation earn their friction.
+##
+## This is GitHub's default. It is stated explicitly so that it survives
+## someone adding a `contact_links:` block later, rather than becoming a
+## question about where the blank link went.
+##
+blank_issues_enabled: true
