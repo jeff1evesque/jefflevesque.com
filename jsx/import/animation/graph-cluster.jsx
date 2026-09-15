@@ -8,10 +8,18 @@
  *   hardcoded layout.
  *
  *   Data-driven visual channels:
- *     - radius  ∝ sqrt(node count)
- *     - color   =  node category (measurement/observation/temporal/...)
+ *     - color   =  source namespace (bls / sec / market / ...), the top few by
+ *                  type count taking the categorical slots and the tail rolling
+ *                  up into one neutral
  *     - link    =  edge origin (raw = solid, enrichment = dashed,
  *                  unification = accent)
+ *
+ *   Note: radius is NOT one of them, though this list claimed 'radius ∝ sqrt
+ *         (node count)' for as long as the file existed. No code ever
+ *         implemented it -- every cluster node is assigned the same radius in
+ *         renderD3 (6px or 9px by breakpoint). Node count reaches nothing at
+ *         all; edge count reaches the layout, through forceLink's per-link
+ *         distance, and nothing else.
  *
  *   Mouse behavior:
  *     - the cursor is a smooth repeller: nearby nodes flow away, with a push
@@ -25,27 +33,108 @@
  *
  * Note: this script implements jsx (reactjs) syntax.
  *
- * Note: the data is currently a committed mock derived from the pyg codebase
- *       ontology inventory. Swap `graph-schema.mock.json` for a live
- *       graph_schema.json (identical shape) when a build is published.
+ * Note: the graph is whatever the `data` prop carries -- a graph_schema.json
+ *       built by pyg-knowledge-graph-builder and served by the site's public
+ *       graph api. There is no fallback and no committed default. Without
+ *       usable data this component draws the decorative gray field and nothing
+ *       else.
+ *
+ *       That reverses an earlier decision, recorded here, to keep
+ *       `graph-schema.mock.json` in the bundle as the pending/failed/offline
+ *       arm. The argument for keeping it was that the frontpage would otherwise
+ *       show an empty hero on a cold load. The argument against, which won: a
+ *       backdrop that renders a fabricated ontology whenever the api is slow or
+ *       down is indistinguishable, on screen, from one showing the real graph.
+ *       A visitor cannot tell the difference and neither can a developer. The
+ *       gray field is a legible "nothing yet"; the mock is a confident wrong
+ *       answer.
+ *
+ *       The mock now lives at __tests__/fixtures/graph-schema.mock.json and is
+ *       test data only -- it is no longer imported by anything that ships, so
+ *       it left the bundle with it.
+ *
+ * Note: the cluster is drawn imperatively by d3, once, from renderD3().
+ *       React's render() only ever returns the empty <svg>, so a `data` prop
+ *       that arrives later -- which is the normal case, since the fetch starts
+ *       on the mount site's componentDidMount -- would never reach the screen
+ *       without componentDidUpdate tearing the old simulation down and
+ *       redrawing.
  */
 
 import React, { Component } from 'react';
 import * as d3 from 'd3';
-import { colors, colors_categorical } from '../general/colors.js';
+import { colors, colors_categorical, color_other } from '../general/colors.js';
 import { medium_minWidth } from '../general/breakpoints';
-import schemaMock from './graph-schema.mock.json';
 import PropTypes from 'prop-types';
 
-// fixed category order → stable color assignment (matches metadata_writer.py
-// allowed categories: measurement, observation, temporal, structural, entity)
-const CATEGORIES = [
-    'measurement',
-    'observation',
-    'temporal',
-    'structural',
-    'entity',
-];
+// Nodes are colored by SOURCE NAMESPACE, not by ontology category.
+//
+// Category was the original channel and it carried nothing: every node type in a
+// published build arrives as 'entity', so the whole cluster resolved to a single
+// hue and the channel was dead while still looking alive. Namespace is what
+// actually varies -- a build spans a dozen-odd sources -- and it groups the
+// cluster the way a reader would expect, by where the data came from.
+//
+// Note: the assignment is computed per build rather than fixed in a list here.
+//       A fixed list cannot work: the set of namespaces is whatever the builder
+//       published, and a source added upstream would silently fall off the end.
+
+// ontology uris are '<origin>/ontology/<namespace>/<Type>'; the id prefix is the
+// fallback for anything that does not match.
+const NAMESPACE_FROM_URI = /\/ontology\/([^/]+)\//;
+
+/**
+ * the namespace a node type belongs to.
+ *
+ * Exported for its tests: the uri is the authority, but a schema is free to omit
+ * it, and the id prefix has to stand in without the caller noticing.
+ */
+export function sourceNamespace(meta, id) {
+    const uri = meta && meta.source_type_uri ? String(meta.source_type_uri) : '';
+    const match = NAMESPACE_FROM_URI.exec(uri);
+
+    if (match) {
+        return match[1];
+    }
+
+    const underscore = id.indexOf('_');
+
+    return underscore > 0 ? id.slice(0, underscore) : id;
+}
+
+/**
+ * assign a color to every namespace present, biggest first.
+ *
+ * The categorical palette has eight slots and a build can carry more namespaces
+ * than that, so the tail rolls up into the neutral 'other' rather than cycling
+ * the palette -- two unrelated sources sharing a color reads as a relationship
+ * that is not there.
+ *
+ * Note: ordered by how many node types a namespace contributes, ties broken by
+ *       name, so the same build always paints the same colors. Ordering by
+ *       object key order would repaint the cluster whenever the builder emitted
+ *       its types in a different sequence.
+ */
+export function assignNamespaceColors(nodes) {
+    const totals = new Map();
+    nodes.forEach((node) => {
+        totals.set(node.namespace, (totals.get(node.namespace) || 0) + 1);
+    });
+
+    const ordered = [...totals.keys()].sort((a, b) => {
+        const delta = totals.get(b) - totals.get(a);
+        return delta !== 0 ? delta : a.localeCompare(b);
+    });
+
+    const assigned = new Map();
+    ordered.forEach((namespace, index) => {
+        assigned.set(namespace, index < colors_categorical.length
+            ? colors_categorical[index]
+            : color_other);
+    });
+
+    return assigned;
+}
 
 // pointer repel: nodes in the annulus [INNER, OUTER] px from the cursor are
 // pushed away — gently, and NOT inside INNER, so the node you're inspecting can
@@ -159,6 +248,23 @@ const BG_OPACITY = 0.12;
 const BG_OPACITY_HOVER = 0.62;
 const BG_DARK_RADIUS = 110;  // gray nodes within this radius of the cursor darken
 
+// How far apart forceLink holds a linked pair, from the edge's own count.
+//
+// MAX is the part that matters. Edge counts are enormously skewed -- a published
+// build runs from 1 to nearly ten million, against a median in the hundreds --
+// and an unclamped sqrt put the largest edge 528px long next to a 62px median.
+// That is not a cluster with one long edge in it; it is one node tethered half a
+// screen away, dragging the layout off centre.
+//
+// Note: filtering node types does NOT solve this, and it is worth saying so here
+//       because it looks like it should. The heaviest edge belongs to the
+//       heaviest node type, which is exactly the one any top-N rule keeps.
+const LINK_DISTANCE_BASE = 60;
+const LINK_DISTANCE_SCALE = 0.15;
+const LINK_DISTANCE_MAX = 160;
+// background links carry no count — a fixed short tether, and never NaN
+const LINK_DISTANCE_BACKGROUND = 40;
+
 export function clamp(v, lo, hi) {
     return v < lo ? lo : v > hi ? hi : v;
 }
@@ -181,10 +287,22 @@ export function segClosest(px, py, ax, ay, bx, by) {
 
 class GraphCluster extends Component {
     // prop validation: static method, similar to class A {}; A.b = {};
+    //
+    // Note: neither key is isRequired, though both are needed to draw anything.
+    //       They were, and it was wrong: "no usable data" is a SUPPORTED state
+    //       here rather than a caller's mistake -- this component answers a
+    //       missing, partial or malformed payload by drawing its gray field and
+    //       no cluster -- so warning about it reported the ordinary cold-load
+    //       path as a defect.
+    //
+    //       The validation that matters is in buildGraph, which is where it has
+    //       to be regardless: propTypes are stripped from a production build and
+    //       never block a render, so they could not carry this contract even if
+    //       they described it correctly.
     static propTypes = {
         data: PropTypes.shape({
-            node_types: PropTypes.object.isRequired,
-            edge_types: PropTypes.object.isRequired,
+            node_types: PropTypes.object,
+            edge_types: PropTypes.object,
         }),
     }
 
@@ -205,7 +323,7 @@ class GraphCluster extends Component {
         this.buildBackground = this.buildBackground.bind(this);
         this.drawBackground = this.drawBackground.bind(this);
         this.renderD3 = this.renderD3.bind(this);
-        this.categoryColor = this.categoryColor.bind(this);
+        this.nodeColor = this.nodeColor.bind(this);
         this.mutedColor = this.mutedColor.bind(this);
         this.highlight = this.highlight.bind(this);
         this.updateHover = this.updateHover.bind(this);
@@ -216,6 +334,25 @@ class GraphCluster extends Component {
     componentDidMount() {
         this.renderD3();
         window.addEventListener('resize', this.handleResize);
+    }
+
+    /**
+     * the graph arrives after the first paint, always: the mount site starts its
+     * fetch in its own componentDidMount, so the first render of this component
+     * is necessarily dataless and the real schema lands one or more ticks later.
+     *
+     * Note: the old simulation is stopped before redrawing. renderD3 clears the
+     *       svg, but a running d3 simulation holds its own node array and goes
+     *       on ticking against detached elements -- two sims then write to the
+     *       same selections and the cluster jitters between two layouts.
+     */
+    componentDidUpdate(prevProps) {
+        if (prevProps.data !== this.props.data) {
+            if (this.simulation) {
+                this.simulation.stop();
+            }
+            this.renderD3();
+        }
     }
 
     componentWillUnmount() {
@@ -271,25 +408,43 @@ class GraphCluster extends Component {
         }
     }
 
-    // color a node by its ontology category, falling back to a neutral gray
-    categoryColor(category) {
-        const index = CATEGORIES.indexOf(category);
-        return index >= 0
-            ? colors_categorical[index % colors_categorical.length]
-            : colors['gray-5'];
+    // color a node by its source namespace, falling back to a neutral gray for a
+    // namespace that was never assigned one (no graph drawn yet)
+    nodeColor(namespace) {
+        const assigned = this.namespaceColors
+            ? this.namespaceColors.get(namespace)
+            : null;
+
+        return assigned ? assigned : colors['gray-5'];
     }
 
-    // the resting tint: the category color mixed most of the way to white, so a
-    // node still hints at its category without competing for attention. Mixing
+    // the resting tint: the namespace color mixed most of the way to white, so a
+    // node still hints at its source without competing for attention. Mixing
     // toward white rather than lowering opacity keeps it opaque over the gray
     // field — a translucent node would pick up whatever mesh sits behind it.
-    mutedColor(category) {
-        return d3.interpolateRgb(this.categoryColor(category), '#ffffff')(MUTED_MIX);
+    mutedColor(namespace) {
+        return d3.interpolateRgb(this.nodeColor(namespace), '#ffffff')(MUTED_MIX);
     }
 
     // transform the graph_schema.json shape into d3 nodes + links
     buildGraph() {
-        const schema = this.props.data ? this.props.data : schemaMock;
+        const schema = this.props.data;
+
+        {/*
+
+            no data is the normal state on a cold load, and the answer to it is
+            an empty cluster rather than a stand-in: the gray field draws, the
+            simulation runs over nothing, and every selection below binds an
+            empty array. Nothing downstream needs a guard -- d3 tolerates empty
+            data joins, and the tick's cluster bounding box collapses to
+            ±Infinity, which excludes every gray node from the repel it would
+            otherwise compute against a cluster that is not there.
+
+        */}
+
+        if (!schema || !schema.node_types || !schema.edge_types) {
+            return { nodes: [], links: [] };
+        }
 
         const nodes = Object.keys(schema.node_types).map((id) => {
             const meta = schema.node_types[id];
@@ -297,9 +452,14 @@ class GraphCluster extends Component {
                 id: id,
                 count: meta.count,
                 category: meta.category,
+                namespace: sourceNamespace(meta, id),
                 source_type_uri: meta.source_type_uri,
             };
         });
+
+        // the palette is assigned per build, from the namespaces this schema
+        // actually carries — see assignNamespaceColors
+        this.namespaceColors = assignNamespaceColors(nodes);
 
         {/*
 
@@ -491,8 +651,8 @@ class GraphCluster extends Component {
         // field, and the hovered node is darkened furthest so it stays
         // distinguishable from the neighbors lighting up alongside it
         this.nodeSel.attr('fill', (d) => {
-            if (!lit(d)) return this.mutedColor(d.category);
-            const base = d3.color(this.categoryColor(d.category));
+            if (!lit(d)) return this.mutedColor(d.namespace);
+            const base = d3.color(this.nodeColor(d.namespace));
             return base.darker(d.id === nodeId ? HOVER_DARKEN_SELF : HOVER_DARKEN)
                 .toString();
         });
@@ -602,7 +762,7 @@ class GraphCluster extends Component {
             .join('circle')
             .attr('r', (d) => d.r)
             // resting state is the muted tint; hover is what brings color in
-            .attr('fill', (d) => this.mutedColor(d.category))
+            .attr('fill', (d) => this.mutedColor(d.namespace))
             .attr('stroke', colors['gray-1'])
             .attr('stroke-width', 1)
             .style('cursor', 'pointer');
@@ -673,10 +833,16 @@ class GraphCluster extends Component {
         this.simulation = d3.forceSimulation(nodes)
             .force('link', d3.forceLink(links)
                 .id((d) => d.id)
-                // background links carry no count — give them a fixed short
-                // tether; a bare Math.sqrt(undefined) would be NaN and poison
-                // every connected node's position.
-                .distance((d) => (d.count ? 60 + Math.sqrt(d.count) * 0.15 : 40))
+                // see LINK_DISTANCE_MAX: the scale is clamped, and a link with no
+                // count gets the fixed tether rather than a NaN from
+                // Math.sqrt(undefined), which would poison every connected
+                // node's position.
+                .distance((d) => (d.count
+                    ? Math.min(
+                        LINK_DISTANCE_BASE + Math.sqrt(d.count) * LINK_DISTANCE_SCALE,
+                        LINK_DISTANCE_MAX
+                    )
+                    : LINK_DISTANCE_BACKGROUND))
                 .strength((d) => (d.background ? 0.15 : 0.4)))
             .force('charge', d3.forceManyBody().strength(small ? -60 : -120))
             .force('collide', d3.forceCollide().radius((d) => d.r + 3).iterations(2))

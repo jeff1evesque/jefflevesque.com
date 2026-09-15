@@ -31,9 +31,30 @@ jest.mock('@aws-amplify/auth', () => ({
     default: { currentSession: jest.fn().mockRejectedValue(new Error('no session')) },
 }));
 
+//
+// Note: the probe records what reached the 'data' prop. The page fetches the graph
+//       schema and filters it before handing it over, and a probe that dropped props
+//       would let that whole path pass untested while still satisfying every
+//       'is the animation on screen' assertion below.
+//
 jest.mock('../../import/animation/graph-cluster.jsx', () => ({
     __esModule: true,
-    default: () => <div data-testid='graph-cluster' />,
+    default: ({ data }) => (
+        <div
+            data-testid='graph-cluster'
+            data-types={data ? Object.keys(data.node_types).length : 'none'}
+        />
+    ),
+}));
+
+//
+// Note: get-graph-schema.js is mocked. The real one reaches the network, and
+//       setup.js's default fetch stub answers not-ok -- so without this every test
+//       here would exercise the failure arm and setState after the act() had closed.
+//
+jest.mock('../../import/general/get-graph-schema.js', () => ({
+    __esModule: true,
+    default: jest.fn(() => Promise.resolve(null)),
 }));
 
 jest.mock('../../import/general/article-listing.jsx', () => ({
@@ -60,6 +81,7 @@ jest.mock('react-datepicker', () => ({
 
 import Auth from '@aws-amplify/auth';
 import getData from '../../import/general/get-data.js';
+import getGraphSchema from '../../import/general/get-graph-schema.js';
 import HomePage, { tradingDate } from '../../import/content/home-page.jsx';
 
 //
@@ -104,7 +126,26 @@ async function merge(page, split_rows, tickers = [], date = { dd: '10', mm: '09'
 beforeEach(() => {
     jest.clearAllMocks();
     getData.mockReturnValue(Promise.resolve([]));
+    getGraphSchema.mockReturnValue(Promise.resolve(null));
 });
+
+//
+// a schema with `count` node types, named t0..tN with descending counts, and no
+// edges. Used to watch the page's own filtering rather than to test the rule --
+// filter-schema.test.js owns that.
+//
+function schemaOf(count) {
+    const node_types = {};
+    for (let i = 0; i < count; i++) {
+        node_types[`t${i}`] = { count: count - i, category: 'entity' };
+    }
+
+    return { version: '1.3', node_types: node_types, edge_types: {} };
+}
+
+const clusterTypes = () => document
+    .querySelector('[data-testid="graph-cluster"]')
+    .getAttribute('data-types');
 
 describe('what the front page shows by default', () => {
     it('shows the knowledge-graph animation', async () => {
@@ -373,6 +414,84 @@ describe('the presentation checkboxes', () => {
 
         expect(document.querySelector('[data-testid="graph-cluster"]')).toBeTruthy();
         expect(listings()).toEqual([]);
+    });
+});
+
+describe('the knowledge-graph backdrop', () => {
+    //
+    // the page fetches the published schema on mount, filters it to what the backdrop
+    // can legibly carry, and hands the result to GraphCluster. Until that lands -- and
+    // if it never does -- the cluster is given nothing and draws its gray field alone,
+    // which is deliberate: a stand-in graph would be indistinguishable on screen from
+    // the real one.
+    //
+    it('asks for the published schema on mount', async () => {
+        await setup();
+
+        expect(getGraphSchema).toHaveBeenCalledTimes(1);
+    });
+
+    it('hands the cluster nothing while the fetch is pending', async () => {
+        //
+        // never resolves, so the state under test is the one a visitor sees on every
+        // cold load before the api answers.
+        //
+        getGraphSchema.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(clusterTypes()).toBe('none');
+    });
+
+    it('hands the cluster nothing when the fetch fails', async () => {
+        //
+        // the helper resolves null for every failure -- rejected, non-ok, malformed --
+        // so this is the whole failure surface as the page sees it.
+        //
+        getGraphSchema.mockReturnValue(Promise.resolve(null));
+
+        await setup();
+
+        expect(clusterTypes()).toBe('none');
+    });
+
+    it('hands the fetched schema to the cluster', async () => {
+        getGraphSchema.mockReturnValue(Promise.resolve(schemaOf(5)));
+
+        await setup();
+
+        expect(clusterTypes()).toBe('5');
+    });
+
+    it('filters a large schema down to the backdrop limit', async () => {
+        //
+        // the live build publishes 152 node types against the 24 this animation was
+        // built around, so the page filters before handing it over rather than drawing
+        // every type behind the hero text.
+        //
+        getGraphSchema.mockReturnValue(Promise.resolve(schemaOf(60)));
+
+        await setup();
+
+        expect(clusterTypes()).toBe('24');
+    });
+
+    it('hands the cluster nothing for an unusable payload', async () => {
+        //
+        // propTypes warns but does not block a render, so a schema missing node_types
+        // has to be stopped here rather than at the component.
+        //
+        getGraphSchema.mockReturnValue(Promise.resolve({ version: '1.3' }));
+
+        await setup();
+
+        expect(clusterTypes()).toBe('none');
+    });
+
+    it('keeps the schema on the page state', async () => {
+        const { page } = await setup();
+
+        expect(page.state).toHaveProperty('graph_schema');
     });
 });
 
@@ -674,6 +793,26 @@ describe('merging the day\'s splits with the ticker list', () => {
 
         expect(Array.isArray(list)).toBe(true);
     });
+
+    it('keeps an unmatched split\'s own sector and industry', async () => {
+        //
+        // the other arm of the n/a defaults: the columns are filled in only when they
+        // are ABSENT, so a split row that already carries them must not be overwritten
+        // with 'n/a'. Nothing covered that, and a defaulting bug would have looked
+        // exactly like a working one.
+        //
+        const { page } = await setup();
+
+        const [entry] = await merge(page, [{
+            ...SPLIT,
+            ticker: 'ZZZZ',
+            Sector: 'Energy',
+            Industry: 'Pipelines',
+        }]);
+
+        expect(entry.detail.Sector).toBe('Energy');
+        expect(entry.detail.Industry).toBe('Pipelines');
+    });
 });
 
 describe('the ticker and split load on mount', () => {
@@ -846,6 +985,26 @@ describe('the ticker and split load on mount', () => {
         expect(page.state.promise_list_ticker_complete).toBe(true);
         expect(page.state.tickers).toEqual([]);
         expect(page.state.split_list).toEqual([]);
+    });
+
+    it('keeps an unmatched split\'s own sector and industry', async () => {
+        //
+        // the negative arm of the same two defaults, on the mount path this time --
+        // componentDidMount and componentDidUpdate each carry their own copy of this
+        // merge rather than sharing one.
+        //
+        const today = tradingDate(new Date());
+        const { page } = await mountWithLists([row()], [{
+            ticker: 'ZZZZ',
+            split_ratio: '2:1',
+            split_date: `${today.mm}/${today.dd}/${today.yyyy}`,
+            Sector: 'Energy',
+            Industry: 'Pipelines',
+        }]);
+
+        const unmatched = page.state.split_list.filter(Boolean).find(v => v.name === 'ZZZZ');
+        expect(unmatched.detail.Sector).toBe('Energy');
+        expect(unmatched.detail.Industry).toBe('Pipelines');
     });
 
     it('hands the merged splits to the listing', async () => {

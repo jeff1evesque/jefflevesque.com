@@ -19,6 +19,8 @@ import ArticleListing from '../general/article-listing.jsx';
 import PropTypes from 'prop-types';
 import trim from '../general/trim-object.js';
 import getData from '../general/get-data.js';
+import getGraphSchema from '../general/get-graph-schema.js';
+import filterSchema from '../animation/filter-schema.js';
 import checkValidObject from '../validator/valid-object.js';
 import SvgExit from '../svg/svg-exit.jsx';
 import DatePicker from 'react-datepicker';
@@ -86,6 +88,7 @@ class HomePage extends Component {
         this.state = {
             tickers: [],
             split_list: [],
+            graph_schema: null,
             promise_list_ticker_complete: false,
             display: 'stock-market',
             display_stock_stream: true,
@@ -372,6 +375,28 @@ class HomePage extends Component {
 
         */}
 
+        {/*
+
+            the knowledge-graph backdrop's content, filtered to the handful of
+            node types the animation can legibly carry. Until this resolves --
+            and if it never does -- GraphCluster renders its gray field alone,
+            which is the deliberate answer rather than a placeholder graph.
+
+            Note: NOT gated on @is_local, unlike the csv loads below. Those fail
+                  CORS from localhost, which is what the gate is for; the graph
+                  api is public and allows any origin, so a local build shows
+                  the same real graph the deployed one does.
+
+            Note: filterSchema answers null for a null schema, so the failed
+                  fetch and the unusable payload land in the same state as the
+                  pending one without a branch here.
+
+        */}
+
+        getGraphSchema().then((schema) => {
+            this.setState({ graph_schema: filterSchema(schema) });
+        });
+
         const promise_nasdaq = getData(
             'ticker-nasdaq',
             is_local ? null : 'https://www.jefflevesque.com/artifact/ticker/nasdaq_100/2021-06-xx.csv'
@@ -485,14 +510,18 @@ class HomePage extends Component {
         {/*
 
             @animation, the frontpage backdrop. The knowledge-graph cluster
-                (GraphCluster) draws one ball per node type from the pyg
-                graph_schema mock, clustered by edge topology and reactive to
-                the cursor.
+                (GraphCluster) draws one ball per node type from the live
+                graph_schema served by the public graph api, clustered by edge
+                topology and reactive to the cursor.
+
+            Note: @graph_schema is null until the fetch lands, and stays null if
+                  it fails. GraphCluster reads that as "draw the gray field and
+                  no cluster" -- there is no committed fallback graph.
 
         */}
 
         const animation = this.state.display == 'stock-market'
-            ? <GraphCluster />
+            ? <GraphCluster data={this.state.graph_schema} />
             : null;
 
         const filter_column = this.state.display == 'summary'
