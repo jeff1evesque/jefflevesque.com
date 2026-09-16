@@ -21,6 +21,7 @@ the SEC, stock market pricing, stock splits, and US National Weather alerts.
 | `/stream/:stream/trigger` | trigger conditions for one stream, charted against its history |
 | `/stream/:stream/alarm` | alarms raised for a stream |
 | `/data` | data article listing, with distribution charts |
+| `/graph` | every published knowledge-graph build, with a picker, a legend and what each build contains |
 | `/model` | model article listing, with filters and performance |
 | `/login`, `/logout`, `/register`, `/login/reset` | Cognito-backed authentication |
 | `/:user`, `/:user/settings` | account and account settings |
