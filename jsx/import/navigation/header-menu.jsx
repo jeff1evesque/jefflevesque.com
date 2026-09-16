@@ -41,12 +41,23 @@ class HeaderMenu extends Component {
                             <div className='col'>
                                 <Nav>
                                     <div>
+                                        {/*
+
+                                            ordered the way the data moves:
+                                            ingested, then stored, then built
+                                            into a graph, then modelled.
+
+                                        */}
+                                        <span className='border-oval-radius'>
+                                            <NavLink className='main-navigation-large' to='/stream'>Stream</NavLink>
+                                        </span>
+                                        <span className='horizontal-spacer'>|</span>
                                         <span className='border-oval-radius'>
                                             <NavLink className='main-navigation-large' to='/data'>Data</NavLink>
                                         </span>
                                         <span className='horizontal-spacer'>|</span>
                                         <span className='border-oval-radius'>
-                                            <NavLink className='main-navigation-large' to='/stream'>Stream</NavLink>
+                                            <NavLink className='main-navigation-large' to='/graph'>Graph</NavLink>
                                         </span>
                                         <span className='horizontal-spacer'>|</span>
                                         <span className='border-oval-radius'>
@@ -84,8 +95,9 @@ class HeaderMenu extends Component {
                         className='session'
                         title={session}
                     >
-                        <NavDropdown.Item href='/data'>{'Data'}</NavDropdown.Item>
                         <NavDropdown.Item href='/stream'>{'Stream'}</NavDropdown.Item>
+                        <NavDropdown.Item href='/data'>{'Data'}</NavDropdown.Item>
+                        <NavDropdown.Item href='/graph'>{'Graph'}</NavDropdown.Item>
                         <NavDropdown.Item href='/model'>{'Model'}</NavDropdown.Item>
                     </NavDropdown>
                     <Nav>

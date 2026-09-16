@@ -19,6 +19,7 @@ import StreamLayoutState from '../redux/container/stream/stream.jsx';
 import StreamTriggerLayoutState from '../redux/container/stream/trigger/trigger.jsx';
 import StreamAlarm from '../layout/stream/alarm.jsx';
 import ModelLayout from '../layout/model.jsx';
+import GraphLayout from '../layout/graph/graph.jsx';
 import HomePageState from '../redux/container/home-page.jsx';
 import ForgotPasswordState from '../redux/container/forgot-password.jsx';
 import ErrorPage from '../content/error-page.jsx';
@@ -39,6 +40,7 @@ class MainRoute extends Component {
                 <Route path='/stream/:stream/trigger' element={<StreamTriggerLayoutState />} />
                 <Route path='/stream/:stream/alarm' element={<StreamAlarm />} />
                 <Route path='/model' element={<ModelLayout />}/>
+                <Route path='/graph' element={<GraphLayout />}/>
                 <Route path='/*' element={<ErrorPage />} />
             </Routes>
         );

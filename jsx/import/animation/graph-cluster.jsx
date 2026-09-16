@@ -63,7 +63,13 @@
 
 import React, { Component } from 'react';
 import * as d3 from 'd3';
-import { colors, colors_categorical, color_other } from '../general/colors.js';
+import { colors } from '../general/colors.js';
+import {
+    sourceNamespace,
+    assignNamespaceColors,
+    ORIGIN_DASH,
+    originColor,
+} from './encoding.js';
 import { medium_minWidth } from '../general/breakpoints';
 import PropTypes from 'prop-types';
 
@@ -79,62 +85,14 @@ import PropTypes from 'prop-types';
 //       A fixed list cannot work: the set of namespaces is whatever the builder
 //       published, and a source added upstream would silently fall off the end.
 
-// ontology uris are '<origin>/ontology/<namespace>/<Type>'; the id prefix is the
-// fallback for anything that does not match.
-const NAMESPACE_FROM_URI = /\/ontology\/([^/]+)\//;
-
-/**
- * the namespace a node type belongs to.
- *
- * Exported for its tests: the uri is the authority, but a schema is free to omit
- * it, and the id prefix has to stand in without the caller noticing.
- */
-export function sourceNamespace(meta, id) {
-    const uri = meta && meta.source_type_uri ? String(meta.source_type_uri) : '';
-    const match = NAMESPACE_FROM_URI.exec(uri);
-
-    if (match) {
-        return match[1];
-    }
-
-    const underscore = id.indexOf('_');
-
-    return underscore > 0 ? id.slice(0, underscore) : id;
-}
-
-/**
- * assign a color to every namespace present, biggest first.
- *
- * The categorical palette has eight slots and a build can carry more namespaces
- * than that, so the tail rolls up into the neutral 'other' rather than cycling
- * the palette -- two unrelated sources sharing a color reads as a relationship
- * that is not there.
- *
- * Note: ordered by how many node types a namespace contributes, ties broken by
- *       name, so the same build always paints the same colors. Ordering by
- *       object key order would repaint the cluster whenever the builder emitted
- *       its types in a different sequence.
- */
-export function assignNamespaceColors(nodes) {
-    const totals = new Map();
-    nodes.forEach((node) => {
-        totals.set(node.namespace, (totals.get(node.namespace) || 0) + 1);
-    });
-
-    const ordered = [...totals.keys()].sort((a, b) => {
-        const delta = totals.get(b) - totals.get(a);
-        return delta !== 0 ? delta : a.localeCompare(b);
-    });
-
-    const assigned = new Map();
-    ordered.forEach((namespace, index) => {
-        assigned.set(namespace, index < colors_categorical.length
-            ? colors_categorical[index]
-            : color_other);
-    });
-
-    return assigned;
-}
+// Nodes are colored by SOURCE NAMESPACE, and links styled by edge origin. Both
+// mappings live in encoding.js, because the explorer page draws the same
+// published graph and the two must not disagree -- a legend there describing a
+// colour this file assigns differently would be wrong with nothing failing.
+//
+// The backdrop rolls every namespace past the palette into one neutral, which
+// is the 'roll-up' default: it is glanced at and carries no legend, so a shared
+// grey costs nothing here.
 
 // pointer repel: nodes in the annulus [INNER, OUTER] px from the cursor are
 // pushed away — gently, and NOT inside INNER, so the node you're inspecting can
@@ -739,20 +697,13 @@ class GraphCluster extends Component {
         // the screen-filling gray field (built + animated separately from sim)
         this.drawBackground(width, height);
 
-        // ---- links (styled by origin) --------------------------------------
-        const originDash = { raw: null, enrichment: '5 4', unification: '2 6' };
-        const originColor = {
-            raw: colors['gray-5'],
-            enrichment: colors_categorical[0],
-            unification: colors_categorical[1],
-        };
-
+        // ---- links (styled by origin, see encoding.js) ----------------------
         this.linkSel = gLinks.selectAll('line')
             .data(links)
             .join('line')
-            .attr('stroke', (d) => originColor[d.origin] || colors['gray-5'])
+            .attr('stroke', (d) => originColor(d.origin))
             .attr('stroke-width', (d) => (d.origin === 'raw' ? 1 : 1.5))
-            .attr('stroke-dasharray', (d) => originDash[d.origin])
+            .attr('stroke-dasharray', (d) => ORIGIN_DASH[d.origin])
             // faint at rest, to match the muted nodes
             .attr('opacity', 0.18);
 

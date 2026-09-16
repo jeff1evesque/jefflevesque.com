@@ -1,0 +1,152 @@
+// _graph.scss: the knowledge graph explorer page.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+//
+// Note: the front page backdrop is styled by '_animation.scss' and is absolutely
+//       positioned behind the content. This surface is the opposite -- it sits in
+//       the normal flow and is the thing being read -- so the two share no rules.
+
+.graph-page {
+  padding-bottom: $gutter-1;
+  padding-top: $gutter-1;
+
+  h5 {
+    display: inline-block;
+    margin-right: 1rem;
+  }
+}
+
+.graph-picker {
+  background-color: $white-1;
+  border: 1px solid $gray-3;
+  border-radius: 0.25rem;
+  color: $gray-8;
+  max-width: 100%;
+  padding: 0.35rem 0.5rem;
+
+  &:focus {
+    border-color: $focus;
+    outline: none;
+  }
+
+  option:disabled {
+    color: $gray-5;
+  }
+}
+
+//
+// the canvas the simulation draws into. A min-height is set here rather than
+// left to the svg: the explorer is handed its height as a prop, and without a
+// floor the column collapses while the first build is still loading and the
+// page jumps when it arrives.
+//
+.graph-canvas {
+  min-height: 620px;
+}
+
+.graph-explorer {
+  display: block;
+  max-width: 100%;
+}
+
+.graph-status {
+  color: $gray-6;
+  padding-top: $gutter-1;
+}
+
+.graph-status-failed {
+  color: $red-2;
+}
+
+//
+// what the selected build is. A description list rather than a table: these are
+// label/value pairs, not rows that relate to each other.
+//
+.graph-details {
+  border-bottom: 1px solid $gray-2;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+
+  dt {
+    color: $gray-6;
+    font-weight: normal;
+  }
+
+  dd {
+    color: $gray-8;
+    margin-bottom: 0.5rem;
+    word-break: break-word;
+  }
+}
+
+.graph-legend {
+  h6 {
+    color: $gray-7;
+    margin-bottom: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  li {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 0.35rem;
+  }
+}
+
+//
+// sized to read as a key rather than as a chart element, and given a border so a
+// pale colour -- the shaded tail past the eight palette slots is deliberately
+// light -- still reads as a swatch against white.
+//
+.graph-legend-swatch {
+  border: 1px solid $gray-3;
+  border-radius: 2px;
+  display: inline-block;
+  height: 0.75rem;
+  margin-right: 0.5rem;
+  width: 0.75rem;
+}
+
+.graph-legend-origins {
+  svg {
+    margin-right: 0.5rem;
+  }
+}
+
+.graph-legend-note {
+  color: $gray-6;
+  flex-basis: 100%;
+  padding-left: 2.6rem;
+}
+
+//
+// on a phone the legend and details sit above the graph rather than beside it,
+// which bootstrap's column stacking already does. What it does not do is give
+// the canvas back its height, so the floor is relaxed here.
+//
+.small-viewport {
+  .graph-canvas {
+    min-height: 380px;
+  }
+
+  .graph-details {
+    dd {
+      margin-bottom: 0.35rem;
+    }
+  }
+
+  .graph-picker {
+    max-width: $mobile-width;
+  }
+}

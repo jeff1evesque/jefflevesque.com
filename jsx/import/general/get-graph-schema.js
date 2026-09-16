@@ -65,6 +65,51 @@ function report(url) {
  * body. The caller renders no graph in exactly those cases, so telling them
  * apart would only invite a branch that does the same thing twice.
  */
+/**
+ * every published build, for a page that lets someone choose between them.
+ *
+ * The front page never needs this -- it takes the default and draws it -- so it
+ * is a separate entry point rather than something bolted onto the call below.
+ *
+ * Resolves to the listing, or null if it cannot be had.
+ */
+export function getGraphListing(base = KNOWLEDGE_GRAPH) {
+    return report(base)
+        .then((listing) => {
+            if (!listing || !Array.isArray(listing.graphs)) {
+                return Promise.reject(listing);
+            }
+
+            return listing;
+        })
+        .catch((e) => {
+            const detail = (e && e.status) ? `status ${e.status}` : e;
+            console.log(`Error: ${base} listing returned ${detail}`);
+            return null;
+        });
+}
+
+/**
+ * one build's schema, by the id the listing gave.
+ *
+ * Note: ids are opaque. They come from the listing and go back unchanged -- a
+ *       caller that builds one by hand is guessing at a format it does not own.
+ */
+export function getGraphById(id, base = KNOWLEDGE_GRAPH) {
+    if (!id) {
+        return Promise.resolve(null);
+    }
+
+    const url = new URL(base);
+    url.searchParams.append('Graph', id);
+
+    return report(url).catch((e) => {
+        const detail = (e && e.status) ? `status ${e.status}` : e;
+        console.log(`Error: ${base} Graph=${id} returned ${detail}`);
+        return null;
+    });
+}
+
 export default function getGraphSchema(base = KNOWLEDGE_GRAPH) {
     return report(base)
         .then((listing) => {
