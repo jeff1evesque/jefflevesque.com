@@ -197,9 +197,12 @@ absent from the report.
 it.** The run fails if coverage falls below the baseline, so a regression reddens CI
 rather than passing quietly.
 
-The baseline is **86% on all four metrics**, and tracks the weakest of them rather
-than the strongest — setting it at the statements figure would leave the other three
-failing on the next push. The badge carries the current statements percentage.
+The baseline tracks the weakest of the four rather than the strongest — setting it at
+the statements figure would leave the other three failing on the next push. The
+number itself lives in [`jsx/jest.config.js`](jsx/jest.config.js) and is deliberately
+not repeated here: it has been raised several times, and the copy that used to sit in
+this paragraph was stale by five points before anyone noticed. The badge carries the
+current statements percentage.
 
 The figures drift a little with the clock, because a few suites build fixtures from
 the rolling window and reach different schedule branches at different hours. Measure

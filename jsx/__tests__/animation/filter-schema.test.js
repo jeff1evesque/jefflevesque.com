@@ -11,7 +11,13 @@
  *       happen to produce the right answer tests nothing a reader can check.
  */
 
-import filterSchema, { BACKDROP_NODE_TYPES, rank } from '../../import/animation/filter-schema.js';
+import filterSchema, {
+    BACKDROP_NODE_TYPES,
+    CONNECTOR_MIN_LINKS,
+    adjacency,
+    rank,
+    selectTypes,
+} from '../../import/animation/filter-schema.js';
 
 //
 // a schema with `counts` as its node types, named n0..nN, and no edges.
@@ -172,6 +178,218 @@ describe('edges whose endpoints did not survive', () => {
 
         expect(Object.keys(filterSchema(schema, 24).edge_types))
             .toEqual(['(nonsense, at, all)']);
+    });
+});
+
+describe('keeping the graph in one piece', () => {
+    //
+    // the rule this replaced was simply "the 24 biggest", and measured against a live
+    // build it produced 24 node types in TWELVE components, nine of them single nodes
+    // with no edge at all. The cluster exists to let communities emerge from the edge
+    // topology, and floating dots have none -- so which types survive is now partly a
+    // question of what holds the rest together, not only of size.
+    //
+    // Note: these fixtures put the connector LAST in count order on purpose. A rule
+    //       that kept it by size rather than by structure would pass anyway, and the
+    //       test would be proving nothing.
+    //
+    function connected() {
+        //
+        // big0..big3 are the four largest and touch nothing. 'bridge' is the smallest
+        // type in the schema and is the only thing joining any of them.
+        //
+        return {
+            version: '1',
+            node_types: {
+                big0: { count: 100 },
+                big1: { count: 90 },
+                big2: { count: 80 },
+                big3: { count: 70 },
+                bridge: { count: 1 },
+            },
+            edge_types: {
+                a: edge('bridge', 'big0'),
+                b: edge('bridge', 'big1'),
+            },
+        };
+    }
+
+    it('spends budget on a connector over a larger isolated type', () => {
+        //
+        // limit 3: the seed takes the top 2, and the third slot goes to the type that
+        // joins them rather than to big2, which is 80x larger and touches nothing.
+        //
+        const kept = Object.keys(filterSchema(connected(), 3).node_types);
+
+        expect(kept).toContain('bridge');
+        expect(kept).not.toContain('big2');
+    });
+
+    it('leaves no node without an edge when a connector was available', () => {
+        const filtered = filterSchema(connected(), 3);
+        const ids = new Set(Object.keys(filtered.node_types));
+        const linked = new Set();
+
+        Object.values(filtered.edge_types).forEach((e) => {
+            if (e.src_type === e.dst_type) return;
+            linked.add(e.src_type);
+            linked.add(e.dst_type);
+        });
+
+        [...ids].forEach(id => expect(linked.has(id)).toBe(true));
+    });
+
+    it('ignores a type that touches only one of the kept set', () => {
+        //
+        // a single link makes a leaf, not a bridge -- it adds a twig rather than
+        // joining anything that was apart, and the budget buys nothing.
+        //
+        const schema = {
+            version: '1',
+            node_types: {
+                big0: { count: 100 },
+                big1: { count: 90 },
+                big2: { count: 80 },
+                leaf: { count: 1 },
+            },
+            edge_types: { a: edge('leaf', 'big0') },
+        };
+
+        expect(Object.keys(filterSchema(schema, 3).node_types)).not.toContain('leaf');
+    });
+
+    it('does not count a self-loop as a connection', () => {
+        //
+        // src === dst is real data and is kept in the output, but it joins a type to
+        // nothing. Sixteen of the twenty-nine edges the old rule kept were self-loops,
+        // which is most of why a set that looked edge-rich rendered as dust.
+        //
+        const schema = {
+            version: '1',
+            node_types: {
+                big0: { count: 100 },
+                big1: { count: 90 },
+                big2: { count: 80 },
+                loopy: { count: 1 },
+            },
+            edge_types: { a: edge('loopy', 'loopy'), b: edge('loopy', 'big0') },
+        };
+
+        expect(Object.keys(filterSchema(schema, 3).node_types)).not.toContain('loopy');
+    });
+
+    it('cascades, so a connector can qualify the next one', () => {
+        //
+        // 'far' touches big0 and 'near'; 'near' touches big0 and big1. 'near' has to be
+        // taken first for 'far' to reach two kept types at all.
+        //
+        const schema = {
+            version: '1',
+            node_types: {
+                big0: { count: 100 },
+                big1: { count: 90 },
+                near: { count: 5 },
+                far: { count: 4 },
+            },
+            edge_types: {
+                a: edge('near', 'big0'),
+                b: edge('near', 'big1'),
+                c: edge('far', 'big0'),
+                d: edge('far', 'near'),
+            },
+        };
+
+        const kept = Object.keys(filterSchema(schema, 4).node_types);
+
+        expect(kept).toContain('near');
+        expect(kept).toContain('far');
+    });
+
+    it('still keeps the graph\'s mass', () => {
+        //
+        // the failure mode on the other side: a rule that chased connectivity alone
+        // dropped four of the five biggest types in the live build, and every market
+        // type with them. The seed is what prevents that.
+        //
+        const kept = Object.keys(filterSchema(connected(), 3).node_types);
+
+        expect(kept).toContain('big0');
+        expect(kept).toContain('big1');
+    });
+
+    it('pads with the largest remaining when connectors run out', () => {
+        //
+        // budget left over means the graph had nothing else holding it together, and at
+        // that point a type the reader recognises beats a small one that happens to
+        // touch something.
+        //
+        const schema = schemaOf([100, 90, 80, 70]);
+
+        expect(Object.keys(filterSchema(schema, 4).node_types)).toHaveLength(4);
+    });
+
+    it('is deterministic', () => {
+        const first = Object.keys(filterSchema(connected(), 3).node_types);
+        const second = Object.keys(filterSchema(connected(), 3).node_types);
+
+        expect(first).toEqual(second);
+    });
+});
+
+describe('adjacency', () => {
+    it('links both directions of an edge', () => {
+        const { node_types } = schemaOf([1, 1]);
+        const adj = adjacency(node_types, { a: edge('n0', 'n1') });
+
+        expect([...adj.get('n0')]).toEqual(['n1']);
+        expect([...adj.get('n1')]).toEqual(['n0']);
+    });
+
+    it('omits a self-loop', () => {
+        const { node_types } = schemaOf([1]);
+
+        expect([...adjacency(node_types, { a: edge('n0', 'n0') }).get('n0')]).toEqual([]);
+    });
+
+    it('ignores an edge naming a type the schema does not have', () => {
+        //
+        // the filtered document is built from this, so an unknown endpoint would put a
+        // key in the map that no node ever matches.
+        //
+        const { node_types } = schemaOf([1]);
+        const adj = adjacency(node_types, { a: edge('n0', 'ghost') });
+
+        expect(adj.has('ghost')).toBe(false);
+        expect([...adj.get('n0')]).toEqual([]);
+    });
+
+    it('counts a repeated pair once', () => {
+        const { node_types } = schemaOf([1, 1]);
+        const adj = adjacency(node_types, { a: edge('n0', 'n1'), b: edge('n1', 'n0') });
+
+        expect(adj.get('n0').size).toBe(1);
+    });
+});
+
+describe('selectTypes', () => {
+    it('never seeds fewer than one type', () => {
+        //
+        // round(1 * 2/3) is 1, but round(0.5) and below would be 0 -- a seed of nothing
+        // means nothing is kept and the back-fill has no anchor to measure against.
+        //
+        const { node_types } = schemaOf([5, 4]);
+
+        expect(selectTypes(node_types, {}, 1).size).toBe(1);
+    });
+
+    it('returns everything when the limit exceeds the schema', () => {
+        const { node_types } = schemaOf([3, 2]);
+
+        expect(selectTypes(node_types, {}, 99).size).toBe(2);
+    });
+
+    it('requires two links to qualify as a connector', () => {
+        expect(CONNECTOR_MIN_LINKS).toBe(2);
     });
 });
 

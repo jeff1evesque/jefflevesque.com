@@ -50,8 +50,10 @@ assignees: ''
 
 - [ ] **The code.**
 - [ ] **Unit tests**, under `jsx/__tests__/`, mirroring the path the change has
-      in `jsx/import/`. `jsx/jest.config.js` holds a **90% floor on statements,
-      branches, functions and lines** and fails the run below it. Branches and
+      in `jsx/import/`. `jsx/jest.config.js` holds a **floor on statements,
+      branches, functions and lines** and fails the run below it -- read the
+      figure there rather than from here, because it is raised periodically and
+      every prose copy of it has gone stale between raises. Branches and
       functions bind first -- they carry the least room above the floor, so a
       build reddens on a new untested *branch* long before anything else.
       Coverage is collected from the whole `import/` tree rather than from
@@ -59,11 +61,11 @@ assignees: ''
       being absent from the report.
 
       `cd jsx && npx jest --config jest.config.js`
-- [ ] **The documentation.** `README.md` and `jsx/README.md` are the only
-      tracked markdown, and **nothing in CI reads either of them** -- there is
-      no docs build and no link check, so a claim that stops being true ships
-      silently and stays. This is the item most easily skipped and the only one
-      with no machine behind it: #9 and #11 were both entirely README
+- [ ] **The documentation.** `README.md` and `jsx/README.md` are the prose pages,
+      and these templates are tracked markdown too. **Nothing in CI reads any of
+      them** -- there is no docs build and no link check, so a claim that stops
+      being true ships silently and stays. This is the item most easily skipped
+      and the only one with no machine behind it: #9 and #11 were both README
       corrections that should have ridden along with the changes that
       invalidated them.
 
