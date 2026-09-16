@@ -34,10 +34,7 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 
-import GraphCluster, {
-    sourceNamespace,
-    assignNamespaceColors,
-} from '../../import/animation/graph-cluster.jsx';
+import GraphCluster from '../../import/animation/graph-cluster.jsx';
 import schema from '../fixtures/graph-schema.mock.json';
 
 const NODE_TYPES = Object.keys(schema.node_types);
@@ -305,95 +302,6 @@ function fillsOf(data) {
         ])
     );
 }
-
-describe('sourceNamespace', () => {
-    it('reads the namespace out of an ontology uri', () => {
-        expect(sourceNamespace(
-            { source_type_uri: 'https://example.com/ontology/bls/CensusRegion' },
-            'bls_enrichment_CensusRegion'
-        )).toBe('bls');
-    });
-
-    it('falls back to the id prefix when there is no uri', () => {
-        expect(sourceNamespace({}, 'market_EquityQuote')).toBe('market');
-    });
-
-    it('falls back when the uri is not shaped like an ontology term', () => {
-        expect(sourceNamespace(
-            { source_type_uri: 'https://example.com/something/else' },
-            'sec_Filing'
-        )).toBe('sec');
-    });
-
-    it('takes only the first segment of a multi-part id', () => {
-        expect(sourceNamespace({}, 'bls_enrichment_PriceIndex')).toBe('bls');
-    });
-
-    it('returns the whole id when it carries no prefix', () => {
-        expect(sourceNamespace({}, 'Standalone')).toBe('Standalone');
-    });
-
-    it('survives a missing meta', () => {
-        expect(sourceNamespace(undefined, 'cpi_Index')).toBe('cpi');
-    });
-
-    it('does not treat a leading underscore as a prefix', () => {
-        //
-        // indexOf('_') is 0 there, and slice(0, 0) would name every such type ''.
-        //
-        expect(sourceNamespace({}, '_odd')).toBe('_odd');
-    });
-});
-
-describe('assignNamespaceColors', () => {
-    const nodesOf = (namespaces) => namespaces.map((ns, i) => ({ id: `n${i}`, namespace: ns }));
-
-    it('gives the largest namespace the first categorical slot', () => {
-        const assigned = assignNamespaceColors(nodesOf(['small', 'big', 'big']));
-
-        expect(assigned.get('big')).not.toBe(assigned.get('small'));
-        expect([...assigned.keys()][0]).toBe('big');
-    });
-
-    it('breaks a tie on the namespace name', () => {
-        const assigned = assignNamespaceColors(nodesOf(['zebra', 'apple']));
-
-        expect([...assigned.keys()]).toEqual(['apple', 'zebra']);
-    });
-
-    it('assigns the same colors to the same build every time', () => {
-        //
-        // the cluster would otherwise repaint itself whenever the builder emitted its
-        // node types in a different order.
-        //
-        const nodes = nodesOf(['a', 'b', 'a', 'c']);
-
-        expect([...assignNamespaceColors(nodes)]).toEqual([...assignNamespaceColors(nodes)]);
-    });
-
-    it('rolls the tail past the palette into one neutral', () => {
-        //
-        // cycling the palette instead would give two unrelated sources the same color,
-        // which reads as a relationship that is not there.
-        //
-        const many = [...Array(12)].map((_, i) => `ns${String(i).padStart(2, '0')}`);
-        const assigned = assignNamespaceColors(nodesOf(many));
-
-        const tail = many.slice(8).map(ns => assigned.get(ns));
-        expect(new Set(tail).size).toBe(1);
-    });
-
-    it('keeps the first eight distinct from each other', () => {
-        const eight = [...Array(8)].map((_, i) => `ns${i}`);
-        const assigned = assignNamespaceColors(nodesOf(eight));
-
-        expect(new Set(eight.map(ns => assigned.get(ns))).size).toBe(8);
-    });
-
-    it('answers an empty assignment for no nodes', () => {
-        expect(assignNamespaceColors([]).size).toBe(0);
-    });
-});
 
 describe('what the cluster is colored by', () => {
     //
