@@ -20,9 +20,10 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 
 import GraphCluster, { clamp, segClosest } from '../../import/animation/graph-cluster.jsx';
+import schema from '../fixtures/graph-schema.mock.json';
 
 //
 // mirrors of the module's own constants, so a test says what it depends on rather than
@@ -31,11 +32,19 @@ import GraphCluster, { clamp, segClosest } from '../../import/animation/graph-cl
 const HOVER_DETECT = 130;
 const BG_RESIZE_DEBOUNCE = 150;
 const BG_DARK_RADIUS = 110;
+const MOUSE_AFTER_TOUCH = 700;
 
+//
+// Note: the schema is passed explicitly. The component has no fallback graph -- an
+//       unprop'd render draws the gray field and nothing else -- so every case
+//       below, all of which reach for page.nodes or page.links, needs data to
+//       exist at all. What is being exercised here is the interaction, not the
+//       loading, so the fixture stands in for whatever the api returned.
+//
 function setup() {
     const held = React.createRef();
 
-    const utils = render(<GraphCluster ref={held} />);
+    const utils = render(<GraphCluster ref={held} data={schema} />);
 
     return { ...utils, page: held.current };
 }
@@ -548,5 +557,136 @@ describe('the per-tick work', () => {
         tick(page);
 
         expect(page.hoveredId).toBe(target.id);
+    });
+});
+
+describe('the mouse handlers', () => {
+    //
+    // d3 binds these to the svg itself, so they are dispatched as real dom events
+    // rather than pulled off an object -- which is also the only way to prove they were
+    // wired to the element at all.
+    //
+    const svgOf = (page) => page.svgRef.current;
+
+    it('latches the pointer where the cursor is', () => {
+        const { page } = setup();
+
+        fireEvent.mouseMove(svgOf(page), { clientX: 120, clientY: 90 });
+
+        expect(page.pointer).not.toBeNull();
+    });
+
+    it('drops the pointer when the cursor leaves', () => {
+        const { page } = setup();
+        fireEvent.mouseMove(svgOf(page), { clientX: 120, clientY: 90 });
+
+        fireEvent.mouseLeave(svgOf(page));
+
+        expect(page.pointer).toBeNull();
+    });
+
+    it('clears the hover when the cursor leaves', () => {
+        const { page } = setup();
+        page.hoveredId = page.nodes[0].id;
+
+        fireEvent.mouseLeave(svgOf(page));
+
+        expect(page.hoveredId).toBeNull();
+    });
+
+    it('ignores the synthetic mousemove that a tap replays', () => {
+        //
+        // a touch device emits one mousemove per tap AFTER touchend and never a
+        // mouseleave, so without this guard the pointer would re-latch wherever the
+        // finger last was: the cluster stays shoved aside and the gray spotlight stays
+        // lit for good.
+        //
+        const { page } = setup();
+        page.touchedAt = Date.now();
+
+        fireEvent.mouseMove(svgOf(page), { clientX: 120, clientY: 90 });
+
+        expect(page.pointer).toBeNull();
+    });
+
+    it('accepts a mousemove once the touch guard has expired', () => {
+        //
+        // the other arm: a real mouse on a machine that once saw a touch must still
+        // work, so the guard is a window rather than a latch.
+        //
+        const { page } = setup();
+        page.touchedAt = Date.now() - (MOUSE_AFTER_TOUCH + 50);
+
+        fireEvent.mouseMove(svgOf(page), { clientX: 120, clientY: 90 });
+
+        expect(page.pointer).not.toBeNull();
+    });
+});
+
+describe('the touch handlers', () => {
+    const svgOf = (page) => page.svgRef.current;
+    const touchAt = (x, y) => ({ touches: [{ clientX: x, clientY: y }] });
+
+    it('drives the pointer from the touch itself', () => {
+        //
+        // not from the emulated mouse events: those arrive once per tap, after the
+        // finger has already lifted.
+        //
+        const { page } = setup();
+
+        fireEvent.touchMove(svgOf(page), touchAt(140, 100));
+
+        expect(page.pointer).not.toBeNull();
+    });
+
+    it('drops the pointer when the finger lifts', () => {
+        const { page } = setup();
+        fireEvent.touchMove(svgOf(page), touchAt(140, 100));
+
+        fireEvent.touchEnd(svgOf(page));
+
+        expect(page.pointer).toBeNull();
+    });
+
+    it('drops the pointer when the touch is cancelled', () => {
+        const { page } = setup();
+        fireEvent.touchMove(svgOf(page), touchAt(140, 100));
+
+        fireEvent.touchCancel(svgOf(page));
+
+        expect(page.pointer).toBeNull();
+    });
+
+    it('starts tracking on touchstart, not only on move', () => {
+        //
+        // a tap that never moves still has to light its node, so touchstart shares the
+        // move handler.
+        //
+        const { page } = setup();
+
+        fireEvent.touchStart(svgOf(page), touchAt(140, 100));
+
+        expect(page.pointer).not.toBeNull();
+    });
+
+    it('ignores a touch event carrying no touch', () => {
+        //
+        // touches is empty on some cancel sequences, and reading [0] blindly would put
+        // NaN into the pointer and from there into every node position.
+        //
+        const { page } = setup();
+
+        fireEvent.touchMove(svgOf(page), { touches: [] });
+
+        expect(page.pointer).toBeNull();
+    });
+
+    it('records when the touch happened, so the mouse guard can see it', () => {
+        const { page } = setup();
+        page.touchedAt = 0;
+
+        fireEvent.touchEnd(svgOf(page));
+
+        expect(page.touchedAt).toBeGreaterThan(0);
     });
 });

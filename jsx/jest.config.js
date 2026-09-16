@@ -83,6 +83,18 @@ module.exports = {
     // A flat 90% baseline on all four metrics. This is the mechanism that actually
     // holds coverage; the README badge only reports it.
     //
+    // Note: raised from 90 alongside the live graph schema work. Statements, functions
+    //       and lines were already well past 91; branches (91.33) cleared it by 0.33 and
+    //       had to be widened before the floor could move. It came from three places, all
+    //       of them paths nothing had ever driven: the cluster's four pointer and touch
+    //       handlers, which no test dispatched a dom event at and which therefore had no
+    //       coverage whatsoever; the local-build arm of home-page's three is_local
+    //       ternaries, reached by mocking the module in its own file rather than flipping
+    //       the shared stub; and the negative arm of the sector/industry defaults, which
+    //       only applies to a split row that already carries them. Branches now land at
+    //       91.61 and functions at 92.15, so the binding metric keeps about 0.6 rather
+    //       than the 0.3 it has carried before.
+    //
     // Note: raised from 88 alongside the BLS group_by fix. Statements, functions and
     //       lines were already past 89; branches (88.35) again had to be earned, and
     //       came from the paths a working system never takes -- the fallback and
@@ -124,10 +136,10 @@ module.exports = {
     //
     'coverageThreshold': {
         global: {
-            statements: 90,
-            branches: 90,
-            functions: 90,
-            lines: 90,
+            statements: 91,
+            branches: 91,
+            functions: 91,
+            lines: 91,
         },
     },
     //
