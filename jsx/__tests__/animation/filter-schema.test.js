@@ -15,6 +15,7 @@ import filterSchema, {
     BACKDROP_NODE_TYPES,
     CONNECTOR_MIN_LINKS,
     adjacency,
+    components,
     rank,
     selectTypes,
 } from '../../import/animation/filter-schema.js';
@@ -390,6 +391,231 @@ describe('selectTypes', () => {
 
     it('requires two links to qualify as a connector', () => {
         expect(CONNECTOR_MIN_LINKS).toBe(2);
+    });
+});
+
+describe('bridging separate components', () => {
+    //
+    // The case the connector rule cannot see, and it was visible on the front page:
+    // filings_XbrlFact and filings_XbrlDimension are both big enough to seed, they
+    // link to each other, and their only route to the rest of the graph is
+    // filings_SECFiling -- which touches ONE kept type and so never qualified as a
+    // connector. Two nodes floated beside a twenty-two node body.
+    //
+    // Counting kept neighbours is not the same as joining the graph up. A node with
+    // one neighbour in each of two islands has one of those and joins them; a node
+    // with two neighbours inside a single island has two and joins nothing.
+    //
+
+    //
+    // two clusters that do not touch, plus `span`, the smallest type in the schema,
+    // with a single link into each.
+    //
+    function split() {
+        return {
+            version: '1',
+            node_types: {
+                a0: { count: 100 },
+                a1: { count: 95 },
+                b0: { count: 90 },
+                b1: { count: 85 },
+                span: { count: 1 },
+            },
+            edge_types: {
+                inA: edge('a0', 'a1'),
+                inB: edge('b0', 'b1'),
+                toA: edge('span', 'a0'),
+                toB: edge('span', 'b0'),
+            },
+        };
+    }
+
+    const partsOf = (filtered) => components(
+        new Set(Object.keys(filtered.node_types)),
+        adjacency(filtered.node_types, filtered.edge_types)
+    );
+
+    it('takes a bridge that has only one link into each side', () => {
+        const kept = Object.keys(filterSchema(split(), 5).node_types);
+
+        expect(kept).toContain('span');
+    });
+
+    it('joins the graph into one piece', () => {
+        expect(partsOf(filterSchema(split(), 5))).toHaveLength(1);
+    });
+
+    it('leaves the graph split when nothing bridges it', () => {
+        //
+        // `lonely` touches only the a-side, so it reaches one component and cannot
+        // join anything. The budget goes on size instead, and the split stands --
+        // this rule buys connections, it does not manufacture them.
+        //
+        const schema = {
+            version: '1',
+            node_types: {
+                a0: { count: 100 },
+                a1: { count: 95 },
+                b0: { count: 90 },
+                b1: { count: 85 },
+                lonely: { count: 1 },
+            },
+            edge_types: {
+                inA: edge('a0', 'a1'),
+                inB: edge('b0', 'b1'),
+                toA: edge('lonely', 'a0'),
+            },
+        };
+
+        expect(partsOf(filterSchema(schema, 5))).toHaveLength(2);
+    });
+
+    it('spends leftover budget on size when nothing is floating', () => {
+        //
+        // joining things up costs nothing when there is nothing to join: the budget
+        // goes on the largest remaining type, exactly as it would have anyway.
+        //
+        const schema = {
+            version: '1',
+            node_types: {
+                n0: { count: 100 },
+                n1: { count: 90 },
+                n2: { count: 80 },
+                n3: { count: 70 },
+                n4: { count: 60 },
+            },
+            edge_types: {
+                a: edge('n0', 'n1'),
+                b: edge('n1', 'n2'),
+                c: edge('n2', 'n3'),
+                d: edge('n3', 'n4'),
+            },
+        };
+
+        expect(Object.keys(filterSchema(schema, 4).node_types).sort())
+            .toEqual(['n0', 'n1', 'n2', 'n3']);
+    });
+
+    it('is deterministic', () => {
+        const first = Object.keys(filterSchema(split(), 5).node_types);
+        const second = Object.keys(filterSchema(split(), 5).node_types);
+
+        expect(first).toEqual(second);
+    });
+
+    //
+    // The real-world shape, and the one the earlier passes cannot reach.
+    //
+    // `join` is the smallest type here, so by the time it comes up the budget is
+    // already spent on c1 and c2 -- it is never even considered. On the live build
+    // this is filings_SECFiling: it was passed over, and the two XBRL types it would
+    // have connected sat in the corner by themselves.
+    //
+    // The only way to buy it is to give something up, which is what the last pass
+    // does.
+    //
+    function exhausted() {
+        return {
+            version: '1',
+            node_types: {
+                big0: { count: 100 },
+                big1: { count: 90 },
+                big2: { count: 80 },
+                c1: { count: 70 },
+                c2: { count: 60 },
+                join: { count: 10 },
+            },
+            edge_types: {
+                pair: edge('big0', 'big1'),
+                c1a: edge('c1', 'big0'),
+                c1b: edge('c1', 'big1'),
+                c2a: edge('c2', 'big0'),
+                c2b: edge('c2', 'big1'),
+                toBody: edge('join', 'big0'),
+                toStray: edge('join', 'big2'),
+            },
+        };
+    }
+
+    it('buys a joiner by giving something up once the budget is spent', () => {
+        expect(Object.keys(filterSchema(exhausted(), 5).node_types)).toContain('join');
+    });
+
+    it('gives up the smallest it can rather than the largest', () => {
+        const kept = Object.keys(filterSchema(exhausted(), 5).node_types);
+
+        expect(kept).toContain('c1');
+        expect(kept).not.toContain('c2');
+    });
+
+    it('never gives up one of the largest types to do it', () => {
+        //
+        // the graph's mass is the one thing the seed exists to protect, so it is not
+        // available to trade away no matter how much it would help connectivity.
+        //
+        const kept = Object.keys(filterSchema(exhausted(), 5).node_types);
+
+        ['big0', 'big1', 'big2'].forEach(id => expect(kept).toContain(id));
+    });
+
+    it('leaves nothing floating once it has', () => {
+        expect(partsOf(filterSchema(exhausted(), 5))).toHaveLength(1);
+    });
+
+    it('still keeps exactly the limit after a swap', () => {
+        //
+        // a trade, not an addition -- one out for one in.
+        //
+        expect(Object.keys(filterSchema(exhausted(), 5).node_types)).toHaveLength(5);
+    });
+});
+
+describe('components', () => {
+    const adjOf = (schema) => adjacency(schema.node_types, schema.edge_types);
+
+    it('finds one component for a connected pair', () => {
+        const schema = schemaOf([2, 1], { a: edge('n0', 'n1') });
+
+        expect(components(new Set(['n0', 'n1']), adjOf(schema))).toHaveLength(1);
+    });
+
+    it('finds one per isolated node', () => {
+        const schema = schemaOf([2, 1]);
+
+        expect(components(new Set(['n0', 'n1']), adjOf(schema))).toHaveLength(2);
+    });
+
+    it('does not join a node to itself through a self-loop', () => {
+        //
+        // adjacency drops self-loops, so a type whose only edge points at itself is
+        // still its own component.
+        //
+        const schema = schemaOf([2, 1], { a: edge('n0', 'n0') });
+
+        expect(components(new Set(['n0', 'n1']), adjOf(schema))).toHaveLength(2);
+    });
+
+    it('orders the components largest first', () => {
+        const schema = schemaOf([4, 3, 2, 1], { a: edge('n0', 'n1'), b: edge('n1', 'n2') });
+
+        const found = components(new Set(['n0', 'n1', 'n2', 'n3']), adjOf(schema));
+
+        expect(found[0]).toHaveLength(3);
+        expect(found[1]).toHaveLength(1);
+    });
+
+    it('ignores neighbours outside the kept set', () => {
+        //
+        // the walk is over the FILTERED graph -- a neighbour that did not survive is
+        // not a route between two types that did.
+        //
+        const schema = schemaOf([3, 2, 1], { a: edge('n0', 'n2'), b: edge('n2', 'n1') });
+
+        expect(components(new Set(['n0', 'n1']), adjOf(schema))).toHaveLength(2);
+    });
+
+    it('answers nothing for an empty set', () => {
+        expect(components(new Set(), adjOf(schemaOf([1])))).toEqual([]);
     });
 });
 
