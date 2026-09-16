@@ -18,7 +18,11 @@
  *       the logging channel is part of the contract, and is asserted.
  */
 
-import getGraphSchema, { KNOWLEDGE_GRAPH } from '../../import/general/get-graph-schema.js';
+import getGraphSchema, {
+    KNOWLEDGE_GRAPH,
+    getGraphListing,
+    getGraphById,
+} from '../../import/general/get-graph-schema.js';
 
 const BUILD_ID = 'example-build-id';
 
@@ -213,6 +217,120 @@ describe('when the schema itself cannot be had', () => {
         answering(ok(LISTING), ok({ no_report: true }));
 
         await expect(getGraphSchema()).resolves.toBeNull();
+    });
+});
+
+describe('listing every build', () => {
+    //
+    // the explorer page needs all of them, not just the default -- that is the whole
+    // difference between a picker and a backdrop.
+    //
+    it('resolves the listing', async () => {
+        answering(ok(LISTING));
+
+        await expect(getGraphListing()).resolves.toEqual(LISTING.report);
+    });
+
+    it('asks the base path with no query string', async () => {
+        const fetcher = answering(ok(LISTING));
+
+        await getGraphListing();
+
+        expect(String(fetcher.mock.calls[0][0])).toBe(KNOWLEDGE_GRAPH);
+    });
+
+    it('makes exactly one request', async () => {
+        const fetcher = answering(ok(LISTING));
+
+        await getGraphListing();
+
+        expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    it('answers null for a rejected fetch', async () => {
+        answering(Promise.reject(new Error('offline')));
+
+        await expect(getGraphListing()).resolves.toBeNull();
+    });
+
+    it('answers null for a non-ok response', async () => {
+        answering(notOk(500));
+
+        await expect(getGraphListing()).resolves.toBeNull();
+    });
+
+    it('answers null when the body carries no graphs array', async () => {
+        //
+        // a report without 'graphs' is not a listing, however well-formed it looks --
+        // a picker built from it would render nothing and say nothing.
+        //
+        answering(ok({ report: { default: 'x' } }));
+
+        await expect(getGraphListing()).resolves.toBeNull();
+    });
+
+    it('accepts a listing with no builds in it', async () => {
+        //
+        // empty is a real answer, and different from a failure: nothing is published
+        // yet. The caller decides what to show; this does not turn it into null.
+        //
+        answering(ok({ report: { default: null, graphs: [] } }));
+
+        await expect(getGraphListing()).resolves.toEqual({ default: null, graphs: [] });
+    });
+});
+
+describe('fetching one build by id', () => {
+    it('resolves that build\'s schema', async () => {
+        answering(ok(SCHEMA));
+
+        await expect(getGraphById(BUILD_ID)).resolves.toEqual(SCHEMA.report);
+    });
+
+    it('sends the id as the Graph parameter', async () => {
+        const fetcher = answering(ok(SCHEMA));
+
+        await getGraphById(BUILD_ID);
+
+        const url = new URL(String(fetcher.mock.calls[0][0]));
+        expect(url.searchParams.get('Graph')).toBe(BUILD_ID);
+    });
+
+    it('does not fetch at all without an id', async () => {
+        //
+        // guarding here rather than sending '?Graph=' and letting the service reject
+        // it: a picker with nothing selected is an ordinary state, not an error.
+        //
+        const fetcher = answering(ok(SCHEMA));
+
+        await expect(getGraphById(null)).resolves.toBeNull();
+        expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it('answers null for a build that has gone', async () => {
+        answering(notOk(404));
+
+        await expect(getGraphById(BUILD_ID)).resolves.toBeNull();
+    });
+
+    it('answers null for a malformed response', async () => {
+        answering(ok({ no_report: true }));
+
+        await expect(getGraphById(BUILD_ID)).resolves.toBeNull();
+    });
+
+    it('answers null for a rejected fetch', async () => {
+        answering(Promise.reject(new Error('dropped')));
+
+        await expect(getGraphById(BUILD_ID)).resolves.toBeNull();
+    });
+
+    it('names the id when it logs a failure', async () => {
+        answering(notOk(500));
+
+        await getGraphById(BUILD_ID);
+
+        expect(quiet.mock.calls.map(c => String(c[0])).join(' ')).toContain(BUILD_ID);
     });
 });
 
