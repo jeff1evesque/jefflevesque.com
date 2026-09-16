@@ -124,12 +124,13 @@ describe('what the layout prop has to look like', () => {
 });
 
 describe('the desktop header', () => {
-    it('links the three sections through the router', () => {
+    it('links every section through the router', () => {
         renderHeader();
 
         expect(screen.getByRole('link', { name: 'Data' })).toHaveAttribute('href', '/data');
         expect(screen.getByRole('link', { name: 'Stream' })).toHaveAttribute('href', '/stream');
         expect(screen.getByRole('link', { name: 'Model' })).toHaveAttribute('href', '/model');
+        expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph');
     });
 
     it('offers both login and sign-up to an anonymous visitor', () => {
@@ -178,7 +179,7 @@ describe('the mobile header', () => {
         expect(screen.getByRole('link', { name: 'Register' })).toHaveAttribute('href', '/register');
     });
 
-    it('reveals the three sections once the dropdown is opened', async () => {
+    it('reveals every section once the dropdown is opened', async () => {
         renderHeader({ width: MOBILE });
 
         await userEvent.click(screen.getByRole('button', { name: /Session/ }));
@@ -186,12 +187,13 @@ describe('the mobile header', () => {
         expect(screen.getByRole('link', { name: 'Data' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Stream' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Model' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Graph' })).toBeInTheDocument();
     });
 
     it('navigates the mobile sections with plain hrefs, not the router', async () => {
         //
         // WORTH KNOWING: the desktop bar uses NavLink (client-side), the mobile
-        // dropdown uses NavDropdown.Item href (a full page load). The same three
+        // dropdown uses NavDropdown.Item href (a full page load). The same
         // destinations behave differently depending on viewport width.
         //
         renderHeader({ width: MOBILE });
