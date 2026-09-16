@@ -62,6 +62,13 @@ const SEED_FRACTION = 2 / 3;
 //
 const CONNECTOR_MIN_LINKS = 2;
 
+//
+// Note: there is no constant for "how many slots to save for joining things up",
+//       and there was one briefly. It was a made-up number: picking 2 worked on
+//       one build and nothing justified 2 over 1 or 5. The last pass below
+//       replaces it -- it takes exactly as many slots as it needs and no more,
+//       so there is no knob to guess at.
+
 /**
  * neighbours per node type, from the edges between them.
  *
@@ -127,10 +134,45 @@ export function rank(node_types, limit) {
  *       more than a small one that happens to touch something. On the live build
  *       it does not arise -- the connectors exhaust the budget first.
  */
+export function components(keep, adjacent) {
+    const seen = new Set();
+    const found = [];
+
+    keep.forEach((start) => {
+        if (seen.has(start)) {
+            return;
+        }
+
+        const stack = [start];
+        const part = [];
+        seen.add(start);
+
+        while (stack.length) {
+            const id = stack.pop();
+            part.push(id);
+
+            adjacent.get(id).forEach((next) => {
+                if (keep.has(next) && !seen.has(next)) {
+                    seen.add(next);
+                    stack.push(next);
+                }
+            });
+        }
+
+        found.push(part);
+    });
+
+    return found.sort((a, b) => b.length - a.length);
+}
+
 export function selectTypes(node_types, edge_types, limit) {
     const ordered = rank(node_types, Object.keys(node_types).length);
     const adjacent = adjacency(node_types, edge_types);
-    const keep = new Set(ordered.slice(0, Math.max(1, Math.round(limit * SEED_FRACTION))));
+    const seeded = Math.max(1, Math.round(limit * SEED_FRACTION));
+    const seeds = new Set(ordered.slice(0, seeded));
+    const keep = new Set(seeds);
+
+    {/* anything linking two or more of the ones already kept */}
 
     ordered.forEach((id) => {
         if (keep.size >= limit || keep.has(id)) {
@@ -144,12 +186,85 @@ export function selectTypes(node_types, edge_types, limit) {
         }
     });
 
+    {/* any budget left over goes on size */}
+
     ordered.forEach((id) => {
         if (keep.size >= limit) {
             return;
         }
         keep.add(id);
     });
+
+    {/*
+
+        Anything still floating gets joined back on, by trading a type away.
+
+        The pass above counts how many kept types a candidate touches, which is
+        not the same question as whether it joins the graph up, and the gap was
+        visible on the front page: two XBRL types were kept, they link to each
+        other, and the one type that links them to everything else touched only
+        ONE of the kept set at the moment it was considered -- so it was passed
+        over, and they sat in the corner on their own.
+
+        It also cannot be fixed by considering candidates in a different order.
+        Whether a type is worth keeping depends on what else was kept, and that
+        is not known until the end. So this runs at the end, on the finished set.
+
+        Note: a swap has to EARN its place -- it is only made when it genuinely
+              leaves fewer pieces than before. Without that check a trade could
+              leave the count unchanged and the loop would keep paying for
+              nothing.
+
+    */}
+
+    let parts = components(keep, adjacent);
+
+    while (parts.length > 1) {
+        const where = new Map();
+        parts.forEach((part, index) => part.forEach((id) => where.set(id, index)));
+
+        const joins_up = ordered.find((id) => {
+            if (keep.has(id)) {
+                return false;
+            }
+
+            const reaches = new Set([...adjacent.get(id)]
+                .filter((other) => keep.has(other))
+                .map((other) => where.get(other)));
+
+            return reaches.size >= 2;
+        });
+
+        if (!joins_up) {
+            break;
+        }
+
+        {/*
+
+            what to give up for it: the smallest type that is not one of the
+            originals, and whose absence does not itself break the graph apart.
+
+        */}
+
+        const give_up = [...keep]
+            .filter((id) => !seeds.has(id))
+            .sort((a, b) => (node_types[a].count || 0) - (node_types[b].count || 0))
+            .find((id) => {
+                const swapped = new Set(keep);
+                swapped.delete(id);
+                swapped.add(joins_up);
+
+                return components(swapped, adjacent).length < parts.length;
+            });
+
+        if (!give_up) {
+            break;
+        }
+
+        keep.delete(give_up);
+        keep.add(joins_up);
+        parts = components(keep, adjacent);
+    }
 
     return keep;
 }
