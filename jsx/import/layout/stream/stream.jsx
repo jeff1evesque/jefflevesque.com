@@ -38,6 +38,8 @@ import ErrorFallback from '../../formatter/boundary-error.jsx';
 import { colors, colors_categorical } from '../../general/colors.js';
 import streamName from '../../general/stream-name.js';
 import viewerTimeZone from '../../general/viewer-timezone.js';
+import { performanceUrl, API_DOCS } from '../../general/api-url.js';
+import ApiLinks from '../../general/api-links.jsx';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
 {/*
 
@@ -584,8 +586,6 @@ class StreamLayout extends Component {
             return;
         }
 
-        let url = new URL('https://api.jefflevesque.com/v1/public/performance');
-
         {/*
 
             the window is measured on the VIEWER's calendar, so the zone travels
@@ -599,14 +599,12 @@ class StreamLayout extends Component {
                   and a caller that no longer knows the layout has no basis for
                   choosing them. The api supplies each stream's own.
 
+            Note: built by api-url.js, which also builds the 'This request' link
+                  under the chart, so the link names this exact request.
+
         */}
 
-        const params = {
-            Stream: type,
-            Interval: stream_rate,
-            Timezone: viewerTimeZone()
-        };
-        Object.keys(params || {}).forEach(key => url.searchParams.append(key, params[key]));
+        const url = performanceUrl(type, stream_rate, viewerTimeZone());
 
         getData(
             request.get_data,
@@ -1325,6 +1323,22 @@ class StreamLayout extends Component {
                             label_format={this.state.label_format}
                             y_tick_format={isMobile ? false : 'exponential'}
                             y_axis_tick_line={isMobile ? false : true}
+                        />
+                        {/*
+
+                            beside the refresh icon, at its size. The request is the
+                            url downloadData fetches for the stream and rate on screen,
+                            so it opens the response this chart was drawn from
+
+                        */}
+                        <ApiLinks
+                            docs={API_DOCS.performance}
+                            request={performanceUrl(
+                                this.state.selected_stream,
+                                this.state[`stream_rate_${this.state.selected_stream}`],
+                                viewerTimeZone()
+                            )}
+                            size={isMobile ? 'medium' : 'large'}
                         />
                     </div>
                 </div>
