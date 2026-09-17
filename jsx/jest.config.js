@@ -80,8 +80,24 @@ module.exports = {
     //
     // Fail the run if coverage drops, rather than only reporting it.
     //
-    // A flat 90% baseline on all four metrics. This is the mechanism that actually
+    // A flat 92% baseline on all four metrics. This is the mechanism that actually
     // holds coverage; the README badge only reports it.
+    //
+    // Note: raised from 91 alongside the graph explorer redesign. Measured against the
+    //       previous head, every metric rose by more than a point -- statements 95.73 to
+    //       96.89, branches 91.43 to 93.05, functions 92.89 to 93.98, lines 95.88 to
+    //       96.90. Branches still bind, and were earned from paths no test had driven:
+    //       the front page cluster's drag handlers, cursor push, push cap and hard
+    //       non-overlap corrections; filter-schema's two exits from trading a type
+    //       away; the explorer's pointing, pinning and card placement; the redux
+    //       store's initial state; and the candlestick filter column's defaults. That
+    //       leaves branches about 1.0 above the floor, the most room it has carried.
+    //
+    //       One path was deliberately left uncovered rather than tested as it stands,
+    //       because it is a defect and a test would pin it: the sec distribution
+    //       worker's merge looks a form up under its bare name after storing it under
+    //       'Form <name>', so it never runs, and a form reported in two categories
+    //       keeps only the last of them.
     //
     // Note: raised from 90 alongside the live graph schema work. Statements, functions
     //       and lines were already well past 91; branches (91.33) cleared it by 0.33 and
@@ -136,10 +152,10 @@ module.exports = {
     //
     'coverageThreshold': {
         global: {
-            statements: 91,
-            branches: 91,
-            functions: 91,
-            lines: 91,
+            statements: 92,
+            branches: 92,
+            functions: 92,
+            lines: 92,
         },
     },
     //
