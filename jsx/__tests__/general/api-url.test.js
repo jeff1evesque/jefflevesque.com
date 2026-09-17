@@ -33,22 +33,41 @@ function documentOf(name) {
     return JSON.parse(fs.readFileSync(path.join(OPENAPI, `${name}.json`), 'utf8'));
 }
 
-function operationOf(document) {
-    const [route] = Object.keys(document.paths);
+//
+// a document may describe more than one operation -- the knowledge graph's two
+// calls are two paths -- so everything below reads across all of them rather
+// than off the first.
+//
+function operationsOf(document) {
+    return Object.entries(document.paths).map(([route, item]) => ({ route, operation: item.get }));
+}
 
-    return document.paths[route].get;
+function parametersOf(document, where) {
+    return operationsOf(document).flatMap(({ operation }) =>
+        (operation.parameters || []).filter(p => where === undefined || p.in === where)
+    );
 }
 
 function declared(document) {
-    return operationOf(document).parameters.map(p => p.name).sort();
+    return [...new Set(parametersOf(document, 'query').map(p => p.name))].sort();
 }
 
 function parameterOf(document, name) {
-    return operationOf(document).parameters.find(p => p.name === name);
+    return parametersOf(document).find(p => p.name === name);
 }
 
 function sent(...urls) {
     return [...new Set(urls.flatMap(url => [...new URL(String(url)).searchParams.keys()]))].sort();
+}
+
+//
+// the path each url asks for, with the document's own server prefix removed, so
+// it can be held against the routes the document templates.
+//
+function routeSent(document, url) {
+    const [{ url: server }] = document.servers;
+
+    return String(url).slice(server.length);
 }
 
 describe('performanceUrl', () => {
@@ -110,22 +129,31 @@ describe('knowledgeGraphUrl', () => {
         expect(String(knowledgeGraphUrl(''))).toBe(ENDPOINTS.knowledgeGraph);
     });
 
-    it('asks for one build by the id the listing gave', () => {
+    it('asks for one build at its own path, not by a query parameter', () => {
         const url = knowledgeGraphUrl('all-sources.2026-09.20260916T171546Z.1024d');
 
-        expect(url.searchParams.get('Graph')).toBe('all-sources.2026-09.20260916T171546Z.1024d');
+        expect(String(url)).toBe(
+            `${ENDPOINTS.knowledgeGraph}/all-sources.2026-09.20260916T171546Z.1024d`
+        );
+        expect([...url.searchParams.keys()]).toEqual([]);
     });
 
     it('sends an id unchanged, however it is shaped', () => {
         //
         // ids are opaque: a caller that reshaped one would be guessing at a format it
-        // does not own.
+        // does not own. On a path that means encoding rather than passing through --
+        // an unencoded '/' would address a different resource, and an unencoded '?'
+        // would put the rest of the id on the query string, which the api refuses.
         //
-        expect(knowledgeGraphUrl('a b/c?d').searchParams.get('Graph')).toBe('a b/c?d');
+        const url = knowledgeGraphUrl('a b/c?d');
+
+        expect(String(url)).toBe(`${ENDPOINTS.knowledgeGraph}/a%20b%2Fc%3Fd`);
+        expect(decodeURIComponent(String(url).slice(ENDPOINTS.knowledgeGraph.length + 1))).toBe('a b/c?d');
+        expect([...url.searchParams.keys()]).toEqual([]);
     });
 
     it('can be pointed elsewhere', () => {
-        expect(String(knowledgeGraphUrl('x', 'https://example.com/g'))).toBe('https://example.com/g?Graph=x');
+        expect(String(knowledgeGraphUrl('x', 'https://example.com/g'))).toBe('https://example.com/g/x');
     });
 });
 
@@ -166,8 +194,28 @@ describe('what is sent is what is documented', () => {
         expect(sent(datalakeUrl('bls', 2026, 8))).toEqual(declared(documentOf('datalake')));
     });
 
-    it('knowledge graph: exactly the parameters its document declares, across both requests', () => {
-        expect(sent(knowledgeGraphUrl(), knowledgeGraphUrl('x'))).toEqual(declared(documentOf('knowledge-graph')));
+    it('knowledge graph: sends no query parameter, because its document declares none', () => {
+        //
+        // the id moved to the path, and the api refuses a query string on either
+        // route -- so 'declared' being empty is the assertion, not an omission.
+        //
+        expect(sent(knowledgeGraphUrl(), knowledgeGraphUrl('x'))).toEqual([]);
+        expect(declared(documentOf('knowledge-graph'))).toEqual([]);
+    });
+
+    it('knowledge graph: asks for each of the routes its document templates', () => {
+        //
+        // the path replaces the query string as the thing that has to agree, so
+        // it is checked the same way: what the application builds, against what
+        // the document says exists.
+        //
+        const document = documentOf('knowledge-graph');
+        const routes = Object.keys(document.paths).sort();
+
+        expect(routes).toEqual(['/knowledge-graph', '/knowledge-graph/{graph}']);
+        expect(routeSent(document, knowledgeGraphUrl())).toBe('/knowledge-graph');
+        expect(routeSent(document, knowledgeGraphUrl('an-id')).replace(/\/[^/]+$/, '/{graph}'))
+            .toBe('/knowledge-graph/{graph}');
     });
 
     it('every stream a page asks performance about is a documented Stream', () => {
