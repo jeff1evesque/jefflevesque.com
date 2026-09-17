@@ -7,10 +7,11 @@ assignees: ''
 ---
 
 <!--
-  `README.md` and `jsx/README.md` are the only tracked markdown in this
-  repository, and nothing in CI reads either one. There is no docs build and no
-  link check, so drift is found by someone noticing -- which is what this
-  template is for.
+  The documentation is the pages under `documentation/`, published by
+  `docs.yml`, and `README.md`. CI builds the pages strictly and checks their
+  links, so a page, an anchor or a README section that no longer exists fails
+  the build -- but nothing checks that what a page SAYS is still true. That
+  drift is found by someone noticing, which is what this template is for.
 
   Same conventions as any other change: a `feature-<issue>` branch, and commits
   reading `#<issue>: <file>, <what changed>`.
@@ -18,7 +19,8 @@ assignees: ''
 
 ## Which page, and where
 
-<!-- `README.md:200`. A line number, not just a file -- these are long files. -->
+<!-- `documentation/api/datalake.md:40`, or `README.md:60`. A line number, not
+     just a file -- a page's heading can repeat on another page. -->
 
 ## What it currently claims
 
