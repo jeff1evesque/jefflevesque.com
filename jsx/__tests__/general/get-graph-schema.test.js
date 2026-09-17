@@ -96,19 +96,22 @@ describe('the happy path', () => {
         await getGraphSchema();
 
         const url = new URL(String(fetcher.mock.calls[1][0]));
-        expect(url.searchParams.get('Graph')).toBe(BUILD_ID);
+        expect(url.pathname.endsWith(`/${BUILD_ID}`)).toBe(true);
     });
 
-    it('sends the parameter as Graph, capitalised', async () => {
+    it('sends the id as a path segment, not a query parameter', async () => {
         //
-        // the service accepts 'Graph' and nothing else -- a lowercase 'graph' comes
-        // back as a 400 rather than being tolerated.
+        // the service answers the listing and a schema on separate paths, and
+        // refuses a query string on either -- a '?Graph=' left over from the
+        // previous shape comes back as a 400 rather than being tolerated.
         //
         const fetcher = answering(ok(LISTING), ok(SCHEMA));
 
         await getGraphSchema();
 
-        expect(String(fetcher.mock.calls[1][0])).toContain('Graph=');
+        const url = new URL(String(fetcher.mock.calls[1][0]));
+        expect([...url.searchParams.keys()]).toEqual([]);
+        expect(String(url)).not.toContain('Graph=');
     });
 
     it('makes exactly two requests', async () => {
@@ -173,7 +176,7 @@ describe('when the listing cannot be had', () => {
 describe('when the listing has nothing servable', () => {
     //
     // 'default' can be null when the listing holds no usable build. Asking for it
-    // anyway would send '?Graph=null' and be rejected.
+    // anyway would request the path '/null' and be rejected.
     //
     it('answers null for a null default', async () => {
         answering(ok({ report: { default: null, graphs: [] } }));
@@ -287,13 +290,14 @@ describe('fetching one build by id', () => {
         await expect(getGraphById(BUILD_ID)).resolves.toEqual(SCHEMA.report);
     });
 
-    it('sends the id as the Graph parameter', async () => {
+    it('sends the id as a path segment', async () => {
         const fetcher = answering(ok(SCHEMA));
 
         await getGraphById(BUILD_ID);
 
         const url = new URL(String(fetcher.mock.calls[0][0]));
-        expect(url.searchParams.get('Graph')).toBe(BUILD_ID);
+        expect(url.pathname.endsWith(`/${BUILD_ID}`)).toBe(true);
+        expect([...url.searchParams.keys()]).toEqual([]);
     });
 
     it('does not fetch at all without an id', async () => {
