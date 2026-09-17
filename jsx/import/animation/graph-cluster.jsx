@@ -59,6 +59,13 @@
  *       on the mount site's componentDidMount -- would never reach the screen
  *       without componentDidUpdate tearing the old simulation down and
  *       redrawing.
+ *
+ * Note: the cluster arrives already at rest, in the middle of the screen. It
+ *       used to arrive at the top-left corner and sweep to the middle in full
+ *       view, which was d3 placing new nodes around the svg's origin and the
+ *       centring forces dragging them across -- warm-up, not data. The layout
+ *       is now seeded at the centre and run to rest before the first frame
+ *       (see layout.js), and the drift takes over from a settled cluster.
  */
 
 import React, { Component } from 'react';
@@ -70,6 +77,7 @@ import {
     ORIGIN_DASH,
     originColor,
 } from './encoding.js';
+import { seedAround, settleTicks } from './layout.js';
 import { medium_minWidth } from '../general/breakpoints';
 import PropTypes from 'prop-types';
 
@@ -190,6 +198,11 @@ const BG_SELF_STRENGTH = 0.5;
 // on screen is a node vanishing and reappearing 80px away. So a node never jumps
 // to its target — it glides there, covering this fraction of the gap per tick.
 // Any discontinuity in the target becomes a fast slide instead of a teleport.
+//
+// Note: the one exception is the first frame after the cluster or the field is
+//       (re)drawn, when there is no previous position on screen to glide from.
+//       Gliding there anyway would play the field parting around the cluster as
+//       an animation on every load -- see snapField in renderD3.
 const BG_EASE = 0.12;
 // Rebuilding the field re-runs the Poisson sampling from scratch, so every gray
 // node lands on a brand-new home spot — on screen that is the whole field
@@ -353,6 +366,8 @@ class GraphCluster extends Component {
                 || Math.abs(height - this.viewH) > BG_RESIZE_SLOP;
             if (reshaped) {
                 this.drawBackground(width, height);
+                // a new field has nothing on screen to glide from
+                this.snapField = true;
             } else {
                 // still track the live viewport, so the tick's on-screen clamp
                 // follows the URL bar instead of a stale edge
@@ -560,14 +575,21 @@ class GraphCluster extends Component {
     // (re)draw the gray field for the current viewport; called on first render
     // and on resize so it always covers the whole screen. Same radius as the
     // real nodes; darkens slightly on hover; never triggers a tooltip.
-    drawBackground(width, height) {
+    //
+    // `keep` redraws the field that is already there instead of sampling a new
+    // one. The graph arrives a moment after the first paint, and renderD3 draws
+    // everything again when it does -- a fresh sample at that point re-scatters
+    // every gray node on screen at once, at the same moment the cluster appears.
+    drawBackground(width, height, keep = false) {
         const nodeRadius = width < medium_minWidth ? 6 : 9;
         // remembered for the tick's viewport clamp — the tick closure captures
         // the size at first render, which goes stale after a resize
         this.viewW = width;
         this.viewH = height;
         this.bgRadius = nodeRadius;
-        this.background = this.buildBackground(width, height);
+        if (!keep || !this.background) {
+            this.background = this.buildBackground(width, height);
+        }
 
         this.bgLinkSel = this.gBgLinks.selectAll('line')
             .data(this.background.links)
@@ -683,6 +705,16 @@ class GraphCluster extends Component {
             d.phase = Math.random() * Math.PI * 2;
         });
 
+        // started around the middle of the screen, not d3's default of the
+        // svg's top-left corner -- see layout.js
+        seedAround(nodes, width / 2, height / 2);
+
+        // the field already on screen is kept when only the graph changed. One
+        // that no longer fits -- a viewport that changed shape -- is replaced,
+        // by the same test applyResize uses.
+        const keepField = !!this.background && width === this.viewW
+            && Math.abs(height - this.viewH) <= BG_RESIZE_SLOP;
+
         const svg = d3.select(this.svgRef.current);
         svg.attr('width', width).attr('height', height).style('top', `${this.topMargin}px`);
         svg.selectAll('*').remove();
@@ -695,7 +727,7 @@ class GraphCluster extends Component {
         const gLabels = svg.append('g').attr('class', 'labels');
 
         // the screen-filling gray field (built + animated separately from sim)
-        this.drawBackground(width, height);
+        this.drawBackground(width, height, keepField);
 
         // ---- links (styled by origin, see encoding.js) ----------------------
         this.linkSel = gLinks.selectAll('line')
@@ -884,13 +916,20 @@ class GraphCluster extends Component {
                         Math.max(n.hy, this.viewH - edgePad));
                 });
                 // ---- commit: glide toward the target, never snap to it ------
+                // ...except on the first frame of a new drawing, which has no
+                // earlier frame to glide from (see BG_EASE). The step cap below
+                // stands down for the same frame, or it would turn the snap
+                // straight back into a glide.
+                const snap = !!this.snapField;
+                const ease = snap ? 1 : BG_EASE;
+                const maxStep = snap ? Infinity : BG_MAX_STEP;
                 const solidGray = this.bgRadius + BG_SOLID_MARGIN;
                 const bgNodes = this.background.nodes;
                 bgNodes.forEach((n) => {
                     n.pX = n.x;
                     n.pY = n.y;
-                    n.x += (n.tx - n.x) * BG_EASE;
-                    n.y += (n.ty - n.y) * BG_EASE;
+                    n.x += (n.tx - n.x) * ease;
+                    n.y += (n.ty - n.y) * ease;
                 });
 
                 // ---- gray nodes separate from each other --------------------
@@ -1003,9 +1042,9 @@ class GraphCluster extends Component {
                     const sdx = n.x - prevX;
                     const sdy = n.y - prevY;
                     const step = Math.hypot(sdx, sdy);
-                    if (step > BG_MAX_STEP) {
-                        n.x = prevX + (sdx / step) * BG_MAX_STEP;
-                        n.y = prevY + (sdy / step) * BG_MAX_STEP;
+                    if (step > maxStep) {
+                        n.x = prevX + (sdx / step) * maxStep;
+                        n.y = prevY + (sdy / step) * maxStep;
                     }
 
                     // gray nodes don't repel from the cursor; instead every
@@ -1044,12 +1083,26 @@ class GraphCluster extends Component {
                     .attr('x', (d) => d.x)
                     .attr('y', (d) => d.y - d.r - 6);
                 this.updateHover();
+                this.snapField = false;
             });
 
         // keep the sim gently warm forever so the cluster never freezes; the
         // initial layout still settles because alpha starts high and decays
         // down to this ambient floor.
         this.simulation.alphaTarget(AMBIENT_ALPHA);
+
+        // ---- settle before the first frame ---------------------------------
+        // the decay from alpha 1 down to that floor is the layout finding its
+        // shape, and it used to play out on screen. Run it now instead, with
+        // nothing drawn: simulation.tick() moves the nodes without dispatching
+        // the tick event, so none of the per-frame field work above runs for
+        // it. Then one tick by hand, to put the settled cluster and the field
+        // parted around it on screen together, before the timer takes over.
+        this.simulation.stop();
+        this.simulation.tick(settleTicks(this.simulation));
+        this.snapField = true;
+        this.simulation.on('tick')();
+        this.simulation.restart();
 
         // ---- pointer proximity (reheats sim so nodes react to the cursor) --
         svg.on('mousemove', (event) => {
