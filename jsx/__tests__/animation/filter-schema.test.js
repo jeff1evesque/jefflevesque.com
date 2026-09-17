@@ -568,6 +568,61 @@ describe('bridging separate components', () => {
         //
         expect(Object.keys(filterSchema(exhausted(), 5).node_types)).toHaveLength(5);
     });
+
+    it('can trade away a type that carries no count', () => {
+        //
+        // exhausted() with the two connectors' counts missing. A missing count ranks as
+        // zero everywhere else in this module, and choosing what to give up has to agree.
+        // Subtracting undefined gives NaN, which a sort reads as 'equal' to anything --
+        // so a count missing beside a present one would make the comparison
+        // inconsistent, and the order the sort settles on would be the engine's choice.
+        //
+        // the joiner is renamed so it still ranks last: at a count of zero it ties
+        // with the connectors, and the tie is broken on the id.
+        //
+        const schema = exhausted();
+        delete schema.node_types.c1.count;
+        delete schema.node_types.c2.count;
+        schema.node_types.zjoin = { count: 0 };
+        delete schema.node_types.join;
+        schema.edge_types.toBody = edge('zjoin', 'big0');
+        schema.edge_types.toStray = edge('zjoin', 'big2');
+
+        const filtered = filterSchema(schema, 5);
+
+        expect(Object.keys(filtered.node_types)).toContain('zjoin');
+        expect(Object.keys(filtered.node_types)).toHaveLength(5);
+        expect(partsOf(filtered)).toHaveLength(1);
+    });
+
+    it('keeps what it has when no trade would join anything up', () => {
+        //
+        // `m` holds s0 and s1 together, and `j` would join s2 on -- but only by taking
+        // m's place, which splits s0 off instead. The graph is in two pieces either way,
+        // so the trade buys nothing and is not made.
+        //
+        const schema = {
+            version: '1',
+            node_types: {
+                s0: { count: 100 },
+                s1: { count: 90 },
+                s2: { count: 80 },
+                m: { count: 20 },
+                j: { count: 10 },
+            },
+            edge_types: {
+                m0: edge('m', 's0'),
+                m1: edge('m', 's1'),
+                j1: edge('j', 's1'),
+                j2: edge('j', 's2'),
+            },
+        };
+
+        const filtered = filterSchema(schema, 4);
+
+        expect(Object.keys(filtered.node_types).sort()).toEqual(['m', 's0', 's1', 's2']);
+        expect(partsOf(filtered)).toHaveLength(2);
+    });
 });
 
 describe('components', () => {
