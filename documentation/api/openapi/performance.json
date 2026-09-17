@@ -1,0 +1,147 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Performance",
+    "version": "v1",
+    "description": "How much one ingest stream took in, and how much of it succeeded, bucketed over a trailing window. Read by the /stream page."
+  },
+  "servers": [
+    {
+      "url": "https://api.jefflevesque.com/v1/public"
+    }
+  ],
+  "paths": {
+    "/performance": {
+      "get": {
+        "operationId": "getPerformance",
+        "summary": "One stream's ingest over its trailing window",
+        "description": "The window trails from now, and its length depends on the interval: shorter buckets cover a shorter span. Buckets are laid out on the calendar of the given time zone, so the same request made from two zones can return different dates.",
+        "parameters": [
+          {
+            "name": "Stream",
+            "in": "query",
+            "required": true,
+            "description": "The stream to report on.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "bls",
+                "sec",
+                "stockmarket",
+                "stockmarketstocksplit",
+                "usnationalweather"
+              ]
+            },
+            "example": "bls"
+          },
+          {
+            "name": "Interval",
+            "in": "query",
+            "required": false,
+            "description": "The width of each bucket in the report.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "minute",
+                "hour",
+                "day",
+                "month"
+              ],
+              "default": "minute"
+            },
+            "example": "day"
+          },
+          {
+            "name": "Timezone",
+            "in": "query",
+            "required": false,
+            "description": "An IANA time zone. Bucket boundaries, and the window's dates, are measured on its calendar.",
+            "schema": {
+              "type": "string",
+              "default": "UTC"
+            },
+            "example": "America/New_York"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report: a CSV string with one row per source and bucket, or null when the window holds no rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "CSV with a header row: group_by, window_start, total_success, total_success_mean, total_success_max, total_fail, total_fail_mean, total_fail_max."
+                    }
+                  }
+                },
+                "example": {
+                  "report": "group_by,window_start,total_success,total_success_mean,total_success_max,total_fail,total_fail_mean,total_fail_max\nbls,2026-08-28 12:00:00-0400,6941,867.625,2401,0,0.0,0\nbls,2026-08-29 12:00:00-0400,6941,867.625,2401,0,0.0,0\n"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter was not accepted. The report says which.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "examples": {
+                  "unknown stream": {
+                    "value": {
+                      "report": "Stream=nope NOT recognized, expected one of bls, sec, stockmarket, stockmarketstocksplit, usnationalweather"
+                    }
+                  },
+                  "missing parameters": {
+                    "value": {
+                      "report": "invalid body provided"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No data could be read for the stream.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "null"
+                    }
+                  }
+                },
+                "example": {
+                  "report": null
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
