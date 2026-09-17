@@ -23,6 +23,7 @@
  */
 
 import React, { Component } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import GraphExplorer, { TAIL } from '../../animation/graph-explorer.jsx';
@@ -143,6 +144,8 @@ class GraphLayout extends Component {
         };
 
         this.selectBuild = this.selectBuild.bind(this);
+        this.navigateToBuild = this.navigateToBuild.bind(this);
+        this.requestedBuild = this.requestedBuild.bind(this);
         this.selectedBuild = this.selectedBuild.bind(this);
         this.onScreen = this.onScreen.bind(this);
         this.toggle = this.toggle.bind(this);
@@ -161,8 +164,53 @@ class GraphLayout extends Component {
             }
 
             this.setState({ listing: listing });
-            this.selectBuild(listing.default || listing.graphs[0].id);
+            this.selectBuild(this.requestedBuild(listing));
         });
+    }
+
+    /**
+     * the build the address asks for, when the listing holds it.
+     *
+     * Note: an id the listing does not hold falls back to the default rather
+     *       than 404ing. The listing is what decides which builds exist, and a
+     *       link to a build that has since rolled off is an ordinary thing to
+     *       find in someone's bookmarks -- the page still has something true to
+     *       draw, and the picker shows what it drew instead.
+     */
+    requestedBuild(listing) {
+        const requested = this.props.params.graph;
+
+        if (requested && listing.graphs.some((b) => b.id === requested)) {
+            return requested;
+        }
+
+        return listing.default || listing.graphs[0].id;
+    }
+
+    /**
+     * a build chosen in the picker becomes the address, so the selection can be
+     * linked to and the back button moves between builds.
+     *
+     * Note: componentDidUpdate does the selecting, off the address, rather than
+     *       this navigating AND selecting. Two entry points writing 'selected'
+     *       -- the picker and the back button -- is how they get to disagree.
+     */
+    navigateToBuild(id) {
+        this.props.navigate(`/graph/${encodeURIComponent(id)}`);
+    }
+
+    componentDidUpdate(previous) {
+        const before = previous.params.graph;
+        const now = this.props.params.graph;
+        const { listing } = this.state;
+
+        if (before !== now && listing) {
+            const wanted = this.requestedBuild(listing);
+
+            if (wanted !== this.state.selected) {
+                this.selectBuild(wanted);
+            }
+        }
     }
 
     /**
@@ -280,7 +328,7 @@ class GraphLayout extends Component {
                 className='graph-picker'
                 aria-label='Published build'
                 value={selected || ''}
-                onChange={(event) => this.selectBuild(event.target.value)}
+                onChange={(event) => this.navigateToBuild(event.target.value)}
             >
                 {listing.graphs.map((build) => (
                     <option key={build.id} value={build.id} disabled={!!build.error}>
@@ -466,6 +514,11 @@ class GraphLayout extends Component {
     }
 }
 
-export default GraphLayout;
+//
+// the address is injected rather than read inside the class, the way
+// stream/trigger.jsx and stream/alarm.jsx do it -- react-router's hooks cannot
+// be called from a class component.
+//
+export default (props) => <GraphLayout {...props} params={useParams()} navigate={useNavigate()} />;
 
-export { EXPLORER_NODE_TYPES };
+export { GraphLayout, EXPLORER_NODE_TYPES };
