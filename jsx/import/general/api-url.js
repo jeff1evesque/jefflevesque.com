@@ -92,9 +92,17 @@ export function datalakeUrl(data, year, month, base = ENDPOINTS.datalake) {
 /**
  * the listing of published knowledge graph builds or, given an id from that
  * listing, one build's schema.
+ *
+ * Note: the id is a path segment rather than a query parameter. The api answers
+ *       the two on separate paths, and refuses a query string on either -- a
+ *       '?Graph=' left over from the previous shape is a 400 rather than
+ *       something ignored.
+ *
+ * Note: encoded, though an id from the listing never needs it. Ids are opaque,
+ *       so this does not get to assume what is in one.
  */
 export function knowledgeGraphUrl(graph = null, base = ENDPOINTS.knowledgeGraph) {
-    return graph ? withParams(base, { Graph: graph }) : new URL(base);
+    return graph ? new URL(`${base}/${encodeURIComponent(graph)}`) : new URL(base);
 }
 
 export { API, ENDPOINTS, DOCUMENTATION, API_DOCS, DATASETS };

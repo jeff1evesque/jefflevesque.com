@@ -44,6 +44,7 @@ jest.mock('../../import/general/get-graph-schema.js', () => ({
     getGraphById: jest.fn(),
 }));
 
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import GraphLayout, { EXPLORER_NODE_TYPES, period } from '../../import/layout/graph/graph.jsx';
 import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
@@ -91,11 +92,22 @@ function schemaOf(n) {
     };
 }
 
-async function setup() {
+//
+// rendered inside a router at a real address: the page reads its build from the
+// path, so a bare render would be testing it without the input it takes.
+//
+async function setup(path = '/graph') {
     let utils;
 
     await act(async () => {
-        utils = render(<GraphLayout />);
+        utils = render(
+            <MemoryRouter initialEntries={[path]}>
+                <Routes>
+                    <Route path='/graph' element={<GraphLayout />} />
+                    <Route path='/graph/:graph' element={<GraphLayout />} />
+                </Routes>
+            </MemoryRouter>
+        );
     });
 
     return utils;
@@ -132,6 +144,36 @@ describe('loading the page', () => {
         await setup();
 
         expect(getGraphById).toHaveBeenCalledWith('build-a');
+    });
+
+    it('selects the build the address names', async () => {
+        await setup('/graph/build-b');
+
+        expect(getGraphById).toHaveBeenCalledWith('build-b');
+        expect(getGraphById).not.toHaveBeenCalledWith('build-a');
+    });
+
+    it('falls back to the default for an id the listing does not hold', async () => {
+        //
+        // a link to a build that has since rolled off is an ordinary thing to
+        // find in a bookmark. The page still has something true to draw, and
+        // the picker shows what it drew instead.
+        //
+        await setup('/graph/build-gone');
+
+        expect(getGraphById).toHaveBeenCalledWith('build-a');
+        expect(getGraphById).not.toHaveBeenCalledWith('build-gone');
+    });
+
+    it('decodes an id the address carries encoded', async () => {
+        getGraphListing.mockResolvedValue({
+            default: 'build-a',
+            graphs: [{ ...BUILD_A, id: 'build a/b' }, BUILD_B],
+        });
+
+        await setup(`/graph/${encodeURIComponent('build a/b')}`);
+
+        expect(getGraphById).toHaveBeenCalledWith('build a/b');
     });
 
     it('falls back to the first build when there is no default', async () => {
@@ -220,6 +262,22 @@ describe('the build details', () => {
         });
 
         expect(document.body.textContent).toContain('2026-08');
+    });
+
+    it('puts the chosen build in the address, so it can be linked to', async () => {
+        //
+        // the selection used to live only in component state, which meant it had
+        // no address: nothing to share, and the back button did not move between
+        // builds.
+        //
+        await setup();
+
+        await act(async () => {
+            fireEvent.change(picker(), { target: { value: 'build-b' } });
+        });
+
+        expect(getGraphById).toHaveBeenLastCalledWith('build-b');
+        expect(picker().value).toBe('build-b');
     });
 
     it('names the sources that went into the build', async () => {

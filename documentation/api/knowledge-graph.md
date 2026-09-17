@@ -1,22 +1,30 @@
 # Knowledge graph
 
-`GET https://api.jefflevesque.com/v1/public/knowledge-graph`
+```
+GET https://api.jefflevesque.com/v1/public/knowledge-graph
+GET https://api.jefflevesque.com/v1/public/knowledge-graph/<id>
+```
 
 The published builds of the knowledge graph, and each build's schema: its node types,
 its edge types, and how many of each it holds. `/graph` lets a reader pick a build and
 draws it; the front page draws the default build behind its content.
 
-## Parameters
+## The two calls
 
-| Parameter | Values | The application sends |
+| Request | Answer | The application sends |
 |---|---|---|
-| `Graph` | an id taken from the listing | nothing, for the listing; the build selected in the picker, for its schema |
+| `/knowledge-graph` | the listing of builds | on every page load, to find out which builds exist |
+| `/knowledge-graph/<id>` | that build's schema | the build selected in the picker, or named in the address |
 
-Without `Graph`, the answer is the listing of builds. With it, the answer is that
-build's schema. `Graph` is the only query parameter accepted, and may be given once.
+**No query string is accepted on either path.** The two calls are told apart by their
+paths, so anything on the query string is a caller error rather than something
+ignored — including a `?Graph=<id>`, which is how this api was addressed before.
 
 Ids are opaque. Take one from the listing and send it back unchanged: a caller that
 builds an id by hand is guessing at a format it does not own.
+
+A build id is a path segment, so it is url-encoded on the way out. Ids published so
+far need no encoding, but nothing here assumes what is in one.
 
 ## Response: the listing
 
@@ -24,14 +32,14 @@ builds an id by hand is guessing at a format it does not own.
 
 | Field | |
 |---|---|
-| `default` | the id of the build to show when none is chosen, or `null` when nothing is servable |
+| `default` | the id served when the caller names no build -- the service chooses it, rather than it being implied by the order of `graphs`; `null` when nothing is servable |
 | `graphs` | every published build, newest first |
 
 Each build in `graphs` carries:
 
 | Field | |
 |---|---|
-| `id` | the id to send back as `Graph` |
+| `id` | the id to send back as the path segment |
 | `label` | how the build reads in a list |
 | `dataset`, `variant` | which data went in, and how it was built |
 | `period` | the year and month the build covers, as `YYYY-MM` |
@@ -59,11 +67,13 @@ labelled the first figure as the second.
 
 ## Errors
 
-| Status | `report` |
-|---|---|
-| 400 | an object whose `error` names the problem: a parameter other than `Graph`, `Graph` given twice, or an id not shaped like one |
-| 404 | an object whose `error` says the id is not in the listing, or its build is no longer available |
-| 500 | an object whose `error` says what failed |
+| Status | Path | `report` |
+|---|---|---|
+| 400 | both | an object whose `error` names the problem: a query string, or an id not shaped like one |
+| 404 | `/<id>` | an object whose `error` says the id is not in the listing, or its build is no longer available |
+| 500 | both | an object whose `error` says what failed |
+
+404 belongs to the schema path alone. The listing has no id to miss.
 
 ## In the application
 
@@ -79,5 +89,13 @@ labelled the first figure as the second.
   [`jsx/import/animation/graph-cluster.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/animation/graph-cluster.jsx).
 
 ## Try it
+
+Two operations, one for each call. **Every published build** takes no parameter --
+Execute answers the listing, newest first. Take an id from that answer and give it to
+**One build's schema** for the build itself.
+
+The id filled in below will stop resolving. The listing keeps only the recent builds,
+and a build that has rolled off answers 404; copy a current id out of the listing
+rather than the one filled in here.
 
 <swagger-ui src="openapi/knowledge-graph.json"/>

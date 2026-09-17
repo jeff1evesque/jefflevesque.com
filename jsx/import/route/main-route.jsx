@@ -41,6 +41,7 @@ class MainRoute extends Component {
                 <Route path='/stream/:stream/alarm' element={<StreamAlarm />} />
                 <Route path='/model' element={<ModelLayout />}/>
                 <Route path='/graph' element={<GraphLayout />}/>
+                <Route path='/graph/:graph' element={<GraphLayout />}/>
                 <Route path='/*' element={<ErrorPage />} />
             </Routes>
         );

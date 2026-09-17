@@ -35,8 +35,8 @@ function ajv() {
 }
 
 //
-// every example in a media type object, named: the single 'example', or each of
-// 'examples' by its key.
+// every example in a media type object -- or in a parameter, which carries them the
+// same way -- named: the single 'example', or each of 'examples' by its key.
 //
 function examplesOf(media) {
     const named = Object.entries(media.examples || {}).map(([name, e]) => [name, e.value]);
@@ -80,12 +80,39 @@ describe.each(DOCUMENTS)('%s.json', (name) => {
         });
     });
 
-    it('takes its parameters from the query string, each described', () => {
-        operationsOf(document).forEach(({ operation }) => {
-            operation.parameters.forEach(parameter => {
-                expect({ name: parameter.name, in: parameter.in }).toEqual({ name: parameter.name, in: 'query' });
+    it('takes its parameters from the query string or the path, each described', () => {
+        operationsOf(document).forEach(({ route, operation }) => {
+            (operation.parameters || []).forEach(parameter => {
+                expect(['query', 'path']).toContain(parameter.in);
                 expect(parameter.description).toBeTruthy();
+
+                //
+                // a path parameter is part of the address rather than something
+                // that can be left off, and OpenAPI requires it be declared so.
+                // Swagger UI reads it too: an optional one renders a field the
+                // reader can clear into a url that does not exist.
+                //
+                if (parameter.in === 'path') {
+                    expect({ parameter: parameter.name, required: parameter.required })
+                        .toEqual({ parameter: parameter.name, required: true });
+                    expect(route).toContain(`{${parameter.name}}`);
+                }
             });
+        });
+    });
+
+    it('declares a parameter for every templated segment in its route', () => {
+        //
+        // the other direction: a '{graph}' in the path with no parameter behind
+        // it is a route Swagger UI cannot build a request for.
+        //
+        operationsOf(document).forEach(({ route, operation }) => {
+            const templated = [...route.matchAll(/{([^}]+)}/g)].map(([, name]) => name);
+            const declared = (operation.parameters || [])
+                .filter(parameter => parameter.in === 'path')
+                .map(parameter => parameter.name);
+
+            expect({ route, templated: templated.sort() }).toEqual({ route, templated: declared.sort() });
         });
     });
 
@@ -122,17 +149,28 @@ describe.each(DOCUMENTS)('%s.json', (name) => {
 
     it('has parameter examples that match their own schemas', () => {
         operationsOf(document).forEach(({ operation }) => {
-            operation.parameters.forEach(parameter => {
+            (operation.parameters || []).forEach(parameter => {
                 //
                 // a parameter is described either by a schema of its own or, for a
-                // structured one like the datalake's Scale, by a media type
+                // structured one like the datalake's Scale, by a media type. Either
+                // way it carries a single 'example', or several named ones.
                 //
-                const [schema, example] = parameter.content
-                    ? [parameter.content['application/json'].schema, parameter.content['application/json'].example]
-                    : [parameter.schema, parameter.example];
+                const source = parameter.content ? parameter.content['application/json'] : parameter;
+                const validate = ajv().compile(source.schema);
+                const examples = examplesOf(source);
 
-                expect({ parameter: parameter.name, valid: ajv().validate(schema, example) })
-                    .toEqual({ parameter: parameter.name, valid: true });
+                //
+                // an unexemplified parameter used to fail the validation below, by
+                // way of an undefined example. Asserted rather than left implicit,
+                // now that a parameter can carry its examples either way.
+                //
+                expect({ parameter: parameter.name, exemplified: examples.length > 0 })
+                    .toEqual({ parameter: parameter.name, exemplified: true });
+
+                examples.forEach(([example, value]) => {
+                    expect({ parameter: parameter.name, example, valid: validate(value) })
+                        .toEqual({ parameter: parameter.name, example, valid: true });
+                });
             });
         });
     });
