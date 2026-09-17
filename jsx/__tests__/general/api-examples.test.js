@@ -25,11 +25,11 @@ import { performanceUrl, datalakeUrl } from '../../import/general/api-url.js';
 
 const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', 'openapi');
 
-function successOf(name) {
+function successOf(name, route = null) {
     const document = JSON.parse(fs.readFileSync(path.join(OPENAPI, `${name}.json`), 'utf8'));
-    const [route] = Object.keys(document.paths);
+    const [first] = Object.keys(document.paths);
 
-    return document.paths[route].get.responses['200'].content['application/json'];
+    return document.paths[route || first].get.responses['200'].content['application/json'];
 }
 
 function answering(body) {
@@ -94,10 +94,15 @@ describe('datalake, as the /data page loads it', () => {
 });
 
 describe('knowledge graph, as the /graph page loads it', () => {
-    const media = successOf('knowledge-graph');
+    //
+    // two operations now, so each example is read off the route that documents
+    // it rather than out of one media object.
+    //
+    const listingMedia = successOf('knowledge-graph', '/knowledge-graph');
+    const schemaMedia = successOf('knowledge-graph', '/knowledge-graph/{graph}');
 
     it('reads the listing, and the default build it names', async () => {
-        answering(media.examples.listing.value);
+        answering(listingMedia.example);
 
         const listing = await getGraphListing();
 
@@ -105,8 +110,22 @@ describe('knowledge graph, as the /graph page loads it', () => {
         expect(listing.graphs[0]).toMatchObject({ nodes: 9982993, edges: 74831988, error: null });
     });
 
+    it('reads every build the listing documents, not only the default', async () => {
+        //
+        // the example shows three builds because the api serves several; a
+        // single-entry example read as the whole listing is what /graph's picker
+        // exists for.
+        //
+        answering(listingMedia.example);
+
+        const listing = await getGraphListing();
+
+        expect(listing.graphs.length).toBeGreaterThan(1);
+        expect(listing.graphs.map(g => g.id)).toContain(listing.default);
+    });
+
     it('reads a build\'s schema and cuts it to a drawable slice', async () => {
-        answering(media.examples.schema.value);
+        answering(schemaMedia.example);
 
         const schema = await getGraphById('all-sources.2026-09.20260916T171546Z.1024d');
         const drawn = filterSchema(schema, 60);
