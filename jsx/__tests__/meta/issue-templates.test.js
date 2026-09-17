@@ -244,7 +244,8 @@ describe('.github/ISSUE_TEMPLATE', () => {
         [
             'jsx/__tests__/',      // where a test goes
             'jest.config.js',      // the floor that holds it
-            'README.md',           // the documentation nothing in CI reads
+            'documentation/',      // the pages docs.yml builds
+            'README.md',           // the prose the pages pull sections from
             'feature-<issue>',     // the branch convention
             '#<issue>:',           // the commit convention
         ].forEach(anchor => {
