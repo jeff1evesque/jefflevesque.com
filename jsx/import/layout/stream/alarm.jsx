@@ -35,6 +35,7 @@ import { useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName from '../../general/stream-name.js';
+import { datalakeUrl, DATASETS } from '../../general/api-url.js';
 
 class StreamAlarm extends Component {
     constructor() {
@@ -114,28 +115,26 @@ class StreamAlarm extends Component {
     //     cannot exist.
     //
     //   - the artifact itself, 'artifact/stock-market/data-distribution/
-    //     YYYY/MM.csv', is written by nothing. The distribution moved to
-    //     api-datalake, which computes it from the glue table.
+    //     YYYY/MM.csv', is written by nothing. The distribution moved to the
+    //     public datalake api.
     //
-    // it now asks api-datalake for the same scale the /data page asks for, over
-    // the same loader and the same worker, so the two pages cannot disagree
-    // about how many partitions a month holds.
+    // it now asks the datalake api for the same dataset and scale the /data page
+    // asks for, over the same loader and the same worker, so the two pages cannot
+    // disagree about how many partitions a month holds.
+    //
+    // Note: the dataset is 'stock-market', the name /data sends. This asked for
+    //       'stockmarket' -- the STREAM id -- which the api does not recognise and
+    //       answers with a 400, so the count never arrived even after the three
+    //       faults above were fixed. Both pages now build the url with
+    //       api-url.js, which is what the api's documented 'Data' values are
+    //       checked against.
     //
     downloadData(type) {
         if (type.toLowerCase() !== 'stockmarket') {
             return;
         }
 
-        const scale = {
-            'year': this.state.yyyy,
-            'month': String(this.state.mm).padStart(2, '0')
-        };
-        let url = new URL('https://api.jefflevesque.com/v1/public/datalake');
-        const params = {
-            Data: 'stockmarket',
-            Scale: JSON.stringify(scale)
-        };
-        Object.keys(params || {}).forEach(key => url.searchParams.append(key, params[key]));
+        const url = datalakeUrl(DATASETS.stockmarket, this.state.yyyy, this.state.mm);
 
         getStockMarketDistribution(
             'data-distribution',

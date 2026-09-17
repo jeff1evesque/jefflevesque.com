@@ -1,0 +1,68 @@
+// _api-links.scss: the 'API docs' and 'This request' icons beside a chart.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+//
+// Note: the icons take the refresh icon's colour and sit in its row, so the
+//       chart's corner reads as one set of controls. `_area_chart.scss` places
+//       the refresh icon; nothing here moves it.
+
+.api-links {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+//
+// scoped under '#bootstrap-override' because the global link colour is, and an id
+// outranks any number of classes: unscoped, every icon painted in the hyperlink
+// blue beside a grey refresh icon.
+//
+#bootstrap-override .api-links a.api-link {
+  color: #555;
+  display: inline-flex;
+  line-height: 0;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    color: $gray-9;
+  }
+}
+
+//
+// over a chart: in the refresh icon's row, just left of it. The offset is the
+// refresh icon's own right inset (2rem), its width at the size the page draws it
+// (MUI's 'large' is 2.1875rem, 'medium' 1.5rem), and a gap.
+//
+//
+// the chip behind them is for a narrow screen, where a tall bar or a rising area
+// reaches the corner and an icon drawn straight onto it cannot be read
+//
+.area-chart-parent .api-links {
+  background-color: rgba($white-1, 0.85);
+  border-radius: 999px;
+  padding: 0 0.25rem;
+  position: absolute;
+  top: 2rem;
+  z-index: 1;
+}
+
+.area-chart-parent .api-links-large {
+  right: calc(2rem + 2.1875rem + 0.75rem);
+}
+
+.area-chart-parent .api-links-medium {
+  right: calc(2rem + 1.5rem + 0.75rem);
+}
+
+//
+// on the graph page the icons share the header row with the title and the build
+// picker, and push to the far end of it
+//
+.graph-header .api-links {
+  margin-left: auto;
+}

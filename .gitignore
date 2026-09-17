@@ -57,3 +57,11 @@ jsx/lcov-report/
 ##
 /.ruff_cache/
 /jsx/.eslintcache
+
+##
+## documentation: 'site/' is the MkDocs build output (mkdocs.yml site_dir), and
+## 'docs/' is the scratch area for issue drafts -- ignored so a draft is never
+## swept into a commit. The pages themselves are tracked under documentation/.
+##
+/site/
+/docs/

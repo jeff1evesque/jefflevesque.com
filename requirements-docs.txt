@@ -1,0 +1,17 @@
+##
+## Documentation site only. Nothing here is used by the application, its build or
+## its test suite. Install it when you want to preview or build the pages:
+##
+##   pip install -r requirements-docs.txt
+##   mkdocs serve
+##
+## Pinned for the same reason ruff is pinned in .github/workflows/lint.yml: an
+## unpinned tool means a new upstream release can turn an untouched branch red
+## overnight. Bump it on purpose, in a commit that is about the bump.
+##
+## mkdocs-material pulls in mkdocs and pymdown-extensions, both of which mkdocs.yml
+## uses directly. mkdocs-swagger-ui-tag renders the three OpenAPI documents under
+## documentation/api/openapi/, and carries its own copy of Swagger UI.
+##
+mkdocs-material==9.7.7
+mkdocs-swagger-ui-tag==0.8.1

@@ -80,8 +80,20 @@ module.exports = {
     //
     // Fail the run if coverage drops, rather than only reporting it.
     //
-    // A flat 92% baseline on all four metrics. This is the mechanism that actually
+    // A flat 93% baseline on all four metrics. This is the mechanism that actually
     // holds coverage; the README badge only reports it.
+    //
+    // Note: raised from 92 alongside the documentation site and its API pages.
+    //       Measured against the previous head, every metric rose by more than a
+    //       point -- statements 96.89 to 98.57, branches 93.05 to 94.32, functions
+    //       93.98 to 97.05, lines 96.90 to 98.60. Most of it came from the /stream
+    //       page's worker reply, which no test had ever delivered -- the merge of a
+    //       reply's rows into the chart, the batches that land in one tick, the
+    //       address selecting a stream -- and from the controls on /stream and /data
+    //       that ask again: the rate, the refresh icon, a listing row, the chart
+    //       switches and the mobile filter. The new modules, api-url.js and
+    //       api-links.jsx, arrived fully covered. Branches still bind, and keep
+    //       about 1.3 above the floor.
     //
     // Note: raised from 91 alongside the graph explorer redesign. Measured against the
     //       previous head, every metric rose by more than a point -- statements 95.73 to
@@ -152,10 +164,10 @@ module.exports = {
     //
     'coverageThreshold': {
         global: {
-            statements: 92,
-            branches: 92,
-            functions: 92,
-            lines: 92,
+            statements: 93,
+            branches: 93,
+            functions: 93,
+            lines: 93,
         },
     },
     //

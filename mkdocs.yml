@@ -1,0 +1,140 @@
+site_name: jefflevesque.com
+site_description: >-
+  A React application for watching data-ingestion pipelines, and the three public
+  APIs it is built on
+site_url: https://jeff1evesque.github.io/jefflevesque.com/
+
+repo_url: https://github.com/jeff1evesque/jefflevesque.com
+repo_name: jeff1evesque/jefflevesque.com
+edit_uri: edit/master/documentation/
+
+##
+## Rendered in the footer. The holder reads exactly as LICENSE does -- a footer
+## naming someone the license file does not is worse than no footer line at all.
+##
+copyright: Copyright &copy; 2026 Jeffrey Levesque
+
+##
+## MkDocs reads its pages from `docs/` by default. That directory is ignored here
+## instead -- it is the scratch area for issue drafts, and keeping it untracked is
+## what stops one being swept into a commit -- so the pages live in
+## `documentation/`. `site/` is the build output, and is ignored as well.
+##
+docs_dir: documentation
+site_dir: site
+
+##
+## A link that does not resolve fails the build instead of shipping a 404. That
+## includes a relative link inside a section pulled in from README.md, which is
+## why those sections link with full URLs.
+##
+strict: true
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+theme:
+  name: material
+  icon:
+    logo: material/chart-areaspline
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: green
+      accent: green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: green
+      accent: green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+
+  ##
+  ## Turns `:material-api:` into an inline SVG icon from the set Material already
+  ## ships. The home page's cards use them.
+  ##
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+  ##
+  ## The overview, the route table and the quick start are written once, in
+  ## README.md, and pulled into pages here. Two copies would drift, and the reason
+  ## for keeping these pages in this repository is that they change in the same
+  ## commit as the code.
+  ##
+  ## `base_path` is the repository root, so `mkdocs build` has to run from there.
+  ## `check_paths` turns a missing include into a build failure rather than a
+  ## silently empty section.
+  ##
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+plugins:
+  - search
+
+  ##
+  ## Renders each api's OpenAPI document as a Swagger UI, from the <swagger-ui>
+  ## tag on its page.
+  ##
+  ## Try it out sends real requests to the public apis from the reader's browser.
+  ## They answer a plain GET from any origin and refuse the CORS preflight any
+  ## other method needs, so GET is the only method offered. `validatorUrl: none`
+  ## keeps Swagger UI from sending each document to swagger.io's online
+  ## validator; openapi.test.js validates them instead.
+  ##
+  - swagger-ui-tag:
+      supportedSubmitMethods: ["get"]
+      validatorUrl: none
+
+nav:
+  - Home: index.md
+  - APIs:
+      - Overview: api/index.md
+      - Performance: api/performance.md
+      - Datalake: api/datalake.md
+      - Knowledge graph: api/knowledge-graph.md
+  - Application:
+      - Routes: application/routes.md
+      - Architecture: application/architecture.md
+      - Ingest coverage: application/ingest-coverage.md
+  - Development:
+      - Quick start: development/quick-start.md
+      - Testing: development/testing.md
+      - Lint and hooks: development/lint.md
+  - Operations:
+      - Deployment: operations/deployment.md
+      - Workflows: operations/workflows.md
+      - This documentation: operations/documentation.md

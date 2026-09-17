@@ -16,7 +16,7 @@
  */
 
 import React from 'react';
-import { render, act } from '@testing-library/react';
+import { render, act, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 jest.mock('../../../import/general/get-data.js', () => ({
@@ -26,6 +26,7 @@ jest.mock('../../../import/general/get-data.js', () => ({
 
 import getData from '../../../import/general/get-data.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
+import { API_DOCS } from '../../../import/general/api-url.js';
 
 function setup() {
     const held = React.createRef();
@@ -370,5 +371,37 @@ describe('running locally', () => {
         download(page, 'stockmarket', 'hour');
 
         expect(lastRequest().type).toBe('stock-market-ingest');
+    });
+});
+
+describe('the api icons beside the chart', () => {
+    //
+    // the request icon has to open the request the chart was drawn from, so it is
+    // asserted against the url the page actually handed its loader rather than rebuilt
+    // here from the same inputs.
+    //
+    it('links the performance api\'s documentation', () => {
+        setup();
+
+        expect(screen.getByRole('link', { name: 'API docs' })).toHaveAttribute('href', API_DOCS.performance);
+    });
+
+    it('links the request made for the stream on screen', () => {
+        const page = setup();
+
+        download(page, page.state.selected_stream, 'day');
+
+        expect(screen.getByRole('link', { name: 'This request' }))
+            .toHaveAttribute('href', String(lastRequest().url));
+    });
+
+    it('follows the rate when another is chosen', () => {
+        const page = setup();
+
+        download(page, page.state.selected_stream, 'hour');
+
+        const link = screen.getByRole('link', { name: 'This request' });
+        expect(link).toHaveAttribute('href', String(lastRequest().url));
+        expect(paramsOf(link.getAttribute('href')).get('Interval')).toBe('hour');
     });
 });

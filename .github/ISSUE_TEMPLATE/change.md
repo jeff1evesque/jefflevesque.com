@@ -61,13 +61,14 @@ assignees: ''
       being absent from the report.
 
       `cd jsx && npx jest --config jest.config.js`
-- [ ] **The documentation.** `README.md` and `jsx/README.md` are the prose pages,
-      and these templates are tracked markdown too. **Nothing in CI reads any of
-      them** -- there is no docs build and no link check, so a claim that stops
-      being true ships silently and stays. This is the item most easily skipped
-      and the only one with no machine behind it: #9 and #11 were both README
-      corrections that should have ridden along with the changes that
-      invalidated them.
+- [ ] **The documentation.** The pages under `documentation/`, `README.md`, and
+      these templates are the prose. `docs.yml` builds the pages strictly, so a
+      link to a page, an anchor or a README section that no longer exists fails
+      the pull request -- but **nothing checks that what a page says is still
+      true**, so a claim that stops being true ships silently and stays. This is
+      the item most easily skipped and the one with the least machinery behind
+      it: #9 and #11 were both README corrections that should have ridden along
+      with the changes that invalidated them.
 
 ## Code changes
 
@@ -118,9 +119,13 @@ assignees: ''
     gitleaks.yml  committed secrets, over full history (fetch-depth: 0)
     trivy.yml     HIGH/CRITICAL dependency advisories. Also runs weekly on a
                   schedule, so this one can go red with no push behind it
+    docs.yml      a strict mkdocs build of documentation/, deployed to GitHub
+                  Pages on master
+    links.yml     that the URLs in documentation/ and README.md resolve --
+                  weekly and by hand, never on a pull request
 
-  `.githooks/pre-commit` runs the unicode, secret and ruff checks against
-  staged files, so those three fail before the push rather than after:
+  `.githooks/pre-commit` runs the unicode, secret, ruff and eslint checks
+  against staged files, so those four fail before the push rather than after:
 
       git config core.hooksPath .githooks
 -->

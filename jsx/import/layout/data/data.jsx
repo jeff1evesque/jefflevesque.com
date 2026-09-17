@@ -34,6 +34,8 @@ import { default as getUsWeatherAlertDistribution } from '../../general/get-data
 import { default as getBlsDistribution } from '../../general/get-data/distribution/bls.js';
 import { default as getSecDistribution } from '../../general/get-data/distribution/sec.js';
 import getData from '../../general/get-data.js';
+import { datalakeUrl, API_DOCS, DATASETS } from '../../general/api-url.js';
+import ApiLinks from '../../general/api-links.jsx';
 import { isMobile } from 'react-device-detect';
 import checkValidObject from '../../validator/valid-object.js';
 import checkValidString from '../../validator/valid-string.js';
@@ -608,11 +610,11 @@ class DataLayout extends Component {
             selected_stream: stream_stockmarket.toLowerCase(),
             list_article: list_article,
             data_map: {
-                [`${stream_stockmarket.toLowerCase()}`]: ['stock-market'],
-                [`${stream_stocksplit.toLowerCase()}`]: ['stock-split'],
-                [`${stream_bls.toLowerCase()}`]: ['bls'],
-                [`${stream_sec.toLowerCase()}`]: ['sec'],
-                [`${stream_usnationalweather.toLowerCase()}`]: ['us-weather-alert']
+                [`${stream_stockmarket.toLowerCase()}`]: [DATASETS[stream_stockmarket.toLowerCase()]],
+                [`${stream_stocksplit.toLowerCase()}`]: [DATASETS[stream_stocksplit.toLowerCase()]],
+                [`${stream_bls.toLowerCase()}`]: [DATASETS[stream_bls.toLowerCase()]],
+                [`${stream_sec.toLowerCase()}`]: [DATASETS[stream_sec.toLowerCase()]],
+                [`${stream_usnationalweather.toLowerCase()}`]: [DATASETS[stream_usnationalweather.toLowerCase()]]
             },
             records_stockmarket: 'n/a',
             records_stockmarketstocksplit: 'n/a',
@@ -789,13 +791,11 @@ class DataLayout extends Component {
                 this.state.stream_bls.toLowerCase(),
                 this.state.stream_sec.toLowerCase()
             ].includes(type)) {
-                const scale = { 'year': this.state.yyyy, 'month': String(this.state.mm).padStart(2, '0') };
-                let url = new URL('https://api.jefflevesque.com/v1/public/datalake');
-                const params = {
-                    Data: stream,
-                    Scale: JSON.stringify(scale)
-                };
-                Object.keys(params || {}).forEach(key => url.searchParams.append(key, params[key]));
+                //
+                // built by api-url.js, which also builds the 'This request' link
+                // under the chart, so the link names this exact request
+                //
+                const url = datalakeUrl(stream, this.state.yyyy, this.state.mm);
 
                 if ([this.state.stream_stockmarket, this.state.stream_stockmarketstocksplit].includes(type)) {
                     getStockMarketDistribution(
@@ -1757,6 +1757,18 @@ class DataLayout extends Component {
 
                         */}
                         {loader}
+                        {/*
+
+                            beside the refresh icon, at its size. The request is the
+                            url downloadData fetches for the dataset and month on
+                            screen, so it opens the response these bars were drawn from
+
+                        */}
+                        <ApiLinks
+                            docs={API_DOCS.datalake}
+                            request={datalakeUrl(this.state.data_map[stream][0], this.state.yyyy, this.state.mm)}
+                            size={isMobile ? 'medium' : 'large'}
+                        />
                     </div>
                 </div>
             );

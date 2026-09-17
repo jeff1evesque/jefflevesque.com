@@ -1,0 +1,154 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Datalake",
+    "version": "v1",
+    "description": "What one dataset holds for a month: how its records are distributed, and how many partitions they occupy. Read by the /data page and the stock market alarm page."
+  },
+  "servers": [
+    {
+      "url": "https://api.jefflevesque.com/v1/public"
+    }
+  ],
+  "paths": {
+    "/datalake": {
+      "get": {
+        "operationId": "getDatalake",
+        "summary": "One dataset's distribution and partition count for a month",
+        "description": "Data names a dataset, not a stream: the stream id 'stockmarket' is answered with a 400, where the dataset is 'stock-market'.",
+        "parameters": [
+          {
+            "name": "Data",
+            "in": "query",
+            "required": true,
+            "description": "The dataset to describe.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stock-market",
+                "stock-split",
+                "bls",
+                "sec",
+                "us-weather-alert"
+              ]
+            },
+            "example": "bls"
+          },
+          {
+            "name": "Scale",
+            "in": "query",
+            "required": false,
+            "description": "The period, as JSON. The year defaults to the current one. The month is two digits, as a string; without it the year is described whole.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "year": {
+                      "type": "integer"
+                    },
+                    "month": {
+                      "type": "string",
+                      "pattern": "^(0[1-9]|1[0-2])$"
+                    }
+                  }
+                },
+                "example": {
+                  "year": 2026,
+                  "month": "08"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Two CSV strings. data-distribution has a total_records column (total_events for us-weather-alert) beside the columns that dataset is grouped by; partition has a single count row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "data-distribution",
+                        "partition"
+                      ],
+                      "properties": {
+                        "data-distribution": {
+                          "type": "string",
+                          "description": "CSV with a header row. The grouping columns differ by dataset: bls has category and series; sec, category and form; stock-market, sector, industry and total_tickers; us-weather-alert, severity and event; stock-split, split_date, total_tickers and tickers."
+                        },
+                        "partition": {
+                          "type": "string",
+                          "description": "CSV with a single count column."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "data-distribution": "category,series,total_records\nReports,EMPSIT,626\nReports,REALER,36\nReports,XIMPIM,1752\n",
+                    "partition": "count\n5\n"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Data is not one of the datasets, or Scale names a period the datalake does not hold.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "null"
+                    }
+                  }
+                },
+                "example": {
+                  "report": null
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The distribution could not be computed. The report carries a message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
