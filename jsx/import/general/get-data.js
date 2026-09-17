@@ -11,7 +11,7 @@
 import { readString } from 'react-papaparse';
 import {parseCsv, papaParseCsv} from '../general/parse-csv.js';
 
-function get_promise(url, callback, source=null, stream=null) {
+function get_promise(url, callback, source, stream) {
     return fetch(url, {method: 'GET'})
         .then((response) => {
             if (response.ok) {
@@ -48,7 +48,7 @@ function get_promise(url, callback, source=null, stream=null) {
         });
 }
 
-function get(type, url, callback=()=>{}, worker=false, source=null, stream=null) {
+function get(type, url, callback, worker, source, stream) {
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
     const mm = today.getMonth() === 11 ? '12' : String(today.getMonth() + 1).padStart(2, '0');
