@@ -19,7 +19,7 @@ function isValidUrl(string) {
     }
 }
 
-function get_promise(url, callback, source=null, stream=null) {
+function get_promise(url, callback, source, stream) {
     if (isValidUrl(url)) {
         return fetch(url, {method: 'GET'})
             .then((response) => {
@@ -115,7 +115,7 @@ function get_promise(url, callback, source=null, stream=null) {
     }
 }
 
-function get(type, url, callback=()=>{}, worker=false, source=null, stream=null) {
+function get(type, url, callback, worker, source, stream) {
 
     if (type === 'data-distribution') {
         if (url) {
