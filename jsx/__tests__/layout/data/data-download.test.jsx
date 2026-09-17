@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { render, act } from '@testing-library/react';
+import { render, act, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 jest.mock('../../../import/general/get-data/distribution/stock-market.js', () => ({
@@ -42,6 +42,7 @@ import DataLayout, {
     splitTickerPairs,
     DistributionTooltip,
 } from '../../../import/layout/data/data.jsx';
+import { API_DOCS, DATASETS } from '../../../import/general/api-url.js';
 
 function setup() {
     const held = React.createRef();
@@ -406,5 +407,151 @@ describe('DistributionTooltip', () => {
             el => (el.getAttribute('style') || '').includes('background')
         );
         expect(swatches.length).toBeGreaterThan(0);
+    });
+});
+
+describe('the api icons beside the chart', () => {
+    //
+    // asserted against the url the page handed its loader, so the icon cannot open a
+    // request the chart was not drawn from.
+    //
+    it('links the datalake api\'s documentation', () => {
+        setup();
+
+        expect(screen.getByRole('link', { name: 'API docs' })).toHaveAttribute('href', API_DOCS.datalake);
+    });
+
+    it('links the request made for the dataset and month on screen', () => {
+        const page = setup();
+        LOADERS.forEach(l => l.mockClear());
+
+        download(page, page.state.selected_stream);
+
+        expect(screen.getByRole('link', { name: 'This request' }))
+            .toHaveAttribute('href', urlOf(getStockMarket));
+    });
+
+    it('follows the month when another is chosen', () => {
+        const page = setup();
+        LOADERS.forEach(l => l.mockClear());
+        act(() => {
+            page.setState({ mm: 3 });
+        });
+
+        download(page, page.state.selected_stream);
+
+        const link = screen.getByRole('link', { name: 'This request' });
+        expect(link).toHaveAttribute('href', urlOf(getStockMarket));
+        expect(JSON.parse(new URL(link.getAttribute('href')).searchParams.get('Scale')).month).toBe('03');
+    });
+});
+
+describe('the dataset it names', () => {
+    it.each(Object.entries(DATASETS))('asks for %s as the dataset %s', (stream, dataset) => {
+        //
+        // the dataset is not the stream id for three of the five; the datalake answers a
+        // stream id with a 400.
+        //
+        const page = setup();
+        LOADERS.forEach(l => l.mockClear());
+
+        download(page, stream);
+
+        const call = LOADERS.map(l => l.mock.calls[0]).find(Boolean);
+        expect(new URL(String(call[1])).searchParams.get('Data')).toBe(dataset);
+    });
+});
+
+describe('every loader\'s answer', () => {
+    //
+    // each dataset has its own loader, and each is handed its own callback. An answer
+    // that reached no callback would leave that stream's chart empty with nothing logged.
+    //
+    it.each([
+        ['stockmarket', () => getStockMarket],
+        ['stockmarketstocksplit', () => getStockMarket],
+        ['usnationalweather', () => getUsWeatherAlert],
+        ['bls', () => getBls],
+        ['sec', () => getSec],
+    ])('%s is handed back to callbackGetData', (stream, loaderOf) => {
+        const page = setup();
+        const loader = loaderOf();
+        LOADERS.forEach(l => l.mockClear());
+        const handled = jest.spyOn(page, 'callbackGetData').mockImplementation(() => {});
+
+        download(page, stream);
+        const item = { stream: stream };
+        act(() => {
+            loader.mock.calls[0][2](item);
+        });
+
+        expect(handled).toHaveBeenCalledWith(item);
+        handled.mockRestore();
+    });
+});
+
+describe('the controls that ask again', () => {
+    it('asks for the stream on screen again from the refresh icon', () => {
+        const page = setup();
+        LOADERS.forEach(l => l.mockClear());
+
+        act(() => {
+            fireEvent.click(document.querySelector('.area-chart-parent .refresh, .area-chart-parent .refresh-disabled'));
+        });
+
+        expect(getStockMarket).toHaveBeenCalledTimes(1);
+        expect(new URL(urlOf(getStockMarket)).searchParams.get('Data')).toBe(DATASETS[page.state.selected_stream]);
+    });
+
+    it('hides the chart, and its api icons with it, from the Data Distribution switch', () => {
+        const page = setup();
+        const switched = within(document.querySelector('.checkbox-vertical-default'))
+            .getByRole('checkbox', { name: 'Data Distribution' });
+
+        act(() => {
+            fireEvent.click(switched);
+        });
+
+        expect(page.state.display_data_distribution).toBe(false);
+        expect(document.querySelector('.api-links')).toBeNull();
+
+        act(() => {
+            fireEvent.click(switched);
+        });
+
+        expect(document.querySelector('.api-links')).not.toBeNull();
+    });
+});
+
+describe('the mobile filter', () => {
+    it('hides the page while the filter is edited, and restores it when applied', () => {
+        const page = setup();
+
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+        });
+
+        expect(page.state.hide_all).toBe(true);
+        expect(screen.getByText('Edit Content Filter')).toBeInTheDocument();
+
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Apply Filter' }));
+        });
+
+        expect(page.state.hide_all).toBe(false);
+    });
+
+    it('restores the page when the filter is dismissed', () => {
+        const page = setup();
+
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+        });
+        act(() => {
+            fireEvent.click(document.querySelector('.exit'));
+        });
+
+        expect(page.state.hide_all).toBe(false);
+        expect(page.state.display_filter_button).toBe(true);
     });
 });
