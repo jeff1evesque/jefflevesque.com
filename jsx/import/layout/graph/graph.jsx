@@ -27,6 +27,8 @@ import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import GraphExplorer, { TAIL } from '../../animation/graph-explorer.jsx';
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
+import { knowledgeGraphUrl, API_DOCS } from '../../general/api-url.js';
+import ApiLinks from '../../general/api-links.jsx';
 import filterSchema from '../../animation/filter-schema.js';
 import {
     sourceNamespace,
@@ -439,6 +441,17 @@ class GraphLayout extends Component {
                     <div className='graph-header'>
                         <h5>Knowledge graph</h5>
                         {this.picker()}
+                        {/*
+
+                            the build the picker has selected, as getGraphById
+                            fetches it -- or the listing, before one is selected
+
+                        */}
+                        <ApiLinks
+                            docs={API_DOCS.knowledgeGraph}
+                            request={knowledgeGraphUrl(this.state.selected)}
+                            size='medium'
+                        />
                     </div>
                     <div className='graph-layout'>
                         {this.panel('build', 'Build details', nodes, 'Build', this.details(build))}
