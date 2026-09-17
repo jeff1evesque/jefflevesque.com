@@ -26,13 +26,15 @@
  *       defect in whatever component happens to be mounting.
  */
 
+import { ENDPOINTS, knowledgeGraphUrl } from './api-url.js';
+
 //
-// hardcoded, like every other api caller in this codebase -- data.jsx, stream.jsx
-// and alarm.jsx all name their endpoint inline. The '.replace' substitution
-// mechanism carries cognito and region config that differs per deployment; the
-// public api path does not.
+// fixed rather than configured: the '.replace' substitution mechanism carries
+// cognito and region config that differs per deployment, and the public api path
+// does not. It lives in api-url.js with the other two apis' endpoints, which is
+// also where the requests are built.
 //
-const KNOWLEDGE_GRAPH = 'https://api.jefflevesque.com/v1/public/knowledge-graph';
+const KNOWLEDGE_GRAPH = ENDPOINTS.knowledgeGraph;
 
 /**
  * fetch one url and unwrap the 'report' envelope every api-* service answers in.
@@ -100,10 +102,7 @@ export function getGraphById(id, base = KNOWLEDGE_GRAPH) {
         return Promise.resolve(null);
     }
 
-    const url = new URL(base);
-    url.searchParams.append('Graph', id);
-
-    return report(url).catch((e) => {
+    return report(knowledgeGraphUrl(id, base)).catch((e) => {
         const detail = (e && e.status) ? `status ${e.status}` : e;
         console.log(`Error: ${base} Graph=${id} returned ${detail}`);
         return null;
@@ -125,10 +124,7 @@ export default function getGraphSchema(base = KNOWLEDGE_GRAPH) {
                 return Promise.reject(listing);
             }
 
-            const url = new URL(base);
-            url.searchParams.append('Graph', listing.default);
-
-            return report(url);
+            return report(knowledgeGraphUrl(listing.default, base));
         })
         .catch((e) => {
             const detail = (e && e.status) ? `status ${e.status}` : e;
