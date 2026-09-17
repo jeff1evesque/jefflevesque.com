@@ -46,6 +46,7 @@ jest.mock('../../import/general/get-graph-schema.js', () => ({
 
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import GraphLayout, { EXPLORER_NODE_TYPES, period } from '../../import/layout/graph/graph.jsx';
+import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
 
 const BUILD_A = {
     id: 'build-a',
@@ -593,5 +594,46 @@ describe('when something cannot be loaded', () => {
         await setup();
 
         expect(document.body.textContent).toContain('could not be loaded');
+    });
+});
+
+describe('the api icons in the header', () => {
+    it('link the knowledge graph api\'s documentation', async () => {
+        await setup();
+
+        expect(screen.getByRole('link', { name: 'API docs' }))
+            .toHaveAttribute('href', API_DOCS.knowledgeGraph);
+    });
+
+    it('link the request for the build the picker has selected', async () => {
+        await setup();
+
+        expect(getGraphById).toHaveBeenLastCalledWith('build-a');
+        expect(screen.getByRole('link', { name: 'This request' }))
+            .toHaveAttribute('href', String(knowledgeGraphUrl('build-a')));
+    });
+
+    it('follow the picker to another build', async () => {
+        await setup();
+
+        await act(async () => {
+            fireEvent.change(picker(), { target: { value: 'build-b' } });
+        });
+
+        expect(screen.getByRole('link', { name: 'This request' }))
+            .toHaveAttribute('href', String(knowledgeGraphUrl('build-b')));
+    });
+
+    it('link the listing while no build is selected', async () => {
+        //
+        // when the listing itself could not be had there is no build to name, and the
+        // listing request is the one worth opening.
+        //
+        getGraphListing.mockResolvedValue(null);
+
+        await setup();
+
+        expect(screen.getByRole('link', { name: 'This request' }))
+            .toHaveAttribute('href', String(knowledgeGraphUrl()));
     });
 });
