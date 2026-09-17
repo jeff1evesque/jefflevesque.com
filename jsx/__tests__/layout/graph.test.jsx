@@ -5,6 +5,12 @@
  * testing is how those four stay in agreement -- with each other and with the
  * build that is actually selected.
  *
+ * On a narrow screen the metadata panel and the legend open and close, and start
+ * closed. Which of the two forms is on screen is the stylesheet's decision, so it
+ * is not observable here; what is, and is held, is that both panels start closed,
+ * that each toggle opens its own panel only, and that the closed toggles still say
+ * something about what is inside them.
+ *
  * The misleading case is the one to hold hardest: a load that fails while the
  * previous build is still on screen. A stale graph under a fresh label is
  * indistinguishable from a correct answer, so it must be cleared rather than
@@ -39,7 +45,7 @@ jest.mock('../../import/general/get-graph-schema.js', () => ({
 }));
 
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
-import GraphLayout, { EXPLORER_NODE_TYPES } from '../../import/layout/graph/graph.jsx';
+import GraphLayout, { EXPLORER_NODE_TYPES, period } from '../../import/layout/graph/graph.jsx';
 
 const BUILD_A = {
     id: 'build-a',
@@ -96,6 +102,17 @@ async function setup() {
 
 const explorer = () => document.querySelector('[data-testid="explorer"]');
 const picker = () => screen.getByLabelText('Published build');
+const toggle = (name) => screen.getByRole('button', { name: new RegExp(name) });
+
+//
+// the value beside a label in the build details, or undefined
+//
+function detail(label) {
+    const row = [...document.querySelectorAll('.graph-details-row')]
+        .find(r => r.querySelector('dt').textContent === label);
+
+    return row ? row.querySelector('dd').textContent : undefined;
+}
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -209,15 +226,267 @@ describe('the build details', () => {
 
         expect(document.body.textContent).toContain('bls, sec');
     });
+
+    it('calls the build total Nodes, because that is what it counts', async () => {
+        //
+        // the listing's figure is every node in the build. It was labelled 'Node
+        // types' -- what each circle on the canvas is -- which made ten million of
+        // them look like they were missing from a sixty-circle canvas.
+        //
+        await setup();
+
+        expect(detail('Nodes')).toBe('9,884,064');
+        expect(detail('Node types')).toBeUndefined();
+    });
+
+    it('gives the period as the days it covers', async () => {
+        await setup();
+
+        expect(detail('Period')).toBe('2026-09-01 – 2026-09-15');
+    });
+
+    it('marks the run and build times as UTC', async () => {
+        await setup();
+
+        expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
+        expect(detail('Built')).toBe('2026-09-15 06:37 UTC');
+    });
+
+    it('does not claim a zone for a time published without one', async () => {
+        getGraphListing.mockResolvedValue({
+            default: 'build-a',
+            graphs: [{ ...BUILD_A, run: '2026-09-15T05:00:43', built: null }],
+        });
+
+        await setup();
+
+        expect(detail('Run')).toBe('2026-09-15 05:00');
+        expect(detail('Built')).toBe('n/a');
+    });
+
+    it('reads n/a for a total the listing did not carry', async () => {
+        getGraphListing.mockResolvedValue({
+            default: 'build-a',
+            graphs: [{ ...BUILD_A, nodes: undefined, sources: undefined }],
+        });
+
+        await setup();
+
+        expect(detail('Nodes')).toBe('n/a');
+        expect(detail('Sources')).toBe('n/a');
+    });
+});
+
+describe('period', () => {
+    it('ends a build of the current month on the day it ran', () => {
+        expect(period('2026-09', '2026-09-16T17:15:46Z')).toBe('2026-09-01 – 2026-09-16');
+    });
+
+    it('covers the whole month for a build run after it', () => {
+        expect(period('2026-08', '2026-09-02T05:00:00Z')).toBe('2026-08-01 – 2026-08-31');
+    });
+
+    it('covers the whole month when the run is on its last day', () => {
+        expect(period('2026-09', '2026-09-30T23:00:00Z')).toBe('2026-09-01 – 2026-09-30');
+    });
+
+    it('reads as one day for a build run on the first', () => {
+        expect(period('2026-09', '2026-09-01T02:00:00Z')).toBe('2026-09-01');
+    });
+
+    it('takes the day in UTC, the zone the run is published in', () => {
+        //
+        // 01:00 UTC on the 16th is still the 15th in New York, where the suite runs.
+        //
+        expect(period('2026-09', '2026-09-16T01:00:00Z')).toBe('2026-09-01 – 2026-09-16');
+    });
+
+    it('knows the length of each month', () => {
+        expect(period('2028-02', null)).toBe('2028-02-01 – 2028-02-29');
+        expect(period('2026-02', null)).toBe('2026-02-01 – 2026-02-28');
+        expect(period('2026-12', null)).toBe('2026-12-01 – 2026-12-31');
+    });
+
+    it('covers the whole month when there is no usable run time', () => {
+        expect(period('2026-09', undefined)).toBe('2026-09-01 – 2026-09-30');
+        expect(period('2026-09', 'not a time')).toBe('2026-09-01 – 2026-09-30');
+    });
+
+    it('ignores a run from before the period started', () => {
+        expect(period('2026-09', '2026-08-20T00:00:00Z')).toBe('2026-09-01 – 2026-09-30');
+    });
+
+    it('passes a period in any other shape through as published', () => {
+        expect(period('2026-Q3', '2026-09-16T17:15:46Z')).toBe('2026-Q3');
+        expect(period('2026-13', null)).toBe('2026-13');
+    });
+
+    it('answers nothing for no period', () => {
+        expect(period(undefined, '2026-09-16T17:15:46Z')).toBeNull();
+        expect(period('', null)).toBeNull();
+    });
+});
+
+describe('the panels', () => {
+    it('start closed, so a phone opens on the graph', async () => {
+        await setup();
+
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('false');
+        expect(toggle('Legend').getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('keep their contents in the page while closed', async () => {
+        //
+        // a wide screen shows both panels regardless, so closing one hides it with the
+        // stylesheet rather than removing it.
+        //
+        await setup();
+
+        expect(document.querySelector('.graph-details')).not.toBeNull();
+        expect(document.querySelector('.graph-legend')).not.toBeNull();
+    });
+
+    it('open and close from their toggles', async () => {
+        await setup();
+
+        fireEvent.click(toggle('Build details'));
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('true');
+        expect(document.querySelector('.graph-panel-build'))
+            .toHaveClass('graph-panel-open');
+
+        fireEvent.click(toggle('Build details'));
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('false');
+        expect(document.querySelector('.graph-panel-build'))
+            .not.toHaveClass('graph-panel-open');
+    });
+
+    it('open one at a time', async () => {
+        await setup();
+
+        fireEvent.click(toggle('Legend'));
+
+        expect(toggle('Legend').getAttribute('aria-expanded')).toBe('true');
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('point each toggle at the body it controls', async () => {
+        await setup();
+
+        const button = toggle('Legend');
+        const body = document.getElementById(button.getAttribute('aria-controls'));
+
+        expect(body).not.toBeNull();
+        expect(body.querySelector('.graph-legend')).not.toBeNull();
+    });
+
+    it('summarise the build on its closed toggle', async () => {
+        await setup();
+
+        expect(toggle('Build details').textContent).toContain('9.88M nodes');
+    });
+
+    it('count the namespaces on the closed legend toggle', async () => {
+        await setup();
+
+        expect(toggle('Legend').textContent).toContain('2 namespaces');
+    });
+
+    it('do not pluralise a single namespace', async () => {
+        getGraphById.mockResolvedValue({
+            node_types: { bls_A: { count: 1, source_type_uri: 'https://example.com/ontology/bls/A' } },
+            edge_types: {},
+        });
+
+        await setup();
+
+        expect(toggle('Legend').textContent).toContain('1 namespace');
+        expect(toggle('Legend').textContent).not.toContain('namespaces');
+    });
+
+    it('leave the build toggle without a summary when there is no total', async () => {
+        getGraphListing.mockResolvedValue({
+            default: 'build-a',
+            graphs: [{ ...BUILD_A, nodes: null }],
+        });
+
+        await setup();
+
+        expect(document.querySelector('.graph-panel-build .graph-panel-summary')).toBeNull();
+    });
+
+    it('head the build column for the wide layout, where nothing toggles', async () => {
+        await setup();
+
+        expect(document.querySelector('.graph-panel-build .graph-panel-heading').textContent)
+            .toBe('Build');
+    });
+
+    it('are absent when there is nothing to put in them', async () => {
+        getGraphListing.mockResolvedValue(null);
+
+        await setup();
+
+        expect(document.querySelector('.graph-panel')).toBeNull();
+    });
+});
+
+describe('the caption', () => {
+    it('says how much of the build the canvas shows', async () => {
+        getGraphById.mockResolvedValue(schemaOf(200));
+
+        await setup();
+
+        expect(document.querySelector('.graph-caption').textContent)
+            .toContain(`${EXPLORER_NODE_TYPES} of 200 node types`);
+    });
+
+    it('says when the canvas shows all of it', async () => {
+        await setup();
+
+        expect(document.querySelector('.graph-caption').textContent).toContain('All 4 node types');
+    });
+
+    it('is absent while there is no graph', async () => {
+        getGraphById.mockResolvedValue(null);
+
+        await setup();
+
+        expect(document.querySelector('.graph-caption')).toBeNull();
+    });
 });
 
 describe('the legend', () => {
     it('lists the namespaces actually on screen', async () => {
         await setup();
 
-        const sources = document.querySelector('.graph-legend-sources');
-        expect(sources.textContent).toContain('bls');
-        expect(sources.textContent).toContain('sec');
+        const namespaces = document.querySelector('.graph-legend-namespaces');
+        expect(namespaces.textContent).toContain('bls');
+        expect(namespaces.textContent).toContain('sec');
+    });
+
+    it('heads them Namespaces, not Sources', async () => {
+        //
+        // the build details list the build's sources under that name, and they are a
+        // different list -- bls and sec there, jolts and eci here on a real build.
+        //
+        await setup();
+
+        const headings = [...document.querySelectorAll('.graph-legend h6')].map(h => h.textContent);
+        expect(headings).toEqual(['Namespaces', 'Edges']);
+    });
+
+    it('leaves the note blank for an origin it has no wording for', async () => {
+        const schema = schemaOf(4);
+        schema.edge_types.c = {
+            src_type: 'bls_T0', dst_type: 'bls_T2', relation: 'r', origin: 'novel', count: 5,
+        };
+        getGraphById.mockResolvedValue(schema);
+
+        await setup();
+
+        const novel = [...document.querySelectorAll('.graph-legend-origins li')]
+            .find(li => li.textContent.startsWith('novel'));
+        expect(novel.querySelector('.graph-legend-note').textContent).toBe('');
     });
 
     it('lists the origins actually on screen', async () => {

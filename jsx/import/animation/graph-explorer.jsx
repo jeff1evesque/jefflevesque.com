@@ -12,10 +12,18 @@
  *     content, so it is painted at full strength from the start.
  *   - draws a decorative gray field and parts it around the cluster. There is
  *     nothing decorative on this page.
- *   - hides labels until hover. A page someone opened on purpose should say what
- *     it is showing without being interrogated.
+ *   - keeps the simulation warm so the cluster drifts. This layout is computed
+ *     to rest before the first paint and then holds still: nothing on screen
+ *     moves unless the reader asks it to.
  *   - shoves nodes away from the cursor. Reading a graph while it flinches from
  *     the pointer is worse than useless.
+ *
+ * What the two DO now share is that labels wait to be asked for. This page used
+ * to label every node up front, on the grounds that a page opened on purpose
+ * should not have to be interrogated -- and with sixty node types whose names
+ * run past sixty characters, the result was a block of overprinted text that
+ * named nothing. A node names itself when it is pointed at (or tapped: a phone
+ * cannot hover), in a card that has room for the whole name.
  *
  * Note: a separate component rather than a prop on GraphCluster. The two share
  *       the parts that must not disagree and nothing else -- threading "am I a
@@ -34,6 +42,7 @@ import {
     ORIGIN_DASH,
     originColor,
 } from './encoding.js';
+import { seedAround, settleTicks, fitLayout } from './layout.js';
 import PropTypes from 'prop-types';
 
 // the tail past the eight categorical slots is SHADED here rather than rolled
@@ -42,9 +51,11 @@ import PropTypes from 'prop-types';
 const TAIL = 'shade';
 
 const NODE_RADIUS = 7;
-const NODE_RADIUS_SMALL = 5;
-const LABEL_SIZE = 11;
-const LABEL_SIZE_SMALL = 9;
+const NODE_RADIUS_SMALL = 6;
+
+// daylight kept between two nodes. Labels used to need room of their own here;
+// without them this only has to keep neighbours far enough apart to point at.
+const COLLIDE_GAP = 8;
 
 // link length from edge count, clamped. Edge counts span seven orders of
 // magnitude, and without the ceiling one edge stretches half the viewport and
@@ -57,12 +68,118 @@ const LINK_PLAIN = 40;
 const CHARGE = -140;
 const CHARGE_SMALL = -70;
 
-// how far a node's neighbourhood is lifted when hovered, and how far everything
+// the pull toward the middle, before it is split between the two axes by the
+// canvas's shape -- see renderD3. ASPECT_MOST bounds how lopsided that split
+// may get, so a very long, thin canvas still gets a graph rather than a line.
+const CENTRE = 0.06;
+const ASPECT_MOST = 2.5;
+
+// how the settled layout is fitted to its canvas: the space kept clear inside
+// every edge, the most it may be enlarged to fill a large one, and how much
+// further one axis may go than the other. See fitLayout for both limits.
+//
+// Note: MOST is sized for a tablet held upright. It is under the 768px line, so
+//       it lays out with the phone's weaker charge -- a compact graph -- on a
+//       canvas several times a phone's, and at 1.6 the graph stopped well
+//       short of every edge.
+const FIT_PAD = 20;
+const FIT_MOST = 2.5;
+const FIT_STRETCH = 1.35;
+
+const DEFAULT_HEIGHT = 600;
+
+// how near the pointer must come to a node's centre to point at it. Both are well
+// past the drawn radius, because a 7px circle is a hard target for a mouse and
+// an impossible one for a finger. A tap is allowed further than a hover: a hover
+// can be corrected by moving, and a tap that misses has to be made again.
+const HOVER_REACH = 16;
+const TAP_REACH = 28;
+
+// below this canvas width the card is docked along the top or bottom edge rather
+// than set beside its node. Beside a node it needs its own width (17rem, see
+// _graph.scss) plus its offset free on one side, and a canvas narrower than
+// twice that has room on neither side for a node near the middle.
+const CARD_DOCK_WIDTH = 560;
+
+// how far a node's neighbourhood is lifted when focused, and how far everything
 // else drops back. Both stay visible -- this is emphasis, not filtering.
 const DIM_OPACITY = 0.15;
 const LINK_REST = 0.35;
 const LINK_LIT = 0.95;
 const LINK_DIM = 0.06;
+
+// the ring around the node being pointed at, so it reads as the one the card is
+// about rather than as one more lit neighbour
+const RING = colors['gray-8'];
+const RING_WIDTH = 2;
+
+/**
+ * a node type's name, without the namespace the card already shows beside it.
+ *
+ * Note: only a prefix that IS the namespace is dropped. An id whose prefix
+ *       disagrees with its ontology namespace is shown whole, since dropping it
+ *       would lose something the card does not say elsewhere.
+ */
+export function shortName(id, namespace) {
+    const prefix = `${namespace}_`;
+
+    return id.length > prefix.length && id.startsWith(prefix)
+        ? id.slice(prefix.length)
+        : id;
+}
+
+/**
+ * the name split where a line may break: before each capital that follows a
+ * lower-case letter or a digit, and after each underscore.
+ *
+ * Type names are long CamelCase runs with no spaces -- the longest in a published
+ * build is sixty-six characters -- so left alone a browser either overflows the
+ * card or breaks them wherever the width runs out, mid-word.
+ *
+ * Note: no lookbehind in the pattern. A regex literal the engine cannot parse
+ *       takes the whole bundle down at load, and lookbehind arrived in Safari
+ *       only in 16.4.
+ */
+export function breakable(name) {
+    return name
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/_/g, '_ ')
+        .split(' ')
+        .filter(Boolean);
+}
+
+/**
+ * where the card goes, for a node at (x, y) on a width x height canvas.
+ *
+ * On a wide canvas: beside the node, on whichever side has more room, and above
+ * or below it near the top and bottom edges so it is not cut off. On a narrow
+ * one: docked across the edge furthest from the node, so it never covers the
+ * thing it describes.
+ */
+export function placeCard(x, y, width, height) {
+    if (width < CARD_DOCK_WIDTH) {
+        return {
+            className: y > height / 2 ? 'graph-card-dock-top' : 'graph-card-dock-bottom',
+            style: null,
+        };
+    }
+
+    const side = x > width / 2 ? 'graph-card-left' : 'graph-card-right';
+    const band = y < height / 3
+        ? 'graph-card-below'
+        : (y > (height * 2) / 3 ? 'graph-card-above' : 'graph-card-middle');
+
+    return {
+        className: `${side} ${band}`,
+        style: { left: `${x}px`, top: `${y}px` },
+    };
+}
+
+function plural(n, one, many) {
+    const value = typeof n === 'number' ? n.toLocaleString() : 'n/a';
+
+    return `${value} ${n === 1 ? one : many}`;
+}
 
 class GraphExplorer extends Component {
     static propTypes = {
@@ -78,11 +195,24 @@ class GraphExplorer extends Component {
 
         this.svgRef = React.createRef();
         this.hoveredId = null;
+        this.pinnedId = null;
+        this.size = { width: 0, height: 0 };
+
+        // the node the card describes, or null. The only state React holds:
+        // everything inside the svg is drawn by d3.
+        this.state = { focus: null };
 
         this.buildGraph = this.buildGraph.bind(this);
+        this.measure = this.measure.bind(this);
         this.renderD3 = this.renderD3.bind(this);
+        this.draw = this.draw.bind(this);
         this.highlight = this.highlight.bind(this);
+        this.hover = this.hover.bind(this);
+        this.pin = this.pin.bind(this);
+        this.refocus = this.refocus.bind(this);
+        this.describe = this.describe.bind(this);
         this.handleResize = this.handleResize.bind(this);
+        this.applyResize = this.applyResize.bind(this);
     }
 
     componentDidMount() {
@@ -114,13 +244,43 @@ class GraphExplorer extends Component {
         if (this.resizeTimer) {
             clearTimeout(this.resizeTimer);
         }
-        this.resizeTimer = setTimeout(() => {
-            this.resizeTimer = null;
-            if (this.simulation) {
-                this.simulation.stop();
-            }
-            this.renderD3();
-        }, 150);
+        this.resizeTimer = setTimeout(this.applyResize, 150);
+    }
+
+    /**
+     * lay the graph out again, but only if the canvas really changed size.
+     *
+     * Note: the guard is what keeps a phone's graph still. Mobile browsers fire
+     *       'resize' whenever the address bar slides in or out, which happens
+     *       on nearly every scroll, and the canvas takes its height from the
+     *       small viewport -- which that does not change. Relaying out on every
+     *       such event would shuffle the graph under the reader's thumb.
+     */
+    applyResize() {
+        this.resizeTimer = null;
+
+        const { width, height } = this.measure();
+
+        if (width === this.size.width && height === this.size.height) {
+            return;
+        }
+
+        if (this.simulation) {
+            this.simulation.stop();
+        }
+        this.renderD3();
+    }
+
+    // the canvas this draws into. The frame is sized by the stylesheet, not by
+    // the svg, so reading it back is never circular; the fallbacks cover a frame
+    // with no layout at all, which is every frame under jsdom.
+    measure() {
+        const frame = this.svgRef.current ? this.svgRef.current.parentNode : null;
+
+        return {
+            width: (frame && frame.clientWidth) || window.innerWidth,
+            height: this.props.height || (frame && frame.clientHeight) || DEFAULT_HEIGHT,
+        };
     }
 
     // the schema shape into d3 nodes + links. No data is a real state here as
@@ -158,65 +318,157 @@ class GraphExplorer extends Component {
         return { nodes: nodes, links: links };
     }
 
-    // hovering lifts a node and everything it touches; the rest drops back but
-    // stays on screen, so the neighbourhood reads against the whole rather than
-    // against an empty canvas.
+    // write the current positions onto the svg. Registered as the simulation's
+    // tick handler, and called once by hand after the layout is settled, since
+    // settling ticks the simulation without dispatching the event.
+    draw() {
+        this.linkSel
+            .attr('x1', (d) => d.source.x)
+            .attr('y1', (d) => d.source.y)
+            .attr('x2', (d) => d.target.x)
+            .attr('y2', (d) => d.target.y);
+        this.nodeSel
+            .attr('cx', (d) => d.x)
+            .attr('cy', (d) => d.y);
+    }
+
+    // focusing a node lifts it and everything it touches; the rest drops back
+    // but stays on screen, so the neighbourhood reads against the whole rather
+    // than against an empty canvas.
+    //
+    // Note: link ends are read as node objects. forceLink swaps the ids for the
+    //       nodes themselves as soon as the simulation is built, and nothing can
+    //       be focused before that.
     highlight(nodeId) {
         if (!this.nodeSel) {
             return;
         }
 
-        const near = new Set();
-
-        if (nodeId != null) {
-            near.add(nodeId);
-            this.links.forEach((l) => {
-                const s = l.source.id ? l.source.id : l.source;
-                const t = l.target.id ? l.target.id : l.target;
-                if (s === nodeId) near.add(t);
-                if (t === nodeId) near.add(s);
-            });
-        }
-
         const active = nodeId != null;
+        const near = new Set(active ? [nodeId, ...(this.neighbours.get(nodeId) || [])] : []);
 
-        this.nodeSel.attr('opacity', (d) => (!active || near.has(d.id) ? 1 : DIM_OPACITY));
-        this.labelSel.attr('opacity', (d) => (!active || near.has(d.id) ? 1 : DIM_OPACITY));
+        this.nodeSel
+            .attr('opacity', (d) => (!active || near.has(d.id) ? 1 : DIM_OPACITY))
+            .attr('stroke', (d) => (d.id === nodeId ? RING : '#ffffff'))
+            .attr('stroke-width', (d) => (d.id === nodeId ? RING_WIDTH : 1));
         this.linkSel.attr('opacity', (d) => {
             if (!active) {
                 return LINK_REST;
             }
 
-            const s = d.source.id ? d.source.id : d.source;
-            const t = d.target.id ? d.target.id : d.target;
-
-            return s === nodeId || t === nodeId ? LINK_LIT : LINK_DIM;
+            return d.source.id === nodeId || d.target.id === nodeId ? LINK_LIT : LINK_DIM;
         });
     }
 
+    // what the card says about a node
+    describe(nodeId) {
+        const node = this.nodes.find((n) => n.id === nodeId);
+
+        if (!node) {
+            return null;
+        }
+
+        return {
+            id: node.id,
+            name: shortName(node.id, node.namespace),
+            namespace: node.namespace,
+            colour: this.namespaceColors.get(node.namespace),
+            count: node.count,
+            linked: this.neighbours.get(node.id).size,
+            x: node.x,
+            y: node.y,
+        };
+    }
+
+    //
+    // two ways to focus a node, and the card follows whichever is live: the node
+    // under the pointer if there is one, the pinned node otherwise. So pointing
+    // at another node previews it, and moving off returns to the pinned one.
+    //
+    refocus() {
+        const id = this.hoveredId != null ? this.hoveredId : this.pinnedId;
+
+        this.highlight(id);
+        this.svgRef.current.style.cursor = this.hoveredId != null ? 'pointer' : '';
+        this.setState({ focus: id != null ? this.describe(id) : null });
+    }
+
+    hover(nodeId) {
+        if (nodeId === this.hoveredId) {
+            return;
+        }
+
+        this.hoveredId = nodeId;
+        this.refocus();
+    }
+
+    /**
+     * a click or tap: pin the node it landed on, let go of the pinned node if it
+     * landed there again, and let go of everything if it landed on nothing.
+     *
+     * Note: the hover is dropped as well. A touch screen reports a tap as a
+     *       mousemove followed by a click, and never sends the mouseleave that
+     *       would end the 'hover' -- so without this, tapping the pinned node to
+     *       let it go would leave it focused through a hover nobody is doing.
+     *       With a real mouse the pointer is still there, and the next
+     *       mousemove puts the hover straight back.
+     */
+    pin(nodeId) {
+        this.pinnedId = nodeId != null && nodeId !== this.pinnedId ? nodeId : null;
+        this.hoveredId = null;
+        this.refocus();
+    }
+
     renderD3() {
-        const width = this.svgRef.current
-            ? this.svgRef.current.parentNode.clientWidth || window.innerWidth
-            : window.innerWidth;
-        const height = this.props.height ? this.props.height : 600;
+        const { width, height } = this.measure();
         const small = width < medium_minWidth;
+
+        this.size = { width: width, height: height };
 
         const { nodes, links } = this.buildGraph();
         this.nodes = nodes;
         this.links = links;
+
+        //
+        // neighbours by id, excluding self-loops: a type that relates to itself
+        // is not thereby connected to anything, and the card's count would
+        // otherwise say it was.
+        //
+        // Note: an edge to a type the schema does not carry is skipped here and
+        //       left for forceLink, which rejects it by name below. The page
+        //       only ever hands this a filtered schema, which drops such edges.
+        //
+        this.neighbours = new Map(nodes.map((n) => [n.id, new Set()]));
+        links.forEach((l) => {
+            const ends = [this.neighbours.get(l.source), this.neighbours.get(l.target)];
+
+            if (l.source !== l.target && ends[0] && ends[1]) {
+                ends[0].add(l.target);
+                ends[1].add(l.source);
+            }
+        });
 
         this.namespaceColors = assignNamespaceColors(nodes, TAIL);
 
         const radius = small ? NODE_RADIUS_SMALL : NODE_RADIUS;
         nodes.forEach((d) => { d.r = radius; });
 
+        // whatever was focused belonged to the previous layout
+        this.hoveredId = null;
+        this.pinnedId = null;
+        if (this.state.focus) {
+            this.setState({ focus: null });
+        }
+
         const svg = d3.select(this.svgRef.current);
-        svg.attr('width', width).attr('height', height);
+        svg.attr('width', width)
+            .attr('height', height)
+            .attr('role', 'img')
+            .attr('aria-label', `Knowledge graph of ${nodes.length} node types`);
         svg.selectAll('*').remove();
 
         const gLinks = svg.append('g').attr('class', 'links');
         const gNodes = svg.append('g').attr('class', 'nodes');
-        const gLabels = svg.append('g').attr('class', 'labels');
 
         this.linkSel = gLinks.selectAll('line')
             .data(links)
@@ -232,29 +484,24 @@ class GraphExplorer extends Component {
             .attr('r', (d) => d.r)
             .attr('fill', (d) => this.namespaceColors.get(d.namespace) || colors['gray-5'])
             .attr('stroke', '#ffffff')
-            .attr('stroke-width', 1)
-            .style('cursor', 'pointer')
-            .on('mouseenter', (event, d) => {
-                this.hoveredId = d.id;
-                this.highlight(d.id);
-            })
-            .on('mouseleave', () => {
-                this.hoveredId = null;
-                this.highlight(null);
-            });
+            .attr('stroke-width', 1);
 
-        this.labelSel = gLabels.selectAll('text')
-            .data(nodes)
-            .join('text')
-            .text((d) => d.id)
-            .attr('font-size', small ? LABEL_SIZE_SMALL : LABEL_SIZE)
-            .attr('font-family', 'sans-serif')
-            .attr('fill', colors['gray-8'])
-            .attr('stroke', '#ffffff')
-            .attr('stroke-width', 2.5)
-            .attr('paint-order', 'stroke')
-            .attr('text-anchor', 'middle')
-            .attr('pointer-events', 'none');
+        //
+        // the layout is run to rest HERE, synchronously, and drawn once. See
+        // layout.js: started on the next frame instead, the first thing on
+        // screen is the whole graph sweeping in from the top-left corner.
+        //
+        seedAround(nodes, width / 2, height / 2);
+
+        //
+        // the centring pull is stronger across the canvas's short side than
+        // along its long one, so the graph settles into the canvas's shape. With
+        // one strength for both, it settles round whatever it is drawn into, and
+        // the fit below can only scale a round graph until it touches the SHORT
+        // side -- on a phone held upright that left the top and bottom third of
+        // the canvas empty.
+        //
+        const aspect = Math.min(Math.max(height / width, 1 / ASPECT_MOST), ASPECT_MOST);
 
         this.simulation = d3.forceSimulation(nodes)
             .force('link', d3.forceLink(links)
@@ -263,28 +510,78 @@ class GraphExplorer extends Component {
                     ? Math.min(LINK_BASE + Math.sqrt(d.count) * LINK_SCALE, LINK_MAX)
                     : LINK_PLAIN)))
             .force('charge', d3.forceManyBody().strength(small ? CHARGE_SMALL : CHARGE))
-            .force('collide', d3.forceCollide().radius((d) => d.r + 14))
-            .force('x', d3.forceX(width / 2).strength(0.06))
-            .force('y', d3.forceY(height / 2).strength(0.06))
-            .on('tick', () => {
-                this.linkSel
-                    .attr('x1', (d) => d.source.x)
-                    .attr('y1', (d) => d.source.y)
-                    .attr('x2', (d) => d.target.x)
-                    .attr('y2', (d) => d.target.y);
-                this.nodeSel
-                    .attr('cx', (d) => d.x)
-                    .attr('cy', (d) => d.y);
-                this.labelSel
-                    .attr('x', (d) => d.x)
-                    .attr('y', (d) => d.y - d.r - 4);
-            });
+            .force('collide', d3.forceCollide().radius((d) => d.r + COLLIDE_GAP))
+            .force('x', d3.forceX(width / 2).strength(CENTRE * Math.sqrt(aspect)))
+            .force('y', d3.forceY(height / 2).strength(CENTRE / Math.sqrt(aspect)))
+            .on('tick', this.draw)
+            .stop();
+
+        this.simulation.tick(settleTicks(this.simulation));
+        fitLayout(nodes, width, height, FIT_PAD + radius, FIT_MOST, FIT_STRETCH);
+        this.draw();
+
+        //
+        // pointing is resolved against the nearest node within reach rather than
+        // by events on the circles themselves, so the target is a generous disc
+        // instead of the 7px mark -- see HOVER_REACH.
+        //
+        const nearest = (event, reach) => {
+            const [x, y] = d3.pointer(event);
+            const node = this.simulation.find(x, y, reach);
+
+            return node ? node.id : null;
+        };
+
+        svg.on('mousemove', (event) => this.hover(nearest(event, HOVER_REACH)));
+        svg.on('mouseleave', () => this.hover(null));
+        svg.on('click', (event) => this.pin(nearest(event, TAP_REACH)));
+    }
+
+    card() {
+        const { focus } = this.state;
+
+        if (!focus) {
+            return null;
+        }
+
+        const place = placeCard(focus.x, focus.y, this.size.width, this.size.height);
+
+        return (
+            <div className={`graph-card ${place.className}`} style={place.style || undefined}>
+                <div className='graph-card-namespace'>
+                    <span
+                        className='graph-legend-swatch'
+                        style={{ backgroundColor: focus.colour }}
+                    />
+                    {focus.namespace}
+                </div>
+                <div className='graph-card-name'>
+                    {breakable(focus.name).map((part, index) => (
+                        <React.Fragment key={index}>
+                            {index ? <wbr /> : null}
+                            {part}
+                        </React.Fragment>
+                    ))}
+                </div>
+                <div className='graph-card-stats'>
+                    {plural(focus.count, 'node', 'nodes')}
+                    {' · connected to '}
+                    {plural(focus.linked, 'type', 'types')}
+                </div>
+            </div>
+        );
     }
 
     render() {
         // width/height are set imperatively by d3, so a React re-render never
-        // reconciles -- and never wipes -- what it drew.
-        return <svg className='graph-explorer' ref={this.svgRef} />;
+        // reconciles -- and never wipes -- what it drew. The card is the one
+        // part React owns, and it sits beside the svg rather than inside it.
+        return (
+            <div className='graph-explorer-frame'>
+                <svg className='graph-explorer' ref={this.svgRef} />
+                {this.card()}
+            </div>
+        );
     }
 }
 
@@ -293,4 +590,4 @@ export default GraphExplorer;
 // exported so the legend on the page paints from the same assignment this
 // component does -- a legend computed with a different tail would name colours
 // that are not on screen.
-export { TAIL };
+export { TAIL, HOVER_REACH, TAP_REACH, CARD_DOCK_WIDTH };

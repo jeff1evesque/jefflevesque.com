@@ -23,7 +23,7 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 let mockMobile = false;
@@ -96,6 +96,22 @@ describe('the carousel', () => {
         setup();
 
         expect(links()).toHaveLength(14);
+    });
+});
+
+describe('dragging a card', () => {
+    it('is left to the carousel rather than started by the browser', () => {
+        //
+        // the carousel is swiped by dragging it. A card that let the browser begin its
+        // own native drag -- of the link or the diagram inside -- would take the gesture
+        // away from the carousel partway through a swipe.
+        //
+        setup();
+
+        const card = document.querySelector('.MuiCard-root');
+
+        // dispatchEvent answers false when a handler called preventDefault
+        expect(fireEvent.dragStart(card)).toBe(false);
     });
 });
 

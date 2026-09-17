@@ -250,6 +250,90 @@ describe('data arriving after the first paint', () => {
     });
 });
 
+describe('arriving at rest', () => {
+    //
+    // the cluster used to be drawn around the svg's top-left corner -- where d3
+    // places nodes that arrive without a position -- and dragged to the middle of
+    // the screen in full view. It now starts in the middle and is run to rest
+    // before the first frame, so these read the component straight after mounting,
+    // with no tick dispatched: what is here is what the first frame paints.
+    //
+    function mounted() {
+        const held = React.createRef();
+        render(<GraphCluster ref={held} data={schema} />);
+
+        return held.current;
+    }
+
+    it('has every node drawn in place before the first frame', () => {
+        const page = mounted();
+
+        page.nodeSel.nodes().forEach(circle => {
+            expect(circle.getAttribute('cx')).not.toBeNull();
+            expect(Number.isFinite(Number(circle.getAttribute('cy')))).toBe(true);
+        });
+    });
+
+    it('sits in the middle of the screen, not in its corner', () => {
+        const page = mounted();
+        const across = page.nodes.reduce((sum, n) => sum + n.x, 0) / page.nodes.length;
+        const down = page.nodes.reduce((sum, n) => sum + n.y, 0) / page.nodes.length;
+
+        expect(Math.abs(across - window.innerWidth / 2)).toBeLessThan(window.innerWidth * 0.1);
+        expect(Math.abs(down - window.innerHeight / 2)).toBeLessThan(window.innerHeight * 0.1);
+    });
+
+    it('has already settled down to its ambient drift', () => {
+        const page = mounted();
+        const sim = page.simulation;
+
+        expect(sim.alpha() - sim.alphaTarget()).toBeLessThanOrEqual(sim.alphaMin());
+    });
+
+    it('draws the gray field on that same frame', () => {
+        const page = mounted();
+
+        page.bgNodeSel.nodes().forEach(circle => {
+            expect(circle.getAttribute('cx')).not.toBeNull();
+        });
+        expect(page.snapField).toBe(false);
+    });
+});
+
+describe('the gray field when the graph arrives', () => {
+    //
+    // the graph lands a moment after the first paint, and the whole svg is drawn again
+    // when it does. Sampling a new field there scattered every gray node on screen at
+    // once, in the same instant the cluster appeared.
+    //
+    it('is kept rather than scattered afresh', () => {
+        const held = React.createRef();
+        const { rerender } = render(<GraphCluster ref={held} />);
+        const field = held.current.background;
+
+        rerender(<GraphCluster ref={held} data={schema} />);
+
+        expect(held.current.background).toBe(field);
+        expect(held.current.bgNodeSel.nodes()).toHaveLength(field.nodes.length);
+    });
+
+    it('is sampled afresh if the screen changed shape before the graph arrived', () => {
+        const width = window.innerWidth;
+        const held = React.createRef();
+        const { rerender } = render(<GraphCluster ref={held} />);
+        const field = held.current.background;
+
+        try {
+            window.innerWidth = width + 300;
+            rerender(<GraphCluster ref={held} data={schema} />);
+        } finally {
+            window.innerWidth = width;
+        }
+
+        expect(held.current.background).not.toBe(field);
+    });
+});
+
 describe('the fixture itself', () => {
     it('is the shape the component expects', () => {
         //

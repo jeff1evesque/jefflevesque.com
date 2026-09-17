@@ -9,14 +9,29 @@
 // Note: the front page backdrop is styled by '_animation.scss' and is absolutely
 //       positioned behind the content. This surface is the opposite -- it sits in
 //       the normal flow and is the thing being read -- so the two share no rules.
+//
+// Note: the three-column switch is a media query at bootstrap's 'lg' (992px),
+//       not the '.large-viewport' class page.jsx sets. Three columns need about
+//       that much room, and the class boundaries are drawn for the menus -- the
+//       'medium' class covers widths well below it.
+
+$graph-columns: 992px;
+$graph-side: 16rem;
 
 .graph-page {
-  padding-bottom: $gutter-1;
-  padding-top: $gutter-1;
+  padding-bottom: 1rem;
+  padding-top: 1rem;
+}
+
+.graph-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
 
   h5 {
-    display: inline-block;
-    margin-right: 1rem;
+    margin: 0;
   }
 }
 
@@ -25,7 +40,9 @@
   border: 1px solid $gray-3;
   border-radius: 0.25rem;
   color: $gray-8;
+  flex: 0 1 auto;
   max-width: 100%;
+  min-width: 0;
   padding: 0.35rem 0.5rem;
 
   &:focus {
@@ -39,27 +56,43 @@
 }
 
 //
-// the canvas the simulation draws into. A min-height is set here rather than
-// left to the svg: the explorer is handed its height as a prop, and without a
-// floor the column collapses while the first build is still loading and the
-// page jumps when it arrives.
+// the grid names its areas, so the columns can sit in a different order from
+// the document: build, legend, graph in the source -- the order a phone stacks
+// them in -- and build, graph, legend across a wide screen.
 //
-.graph-canvas {
-  min-height: 620px;
+.graph-layout {
+  display: grid;
+  grid-template-areas:
+    'build'
+    'legend'
+    'canvas';
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.graph-explorer {
-  display: block;
-  max-width: 100%;
+.graph-panel-build {
+  grid-area: build;
 }
 
-.graph-status {
+.graph-panel-legend {
+  grid-area: legend;
+}
+
+//
+// small, spaced capitals: a heading for a column of reference material, which
+// should label it without competing with the graph for attention.
+//
+.graph-panel-heading,
+.graph-legend h6 {
   color: $gray-6;
-  padding-top: $gutter-1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.6rem;
+  text-transform: uppercase;
 }
 
-.graph-status-failed {
-  color: $red-2;
+.graph-legend h6 + ul {
+  margin-bottom: 1.25rem;
 }
 
 //
@@ -67,29 +100,23 @@
 // label/value pairs, not rows that relate to each other.
 //
 .graph-details {
-  border-bottom: 1px solid $gray-2;
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
+  margin: 0;
 
   dt {
     color: $gray-6;
+    font-size: 0.85rem;
     font-weight: normal;
   }
 
   dd {
     color: $gray-8;
-    margin-bottom: 0.5rem;
-    word-break: break-word;
+    font-variant-numeric: tabular-nums;
+    margin: 0 0 0.6rem;
+    overflow-wrap: anywhere;
   }
 }
 
 .graph-legend {
-  h6 {
-    color: $gray-7;
-    margin-bottom: 0.5rem;
-    margin-top: 1rem;
-  }
-
   ul {
     list-style: none;
     margin: 0;
@@ -105,6 +132,22 @@
 }
 
 //
+// as many columns of namespaces as fit at a width that holds the longest name
+// on one line: one in the wide layout's side column, two or three across an
+// opened panel on a phone, where a single column would run a dozen lines long.
+//
+.graph-legend-namespaces {
+  column-gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+
+  li {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+}
+
+//
 // sized to read as a key rather than as a chart element, and given a border so a
 // pale colour -- the shaded tail past the eight palette slots is deliberately
 // light -- still reads as a swatch against white.
@@ -113,6 +156,7 @@
   border: 1px solid $gray-3;
   border-radius: 2px;
   display: inline-block;
+  flex: none;
   height: 0.75rem;
   margin-right: 0.5rem;
   width: 0.75rem;
@@ -127,26 +171,246 @@
 .graph-legend-note {
   color: $gray-6;
   flex-basis: 100%;
+  font-size: 0.85rem;
   padding-left: 2.6rem;
 }
 
 //
-// on a phone the legend and details sit above the graph rather than beside it,
-// which bootstrap's column stacking already does. What it does not do is give
-// the canvas back its height, so the floor is relaxed here.
+// the canvas the graph draws into, sized by the stylesheet rather than by the
+// svg: the explorer measures this box to decide how big to lay the graph out,
+// so the box has to have a size before the graph does.
 //
-.small-viewport {
-  .graph-canvas {
-    min-height: 380px;
+// Its height is what is left of the screen below the site and page headers, with
+// a floor for short windows. 'svh' is the SMALL viewport -- the screen with a
+// phone's address bar showing -- which does not change as that bar slides in and
+// out, so scrolling does not resize the canvas under the reader. 'vh' is the
+// fallback for a browser that predates it.
+//
+// Note: the offsets are measured, not derived: 13rem is the banner, menu, page
+//       header and bottom padding above and below a wide layout (about 180px),
+//       and the narrow one adds the two closed panel toggles. A header that
+//       grows costs a little scrolling, not a broken page.
+//
+.graph-canvas {
+  display: flex;
+  flex-direction: column;
+  grid-area: canvas;
+  height: calc(100vh - 13rem);
+  height: calc(100svh - 13rem);
+  min-height: 26rem;
+  min-width: 0;
+}
+
+.graph-caption {
+  color: $gray-6;
+  font-size: 0.85rem;
+  margin: 0 0 0.25rem;
+}
+
+.graph-explorer-frame {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.graph-explorer {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.graph-status {
+  color: $gray-6;
+  padding-top: $gutter-1;
+}
+
+.graph-status-failed {
+  color: $red-2;
+}
+
+//
+// what a node is, shown beside it when it is pointed at or tapped. Placement is
+// chosen by the explorer (see placeCard) and expressed here as the offset from
+// the node's centre: beside it horizontally, and centred, above or below it
+// depending on how near the top or bottom edge it sits.
+//
+// Note: pointer-events are off. The card sits over the canvas, and one that
+//       caught the pointer would steal the mousemove that decides what is being
+//       pointed at -- the card would flicker off the moment it appeared under
+//       the cursor.
+//
+.graph-card {
+  background-color: rgba($white-1, 0.96);
+  border: 1px solid $gray-2;
+  border-radius: 0.375rem;
+  box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.12);
+  color: $gray-8;
+  line-height: 1.35;
+  max-width: 17rem;
+  padding: 0.55rem 0.75rem;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(var(--graph-card-x, 0), var(--graph-card-y, 0));
+  width: max-content;
+  z-index: 2;
+}
+
+.graph-card-right {
+  --graph-card-x: 1rem;
+}
+
+.graph-card-left {
+  --graph-card-x: calc(-100% - 1rem);
+}
+
+.graph-card-middle {
+  --graph-card-y: -50%;
+}
+
+.graph-card-below {
+  --graph-card-y: 0.5rem;
+}
+
+.graph-card-above {
+  --graph-card-y: calc(-100% - 0.5rem);
+}
+
+.graph-card-dock-top,
+.graph-card-dock-bottom {
+  left: 0.5rem;
+  max-width: none;
+  right: 0.5rem;
+  width: auto;
+}
+
+.graph-card-dock-top {
+  top: 0.5rem;
+}
+
+.graph-card-dock-bottom {
+  bottom: 0.5rem;
+}
+
+.graph-card-namespace {
+  align-items: center;
+  color: $gray-6;
+  display: flex;
+  font-size: 0.8rem;
+}
+
+.graph-card-name {
+  font-weight: 600;
+  margin: 0.1rem 0 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.graph-card-stats {
+  color: $gray-6;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+//
+// narrow: one column, and the two panels open and close. The toggle is a full
+// width row with a chevron and a one-line summary of what is inside, so a closed
+// panel still says something.
+//
+@media (max-width: $graph-columns - 0.02px) {
+  .graph-panel-heading {
+    display: none;
   }
 
-  .graph-details {
-    dd {
-      margin-bottom: 0.35rem;
+  .graph-panel-toggle {
+    align-items: baseline;
+    background: none;
+    border: 0;
+    border-top: 1px solid $gray-2;
+    color: $gray-8;
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.7rem 0.25rem;
+    text-align: left;
+    width: 100%;
+
+    &::before {
+      align-self: center;
+      border-bottom: 2px solid $gray-6;
+      border-right: 2px solid $gray-6;
+      content: '';
+      flex: none;
+      height: 0.45rem;
+      margin: 0 0.35rem 0 0.1rem;
+      transform: rotate(-45deg);
+      transition: transform 0.15s ease;
+      width: 0.45rem;
     }
   }
 
+  .graph-panel-open .graph-panel-toggle::before {
+    transform: rotate(45deg);
+  }
+
+  .graph-panel-title {
+    font-weight: 600;
+  }
+
+  .graph-panel-summary {
+    color: $gray-6;
+    margin-left: auto;
+  }
+
+  .graph-panel-body {
+    display: none;
+    padding: 0.25rem 0.25rem 1rem;
+  }
+
+  .graph-panel-open .graph-panel-body {
+    display: block;
+  }
+
+  //
+  // one label/value pair per line, values to the right, so an opened panel is
+  // eight lines rather than sixteen
+  //
+  .graph-details-row {
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+
+    dd {
+      margin-bottom: 0.35rem;
+      text-align: right;
+    }
+  }
+
+  .graph-canvas {
+    border-top: 1px solid $gray-2;
+    height: calc(100vh - 21.5rem);
+    height: calc(100svh - 21.5rem);
+    min-height: 22rem;
+    padding-top: 0.6rem;
+  }
+}
+
+//
+// wide: three columns, with the panels always open and headed rather than
+// toggled.
+//
+@media (min-width: $graph-columns) {
+  .graph-layout {
+    align-items: start;
+    column-gap: 2rem;
+    grid-template-areas: 'build canvas legend';
+    grid-template-columns: $graph-side minmax(0, 1fr) $graph-side;
+  }
+
+  .graph-panel-toggle {
+    display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
   .graph-picker {
-    max-width: $mobile-width;
+    flex-basis: 100%;
   }
 }

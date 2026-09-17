@@ -422,6 +422,20 @@ describe('when the page updates it', () => {
     });
 });
 
+describe('mounting with the sheet already open', () => {
+    it('shows the sheet controls straight away when the page asks for them', () => {
+        //
+        // the open sheet is otherwise only reached through the Filter button, but the
+        // page can hand the column that state directly.
+        //
+        const { dispatchHide } = setup({ display_apply_filter_button: true });
+
+        expect(screen.getByText('Edit Content Filter')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Apply Filter' })).toBeInTheDocument();
+        expect(dispatchHide).not.toHaveBeenCalled();
+    });
+});
+
 describe('the mobile filter button', () => {
     it('replaces the panel with a single Filter button', () => {
         setup({ display_filter_button: true });
@@ -565,5 +579,53 @@ describe('the mobile filter header', () => {
         });
 
         expect(screen.getByText('(March)')).toBeInTheDocument();
+    });
+
+    it('follows the page rescaling the chart after first paint', () => {
+        //
+        // the span is read from trigger_rate, which the page changes whenever the chart
+        // is rescaled -- a header fixed at its first value would name a month over a
+        // minute chart.
+        //
+        mockMobile = true;
+        const props = {
+            dispatchHide: jest.fn(),
+            toggleChartScale: jest.fn(),
+            candlestick_rates: RATES,
+            display_filter_button: true,
+            listing_graphic_title: 'Candlestick',
+            mm: '03',
+        };
+        const { rerender } = render(<CandlestickLeftColumn {...props} trigger_rate='Daily' />);
+        expect(screen.getByText('(March)')).toBeInTheDocument();
+
+        rerender(<CandlestickLeftColumn {...props} trigger_rate='Minutes' />);
+
+        expect(screen.getByText('(Now)')).toBeInTheDocument();
+    });
+});
+
+describe('with only the props it cannot do without', () => {
+    //
+    // the rates, the chart callback and the apply button all fall back to defaults,
+    // since the page does not always have them to give: the column has to work on
+    // the defaults alone.
+    //
+    function bare(props = {}) {
+        return render(<CandlestickLeftColumn dispatchHide={jest.fn()} {...props} />);
+    }
+
+    it('still renders its switch', () => {
+        bare();
+
+        expect(screen.getByRole('checkbox', { name: 'Candlestick' })).toBeInTheDocument();
+    });
+
+    it('lets a pattern be chosen with no chart to rescale', async () => {
+        bare({ display_candlestick: true, chart_data_keys: KEYS });
+
+        await choose('Pattern', 'Hammer');
+
+        expect(selector('Pattern')).toHaveTextContent('Hammer');
     });
 });
