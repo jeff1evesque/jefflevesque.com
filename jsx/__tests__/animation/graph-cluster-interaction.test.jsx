@@ -23,6 +23,7 @@ import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 
 import GraphCluster, { clamp, segClosest } from '../../import/animation/graph-cluster.jsx';
+import { colors } from '../../import/general/colors.js';
 import schema from '../fixtures/graph-schema.mock.json';
 
 //
@@ -199,6 +200,22 @@ describe('highlight', () => {
         expect(opacities).toContain(0.05);
     });
 
+    it('lights the types pointing AT the hovered node, not only the ones it points at', () => {
+        //
+        // edges are directed, and a neighbourhood is both ends of them. Hovering the
+        // target of an edge has to light its source too.
+        //
+        const { page } = setup();
+        const link = page.links.find(l => l.source.id !== l.target.id);
+
+        page.highlight(link.target.id);
+
+        const opacity = new Map(
+            page.nodeSel.nodes().map((n, i) => [page.nodes[i].id, n.getAttribute('opacity')])
+        );
+        expect(opacity.get(link.source.id)).toBe('1');
+    });
+
     it('gives every edge the same resting opacity when nothing is hovered', () => {
         const { page } = setup();
 
@@ -235,6 +252,171 @@ describe('highlight', () => {
             .filter(n => n.getAttribute('opacity') === '1');
         expect(visible).toHaveLength(0);
         expect(labels(container).length).toBeGreaterThan(0);
+    });
+});
+
+describe('nodeColor', () => {
+    it('falls back to a neutral gray before any graph has been drawn', () => {
+        //
+        // no schema means no colour assignment at all, which is the cold-load state
+        // rather than a mistake.
+        //
+        const held = React.createRef();
+        render(<GraphCluster ref={held} />);
+
+        expect(held.current.nodeColor('bls')).toBe(colors['gray-5']);
+    });
+
+    it('falls back to a neutral gray for a namespace the build does not carry', () => {
+        const { page } = setup();
+
+        expect(page.nodeColor('no-such-namespace')).toBe(colors['gray-5']);
+    });
+
+    it('gives a namespace the build does carry its assigned colour', () => {
+        const { page } = setup();
+        const { namespace } = page.nodes[0];
+
+        expect(page.nodeColor(namespace)).toBe(page.namespaceColors.get(namespace));
+    });
+});
+
+describe('on a phone-sized screen', () => {
+    const width = window.innerWidth;
+
+    afterEach(() => {
+        window.innerWidth = width;
+    });
+
+    it('draws smaller nodes, a smaller gray field and smaller labels', () => {
+        window.innerWidth = 500;
+
+        const { page } = setup();
+
+        expect(page.nodes[0].r).toBe(6);
+        expect(page.bgRadius).toBe(6);
+        expect(page.labelSel.nodes()[0].getAttribute('font-size')).toBe('11');
+    });
+
+    it('pushes the cluster apart more gently, to fit the narrower screen', () => {
+        window.innerWidth = 500;
+
+        const { page } = setup();
+
+        expect(page.simulation.force('charge').strength()()).toBe(-60);
+    });
+});
+
+describe('dragging a node', () => {
+    //
+    // d3-drag listens for the press on the circle and for the move and the release on
+    // the window, so the events are dispatched where it listens. Each carries the
+    // window as its view, because d3-drag reads the window from there.
+    //
+    function press(page) {
+        fireEvent.mouseDown(page.nodeSel.nodes()[0], { view: window, clientX: 100, clientY: 100 });
+
+        return page.nodes[0];
+    }
+
+    const move = (x, y) => fireEvent.mouseMove(window, { view: window, clientX: x, clientY: y });
+    const release = (x, y) => fireEvent.mouseUp(window, { view: window, clientX: x, clientY: y });
+
+    it('pins the node where it is, and wakes the simulation to follow', () => {
+        const { page } = setup();
+
+        const node = press(page);
+
+        expect(node.fx).toBe(node.x);
+        expect(node.fy).toBe(node.y);
+        expect(page.simulation.alphaTarget()).toBe(0.3);
+        release(100, 100);
+    });
+
+    it('carries the node with the pointer', () => {
+        const { page } = setup();
+        const node = press(page);
+        const [x, y] = [node.x, node.y];
+
+        move(130, 120);
+
+        expect(node.fx).toBeCloseTo(x + 30);
+        expect(node.fy).toBeCloseTo(y + 20);
+        release(130, 120);
+    });
+
+    it('lets go of the node when released, so the layout takes it back', () => {
+        const { page } = setup();
+        const node = press(page);
+        move(130, 120);
+
+        release(130, 120);
+
+        expect(node.fx).toBeNull();
+        expect(node.fy).toBeNull();
+        expect(page.simulation.alphaTarget()).toBeLessThan(0.3);
+    });
+});
+
+describe('the pointer force', () => {
+    //
+    // fetched off the simulation and applied once, as a tick would apply it: a push
+    // away from the cursor for the nodes in the ring between POINTER_INNER (45px) and
+    // POINTER_OUTER (150px), and for no others.
+    //
+    function pushed(page, distance) {
+        const node = page.nodes[0];
+
+        page.pointer = { x: 500, y: 300 };
+        node.x = 500 + distance;
+        node.y = 300;
+        node.vx = 0;
+        node.vy = 0;
+
+        page.simulation.force('pointer')(1);
+
+        return node;
+    }
+
+    it('pushes a node in the ring directly away from the cursor', () => {
+        const { page } = setup();
+
+        const node = pushed(page, 100);
+
+        expect(node.vx).toBeGreaterThan(0);
+        expect(node.vy).toBe(0);
+    });
+
+    it('pushes harder the closer the node is', () => {
+        const { page } = setup();
+
+        const near = pushed(page, 60).vx;
+        const far = pushed(page, 140).vx;
+
+        expect(near).toBeGreaterThan(far);
+    });
+
+    it('leaves the node under the cursor alone, so it stays close enough to read', () => {
+        const { page } = setup();
+
+        expect(pushed(page, 20).vx).toBe(0);
+    });
+
+    it('leaves a node outside the ring alone', () => {
+        const { page } = setup();
+
+        expect(pushed(page, 200).vx).toBe(0);
+    });
+
+    it('does nothing without a cursor', () => {
+        const { page } = setup();
+        const node = page.nodes[0];
+        node.vx = 0;
+        page.pointer = null;
+
+        page.simulation.force('pointer')(1);
+
+        expect(node.vx).toBe(0);
     });
 });
 
@@ -379,6 +561,24 @@ describe('applyResize', () => {
         expect(page.background.nodes).toBe(before);
         expect(page.viewH).toBe(window.innerHeight - page.topMargin);
     });
+
+    it('places a rebuilt field at once, since it has no earlier frame to glide from', () => {
+        const { page } = setup();
+        window.innerWidth = window.innerWidth + 600;
+
+        page.applyResize();
+
+        expect(page.snapField).toBe(true);
+    });
+
+    it('leaves a kept field gliding as usual', () => {
+        const { page } = setup();
+        window.innerHeight = window.innerHeight - 40;
+
+        page.applyResize();
+
+        expect(page.snapField).toBe(false);
+    });
 });
 
 describe('handleResize', () => {
@@ -409,6 +609,22 @@ describe('handleResize', () => {
 
         expect(applied).toHaveBeenCalledTimes(1);
 
+        applied.mockRestore();
+    });
+
+    it('drops a pending resize once unmounted', () => {
+        //
+        // the work it would do draws into an svg that is no longer in the page.
+        //
+        const { page, unmount } = setup();
+        jest.useFakeTimers();
+        const applied = jest.spyOn(page, 'applyResize');
+
+        page.handleResize();
+        unmount();
+        jest.advanceTimersByTime(BG_RESIZE_DEBOUNCE);
+
+        expect(applied).not.toHaveBeenCalled();
         applied.mockRestore();
     });
 
@@ -543,6 +759,147 @@ describe('the per-tick work', () => {
         const opacities = page.bgNodeSel.nodes()
             .map(n => Number(n.getAttribute('opacity')));
         expect(Math.max(...opacities)).toBeGreaterThan(Math.min(...opacities));
+    });
+
+    //
+    // a gray node with the whole cluster piled up just beside its home spot, so the
+    // repel wants it about 75px from where it is drawn. Chosen well inside the
+    // viewport, so neither the on-screen clamp nor the overhang enters into it.
+    //
+    function crowd(page) {
+        const n = page.background.nodes.find(b => b.hx > 300 && b.hx < page.viewW - 300
+            && b.hy > 300 && b.hy < page.viewH - 300);
+
+        page.nodes.forEach(c => { c.x = n.hx + 10; c.y = n.hy; });
+        n.x = n.hx;
+        n.y = n.hy;
+
+        return n;
+    }
+
+    it('glides a gray node out of the cluster\'s way, a few px a frame', () => {
+        const { page } = setup();
+        const n = crowd(page);
+
+        tick(page);
+
+        expect(Math.hypot(n.x - n.hx, n.y - n.hy)).toBeLessThanOrEqual(5 + 1e-9);
+    });
+
+    it('places it clear at once on the first frame of a drawing', () => {
+        //
+        // nothing is on screen yet to glide from. Gliding anyway plays the field
+        // parting around the cluster as an animation on every page load.
+        //
+        const { page } = setup();
+        const n = crowd(page);
+        page.snapField = true;
+
+        tick(page);
+
+        expect(Math.hypot(n.x - (n.hx + 10), n.y - n.hy)).toBeGreaterThan(60);
+    });
+
+    it('goes back to gliding after that one frame', () => {
+        const { page } = setup();
+        page.snapField = true;
+
+        tick(page);
+
+        expect(page.snapField).toBe(false);
+    });
+
+    //
+    // an interior gray node held exactly at its home spot, so the only thing moving it
+    // is whatever the cluster does
+    //
+    function stillAtHome(page, inset = 300) {
+        const n = page.background.nodes.find(b => b.hx > inset && b.hx < page.viewW - inset
+            && b.hy > inset && b.hy < page.viewH - inset);
+
+        n.wobble = 0;
+        n.x = n.hx;
+        n.y = n.hy;
+
+        return n;
+    }
+
+    it('keeps a gray node within reach of home however hard the cluster shoves it', () => {
+        //
+        // the whole cluster in a row stepping left from just beside the node, each one
+        // pushing it on into the next: unbounded, that is more than 1600px. A node
+        // shoved out of view is indistinguishable from one that vanished, so the aim is
+        // held to BG_MAX_PUSH (420px) of home.
+        //
+        const { page } = setup();
+        const n = page.background.nodes.find(b => b.hx > 750 && b.hx < page.viewW - 50
+            && b.hy > 200 && b.hy < page.viewH - 200);
+        n.wobble = 0;
+        page.nodes.forEach((c, i) => { c.x = n.hx + 10 - i * 70; c.y = n.hy; });
+
+        tick(page);
+
+        const aim = Math.hypot(n.tx - n.hx, n.ty - n.hy);
+        expect(aim).toBeGreaterThan(400);
+        expect(aim).toBeLessThanOrEqual(420 + 1e-9);
+    });
+
+    it('moves a gray node drawn dead on a cluster node, picking a way out', () => {
+        //
+        // exactly concentric there is no direction to push along -- the repel skips it
+        // for that reason -- so the hard non-overlap has to choose one rather than divide
+        // by zero or leave the node drawn over the cluster.
+        //
+        const { page } = setup();
+        const n = stillAtHome(page);
+        page.nodes.forEach(c => { c.x = n.hx; c.y = n.hy; });
+
+        tick(page);
+
+        expect(Number.isNaN(n.x) || Number.isNaN(n.y)).toBe(false);
+        expect(Math.hypot(n.x - n.hx, n.y - n.hy)).toBeGreaterThan(0);
+    });
+
+    //
+    // every cluster node on a row `below` px under the gray node, alternately far to
+    // its left and right, so the edges between the two sides pass right under it and
+    // no cluster NODE is anywhere near.
+    //
+    function straddled(page, n, below) {
+        page.nodes.forEach((c, i) => {
+            c.x = n.hx + (i % 2 ? -1 : 1) * (200 + i * 10);
+            c.y = n.hy + below;
+        });
+
+        // the premise, rather than an assumption about the fixture's edges
+        expect(page.links.some(l => (l.source.x - n.hx) * (l.target.x - n.hx) < 0)).toBe(true);
+    }
+
+    it('slides a gray node drawn across a cluster edge off it', () => {
+        //
+        // 1px from the edge, its glide toward a clear spot still leaves it overlapping
+        // on this frame, and the hard non-overlap moves it the rest of the way out --
+        // straight up, away from the edge.
+        //
+        const { page } = setup();
+        const n = stillAtHome(page);
+        straddled(page, n, 1);
+
+        tick(page);
+
+        expect(n.y).toBeLessThan(n.hy);
+        expect(n.x).toBeCloseTo(n.hx);
+    });
+
+    it('moves a gray node drawn exactly on a cluster edge, picking a way out', () => {
+        const { page } = setup();
+        const n = stillAtHome(page);
+        straddled(page, n, 0);
+
+        tick(page);
+
+        expect(Number.isNaN(n.x) || Number.isNaN(n.y)).toBe(false);
+        expect(Math.hypot(n.x - n.hx, n.y - n.hy)).toBeGreaterThan(0);
     });
 
     it('re-evaluates the hover on every tick', () => {
