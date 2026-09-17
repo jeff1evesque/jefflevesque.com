@@ -363,17 +363,22 @@ describe('downloading the distribution', () => {
         expect(url).not.toContain('/artifact/stock-market/data-distribution/');
     });
 
-    it('asks for the same scale the /data page asks for', () => {
+    it('asks for the same dataset and scale the /data page asks for', () => {
         //
         // both pages report a partition count for one month, so a disagreement
         // between them is a bug in one of the two. Sharing the endpoint, the
-        // loader and the worker is what makes that impossible.
+        // loader, the worker and the url builder is what makes that impossible.
+        //
+        // FIXED. This pinned 'Data=stockmarket' while claiming the two pages
+        // agreed. They did not: /data sends the dataset name, 'stock-market', and
+        // the api answers the stream id 'stockmarket' with a 400 -- so the ticker
+        // count this page waits for could never arrive.
         //
         renderAlarm('stockmarket');
 
         const url = new URL(String(getData.mock.calls[0][1]));
 
-        expect(url.searchParams.get('Data')).toBe('stockmarket');
+        expect(url.searchParams.get('Data')).toBe('stock-market');
         expect(JSON.parse(url.searchParams.get('Scale'))).toEqual({
             year: new Date().getFullYear(),
             month: String(new Date().getMonth() + 1).padStart(2, '0'),
