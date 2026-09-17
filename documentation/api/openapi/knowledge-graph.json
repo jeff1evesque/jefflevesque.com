@@ -1,0 +1,377 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Knowledge graph",
+    "version": "v1",
+    "description": "The published builds of the knowledge graph, and each build's schema: its node types, its edge types and their counts. Read by the /graph page, and by the front page for its default build."
+  },
+  "servers": [
+    {
+      "url": "https://api.jefflevesque.com/v1/public"
+    }
+  ],
+  "paths": {
+    "/knowledge-graph": {
+      "get": {
+        "operationId": "getKnowledgeGraph",
+        "summary": "The listing of builds, or one build's schema",
+        "description": "Without Graph, the listing of every published build, newest first, and which one is the default. With Graph, the schema of that build. Ids are opaque: take one from the listing and send it back unchanged.",
+        "parameters": [
+          {
+            "name": "Graph",
+            "in": "query",
+            "required": false,
+            "description": "An id from the listing. It is the only query parameter accepted, and may be given once.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "all-sources.2026-09.20260916T171546Z.1024d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The listing without Graph, or the build's schema with it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "oneOf": [
+                        {
+                          "title": "Listing",
+                          "type": "object",
+                          "required": [
+                            "default",
+                            "graphs"
+                          ],
+                          "properties": {
+                            "default": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "The id of the build to show when none is chosen, or null when nothing is servable."
+                            },
+                            "graphs": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "label"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "type": "string"
+                                  },
+                                  "dataset": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "period": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "description": "The year and month the build covers, as YYYY-MM."
+                                  },
+                                  "variant": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "run": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "description": "When the build ran, in UTC."
+                                  },
+                                  "built": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "description": "When the build finished, in UTC."
+                                  },
+                                  "nodes": {
+                                    "type": [
+                                      "integer",
+                                      "null"
+                                    ],
+                                    "description": "Every node in the build."
+                                  },
+                                  "edges": {
+                                    "type": [
+                                      "integer",
+                                      "null"
+                                    ],
+                                    "description": "Every edge in the build."
+                                  },
+                                  "sources": {
+                                    "type": [
+                                      "array",
+                                      "null"
+                                    ],
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "error": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "description": "Why the build cannot be served, or null when it can."
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "title": "Schema",
+                          "type": "object",
+                          "required": [
+                            "node_types",
+                            "edge_types"
+                          ],
+                          "properties": {
+                            "version": {
+                              "type": "string"
+                            },
+                            "build_metadata": {
+                              "type": "object"
+                            },
+                            "node_types": {
+                              "type": "object",
+                              "description": "Keyed by node type.",
+                              "additionalProperties": {
+                                "type": "object",
+                                "required": [
+                                  "count"
+                                ],
+                                "properties": {
+                                  "count": {
+                                    "type": "integer"
+                                  },
+                                  "source_type_uri": {
+                                    "type": "string"
+                                  },
+                                  "category": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "edge_types": {
+                              "type": "object",
+                              "description": "Keyed by an opaque label. Each names the node types it joins.",
+                              "additionalProperties": {
+                                "type": "object",
+                                "required": [
+                                  "src_type",
+                                  "relation",
+                                  "dst_type",
+                                  "count"
+                                ],
+                                "properties": {
+                                  "src_type": {
+                                    "type": "string"
+                                  },
+                                  "relation": {
+                                    "type": "string"
+                                  },
+                                  "dst_type": {
+                                    "type": "string"
+                                  },
+                                  "count": {
+                                    "type": "integer"
+                                  },
+                                  "origin": {
+                                    "type": "string",
+                                    "enum": [
+                                      "raw",
+                                      "enrichment",
+                                      "unification"
+                                    ]
+                                  }
+                                }
+                              }
+                            },
+                            "relation_groups": {
+                              "type": "object"
+                            },
+                            "summary": {
+                              "type": "object",
+                              "properties": {
+                                "total_node_types": {
+                                  "type": "integer"
+                                },
+                                "total_edge_types": {
+                                  "type": "integer"
+                                },
+                                "total_nodes": {
+                                  "type": "integer"
+                                },
+                                "total_edges": {
+                                  "type": "integer"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "examples": {
+                  "listing": {
+                    "summary": "Without Graph",
+                    "value": {
+                      "report": {
+                        "default": "all-sources.2026-09.20260916T171546Z.1024d",
+                        "graphs": [
+                          {
+                            "id": "all-sources.2026-09.20260916T171546Z.1024d",
+                            "label": "September 2026 (all-sources, 1024d, run 2026-09-16 17:15 UTC)",
+                            "dataset": "all-sources",
+                            "period": "2026-09",
+                            "variant": "1024d",
+                            "run": "2026-09-16T17:15:46Z",
+                            "built": "2026-09-16T18:39:38Z",
+                            "nodes": 9982993,
+                            "edges": 74831988,
+                            "sources": [
+                              "bls",
+                              "market",
+                              "noaa",
+                              "sec"
+                            ],
+                            "error": null
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "schema": {
+                    "summary": "With Graph, cut down to two node types",
+                    "value": {
+                      "report": {
+                        "version": "1.3",
+                        "build_metadata": {
+                          "time_period": "2026-09",
+                          "sources": [
+                            "bls",
+                            "market",
+                            "noaa",
+                            "sec"
+                          ]
+                        },
+                        "node_types": {
+                          "cpi_Category": {
+                            "count": 322,
+                            "source_type_uri": "https://jefflevesque.com/ontology/cpi/Category",
+                            "category": "entity"
+                          },
+                          "cpi_OneMonthPercentChange": {
+                            "count": 2548,
+                            "source_type_uri": "https://jefflevesque.com/ontology/cpi/OneMonthPercentChange",
+                            "category": "entity"
+                          }
+                        },
+                        "edge_types": {
+                          "(cpi_OneMonthPercentChange, cpi_hasCategory, cpi_Category)": {
+                            "src_type": "cpi_OneMonthPercentChange",
+                            "relation": "cpi_hasCategory",
+                            "dst_type": "cpi_Category",
+                            "count": 2548,
+                            "origin": "raw"
+                          }
+                        },
+                        "relation_groups": {},
+                        "summary": {
+                          "total_node_types": 149,
+                          "total_edge_types": 822,
+                          "total_nodes": 9982993,
+                          "total_edges": 74831988
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A query parameter other than Graph, Graph given more than once, or an id that is not shaped like one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "Graph NOT valid, expected an id from the listing"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The id is not in the listing, or its build is no longer available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
