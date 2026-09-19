@@ -11,7 +11,7 @@ GET https://api.jefflevesque.com/v1/public/knowledge-graph/tables/neighborhood
 
 The published builds of the knowledge graph, and each build's schema: its node types,
 its edge types, and how many of each it holds. `/graph` lets a reader pick a build and
-draws it; the front page draws the default build behind its content.
+draws it; the front page draws the default build, and is that graph and nothing else.
 
 The `tables` paths answer a different kind of question. The first two say what a build
 **is**; these say what a build **contains** — which links exist, which entities match
@@ -82,6 +82,14 @@ holds millions of nodes across well over a hundred node types, and the graph dra
 circle per node **type** -- a slice of them, since not all fit legibly. See
 [#46](https://github.com/jeff1evesque/jefflevesque.com/issues/46), where the page
 labelled the first figure as the second.
+
+`period` and `run` are likewise not the same scale. A build covers a **month**, and the
+same month is built again and again -- the listing above holds several runs of one
+period, each having taken in more of that month than the one before it. So `period` says
+which month, `run` says how far into it that build got, and neither stands in for the
+other. `/graph` once read the period out as the days it covered, ending on the run date;
+the days were never published, and the end was the run wearing a coverage date's
+clothes.
 
 ## Response: the tables
 
