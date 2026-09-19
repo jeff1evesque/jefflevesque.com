@@ -31,10 +31,13 @@ Every URL the application fetches from these APIs is built in
 [`jsx/import/general/api-url.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/api-url.js),
 by `performanceUrl`, `datalakeUrl`, `knowledgeGraphUrl` and `knowledgeGraphTablesUrl`.
 
-The charts on `/stream` and `/data`, and the header on `/graph`, carry two icons built
+The charts on `/stream` and `/data`, and the graph on `/graph`, carry two icons built
 from the same functions: a book, which opens that API's page here, and a pair of braces,
 which opens the exact request behind what is on screen. Because the page's fetch and the
 icon share one builder, the icon cannot name a request the page did not make.
+
+Each pair sits with the thing it describes rather than with the page — in a chart's own
+corner, and at the top of the column `/graph` draws its graph in.
 
 ## How these pages are kept true
 
