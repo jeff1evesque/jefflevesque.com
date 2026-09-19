@@ -83,6 +83,12 @@ circle per node **type** -- a slice of them, since not all fit legibly. See
 [#46](https://github.com/jeff1evesque/jefflevesque.com/issues/46), where the page
 labelled the first figure as the second.
 
+The types the canvas leaves out are not lost: `/graph` lists every `node_types` and
+`edge_types` entry in tables below the graph, read from this same response. No further
+request is made for them, and nothing there comes from the `tables` paths below -- those
+answer across the published window rather than for one build, which under a build picker
+would read as something they are not.
+
 **`period` is a partition key, not a window over the data.** Builds are published under
 a partition -- `YYYY-MM`, nested year then month -- and an `id` is selected from within
 it, which is why the listing above holds several builds sharing one `period` and
