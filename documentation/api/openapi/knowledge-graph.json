@@ -517,32 +517,174 @@
         }
       }
     },
-    "/knowledge-graph/tables": {
+    "/knowledge-graph/tables/edge-types": {
       "get": {
-        "operationId": "queryKnowledgeGraphTables",
-        "summary": "Ask one question of the published tables",
-        "description": "Questions about what a published build CONTAINS, rather than what a build is. One Operation per request, with the values that operation requires. The tables are partitioned by day, and only days that finished publishing are readable.",
+        "operationId": "listKnowledgeGraphEdgeTypes",
+        "summary": "The relation catalogue",
+        "description": "Which links exist between which node types, and how many of each. Takes no value beyond a Limit.",
         "parameters": [
           {
-            "name": "Operation",
+            "name": "Limit",
             "in": "query",
-            "required": true,
-            "description": "Which question to ask. Each takes its own values: EdgeTypes takes none, Find takes Text, Facts takes Uri, and Neighborhood takes Uri and Day. A value meaningless to the named operation is refused rather than ignored.",
+            "required": false,
+            "description": "The most rows to answer with. The service applies a ceiling of its own, so a larger value does not widen the answer.",
             "schema": {
-              "type": "string",
-              "enum": [
-                "EdgeTypes",
-                "Find",
-                "Facts",
-                "Neighborhood"
-              ]
+              "type": "integer",
+              "minimum": 1
             },
-            "example": "EdgeTypes"
+            "example": 10
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows the question answers with, which may legitimately be empty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "rows"
+                      ],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "description": "One object per row. The columns depend on the Operation.",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "rows": [
+                      {
+                        "src_type": "filings_SECFiling",
+                        "relation": "filings_hasIssuer",
+                        "dst_type": "sec_enrichment_UnifiedCompany",
+                        "count": 838
+                      }
+                    ]
+                  }
+                }
+              }
+            }
           },
+          "400": {
+            "description": "An operation the service does not offer, or a value meaningless to the one named. The rejected value is never echoed back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "Operation NOT recognized, expected one of EdgeTypes, Find, Neighborhood, Facts"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A named Day that is not a published day, or no published day at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "not a published day"
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The question was too large to answer inside the request window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "query took too long, narrow it"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph/tables/find": {
+      "get": {
+        "operationId": "findKnowledgeGraphEntities",
+        "summary": "Entities matching some text",
+        "description": "Entities whose text matches, as a case-insensitive substring. Wildcards are refused, so a literal % or _ cannot widen the match.",
+        "parameters": [
           {
             "name": "Text",
             "in": "query",
-            "required": false,
+            "required": true,
             "description": "Required by Find. Matched as a case-insensitive substring of an entity's text. Wildcards are refused, so a literal % or _ cannot widen the match.",
             "schema": {
               "type": "string"
@@ -550,9 +692,167 @@
             "example": "apple"
           },
           {
-            "name": "Uri",
+            "name": "Limit",
             "in": "query",
             "required": false,
+            "description": "The most rows to answer with. The service applies a ceiling of its own, so a larger value does not widen the answer.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 10
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows the question answers with, which may legitimately be empty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "rows"
+                      ],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "description": "One object per row. The columns depend on the Operation.",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "rows": [
+                      {
+                        "src_type": "filings_SECFiling",
+                        "relation": "filings_hasIssuer",
+                        "dst_type": "sec_enrichment_UnifiedCompany",
+                        "count": 838
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An operation the service does not offer, or a value meaningless to the one named. The rejected value is never echoed back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "Operation NOT recognized, expected one of EdgeTypes, Find, Neighborhood, Facts"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A named Day that is not a published day, or no published day at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "not a published day"
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The question was too large to answer inside the request window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "query took too long, narrow it"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph/tables/facts": {
+      "get": {
+        "operationId": "listKnowledgeGraphFacts",
+        "summary": "The values held about one entity",
+        "description": "Everything the build holds about one entity. Reads across the published window unless a Day narrows it.",
+        "parameters": [
+          {
+            "name": "Uri",
+            "in": "query",
+            "required": true,
             "description": "Required by Facts and Neighborhood. The entity to read, as its uri from a Find result. Uris are stable across days, unlike the numeric ids the tables join on.",
             "schema": {
               "type": "string"
@@ -563,6 +863,185 @@
             "name": "Day",
             "in": "query",
             "required": false,
+            "description": "A published day, as YYYY-MM-DD. Required by Neighborhood, because ids are renumbered daily and an edge only means anything joined within its own day. Optional for Facts, which reads across the published window when it is omitted.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "example": "2026-09-18"
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "required": false,
+            "description": "The most rows to answer with. The service applies a ceiling of its own, so a larger value does not widen the answer.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 10
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rows the question answers with, which may legitimately be empty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "rows"
+                      ],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "description": "One object per row. The columns depend on the Operation.",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "rows": [
+                      {
+                        "src_type": "filings_SECFiling",
+                        "relation": "filings_hasIssuer",
+                        "dst_type": "sec_enrichment_UnifiedCompany",
+                        "count": 838
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An operation the service does not offer, or a value meaningless to the one named. The rejected value is never echoed back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "Operation NOT recognized, expected one of EdgeTypes, Find, Neighborhood, Facts"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A named Day that is not a published day, or no published day at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "not a published day"
+                  }
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The question was too large to answer inside the request window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "query took too long, narrow it"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph/tables/neighborhood": {
+      "get": {
+        "operationId": "listKnowledgeGraphNeighborhood",
+        "summary": "The edges touching one entity, within a day",
+        "description": "The edges touching one entity on one published day. The Day is required: the numeric ids the tables join on are renumbered daily, so an edge only means anything joined within its own day.",
+        "parameters": [
+          {
+            "name": "Uri",
+            "in": "query",
+            "required": true,
+            "description": "Required by Facts and Neighborhood. The entity to read, as its uri from a Find result. Uris are stable across days, unlike the numeric ids the tables join on.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "https://jefflevesque.com/ontology/unified/Company_0000001800"
+          },
+          {
+            "name": "Day",
+            "in": "query",
+            "required": true,
             "description": "A published day, as YYYY-MM-DD. Required by Neighborhood, because ids are renumbered daily and an edge only means anything joined within its own day. Optional for Facts, which reads across the published window when it is omitted.",
             "schema": {
               "type": "string",

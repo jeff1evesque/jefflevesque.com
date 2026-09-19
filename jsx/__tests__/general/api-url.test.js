@@ -172,20 +172,31 @@ describe('knowledgeGraphUrl', () => {
 });
 
 describe('knowledgeGraphTablesUrl', () => {
-    it('names the operation, and asks the tables path rather than a build', () => {
-        const url = knowledgeGraphTablesUrl('EdgeTypes');
+    it('asks each operation on its own path, and sends no Operation', () => {
+        //
+        // the operation moved into the path because four operations taking four
+        // parameter sets cannot be described on one. Sending it as well would be
+        // a parameter the path does not take, which the api answers with a 400.
+        //
+        expect(knowledgeGraphTablesUrl('EdgeTypes').pathname)
+            .toBe('/v1/public/knowledge-graph/tables/edge-types');
+        expect(knowledgeGraphTablesUrl('Find', { Text: 'a' }).pathname)
+            .toBe('/v1/public/knowledge-graph/tables/find');
+        expect(knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x' }).pathname)
+            .toBe('/v1/public/knowledge-graph/tables/facts');
+        expect(knowledgeGraphTablesUrl('Neighborhood', { Uri: 'urn:x', Day: '2026-09-18' }).pathname)
+            .toBe('/v1/public/knowledge-graph/tables/neighborhood');
 
-        expect(url.pathname).toBe('/v1/public/knowledge-graph/tables');
-        expect(url.searchParams.get('Operation')).toBe('EdgeTypes');
+        expect(sent(knowledgeGraphTablesUrl('EdgeTypes'))).toEqual([]);
     });
 
     it('sends each operation the values that operation takes', () => {
         expect(sent(knowledgeGraphTablesUrl('Find', { Text: 'apple' })))
-            .toEqual(['Operation', 'Text']);
+            .toEqual(['Text']);
         expect(sent(knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x' })))
-            .toEqual(['Operation', 'Uri']);
+            .toEqual(['Uri']);
         expect(sent(knowledgeGraphTablesUrl('Neighborhood', { Uri: 'urn:x', Day: '2026-09-18' })))
-            .toEqual(['Day', 'Operation', 'Uri']);
+            .toEqual(['Day', 'Uri']);
     });
 
     it('refuses an operation the api does not offer, rather than sending it', () => {
@@ -210,7 +221,7 @@ describe('knowledgeGraphTablesUrl', () => {
 
     it('takes a Limit on every operation, being a ceiling rather than a question', () => {
         expect(sent(knowledgeGraphTablesUrl('EdgeTypes', { Limit: 10 })))
-            .toEqual(['Limit', 'Operation']);
+            .toEqual(['Limit']);
         expect(knowledgeGraphTablesUrl('EdgeTypes', { Limit: 10 }).searchParams.get('Limit'))
             .toBe('10');
     });
@@ -221,9 +232,9 @@ describe('knowledgeGraphTablesUrl', () => {
         // rather than an omission.
         //
         expect(sent(knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x', Day: null })))
-            .toEqual(['Operation', 'Uri']);
+            .toEqual(['Uri']);
         expect(sent(knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x', Day: '' })))
-            .toEqual(['Operation', 'Uri']);
+            .toEqual(['Uri']);
     });
 
     it('encodes a value rather than interpolating it', () => {
@@ -235,7 +246,7 @@ describe('knowledgeGraphTablesUrl', () => {
 
     it('can be pointed elsewhere', () => {
         expect(String(knowledgeGraphTablesUrl('EdgeTypes', {}, 'https://example.com/t')))
-            .toBe('https://example.com/t?Operation=EdgeTypes');
+            .toBe('https://example.com/t/edge-types');
     });
 });
 
@@ -290,18 +301,20 @@ describe('what is sent is what is documented', () => {
         expect(declaredFor(document, '/knowledge-graph/{graph}')).toEqual([]);
     });
 
-    it('knowledge graph tables: exactly the parameters its route declares', () => {
+    it.each([
+        ['EdgeTypes', 'edge-types', { Limit: 10 }],
+        ['Find', 'find', { Text: 'apple', Limit: 10 }],
+        ['Facts', 'facts', { Uri: 'urn:x', Day: '2026-09-18', Limit: 10 }],
+        ['Neighborhood', 'neighborhood', { Uri: 'urn:x', Day: '2026-09-18', Limit: 10 }],
+    ])('knowledge graph tables: %s sends exactly what its own route declares', (operation, segment, values) => {
         //
-        // across all four operations, because no single one sends them all --
-        // 'Text' belongs to Find and 'Uri' to the other two, so asking about one
-        // operation would leave a documented parameter unsent and pass anyway.
+        // per route, which is the point of the split. One route with a flat list
+        // could only say that all four parameters are optional, which permitted
+        // every combination the api rejects -- asked here the way the api
+        // actually answers, one contract at a time.
         //
-        expect(sent(
-            knowledgeGraphTablesUrl('EdgeTypes', { Limit: 10 }),
-            knowledgeGraphTablesUrl('Find', { Text: 'apple' }),
-            knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x', Day: '2026-09-18' }),
-            knowledgeGraphTablesUrl('Neighborhood', { Uri: 'urn:x', Day: '2026-09-18' })
-        )).toEqual(declaredFor(documentOf('knowledge-graph'), '/knowledge-graph/tables'));
+        expect(sent(knowledgeGraphTablesUrl(operation, values)))
+            .toEqual(declaredFor(documentOf('knowledge-graph'), `/knowledge-graph/tables/${segment}`));
     });
 
     it('knowledge graph: asks for each of the routes its document templates', () => {
@@ -314,13 +327,25 @@ describe('what is sent is what is documented', () => {
         const routes = Object.keys(document.paths).sort();
 
         expect(routes).toEqual([
-            '/knowledge-graph', '/knowledge-graph/tables', '/knowledge-graph/{graph}',
+            '/knowledge-graph',
+            '/knowledge-graph/tables/edge-types',
+            '/knowledge-graph/tables/facts',
+            '/knowledge-graph/tables/find',
+            '/knowledge-graph/tables/neighborhood',
+            '/knowledge-graph/{graph}',
         ]);
         expect(routeSent(document, knowledgeGraphUrl())).toBe('/knowledge-graph');
         expect(routeSent(document, knowledgeGraphUrl('an-id')).replace(/\/[^/]+$/, '/{graph}'))
             .toBe('/knowledge-graph/{graph}');
-        expect(routeSent(document, knowledgeGraphTablesUrl('EdgeTypes')).replace(/\?.*$/, ''))
-            .toBe('/knowledge-graph/tables');
+
+        //
+        // every operation, not a sample: a builder asking for a route the
+        // document does not template is the failure this exists to catch, and
+        // it can happen to one operation at a time.
+        //
+        ['EdgeTypes', 'Find', 'Facts', 'Neighborhood'].forEach((operation) => {
+            expect(routes).toContain(routeSent(document, knowledgeGraphTablesUrl(operation)));
+        });
     });
 
     it('every stream a page asks performance about is a documented Stream', () => {
