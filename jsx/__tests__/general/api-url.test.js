@@ -20,6 +20,7 @@ import {
     performanceUrl,
     datalakeUrl,
     knowledgeGraphUrl,
+    knowledgeGraphTablesUrl,
     API,
     ENDPOINTS,
     DOCUMENTATION,
@@ -50,6 +51,19 @@ function parametersOf(document, where) {
 
 function declared(document) {
     return [...new Set(parametersOf(document, 'query').map(p => p.name))].sort();
+}
+
+//
+// the same, for one route. The knowledge graph's document now holds routes that
+// disagree about query strings -- its two build routes refuse one, and its tables
+// route is nothing but one -- so a document-wide answer describes neither.
+//
+function declaredFor(document, route) {
+    const { operation } = operationsOf(document).find(entry => entry.route === route);
+
+    return [...new Set((operation.parameters || [])
+        .filter(parameter => parameter.in === 'query')
+        .map(parameter => parameter.name))].sort();
 }
 
 function parameterOf(document, name) {
@@ -157,6 +171,74 @@ describe('knowledgeGraphUrl', () => {
     });
 });
 
+describe('knowledgeGraphTablesUrl', () => {
+    it('names the operation, and asks the tables path rather than a build', () => {
+        const url = knowledgeGraphTablesUrl('EdgeTypes');
+
+        expect(url.pathname).toBe('/v1/public/knowledge-graph/tables');
+        expect(url.searchParams.get('Operation')).toBe('EdgeTypes');
+    });
+
+    it('sends each operation the values that operation takes', () => {
+        expect(sent(knowledgeGraphTablesUrl('Find', { Text: 'apple' })))
+            .toEqual(['Operation', 'Text']);
+        expect(sent(knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x' })))
+            .toEqual(['Operation', 'Uri']);
+        expect(sent(knowledgeGraphTablesUrl('Neighborhood', { Uri: 'urn:x', Day: '2026-09-18' })))
+            .toEqual(['Day', 'Operation', 'Uri']);
+    });
+
+    it('refuses an operation the api does not offer, rather than sending it', () => {
+        //
+        // the api answers an unknown operation with a 400 and never echoes it
+        // back, so a request built from one can only fail.
+        //
+        expect(() => knowledgeGraphTablesUrl('Snapshots')).toThrow(/no such operation/);
+        expect(() => knowledgeGraphTablesUrl()).toThrow(/no such operation/);
+    });
+
+    it('refuses a value the named operation does not take', () => {
+        //
+        // the same 400, for the same reason: the api refuses a parameter
+        // meaningless to the operation rather than ignoring it.
+        //
+        expect(() => knowledgeGraphTablesUrl('EdgeTypes', { Uri: 'urn:x' }))
+            .toThrow(/EdgeTypes does not take Uri/);
+        expect(() => knowledgeGraphTablesUrl('Find', { Day: '2026-09-18' }))
+            .toThrow(/Find does not take Day/);
+    });
+
+    it('takes a Limit on every operation, being a ceiling rather than a question', () => {
+        expect(sent(knowledgeGraphTablesUrl('EdgeTypes', { Limit: 10 })))
+            .toEqual(['Limit', 'Operation']);
+        expect(knowledgeGraphTablesUrl('EdgeTypes', { Limit: 10 }).searchParams.get('Limit'))
+            .toBe('10');
+    });
+
+    it('leaves out a value that was not given', () => {
+        //
+        // 'Day' is optional for Facts, and an empty one sent as '' is a 400
+        // rather than an omission.
+        //
+        expect(sent(knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x', Day: null })))
+            .toEqual(['Operation', 'Uri']);
+        expect(sent(knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x', Day: '' })))
+            .toEqual(['Operation', 'Uri']);
+    });
+
+    it('encodes a value rather than interpolating it', () => {
+        const url = knowledgeGraphTablesUrl('Find', { Text: 'a b&c=d' });
+
+        expect(url.searchParams.get('Text')).toBe('a b&c=d');
+        expect(String(url)).toContain('Text=a+b%26c%3Dd');
+    });
+
+    it('can be pointed elsewhere', () => {
+        expect(String(knowledgeGraphTablesUrl('EdgeTypes', {}, 'https://example.com/t')))
+            .toBe('https://example.com/t?Operation=EdgeTypes');
+    });
+});
+
 describe('the endpoints and the documentation', () => {
     it('keeps every endpoint under the one public api', () => {
         Object.values(ENDPOINTS).forEach(endpoint => expect(endpoint.startsWith(`${API}/`)).toBe(true));
@@ -194,13 +276,32 @@ describe('what is sent is what is documented', () => {
         expect(sent(datalakeUrl('bls', 2026, 8))).toEqual(declared(documentOf('datalake')));
     });
 
-    it('knowledge graph: sends no query parameter, because its document declares none', () => {
+    it('knowledge graph: its build routes send no query parameter, because they declare none', () => {
         //
         // the id moved to the path, and the api refuses a query string on either
-        // route -- so 'declared' being empty is the assertion, not an omission.
+        // build route -- so 'declared' being empty is the assertion, not an
+        // omission. Asked per route rather than per document, because the tables
+        // route below is nothing but a query string.
         //
+        const document = documentOf('knowledge-graph');
+
         expect(sent(knowledgeGraphUrl(), knowledgeGraphUrl('x'))).toEqual([]);
-        expect(declared(documentOf('knowledge-graph'))).toEqual([]);
+        expect(declaredFor(document, '/knowledge-graph')).toEqual([]);
+        expect(declaredFor(document, '/knowledge-graph/{graph}')).toEqual([]);
+    });
+
+    it('knowledge graph tables: exactly the parameters its route declares', () => {
+        //
+        // across all four operations, because no single one sends them all --
+        // 'Text' belongs to Find and 'Uri' to the other two, so asking about one
+        // operation would leave a documented parameter unsent and pass anyway.
+        //
+        expect(sent(
+            knowledgeGraphTablesUrl('EdgeTypes', { Limit: 10 }),
+            knowledgeGraphTablesUrl('Find', { Text: 'apple' }),
+            knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x', Day: '2026-09-18' }),
+            knowledgeGraphTablesUrl('Neighborhood', { Uri: 'urn:x', Day: '2026-09-18' })
+        )).toEqual(declaredFor(documentOf('knowledge-graph'), '/knowledge-graph/tables'));
     });
 
     it('knowledge graph: asks for each of the routes its document templates', () => {
@@ -212,10 +313,14 @@ describe('what is sent is what is documented', () => {
         const document = documentOf('knowledge-graph');
         const routes = Object.keys(document.paths).sort();
 
-        expect(routes).toEqual(['/knowledge-graph', '/knowledge-graph/{graph}']);
+        expect(routes).toEqual([
+            '/knowledge-graph', '/knowledge-graph/tables', '/knowledge-graph/{graph}',
+        ]);
         expect(routeSent(document, knowledgeGraphUrl())).toBe('/knowledge-graph');
         expect(routeSent(document, knowledgeGraphUrl('an-id')).replace(/\/[^/]+$/, '/{graph}'))
             .toBe('/knowledge-graph/{graph}');
+        expect(routeSent(document, knowledgeGraphTablesUrl('EdgeTypes')).replace(/\?.*$/, ''))
+            .toBe('/knowledge-graph/tables');
     });
 
     it('every stream a page asks performance about is a documented Stream', () => {

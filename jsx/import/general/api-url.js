@@ -5,6 +5,12 @@
  *     performance       read by /stream                        Stream, Interval, Timezone
  *     datalake          read by /data, /stream/:stream/alarm   Data, Scale
  *     knowledge-graph   read by /graph and /                   Graph
+ *                       its tables                             Operation, Text, Uri, Day, Limit
+ *
+ * Three apis, four surfaces. The knowledge graph answers what a build IS on its own
+ * two paths, and what a build CONTAINS on a third: the first two take their id in
+ * the path and refuse a query string, while the third takes an operation and that
+ * operation's values in the query string. Separate builders for that reason.
  *
  * Every url a page fetches from these apis is built here, and so is the link that
  * shows a reader the request behind what the page draws. One builder for both is
@@ -23,6 +29,7 @@ const ENDPOINTS = {
     performance: `${API}/performance`,
     datalake: `${API}/datalake`,
     knowledgeGraph: `${API}/knowledge-graph`,
+    knowledgeGraphTables: `${API}/knowledge-graph/tables`,
 };
 
 //
@@ -105,4 +112,53 @@ export function knowledgeGraphUrl(graph = null, base = ENDPOINTS.knowledgeGraph)
     return graph ? new URL(`${base}/${encodeURIComponent(graph)}`) : new URL(base);
 }
 
-export { API, ENDPOINTS, DOCUMENTATION, API_DOCS, DATASETS };
+//
+// what each question of the tables takes, beyond the Operation naming it. The api
+// refuses a value meaningless to the operation rather than ignoring it, so sending
+// one is a 400 -- these are held here so it is refused before the request instead.
+//
+// 'Limit' is accepted by all four and left out of the lists, being a ceiling on the
+// answer rather than part of the question.
+//
+const TABLES_VALUES = {
+    EdgeTypes: [],
+    Find: ['Text'],
+    Facts: ['Uri', 'Day'],
+    Neighborhood: ['Uri', 'Day'],
+};
+
+/**
+ * one question of a published build's tables: which links exist, which entities
+ * match some text, what is held about one entity, or what one entity is linked to
+ * within a day.
+ *
+ * Note: 'Day' is required by Neighborhood and optional for Facts. That asymmetry is
+ *       the api's, and it is real -- the numeric ids the tables join on are
+ *       renumbered daily, so an edge only means anything joined within its own day.
+ *       Uris are stable across days, which is what a caller follows instead.
+ *
+ * Note: a value the named operation does not take throws here rather than being
+ *       sent. The api answers one with a 400, so the alternative is a request that
+ *       can only fail.
+ */
+export function knowledgeGraphTablesUrl(operation, values = {}, base = ENDPOINTS.knowledgeGraphTables) {
+    const accepted = TABLES_VALUES[operation];
+
+    if (!accepted) {
+        throw new Error(`knowledgeGraphTablesUrl: no such operation '${operation}'`);
+    }
+
+    const given = Object.keys(values).filter((name) => values[name] !== undefined && values[name] !== null && values[name] !== '');
+    const unexpected = given.filter((name) => name !== 'Limit' && !accepted.includes(name));
+
+    if (unexpected.length) {
+        throw new Error(`knowledgeGraphTablesUrl: ${operation} does not take ${unexpected.sort().join(', ')}`);
+    }
+
+    return withParams(base, given.reduce(
+        (sent, name) => Object.assign(sent, { [name]: values[name] }),
+        { Operation: operation }
+    ));
+}
+
+export { API, ENDPOINTS, DOCUMENTATION, API_DOCS, DATASETS, TABLES_VALUES };

@@ -8,6 +8,7 @@ reader's browser at runtime. The application has no server of its own between th
 | [Performance](performance.md) | `https://api.jefflevesque.com/v1/public/performance` | `/stream` |
 | [Datalake](datalake.md) | `https://api.jefflevesque.com/v1/public/datalake` | `/data`, `/stream/:stream/alarm` |
 | [Knowledge graph](knowledge-graph.md) | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` |
+| [Knowledge graph tables](knowledge-graph.md#response-the-tables) | `https://api.jefflevesque.com/v1/public/knowledge-graph/tables` | documented, not yet read by a page |
 
 ## What they share
 
@@ -28,7 +29,7 @@ reader's browser at runtime. The application has no server of its own between th
 
 Every URL the application fetches from these APIs is built in
 [`jsx/import/general/api-url.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/api-url.js),
-by `performanceUrl`, `datalakeUrl` and `knowledgeGraphUrl`.
+by `performanceUrl`, `datalakeUrl`, `knowledgeGraphUrl` and `knowledgeGraphTablesUrl`.
 
 The charts on `/stream` and `/data`, and the header on `/graph`, carry two icons built
 from the same functions: a book, which opens that API's page here, and a pair of braces,
