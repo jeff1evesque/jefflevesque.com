@@ -46,7 +46,7 @@ jest.mock('../../import/general/get-graph-schema.js', () => ({
 
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
-import GraphLayout, { EXPLORER_NODE_TYPES, period } from '../../import/layout/graph/graph.jsx';
+import GraphLayout, { EXPLORER_NODE_TYPES } from '../../import/layout/graph/graph.jsx';
 import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
 
 const BUILD_A = {
@@ -63,7 +63,19 @@ const BUILD_A = {
     error: null,
 };
 
-const BUILD_B = { ...BUILD_A, id: 'build-b', label: 'September 2026 (b)', period: '2026-08' };
+//
+// Note: BUILD_B differs in its VARIANT as well as its id. It used to differ only
+//       by period, and with no Period row the two builds became indistinguishable
+//       in the panel -- so 'follows the picker' passed against a panel that had
+//       not changed.
+//
+const BUILD_B = {
+    ...BUILD_A,
+    id: 'build-b',
+    label: 'September 2026 (b)',
+    period: '2026-08',
+    variant: '512d',
+};
 const BUILD_BROKEN = { ...BUILD_A, id: 'build-broken', label: 'Broken build', error: 'malformed' };
 
 const LISTING = { default: 'build-a', graphs: [BUILD_A, BUILD_B] };
@@ -261,7 +273,7 @@ describe('the build details', () => {
             fireEvent.change(picker(), { target: { value: 'build-b' } });
         });
 
-        expect(detail('Period')).toBe('August 2026');
+        expect(detail('Variant')).toBe('512d');
     });
 
     it('puts the chosen build in the address, so it can be linked to', async () => {
@@ -298,10 +310,19 @@ describe('the build details', () => {
         expect(detail('Node types')).toBeUndefined();
     });
 
-    it('gives the period as the month it covers', async () => {
+    it('does not offer a Period row at all', async () => {
+        //
+        // the listing's `period` is a partition key -- the builds are listed out
+        // of a partition and an id is chosen from within it -- not a window over
+        // the data. This build carries 76 distinct dates and economic series going
+        // back eighteen years, so '2026-09' bounds none of it, and a row headed
+        // 'Period' read as though it did.
+        //
         await setup();
 
-        expect(detail('Period')).toBe('September 2026');
+        expect(detail('Period')).toBeUndefined();
+        expect([...document.querySelectorAll('.graph-details-row dt')].map(d => d.textContent))
+            .toEqual(['Nodes', 'Edges', 'Sources', 'Run', 'Built', 'Dataset', 'Variant']);
     });
 
     it('marks the run and build times as UTC', async () => {
@@ -333,52 +354,6 @@ describe('the build details', () => {
 
         expect(detail('Nodes')).toBe('n/a');
         expect(detail('Sources')).toBe('n/a');
-    });
-});
-
-//
-// a period is a month, which is what the listing publishes and what the schema's
-// own build_metadata carries. It used to be read out as the days it covered --
-// '2026-09-01 – 2026-09-19' -- and neither end of that was published: the first
-// of the month was assumed, and the last was the day the build RAN, which the
-// 'Run' row states exactly and in UTC.
-//
-describe('period', () => {
-    it('names the month the build covers', () => {
-        expect(period('2026-09')).toBe('September 2026');
-        expect(period('2026-01')).toBe('January 2026');
-        expect(period('2025-12')).toBe('December 2025');
-    });
-
-    it('names it on UTC, the zone the listing publishes in', () => {
-        //
-        // the first of the month is the last of the month before it in New York,
-        // where the suite runs -- so a period read on local time names the wrong
-        // month for every reader west of Greenwich.
-        //
-        expect(period('2026-03')).toBe('March 2026');
-        expect(period('2026-01')).not.toContain('2025');
-    });
-
-    it('does not vary with the build that carries it', () => {
-        //
-        // every run of a month's build covers that month. What differs between
-        // two of them is how much of it had been published by the time each ran,
-        // which is the 'Run' row's business rather than this one's.
-        //
-        expect(period('2026-09')).toBe(period('2026-09'));
-    });
-
-    it('passes a period in any other shape through as published', () => {
-        expect(period('2026-Q3')).toBe('2026-Q3');
-        expect(period('2026-13')).toBe('2026-13');
-        expect(period('2026-09-16')).toBe('2026-09-16');
-    });
-
-    it('answers nothing for no period', () => {
-        expect(period(undefined)).toBeNull();
-        expect(period('')).toBeNull();
-        expect(period(null)).toBeNull();
     });
 });
 
