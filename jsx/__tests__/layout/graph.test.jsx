@@ -38,6 +38,23 @@ jest.mock('../../import/animation/graph-explorer.jsx', () => ({
     TAIL: 'shade',
 }));
 
+//
+// Note: the tables are a probe too, recording what reached them. They have their
+//       own suite; what matters HERE is which document the page hands down --
+//       the whole build, not the slice the canvas drew.
+//
+jest.mock('../../import/layout/graph/tables.jsx', () => ({
+    __esModule: true,
+    default: ({ schema, drawn, painted }) => (
+        <div
+            data-testid='tables'
+            data-node-types={schema ? Object.keys(schema.node_types).length : 'none'}
+            data-drawn={drawn ? Object.keys(drawn.node_types).length : 'none'}
+            data-painted={painted ? painted.size : 'none'}
+        />
+    ),
+}));
+
 jest.mock('../../import/general/get-graph-schema.js', () => ({
     __esModule: true,
     getGraphListing: jest.fn(),
@@ -204,6 +221,69 @@ describe('loading the page', () => {
         await setup();
 
         expect(explorer()).toBeTruthy();
+    });
+});
+
+describe('the tables below the graph', () => {
+    //
+    // the page fetched the whole schema in order to draw a slice of it, and used
+    // to discard the rest on the line that measured it -- keeping one integer so
+    // the caption could report the size of what it had thrown away.
+    //
+    const tables = () => document.querySelector('[data-testid="tables"]');
+
+    it('are handed the whole build, not the slice the canvas drew', async () => {
+        getGraphById.mockResolvedValue(schemaOf(200));
+
+        await setup();
+
+        expect(tables().getAttribute('data-node-types')).toBe('200');
+        expect(explorer().getAttribute('data-types')).toBe(String(EXPLORER_NODE_TYPES));
+    });
+
+    it('are told which types the canvas is drawing', async () => {
+        getGraphById.mockResolvedValue(schemaOf(200));
+
+        await setup();
+
+        expect(tables().getAttribute('data-drawn')).toBe(String(EXPLORER_NODE_TYPES));
+    });
+
+    it('are handed the canvas\'s own colour assignment', async () => {
+        //
+        // so a swatch in a row is the colour that namespace is in the graph above
+        // it. Recomputed over all 200 types it would rank them differently and
+        // paint something else.
+        //
+        await setup();
+
+        expect(tables().getAttribute('data-painted')).toBe('2');
+    });
+
+    it('are cleared when a build fails to load', async () => {
+        //
+        // the same rule the canvas follows: a stale table under a fresh label is
+        // indistinguishable from a correct one.
+        //
+        getGraphById.mockResolvedValue(null);
+
+        await setup();
+
+        expect(tables().getAttribute('data-node-types')).toBe('none');
+    });
+
+    it('follow the picker to another build', async () => {
+        getGraphById.mockResolvedValue(schemaOf(200));
+
+        await setup();
+
+        getGraphById.mockResolvedValue(schemaOf(7));
+
+        await act(async () => {
+            fireEvent.change(picker(), { target: { value: 'build-b' } });
+        });
+
+        expect(tables().getAttribute('data-node-types')).toBe('7');
     });
 });
 
