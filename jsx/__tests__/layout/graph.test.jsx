@@ -261,7 +261,7 @@ describe('the build details', () => {
             fireEvent.change(picker(), { target: { value: 'build-b' } });
         });
 
-        expect(document.body.textContent).toContain('2026-08');
+        expect(detail('Period')).toBe('August 2026');
     });
 
     it('puts the chosen build in the address, so it can be linked to', async () => {
@@ -298,10 +298,10 @@ describe('the build details', () => {
         expect(detail('Node types')).toBeUndefined();
     });
 
-    it('gives the period as the days it covers', async () => {
+    it('gives the period as the month it covers', async () => {
         await setup();
 
-        expect(detail('Period')).toBe('2026-09-01 – 2026-09-15');
+        expect(detail('Period')).toBe('September 2026');
     });
 
     it('marks the run and build times as UTC', async () => {
@@ -336,53 +336,49 @@ describe('the build details', () => {
     });
 });
 
+//
+// a period is a month, which is what the listing publishes and what the schema's
+// own build_metadata carries. It used to be read out as the days it covered --
+// '2026-09-01 – 2026-09-19' -- and neither end of that was published: the first
+// of the month was assumed, and the last was the day the build RAN, which the
+// 'Run' row states exactly and in UTC.
+//
 describe('period', () => {
-    it('ends a build of the current month on the day it ran', () => {
-        expect(period('2026-09', '2026-09-16T17:15:46Z')).toBe('2026-09-01 – 2026-09-16');
+    it('names the month the build covers', () => {
+        expect(period('2026-09')).toBe('September 2026');
+        expect(period('2026-01')).toBe('January 2026');
+        expect(period('2025-12')).toBe('December 2025');
     });
 
-    it('covers the whole month for a build run after it', () => {
-        expect(period('2026-08', '2026-09-02T05:00:00Z')).toBe('2026-08-01 – 2026-08-31');
-    });
-
-    it('covers the whole month when the run is on its last day', () => {
-        expect(period('2026-09', '2026-09-30T23:00:00Z')).toBe('2026-09-01 – 2026-09-30');
-    });
-
-    it('reads as one day for a build run on the first', () => {
-        expect(period('2026-09', '2026-09-01T02:00:00Z')).toBe('2026-09-01');
-    });
-
-    it('takes the day in UTC, the zone the run is published in', () => {
+    it('names it on UTC, the zone the listing publishes in', () => {
         //
-        // 01:00 UTC on the 16th is still the 15th in New York, where the suite runs.
+        // the first of the month is the last of the month before it in New York,
+        // where the suite runs -- so a period read on local time names the wrong
+        // month for every reader west of Greenwich.
         //
-        expect(period('2026-09', '2026-09-16T01:00:00Z')).toBe('2026-09-01 – 2026-09-16');
+        expect(period('2026-03')).toBe('March 2026');
+        expect(period('2026-01')).not.toContain('2025');
     });
 
-    it('knows the length of each month', () => {
-        expect(period('2028-02', null)).toBe('2028-02-01 – 2028-02-29');
-        expect(period('2026-02', null)).toBe('2026-02-01 – 2026-02-28');
-        expect(period('2026-12', null)).toBe('2026-12-01 – 2026-12-31');
-    });
-
-    it('covers the whole month when there is no usable run time', () => {
-        expect(period('2026-09', undefined)).toBe('2026-09-01 – 2026-09-30');
-        expect(period('2026-09', 'not a time')).toBe('2026-09-01 – 2026-09-30');
-    });
-
-    it('ignores a run from before the period started', () => {
-        expect(period('2026-09', '2026-08-20T00:00:00Z')).toBe('2026-09-01 – 2026-09-30');
+    it('does not vary with the build that carries it', () => {
+        //
+        // every run of a month's build covers that month. What differs between
+        // two of them is how much of it had been published by the time each ran,
+        // which is the 'Run' row's business rather than this one's.
+        //
+        expect(period('2026-09')).toBe(period('2026-09'));
     });
 
     it('passes a period in any other shape through as published', () => {
-        expect(period('2026-Q3', '2026-09-16T17:15:46Z')).toBe('2026-Q3');
-        expect(period('2026-13', null)).toBe('2026-13');
+        expect(period('2026-Q3')).toBe('2026-Q3');
+        expect(period('2026-13')).toBe('2026-13');
+        expect(period('2026-09-16')).toBe('2026-09-16');
     });
 
     it('answers nothing for no period', () => {
-        expect(period(undefined, '2026-09-16T17:15:46Z')).toBeNull();
-        expect(period('', null)).toBeNull();
+        expect(period(undefined)).toBeNull();
+        expect(period('')).toBeNull();
+        expect(period(null)).toBeNull();
     });
 });
 
@@ -655,7 +651,50 @@ describe('when something cannot be loaded', () => {
     });
 });
 
-describe('the api icons in the header', () => {
+describe('the api icons', () => {
+    //
+    // they head the canvas column rather than the page. Both describe the graph
+    // -- the request it was drawn from -- and in the page header they sat at the
+    // far edge of the window, a column and a half from the thing they name.
+    //
+    it('sit at the top of the column the graph is drawn in', async () => {
+        await setup();
+
+        const head = document.querySelector('.graph-canvas > .graph-canvas-header');
+
+        expect(head).not.toBeNull();
+        expect(head.querySelector('.api-links')).not.toBeNull();
+        expect(document.querySelector('.graph-header .api-links')).toBeNull();
+    });
+
+    it('are there while the graph is not', async () => {
+        //
+        // a build that could not be loaded still has a request worth opening,
+        // and it is the one that failed.
+        //
+        getGraphById.mockResolvedValue(null);
+
+        await setup();
+
+        expect(document.querySelector('.graph-canvas-header .api-links')).not.toBeNull();
+        expect(document.querySelector('.graph-caption')).toBeNull();
+    });
+
+    it('are there while the build is still loading', async () => {
+        //
+        // never resolves, so this is the state every cold load passes through.
+        // The request is worth opening most while it is the thing being waited
+        // on, and the icons moving in once it lands would be a row that grows
+        // under the reader.
+        //
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(document.body.textContent).toContain('Loading the graph');
+        expect(document.querySelector('.graph-canvas-header .api-links')).not.toBeNull();
+    });
+
     it('link the knowledge graph api\'s documentation', async () => {
         await setup();
 
