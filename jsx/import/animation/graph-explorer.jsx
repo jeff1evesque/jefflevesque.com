@@ -12,9 +12,11 @@
  *     content, so it is painted at full strength from the start.
  *   - draws a decorative gray field and parts it around the cluster. There is
  *     nothing decorative on this page.
- *   - keeps the simulation warm so the cluster drifts. This layout is computed
- *     to rest before the first paint and then holds still: nothing on screen
- *     moves unless the reader asks it to.
+ *   - keeps the SIMULATION warm, so the backdrop's cluster is still finding its
+ *     shape while it floats. This layout is computed to rest before the first
+ *     paint and then stays that shape: what moves afterwards is each node a
+ *     couple of pixels around where it settled, which is decoration over a
+ *     finished layout rather than a layout still running. See startDrift.
  *   - shoves nodes away from the cursor. Reading a graph while it flinches from
  *     the pointer is worse than useless.
  *
@@ -113,6 +115,46 @@ const LINK_DIM = 0.06;
 const RING = colors['gray-8'];
 const RING_WIDTH = 2;
 
+//
+// ambient motion. Each node travels a small circle from the point it settled at,
+// so the graph reads as something live rather than as a screenshot of one.
+//
+// DRIFT is that circle's RADIUS in pixels, not a per-tick nudge, and that is the
+// whole difference from the backdrop's drift: there the wander is added to each
+// node's velocity and the simulation integrates it, which is organic and
+// unbounded -- fine for a cluster meant to float behind text. Here the layout has
+// already been settled AND fitted to its canvas, and a force still running would
+// pull it off the fit it was handed. An offset from a remembered home cannot.
+//
+// The circle STARTS at the node rather than being centred on it -- see startDrift
+// -- so the furthest a node ever gets from where it settled is twice this, which
+// is still inside the node's own radius. At this size the graph breathes; at
+// twice it, edges visibly swing and the page becomes tiring to read.
+//
+const DRIFT = 2;
+const DRIFT_SPEED = 0.004;
+
+// the turn between two nodes' phases -- the golden angle, as in layout.js's
+// seed spiral. Neighbouring nodes land on opposite sides of their circles, so
+// the field shimmers rather than pulsing in unison, and it is a fixed sequence
+// rather than Math.random so two renders of one build move alike.
+const DRIFT_TURN = Math.PI * (3 - Math.sqrt(5));
+
+// a second, slower frequency on the vertical, so a node traces a slowly
+// precessing ellipse instead of a circle it retraces exactly
+const DRIFT_SKEW = 0.8;
+
+/**
+ * whether the reader has asked their system for less motion.
+ *
+ * Note: guarded rather than called. matchMedia is absent under jsdom, and a
+ *       component that threw on mount there would take the whole suite with it.
+ */
+export function reducedMotion() {
+    return typeof window.matchMedia === 'function'
+        && !!window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 /**
  * a node type's name, without the namespace the card already shows beside it.
  *
@@ -197,6 +239,7 @@ class GraphExplorer extends Component {
         this.hoveredId = null;
         this.pinnedId = null;
         this.size = { width: 0, height: 0 };
+        this.drift = null;
 
         // the node the card describes, or null. The only state React holds:
         // everything inside the svg is drawn by d3.
@@ -206,6 +249,8 @@ class GraphExplorer extends Component {
         this.measure = this.measure.bind(this);
         this.renderD3 = this.renderD3.bind(this);
         this.draw = this.draw.bind(this);
+        this.startDrift = this.startDrift.bind(this);
+        this.stopDrift = this.stopDrift.bind(this);
         this.highlight = this.highlight.bind(this);
         this.hover = this.hover.bind(this);
         this.pin = this.pin.bind(this);
@@ -231,6 +276,7 @@ class GraphExplorer extends Component {
 
     componentWillUnmount() {
         window.removeEventListener('resize', this.handleResize);
+        this.stopDrift();
 
         if (this.resizeTimer) {
             clearTimeout(this.resizeTimer);
@@ -330,6 +376,70 @@ class GraphExplorer extends Component {
         this.nodeSel
             .attr('cx', (d) => d.x)
             .attr('cy', (d) => d.y);
+    }
+
+    /**
+     * set the settled layout wandering.
+     *
+     * Each node remembers where it settled, and is then drawn however far around
+     * a small circle it has travelled SINCE -- which is why each term subtracts
+     * its own value at rest. Written the obvious way, every node would be a
+     * couple of pixels off its home on the first frame, because its phase is
+     * what makes it differ from its neighbours; the whole graph would pop the
+     * moment the animation started, and the layout the page computed so
+     * carefully would not be the one anybody saw.
+     *
+     * The position written is the node's OWN x/y rather than a drawing offset,
+     * so everything that reads a position -- the hit test, which is
+     * simulation.find over these same objects, and the card's placement -- goes
+     * on agreeing with what is on screen.
+     *
+     * Note: the offset is recomputed from the home every frame rather than
+     *       accumulated onto the position. Accumulating rounds, and a rounding
+     *       error fed back in is a random walk: over a few minutes the graph
+     *       would wander off its fit, and off the canvas after that.
+     *
+     * Note: phases are a fixed sequence rather than Math.random, so two renders
+     *       of one build move alike -- and so this is testable at all.
+     */
+    startDrift(nodes) {
+        this.stopDrift();
+
+        if (!nodes.length || reducedMotion()) {
+            return;
+        }
+
+        nodes.forEach((node, index) => {
+            node.hx = node.x;
+            node.hy = node.y;
+            node.phase = index * DRIFT_TURN;
+        });
+
+        let elapsed = 0;
+
+        const frame = () => {
+            elapsed += DRIFT_SPEED;
+
+            nodes.forEach((node) => {
+                const turned = elapsed + node.phase;
+                const skewed = elapsed * DRIFT_SKEW + node.phase;
+
+                node.x = node.hx + (Math.cos(turned) - Math.cos(node.phase)) * DRIFT;
+                node.y = node.hy + (Math.sin(skewed) - Math.sin(node.phase)) * DRIFT;
+            });
+
+            this.draw();
+            this.drift = requestAnimationFrame(frame);
+        };
+
+        this.drift = requestAnimationFrame(frame);
+    }
+
+    stopDrift() {
+        if (this.drift !== null) {
+            cancelAnimationFrame(this.drift);
+            this.drift = null;
+        }
     }
 
     // focusing a node lifts it and everything it touches; the rest drops back
@@ -520,6 +630,11 @@ class GraphExplorer extends Component {
         fitLayout(nodes, width, height, FIT_PAD + radius, FIT_MOST, FIT_STRETCH);
         this.draw();
 
+        // and only now set it moving. The first frame on screen is the layout
+        // exactly as it was computed and fitted; the drift is what happens to it
+        // afterwards, never what it is drawn as.
+        this.startDrift(nodes);
+
         //
         // pointing is resolved against the nearest node within reach rather than
         // by events on the circles themselves, so the target is a generous disc
@@ -590,4 +705,4 @@ export default GraphExplorer;
 // exported so the legend on the page paints from the same assignment this
 // component does -- a legend computed with a different tail would name colours
 // that are not on screen.
-export { TAIL, HOVER_REACH, TAP_REACH, CARD_DOCK_WIDTH };
+export { TAIL, HOVER_REACH, TAP_REACH, CARD_DOCK_WIDTH, DRIFT, DRIFT_SPEED };
