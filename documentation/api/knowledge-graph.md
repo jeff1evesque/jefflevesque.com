@@ -60,7 +60,7 @@ Each build in `graphs` carries:
 | `id` | the id to send back as the path segment |
 | `label` | how the build reads in a list |
 | `dataset`, `variant` | which data went in, and how it was built |
-| `period` | the year and month the build covers, as `YYYY-MM` |
+| `period` | the partition the build was published under, as `YYYY-MM`. **Not a window over its data** — see below |
 | `run`, `built` | when the build ran and when it finished, in UTC |
 | `nodes`, `edges` | every node and every edge in the build |
 | `sources` | the sources that went into it |
@@ -83,13 +83,20 @@ circle per node **type** -- a slice of them, since not all fit legibly. See
 [#46](https://github.com/jeff1evesque/jefflevesque.com/issues/46), where the page
 labelled the first figure as the second.
 
-`period` and `run` are likewise not the same scale. A build covers a **month**, and the
-same month is built again and again -- the listing above holds several runs of one
-period, each having taken in more of that month than the one before it. So `period` says
-which month, `run` says how far into it that build got, and neither stands in for the
-other. `/graph` once read the period out as the days it covered, ending on the run date;
-the days were never published, and the end was the run wearing a coverage date's
-clothes.
+**`period` is a partition key, not a window over the data.** Builds are published under
+a partition -- `YYYY-MM`, nested year then month -- and an `id` is selected from within
+it, which is why the listing above holds several builds sharing one `period` and
+differing by `run`. It says where a build was published, not what is in it.
+
+Nothing about a build is bounded by its `period`. A build published under `2026-09`
+carries 76 distinct dates of its own -- countable as `bls_enrichment_UnifiedDay` in its
+schema -- alongside economic series reaching back eighteen years. A caller wanting to
+know what a build actually spans has to read the build, and `run` is the only date that
+bounds anything: nothing published after it can be in there.
+
+`/graph` deliberately shows no `period`. It read it out first as a derived day range
+ending on the run date, then as a month, and both told a reader it was a coverage window.
+The partition is in each build's `label`, where it reads as part of a name.
 
 ## Response: the tables
 
