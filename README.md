@@ -27,7 +27,7 @@ comes from three public APIs, called from the browser at runtime.
 <!-- --8<-- [start:routes] -->
 | Route | | API |
 |---|---|---|
-| `/` | landing page, drawn over a D3 force-directed cluster of the default knowledge graph build | knowledge graph |
+| `/` | landing page: a D3 force-directed cluster of the default knowledge graph build, and nothing over it | knowledge graph |
 | `/stream` | every stream's throughput, success rate and ingest coverage, at a chosen minute / hour / day / month rate | performance |
 | `/stream/:stream/trigger` | trigger conditions for one stream, charted against its history | |
 | `/stream/:stream/alarm` | alarms raised for a stream | datalake |
