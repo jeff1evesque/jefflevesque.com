@@ -8,7 +8,7 @@ reader's browser at runtime. The application has no server of its own between th
 | [Performance](performance.md) | `https://api.jefflevesque.com/v1/public/performance` | `/stream` |
 | [Datalake](datalake.md) | `https://api.jefflevesque.com/v1/public/datalake` | `/data`, `/stream/:stream/alarm` |
 | [Knowledge graph](knowledge-graph.md) | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` |
-| [Knowledge graph tables](knowledge-graph.md#response-the-tables) | `https://api.jefflevesque.com/v1/public/knowledge-graph/tables` | documented, not yet read by a page |
+| [Knowledge graph tables](knowledge-graph.md#response-the-tables) | `https://api.jefflevesque.com/v1/public/knowledge-graph/tables/<question>` | documented, not yet read by a page |
 
 ## What they share
 
