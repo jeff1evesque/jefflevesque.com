@@ -84,24 +84,35 @@ function count(n) {
     return typeof n === 'number' ? n.toLocaleString() : 'n/a';
 }
 
+const MONTH = new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    timeZone: 'UTC',
+    year: 'numeric',
+});
+
 /**
- * a build's period as the days it covers: '2026-09' reads '2026-09-01 –
- * 2026-09-16' for a build run on the 16th.
+ * a build's period, which is a MONTH: '2026-09' reads 'September 2026'.
  *
- * The listing publishes a period as a month and nothing finer, so the days are
- * derived. The start is the first of the month. The end is the last day of the
- * month -- unless the build ran before the month was out, in which case it ends
- * on the day it ran: a build cannot hold data from after it was built, and a
- * current-month build labelled '2026-09-30' on the 16th would claim a fortnight
- * it does not have.
+ * A period is not a day. The builds are monthly -- the listing publishes
+ * 'YYYY-MM', and the schema's own build_metadata carries the same 'time_period'
+ * -- and what runs daily is the BUILD, each run taking in more of the month it
+ * covers than the one before it.
  *
- * Note: days are UTC, because the run timestamp is.
+ * This used to derive a day range, '2026-09-01 – 2026-09-19', ending on the day
+ * the build ran. Both halves were inventions. The first of the month is not
+ * published anywhere, and the end was the run date wearing a coverage date's
+ * clothes -- so a row labelled 'Period' answered a question about the run, which
+ * the 'Run' row beside it already answers exactly and in UTC.
  *
  * Note: anything that is not a year-month is passed through as published rather
  *       than guessed at. A period in some other shape is still more use to a
- *       reader verbatim than as a range this function invented for it.
+ *       reader verbatim than as something this function made of it.
+ *
+ * Note: formatted on UTC. Without the zone, the first of the month is the last
+ *       of the month before it anywhere west of Greenwich, and the row names the
+ *       wrong month for most of the readers it has.
  */
-export function period(value, run) {
+export function period(value) {
     const month = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(value || ''));
 
     if (!month) {
@@ -109,23 +120,8 @@ export function period(value, run) {
     }
 
     const [, year, mm] = month;
-    const first = `${year}-${mm}-01`;
 
-    // day 0 of the following month is the last day of this one
-    const days = new Date(Date.UTC(Number(year), Number(mm), 0)).getUTCDate();
-    let last = `${year}-${mm}-${String(days).padStart(2, '0')}`;
-
-    const ran = run ? new Date(run) : null;
-
-    if (ran && !Number.isNaN(ran.getTime())) {
-        const day = ran.toISOString().slice(0, 10);
-
-        if (day >= first && day < last) {
-            last = day;
-        }
-    }
-
-    return first === last ? first : `${first} – ${last}`;
+    return MONTH.format(Date.UTC(Number(year), Number(mm) - 1, 1));
 }
 
 class GraphLayout extends Component {
@@ -357,7 +353,7 @@ class GraphLayout extends Component {
         }
 
         const rows = [
-            ['Period', period(build.period, build.run)],
+            ['Period', period(build.period)],
             ['Nodes', count(build.nodes)],
             ['Edges', count(build.edges)],
             ['Sources', (build.sources || []).join(', ')],
@@ -435,8 +431,17 @@ class GraphLayout extends Component {
     // comparing the canvas with the totals beside it has no way to reconcile
     // the two.
     //
+    // Note: it guards on the schema itself rather than being rendered behind a
+    //       guard, because it now shares its row with the api icons, which are
+    //       there whether or not a graph is.
+    //
     caption() {
         const { schema, published } = this.state;
+
+        if (!schema) {
+            return null;
+        }
+
         const drawn = Object.keys(schema.node_types).length;
         const scope = published && published > drawn
             ? `${drawn} of ${published} node types`
@@ -468,12 +473,7 @@ class GraphLayout extends Component {
                 );
             }
 
-            return (
-                <>
-                    {this.caption()}
-                    <GraphExplorer data={schema} />
-                </>
-            );
+            return <GraphExplorer data={schema} />;
         };
 
         const nodes = build && typeof build.nodes === 'number'
@@ -489,22 +489,30 @@ class GraphLayout extends Component {
                     <div className='graph-header'>
                         <h5>Knowledge graph</h5>
                         {this.picker()}
-                        {/*
-
-                            the build the picker has selected, as getGraphById
-                            fetches it -- or the listing, before one is selected
-
-                        */}
-                        <ApiLinks
-                            docs={API_DOCS.knowledgeGraph}
-                            request={knowledgeGraphUrl(this.state.selected)}
-                            size='medium'
-                        />
                     </div>
                     <div className='graph-layout'>
                         {this.panel('build', 'Build details', nodes, 'Build', this.details(build))}
                         {this.panel('legend', 'Legend', namespaces, null, this.legend(shown))}
                         <div className='graph-canvas'>
+                            {/*
+
+                                the caption and the api icons head the canvas
+                                column rather than the page, because both
+                                describe the graph rather than the page: what of
+                                the build is drawn, and the request it was drawn
+                                from -- the build the picker has selected, as
+                                getGraphById fetches it, or the listing, before
+                                one is selected.
+
+                            */}
+                            <div className='graph-canvas-header'>
+                                {this.caption()}
+                                <ApiLinks
+                                    docs={API_DOCS.knowledgeGraph}
+                                    request={knowledgeGraphUrl(this.state.selected)}
+                                    size='medium'
+                                />
+                            </div>
                             {body()}
                         </div>
                     </div>

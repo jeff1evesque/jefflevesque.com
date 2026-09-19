@@ -14,6 +14,8 @@
  *   - a layout already at rest, inside its canvas, before anything is painted
  *   - focusing a node lifts its neighbourhood and names it in a card, instead
  *     of shoving nodes away from the pointer
+ *   - a drift that moves each node a little around where it settled, rather than
+ *     a simulation left running that moves the layout itself
  *
  * A regression in any of those turns this page back into the backdrop, which
  * renders fine and is useless to read.
@@ -26,9 +28,11 @@ import GraphExplorer, {
     shortName,
     breakable,
     placeCard,
+    reducedMotion,
     HOVER_REACH,
     TAP_REACH,
     CARD_DOCK_WIDTH,
+    DRIFT,
 } from '../../import/animation/graph-explorer.jsx';
 
 const schema = {
@@ -172,7 +176,12 @@ describe('the layout before the first paint', () => {
         expect((Math.min(...ys) + Math.max(...ys)) / 2).toBeCloseTo(height / 2);
     });
 
-    it('leaves the simulation stopped, so nothing moves afterwards', () => {
+    it('leaves the simulation stopped, so the layout is final', () => {
+        //
+        // the nodes drift afterwards (see 'the drift'), but the FORCES are done:
+        // a simulation still running would pull the layout off the fit that was
+        // just applied to it.
+        //
         const { page } = setup();
 
         expect(page.simulation.alpha()).toBeLessThanOrEqual(page.simulation.alphaMin());
@@ -907,5 +916,213 @@ describe('resizing', () => {
 
         expect(applied).not.toHaveBeenCalled();
         applied.mockRestore();
+    });
+});
+
+describe('the drift', () => {
+    //
+    // the settled layout wanders a couple of pixels, so the page reads as live
+    // rather than as a screenshot. jsdom paints no frames, so the animation frame
+    // is replaced by a single pending callback the test advances by hand -- the
+    // same treatment the per-tick work gets above.
+    //
+    // The loop only ever has one frame outstanding, which is why one slot is
+    // enough, and why an outstanding frame after an unmount is a leak rather than
+    // an ordinary state.
+    //
+    let pending;
+    let asked;
+    let cancelled;
+
+    beforeEach(() => {
+        pending = null;
+        asked = jest.spyOn(window, 'requestAnimationFrame').mockImplementation((fn) => {
+            pending = fn;
+            return 1;
+        });
+        cancelled = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
+            pending = null;
+        });
+    });
+
+    afterEach(() => {
+        asked.mockRestore();
+        cancelled.mockRestore();
+    });
+
+    function frames(n = 1) {
+        for (let i = 0; i < n; i += 1) {
+            const next = pending;
+
+            pending = null;
+
+            if (next) {
+                next();
+            }
+        }
+    }
+
+    const home = (n) => ({ x: n.hx, y: n.hy });
+    const away = (n) => Math.hypot(n.x - n.hx, n.y - n.hy);
+
+    it('paints the settled layout before it moves anything', () => {
+        //
+        // the layout is computed to rest and fitted to the canvas, and THAT is what
+        // the first frame shows. A node whose wander started at its own phase
+        // rather than at zero would be a couple of pixels off the moment it was
+        // drawn, and the fitted layout would be one nobody ever saw.
+        //
+        const { page } = setup();
+
+        page.nodes.forEach((n) => {
+            expect(n.x).toBe(home(n).x);
+            expect(n.y).toBe(home(n).y);
+        });
+    });
+
+    it('moves every node once the frames start', () => {
+        const { page } = setup();
+
+        frames(120);
+
+        page.nodes.forEach((n) => {
+            expect(away(n)).toBeGreaterThan(0);
+        });
+    });
+
+    it('never takes a node further from home than the drift allows', () => {
+        //
+        // 1600 frames is a full turn of the slowest term, so this covers the whole
+        // path rather than the start of it. The bound is twice DRIFT because the
+        // circle starts at the node instead of being centred on it.
+        //
+        const { page } = setup();
+
+        frames(1600);
+
+        page.nodes.forEach((n) => {
+            expect(away(n)).toBeLessThanOrEqual(DRIFT * 2 + 1e-9);
+        });
+    });
+
+    it('holds each node to its own home rather than letting the graph wander', () => {
+        //
+        // the offset is recomputed from the home each frame. Accumulated onto the
+        // position instead, rounding would compound into a random walk and the
+        // graph would leave its canvas over a long enough sitting.
+        //
+        const { page } = setup();
+        const before = page.nodes.map(home);
+
+        frames(1600);
+
+        page.nodes.map(home).forEach((after, i) => {
+            expect(after.x).toBe(before[i].x);
+            expect(after.y).toBe(before[i].y);
+        });
+    });
+
+    it('draws where the nodes actually are', () => {
+        const { page } = setup();
+
+        frames(400);
+
+        circles().forEach((c, i) => {
+            expect(Number(c.getAttribute('cx'))).toBeCloseTo(page.nodes[i].x);
+            expect(Number(c.getAttribute('cy'))).toBeCloseTo(page.nodes[i].y);
+        });
+    });
+
+    it('keeps the hit test agreeing with what is drawn', () => {
+        //
+        // the drift writes the node's OWN position rather than a drawing offset,
+        // so simulation.find still answers with the node under the pointer. Written
+        // as an offset, a reader would be pointing at where a node used to be.
+        //
+        const { page } = setup();
+
+        frames(400);
+        pointAt(page, 'bls_A');
+
+        expect(card()).not.toBeNull();
+        expect(card().textContent).toContain('A');
+    });
+
+    it('stops when the component goes away', () => {
+        const { unmount } = render(<GraphExplorer data={schema} />);
+
+        expect(pending).not.toBeNull();
+
+        unmount();
+
+        expect(cancelled).toHaveBeenCalled();
+        expect(pending).toBeNull();
+    });
+
+    it('does not leave the old graph drifting when the data changes', () => {
+        //
+        // the frame closes over the node array it was started with. Left running,
+        // it would go on writing positions onto circles the new render replaced.
+        //
+        const { page, rerender } = setup();
+        const stale = page.nodes;
+
+        rerender(<GraphExplorer data={{ ...schema, version: '2' }} />);
+        frames(50);
+
+        expect(page.nodes).not.toBe(stale);
+        stale.forEach((n) => {
+            expect(away(n)).toBe(0);
+        });
+    });
+
+    it('does not move at all for a reader who asked for less motion', () => {
+        const real = window.matchMedia;
+
+        window.matchMedia = () => ({ matches: true });
+
+        try {
+            const { page } = setup();
+
+            expect(pending).toBeNull();
+            expect(page.drift).toBeNull();
+            page.nodes.forEach((n) => {
+                expect(Number.isFinite(n.x)).toBe(true);
+            });
+        } finally {
+            window.matchMedia = real;
+        }
+    });
+
+    it('asks for nothing when there is no graph to move', () => {
+        setup({ data: null });
+
+        expect(pending).toBeNull();
+    });
+});
+
+describe('reducedMotion', () => {
+    const real = window.matchMedia;
+
+    afterEach(() => {
+        window.matchMedia = real;
+    });
+
+    it('is false where the browser cannot be asked', () => {
+        window.matchMedia = undefined;
+
+        expect(reducedMotion()).toBe(false);
+    });
+
+    it('follows the media query', () => {
+        window.matchMedia = (query) => ({ matches: query.includes('reduced-motion') });
+
+        expect(reducedMotion()).toBe(true);
+    });
+
+    it('is false when the reader has expressed no preference', () => {
+        window.matchMedia = () => ({ matches: false });
+
+        expect(reducedMotion()).toBe(false);
     });
 });

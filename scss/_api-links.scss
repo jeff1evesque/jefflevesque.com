@@ -60,9 +60,15 @@
 }
 
 //
-// on the graph page the icons share the header row with the title and the build
-// picker, and push to the far end of it
+// on the graph page the icons head the canvas column -- the middle one of the
+// three -- sharing a row with the caption and pushed to the right end of it. In
+// the page header instead, they sat at the far edge of the window, a column and
+// a half away from the graph they describe.
 //
-.graph-header .api-links {
+// 'flex: none' so the caption is what gives when the row is short: the icons are
+// the fixed half.
+//
+.graph-canvas-header .api-links {
+  flex: none;
   margin-left: auto;
 }

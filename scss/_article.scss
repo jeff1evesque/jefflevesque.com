@@ -175,11 +175,6 @@
     }
   }
 
-  .home {
-    .article-stock-split {
-      margin-top: 2rem;
-    }
-  }
 }
 
 .small-viewport {
@@ -236,15 +231,6 @@
     color: $gray-6;
     font-size: 16px;
     padding-left: 0.75rem;
-  }
-}
-
-.home {
-  .listing > div:first-of-type {
-    margin-top: 1rem;
-  }
-  .listing > div {
-    margin-top: 3rem;
   }
 }
 
