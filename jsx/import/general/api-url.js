@@ -5,12 +5,12 @@
  *     performance       read by /stream                        Stream, Interval, Timezone
  *     datalake          read by /data, /stream/:stream/alarm   Data, Scale
  *     knowledge-graph   read by /graph and /                   Graph
- *                       its tables                             Operation, Text, Uri, Day, Limit
+ *                       its tables, one path per question      Text, Uri, Day, Limit
  *
- * Three apis, four surfaces. The knowledge graph answers what a build IS on its own
- * two paths, and what a build CONTAINS on a third: the first two take their id in
- * the path and refuse a query string, while the third takes an operation and that
- * operation's values in the query string. Separate builders for that reason.
+ * Three apis, and the knowledge graph has two shapes. It answers what a build IS on
+ * two paths taking their id in the path, and what a build CONTAINS on four more,
+ * one per question, each taking only that question's values. Separate builders for
+ * that reason.
  *
  * Every url a page fetches from these apis is built here, and so is the link that
  * shows a reader the request behind what the page draws. One builder for both is
@@ -113,18 +113,26 @@ export function knowledgeGraphUrl(graph = null, base = ENDPOINTS.knowledgeGraph)
 }
 
 //
-// what each question of the tables takes, beyond the Operation naming it. The api
-// refuses a value meaningless to the operation rather than ignoring it, so sending
-// one is a 400 -- these are held here so it is refused before the request instead.
+// each question of the tables: the path it is asked on, and what it takes there.
+//
+// the api refuses a value meaningless to the operation rather than ignoring it, so
+// sending one is a 400 -- the lists are held here so it is refused before the
+// request instead.
 //
 // 'Limit' is accepted by all four and left out of the lists, being a ceiling on the
 // answer rather than part of the question.
 //
+// the operation used to be an 'Operation' parameter on one path. It moved because
+// four operations taking four different parameter sets cannot be described on one
+// path: OpenAPI gives a flat parameter list per path, so a document of that shape
+// permitted requests the api rejects, and the rendered form on the documentation
+// site built one every time.
+//
 const TABLES_VALUES = {
-    EdgeTypes: [],
-    Find: ['Text'],
-    Facts: ['Uri', 'Day'],
-    Neighborhood: ['Uri', 'Day'],
+    EdgeTypes: { path: 'edge-types', values: [] },
+    Find: { path: 'find', values: ['Text'] },
+    Facts: { path: 'facts', values: ['Uri', 'Day'] },
+    Neighborhood: { path: 'neighborhood', values: ['Uri', 'Day'] },
 };
 
 /**
@@ -140,24 +148,28 @@ const TABLES_VALUES = {
  * Note: a value the named operation does not take throws here rather than being
  *       sent. The api answers one with a 400, so the alternative is a request that
  *       can only fail.
+ *
+ * Note: the operation names a PATH, not a parameter. Callers pass the same names
+ *       they always did -- 'EdgeTypes', 'Find' -- and the segment is this module's
+ *       business, so a renamed segment is a change here and nowhere else.
  */
 export function knowledgeGraphTablesUrl(operation, values = {}, base = ENDPOINTS.knowledgeGraphTables) {
-    const accepted = TABLES_VALUES[operation];
+    const asked = TABLES_VALUES[operation];
 
-    if (!accepted) {
+    if (!asked) {
         throw new Error(`knowledgeGraphTablesUrl: no such operation '${operation}'`);
     }
 
     const given = Object.keys(values).filter((name) => values[name] !== undefined && values[name] !== null && values[name] !== '');
-    const unexpected = given.filter((name) => name !== 'Limit' && !accepted.includes(name));
+    const unexpected = given.filter((name) => name !== 'Limit' && !asked.values.includes(name));
 
     if (unexpected.length) {
         throw new Error(`knowledgeGraphTablesUrl: ${operation} does not take ${unexpected.sort().join(', ')}`);
     }
 
-    return withParams(base, given.reduce(
+    return withParams(`${base}/${asked.path}`, given.reduce(
         (sent, name) => Object.assign(sent, { [name]: values[name] }),
-        { Operation: operation }
+        {}
     ));
 }
 
