@@ -33,6 +33,13 @@ $graph-columns: 992px;
 //
 $graph-side: clamp(16rem, 24vw, 18rem);
 
+//
+// the gap between a reference column's text and the rule that separates it from
+// the graph. It is added to the column's width rather than taken out of it, so
+// '$graph-side' stays the width the content actually gets.
+//
+$graph-rail-pad: 1.5rem;
+
 .graph-page {
   padding-bottom: 1rem;
   padding-top: 1rem;
@@ -142,10 +149,20 @@ $graph-side: clamp(16rem, 24vw, 18rem);
 .graph-layout {
   display: grid;
   grid-template-areas:
+    'header'
     'build'
     'legend'
     'canvas';
   grid-template-columns: minmax(0, 1fr);
+}
+
+//
+// the page title and the build picker are a grid item, so the layout decides
+// where they sit rather than the markup: first and alone on a narrow screen,
+// and over the middle column on a wide one. See the note in graph.jsx.
+//
+.graph-header {
+  grid-area: header;
 }
 
 .graph-panel-build {
@@ -160,7 +177,6 @@ $graph-side: clamp(16rem, 24vw, 18rem);
 // small, spaced capitals: a heading for a column of reference material, which
 // should label it without competing with the graph for attention.
 //
-.graph-panel-heading,
 .graph-legend h6 {
   color: $gray-6;
   font-size: 0.75rem;
@@ -168,6 +184,78 @@ $graph-side: clamp(16rem, 24vw, 18rem);
   letter-spacing: 0.06em;
   margin: 0 0 0.6rem;
   text-transform: uppercase;
+}
+
+//
+// the panel's heading is a wrapper for the button inside it and carries no look
+// of its own -- see the note in graph.jsx for why the button is inside a heading
+// rather than replacing one.
+//
+.graph-panel-heading {
+  margin: 0;
+}
+
+//
+// the toggle IS the column's heading, at every width, so it wears the same small
+// spaced capitals the legend's headings do rather than looking like a control
+// parked above the content.
+//
+.graph-panel-toggle {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: $gray-6;
+  display: flex;
+  font-size: 0.75rem;
+  font-weight: 600;
+  gap: 0.5rem;
+  letter-spacing: 0.06em;
+  padding: 0.4rem 0.25rem;
+  text-align: left;
+  text-transform: uppercase;
+  width: 100%;
+
+  &::before {
+    border-bottom: 2px solid $gray-6;
+    border-right: 2px solid $gray-6;
+    content: '';
+    flex: none;
+    height: 0.45rem;
+    margin: 0 0.35rem 0 0.1rem;
+    transform: rotate(-45deg);
+    transition: transform 0.15s ease;
+    width: 0.45rem;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+}
+
+.graph-panel-open > .graph-panel-heading > .graph-panel-toggle::before {
+  transform: rotate(45deg);
+}
+
+.graph-panel-title {
+  font-weight: 600;
+}
+
+.graph-panel-summary {
+  color: $gray-6;
+  margin-left: auto;
+  text-transform: none;
+}
+
+//
+// the closed body stays in the document -- react does not unmount it -- so this
+// is what actually folds a panel away, at both widths.
+//
+.graph-panel-body {
+  display: none;
+}
+
+.graph-panel-open > .graph-panel-body {
+  display: block;
 }
 
 .graph-legend h6 + ul {
@@ -563,56 +651,17 @@ $graph-side: clamp(16rem, 24vw, 18rem);
 // panel still says something.
 //
 @media (max-width: $graph-columns - 0.02px) {
-  .graph-panel-heading {
-    display: none;
-  }
-
+  //
+  // stacked, so each panel is a band with a rule above it. The wide layout puts
+  // its rule down the side instead, where the columns actually meet.
+  //
   .graph-panel-toggle {
-    align-items: baseline;
-    background: none;
-    border: 0;
     border-top: 1px solid $gray-2;
-    color: $gray-8;
-    display: flex;
-    gap: 0.5rem;
     padding: 0.7rem 0.25rem;
-    text-align: left;
-    width: 100%;
-
-    &::before {
-      align-self: center;
-      border-bottom: 2px solid $gray-6;
-      border-right: 2px solid $gray-6;
-      content: '';
-      flex: none;
-      height: 0.45rem;
-      margin: 0 0.35rem 0 0.1rem;
-      transform: rotate(-45deg);
-      transition: transform 0.15s ease;
-      width: 0.45rem;
-    }
-  }
-
-  .graph-panel-open .graph-panel-toggle::before {
-    transform: rotate(45deg);
-  }
-
-  .graph-panel-title {
-    font-weight: 600;
-  }
-
-  .graph-panel-summary {
-    color: $gray-6;
-    margin-left: auto;
   }
 
   .graph-panel-body {
-    display: none;
     padding: 0.25rem 0.25rem 1rem;
-  }
-
-  .graph-panel-open .graph-panel-body {
-    display: block;
   }
 
   //
@@ -644,40 +693,69 @@ $graph-side: clamp(16rem, 24vw, 18rem);
 // toggled.
 //
 @media (min-width: $graph-columns) {
+  //
+  // the header takes the middle column of a row of its own, directly over the
+  // graph. The two '.' cells either side are empty, so the reference columns
+  // start level with the canvas rather than with the title.
+  //
   .graph-layout {
     align-items: start;
     column-gap: 1.5rem;
-    grid-template-areas: 'build canvas legend';
-    grid-template-columns: $graph-side minmax(0, 1fr) $graph-side;
+    grid-template-areas:
+      '.     header .'
+      'build canvas legend';
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
-  .graph-panel-toggle {
-    display: none;
+  //
+  // an open panel holds the rail width; a closed one shrinks to its own rotated
+  // label. The side tracks are 'auto', so what a folded panel gives up goes to
+  // the 'minmax(0, 1fr)' between them -- which is why folding a column widens
+  // the GRAPH. The canvas takes its height from the viewport and does not change,
+  // so the graph grows sideways and never downward.
+  //
+  // Note: the width carries the padding as well as the rail, so the body inside
+  //       still measures '$graph-side'. Without that the legend loses the ~18rem
+  //       its two-column namespace grid is sized against and silently drops back
+  //       to one column.
+  //
+  .graph-panel {
+    width: calc(#{$graph-side} + #{$graph-rail-pad});
+  }
+
+  .graph-panel-closed {
+    width: auto;
+
+    .graph-panel-toggle {
+      padding: 0.5rem 0.4rem;
+      width: auto;
+      writing-mode: vertical-rl;
+    }
+
+    .graph-panel-summary {
+      display: none;
+    }
   }
 
   //
-  // a hairline down each side of the graph, separating the figure from the
-  // reference columns that flank it.
+  // the rule between two columns sits on the REFERENCE column, not on the canvas.
   //
-  // The rules are on the CANVAS rather than between the grid items, and that is
-  // the whole trick. A rule drawn between two columns has to decide where to
-  // stop, which means making all three columns the same height and stretching
-  // two of them past their content to get there. The canvas already has a height
-  // -- it is the one column that does -- so a border on it starts and ends
-  // somewhere definite, and 'align-items: start' can stay exactly as it is.
+  // Drawn down the canvas it ran the full height of the graph, which is a couple
+  // of hundred pixels taller than the text beside it -- so each rule overhung its
+  // neighbour's last line and read as a line with nothing next to it. On the
+  // panel it ends where that panel's own content ends, and nothing needs its
+  // height matched to anything.
   //
-  // Note: this is the same border the narrow layout already draws above the
-  //       canvas, for the same reason, turned ninety degrees.
-  //
-  // Note: box-sizing is border-box site-wide, so the 2px this adds comes out of
-  //       the canvas rather than being added to the height calc above.
-  //
-  .graph-canvas {
-    border-left: 1px solid $gray-2;
+  .graph-panel-build {
     border-right: 1px solid $gray-2;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-right: $graph-rail-pad;
   }
+
+  .graph-panel-legend {
+    border-left: 1px solid $gray-2;
+    padding-left: $graph-rail-pad;
+  }
+
 }
 
 //
