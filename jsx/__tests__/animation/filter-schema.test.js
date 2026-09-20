@@ -12,7 +12,7 @@
  */
 
 import filterSchema, {
-    BACKDROP_NODE_TYPES,
+    GRAPH_NODE_TYPES,
     CONNECTOR_MIN_LINKS,
     adjacency,
     components,
@@ -70,11 +70,15 @@ describe('choosing which node types survive', () => {
         expect(filterSchema(schema, 1).node_types.n0).toBe(schema.node_types.n0);
     });
 
-    it('defaults to the backdrop limit', () => {
-        const schema = schemaOf(new Array(40).fill(1));
+    it('defaults to the budget both surfaces draw', () => {
+        //
+        // one budget, because there is one graph -- the backdrop and the
+        // explorer used to ask for 24 and 60 and now neither asks for anything.
+        //
+        const schema = schemaOf(new Array(80).fill(1));
 
         expect(Object.keys(filterSchema(schema).node_types))
-            .toHaveLength(BACKDROP_NODE_TYPES);
+            .toHaveLength(GRAPH_NODE_TYPES);
     });
 });
 

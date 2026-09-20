@@ -10,9 +10,11 @@
  * stops reading as a backdrop.
  *
  * This runs in the client rather than at build or publish time. The published
- * artifact stays canonical, and the graph explorer page will want a larger slice
- * of the same document than the front page does -- filtering upstream would have
- * to pick one answer for both.
+ * artifact stays canonical, and what a surface can legibly carry is a question
+ * about that surface rather than about the data -- filtering upstream would fix
+ * one answer for every consumer, including the ones that want the whole thing.
+ * Both of this site's surfaces happen to want the same slice today; that is an
+ * answer they arrived at, not one the publisher handed them.
  *
  * Note: a pure function in its own module, deliberately not a method on the
  *       component. It is input -> output with no dom and no d3, which is the
@@ -37,34 +39,39 @@
  */
 
 //
-// how many node types the front page carries.
+// how many node types either surface carries.
 //
-// 24 is not a round number picked for its own sake -- it is the size of the
-// schema the cluster was built and tuned against, so it is the one density this
-// layout is known to work at. Raising it is a visual decision that should be
-// made by looking at the result, not by reasoning about the payload.
+// ONE budget, because there is one graph. The front page drew 24 and the
+// explorer 60, on the recorded grounds that the selection "stays in one piece"
+// at 60 and does not at 24. Measured against the published build that is not
+// so: both sizes come out a single connected component, and the claim was the
+// only justification written down anywhere for the two differing.
 //
-const BACKDROP_NODE_TYPES = 24;
-
+// What the split cost was visible on the page people land on first. At 24 the
+// front page drew 62 of the build's edges against the explorer's 290, and eight
+// of the twelve namespaces the shared palette assigns -- so a third of the
+// graph's colours never appeared there at all.
 //
-// how many node types the explorer page carries.
+// Space was not the constraint either. The backdrop takes the whole viewport
+// while the explorer's canvas is what is left between two reference columns, so
+// at this budget the front page has between 2.6x (a phone) and 4.8x (a desktop)
+// the room per node that /graph already works in.
 //
-// Larger than the front page, which carries 24 because that is the density a
-// backdrop reads at. Measured against the published build, the selection stays
-// in one connected piece from about 40 upward; 60 is comfortably inside that and
-// still legible. It is a look-at-it number and can move.
+// Note: 60 is still a look-at-it number and can move. It was raised to here by
+//       looking rather than by reasoning about the payload, which is what the
+//       note on the old backdrop budget asked for.
 //
-// Note: it lives HERE, beside the other budget, rather than in the page that
-//       spends it, because it is no longer only a drawing budget -- encoding.js
-//       ranks the shared colour palette over this same slice, so the front page
-//       depends on it too. Two copies of 60 in two files is exactly the drift
-//       the palette was consolidated to end.
+// Note: it lives HERE rather than in the pages that spend it, because it is no
+//       longer only a drawing budget -- encoding.js ranks the shared colour
+//       palette over this same slice, so both surfaces depend on it. Copies of
+//       60 in two files is exactly the drift the palette was consolidated to
+//       end.
 //
-const EXPLORER_NODE_TYPES = 60;
+const GRAPH_NODE_TYPES = 60;
 
 //
 // what fraction of the budget is spent on the biggest types before connectivity
-// gets a say. Two thirds -- 16 of 24 -- keeps the graph's mass on screen (all
+// gets a say. Two thirds -- 40 of 60 -- keeps the graph's mass on screen (all
 // five of the live build's largest types survive) while leaving room for the
 // connectors that make it read as one graph rather than a scatter.
 //
@@ -298,7 +305,7 @@ export function selectTypes(node_types, edge_types, limit) {
  *       page will want them -- and a caller that reads 'summary.total_node_types'
  *       should still see the TRUE total rather than the filtered one.
  */
-export default function filterSchema(schema, limit = BACKDROP_NODE_TYPES) {
+export default function filterSchema(schema, limit = GRAPH_NODE_TYPES) {
     if (!schema || typeof schema !== 'object') {
         return null;
     }
@@ -335,4 +342,4 @@ export default function filterSchema(schema, limit = BACKDROP_NODE_TYPES) {
     return { ...schema, node_types: kept_nodes, edge_types: kept_edges };
 }
 
-export { BACKDROP_NODE_TYPES, EXPLORER_NODE_TYPES, SEED_FRACTION, CONNECTOR_MIN_LINKS };
+export { GRAPH_NODE_TYPES, SEED_FRACTION, CONNECTOR_MIN_LINKS };

@@ -20,7 +20,7 @@
  */
 
 import { colors, colors_categorical, color_other, color_tail } from '../general/colors.js';
-import filterSchema, { EXPLORER_NODE_TYPES } from './filter-schema.js';
+import filterSchema, { GRAPH_NODE_TYPES } from './filter-schema.js';
 
 // ontology uris are '<origin>/ontology/<namespace>/<Type>'; the id prefix is the
 // fallback for anything that does not match.
@@ -135,7 +135,7 @@ export function assignNamespaceColors(nodes, tail = 'roll-up') {
  *       slice cannot produce this map, which is the point -- that is exactly the
  *       call that used to disagree.
  */
-export function buildPalette(schema, limit = EXPLORER_NODE_TYPES) {
+export function buildPalette(schema, limit = GRAPH_NODE_TYPES) {
     const drawn = filterSchema(schema, limit);
 
     if (!drawn) {

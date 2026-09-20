@@ -173,10 +173,39 @@ describe('when the listing cannot be had', () => {
     });
 });
 
+//
+// 'default' is the service's preference, not the only build it has. When it
+// names none, the front page falls back to the first one listed -- which is the
+// rule /graph already follows. The two surfaces draw one build between them and
+// had no business disagreeing about which, least of all by one of them drawing
+// nothing at all while the other drew fine.
+//
+describe('when the listing names no default', () => {
+    const LISTED = { default: null, graphs: [{ id: 'first-build' }, { id: 'second-build' }] };
+
+    it('falls back to the first build listed', async () => {
+        const fetcher = answering(ok({ report: LISTED }), ok({ report: SCHEMA }));
+
+        await expect(getGraphSchema()).resolves.toEqual(SCHEMA);
+        expect(String(fetcher.mock.calls[1][0])).toContain('first-build');
+    });
+
+    it('prefers the default when there is one', async () => {
+        const fetcher = answering(
+            ok({ report: { default: 'chosen', graphs: [{ id: 'first-build' }] } }),
+            ok({ report: SCHEMA })
+        );
+
+        await getGraphSchema();
+
+        expect(String(fetcher.mock.calls[1][0])).toContain('chosen');
+    });
+});
+
 describe('when the listing has nothing servable', () => {
     //
-    // 'default' can be null when the listing holds no usable build. Asking for it
-    // anyway would request the path '/null' and be rejected.
+    // no default AND no builds, which is a listing with no answer in it at all.
+    // Asking anyway would request the path '/null' and be rejected.
     //
     it('answers null for a null default', async () => {
         answering(ok({ report: { default: null, graphs: [] } }));

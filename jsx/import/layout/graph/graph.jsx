@@ -28,10 +28,12 @@
  * stylesheet gives a box is the size its contents were designed against, so
  * there is nothing a bigger one would show that it is not showing already.
  *
- * Note: the slice here is larger than the backdrop's. Both go through the same
- *       selection rule, which takes the limit as an argument precisely so two
- *       surfaces can want different amounts. At this size the published graph
- *       stays in one piece, which it does not at the backdrop's budget.
+ * Note: this draws the same slice the front page's backdrop does, out of the
+ *       same build. The two used to differ -- 60 here against 24 there -- on
+ *       the recorded grounds that the selection fell apart at the smaller size.
+ *       Measured against the published build it does not, and the backdrop was
+ *       quietly showing a third fewer namespaces than the palette assigns. See
+ *       GRAPH_NODE_TYPES in filter-schema.js.
  *
  * Note: a failed load clears the graph rather than leaving the previous one on
  *       screen. A stale graph beside a fresh label is indistinguishable from a
@@ -54,7 +56,7 @@ import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js
 import { knowledgeGraphUrl, API_DOCS } from '../../general/api-url.js';
 import ApiLinks from '../../general/api-links.jsx';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
-import filterSchema, { EXPLORER_NODE_TYPES } from '../../animation/filter-schema.js';
+import filterSchema from '../../animation/filter-schema.js';
 import GraphTables from './tables.jsx';
 import {
     sourceNamespace,
@@ -523,7 +525,7 @@ class GraphLayout extends Component {
         });
 
         return getGraphById(id).then((schema) => {
-            const filtered = filterSchema(schema, EXPLORER_NODE_TYPES);
+            const filtered = filterSchema(schema);
 
             this.setState({
                 schema: filtered,
@@ -579,7 +581,7 @@ class GraphLayout extends Component {
         //
         // Note: every namespace in `namespaces` is in `painted`. Both are taken
         //       over the same slice -- buildPalette filters the build at
-        //       EXPLORER_NODE_TYPES, which is what `schema` already is -- so a
+        //       the shared budget, which is what `schema` already is -- so a
         //       swatch can never come back undefined here.
         //
         this.screenFor = schema;
@@ -1481,4 +1483,4 @@ class GraphLayout extends Component {
 //
 export default (props) => <GraphLayout {...props} params={useParams()} navigate={useNavigate()} />;
 
-export { GraphLayout, EXPLORER_NODE_TYPES };
+export { GraphLayout };
