@@ -108,6 +108,25 @@ describe('reaching the whole build', () => {
         expect(drawn.some(Boolean)).toBe(true);
     });
 
+    it('adds no request of its own', () => {
+        //
+        // the whole premise: these rows come out of a document the page had
+        // already fetched to draw the canvas. A later change reaching for the
+        // knowledge-graph tables/* api instead would still render, and would be
+        // answering across the published window rather than for the build in the
+        // picker -- rows that look right and belong to something else.
+        //
+        const fetched = jest.spyOn(global, 'fetch');
+
+        setup();
+        fireEvent.click(tab('Edge types'));
+        fireEvent.change(filter(), { target: { value: 'sec' } });
+
+        expect(fetched).not.toHaveBeenCalled();
+
+        fetched.mockRestore();
+    });
+
     it('draws nothing at all without a build', () => {
         const { container } = setup({ schema: null });
 
