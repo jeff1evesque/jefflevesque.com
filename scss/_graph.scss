@@ -218,16 +218,32 @@ $graph-held-edge: $green-4;
 // columns wear, with its chevron pointing down because down is where the graph
 // will come from.
 //
+// Note: full width HERE, where the column it replaces was full width too and a
+//       band reads as the row that is missing. The wide layout sizes it to its
+//       own three words instead -- see below. A folded column's rail is only as
+//       wide as its label, and a folded row spanning a 1320px container to say
+//       'Show the graph' is a great deal of green for one short sentence.
+//
+// Note: this one is a BUTTON rather than a tint, and it is the site's primary
+//       button -- see 'a.btn-primary' in 'style.scss', which the sign-up
+//       control wears. The folded columns are surfaces the reader turned off
+//       and can turn back on, and a wash of green says that; this is the single
+//       thing to press on a page with its graph put away, and it should look
+//       like the other thing on this site you press.
+//
+// Note: one step down the ramp from btn-primary's, because that one is read at
+//       body size and this is 12px spaced capitals. White on '$green-5' is
+//       3.3:1 and on the '$green-2' its gradient starts at, nearer 2:1 -- which
+//       is what made the first version of this hard to read. '$green-5' into
+//       '$green-6' puts the text between 4.4:1 and 5.7:1 instead.
+//
 .graph-row-bar {
   align-items: center;
-  background-image: linear-gradient(
-    to bottom,
-    rgba($green-2, 0.42),
-    rgba($green-4, 0.16)
-  );
-  border: 0;
+  background-color: $green-6;
+  background-image: linear-gradient($green-5, $green-6);
+  border: 1px solid $green-7;
   border-radius: 0.25rem;
-  color: $green-6;
+  color: $white-1;
   display: flex;
   font-size: 0.75rem;
   font-weight: 600;
@@ -239,12 +255,13 @@ $graph-held-edge: $green-4;
   text-transform: uppercase;
   width: 100%;
 
+  //
+  // the same small uniform darkening btn-primary uses, and for the same reason
+  // -- the '$green-*' ramp steps too coarsely to express 'slightly darker'
+  //
   &:hover {
-    background-image: linear-gradient(
-      to bottom,
-      rgba($green-2, 0.6),
-      rgba($green-4, 0.28)
-    );
+    background-color: darken($green-6, 5%);
+    background-image: linear-gradient(darken($green-5, 5%), darken($green-6, 5%));
   }
 
   &:focus-visible {
@@ -1066,6 +1083,37 @@ $graph-held-edge: $green-4;
     left: 50%;
     top: -0.75rem;
     transform: translateX(-50%);
+  }
+
+  //
+  // a folded row is ONE column, not three empty ones.
+  //
+  // The panels and the canvas go 'display: none', so the two side tracks size
+  // to nothing -- but a grid's gaps sit BETWEEN its tracks whatever those
+  // tracks measure, and zero-width is a width. Three tracks kept their two
+  // 1.5rem gutters, so everything left in the row was drawn into a box 3rem
+  // narrower than the tables underneath it and sat visibly inside their edges.
+  //
+  .graph-row-folded {
+    grid-template-areas:
+      'header'
+      'canvas';
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  //
+  // the folded row's own way back is a button the width of what it says, in the
+  // middle of the space the graph will come back into.
+  //
+  // Stretched across the container it was a green band the width of the page
+  // standing in for three words, which reads as a banner -- something the page
+  // is telling the reader -- rather than as the control it is. Every other
+  // folded thing here is the size of its own label.
+  //
+  .graph-row-bar {
+    justify-self: center;
+    padding: 0.6rem 1.4rem;
+    width: auto;
   }
 
   //
