@@ -5,11 +5,13 @@
  * testing is how those four stay in agreement -- with each other and with the
  * build that is actually selected.
  *
- * On a narrow screen the metadata panel and the legend open and close, and start
- * closed. Which of the two forms is on screen is the stylesheet's decision, so it
- * is not observable here; what is, and is held, is that both panels start closed,
- * that each toggle opens its own panel only, and that the closed toggles still say
- * something about what is inside them.
+ * The metadata panel and the legend open and close at every width, and start open
+ * only where there is room for all three columns at once. How wide the screen is,
+ * and therefore where anything is PLACED, is the stylesheet's decision and is not
+ * observable here; what is, and is held, is which panels start open, that each
+ * toggle opens its own panel only, that the closed toggles still say something
+ * about what is inside them, and that a folded panel keeps both its contents and
+ * its place in the document outline.
  *
  * The misleading case is the one to hold hardest: a load that fails while the
  * previous build is still on screen. A stale graph under a fresh label is
@@ -549,15 +551,48 @@ describe('the panels', () => {
         expect(toggle('Legend').getAttribute('aria-expanded')).toBe('false');
     });
 
-    it('keep their contents in the page while closed', async () => {
+    it('start open on a wide screen, which has room for all three columns', async () => {
         //
-        // a wide screen shows both panels regardless, so closing one hides it with the
-        // stylesheet rather than removing it.
+        // one piece of state answering to two defaults. jsdom does not implement
+        // matchMedia at all, which is why the case above sees the closed default
+        // and why this one has to supply the query itself.
+        //
+        window.matchMedia = jest.fn().mockReturnValue({ matches: true });
+
+        try {
+            await setup();
+
+            expect(toggle('Build details').getAttribute('aria-expanded')).toBe('true');
+            expect(toggle('Legend').getAttribute('aria-expanded')).toBe('true');
+        } finally {
+            delete window.matchMedia;
+        }
+    });
+
+    it('fold away without being unmounted, so the graph keeps its colours', async () => {
+        //
+        // the explorer beside them reads its palette from the same render, so a
+        // panel is hidden by the stylesheet rather than removed by react.
         //
         await setup();
 
         expect(document.querySelector('.graph-details')).not.toBeNull();
         expect(document.querySelector('.graph-legend')).not.toBeNull();
+    });
+
+    it('sit in the same grid as the title, so the layout can place both', async () => {
+        //
+        // the header is a grid ITEM rather than a row above the grid -- that is
+        // what lets it stack first on a phone and sit over the middle column on a
+        // wide screen without the markup differing. If it drifts back outside
+        // '.graph-layout' the areas naming it stop applying and it silently
+        // returns to heading the left column.
+        //
+        await setup();
+
+        expect(document.querySelector('.graph-layout > .graph-header')).not.toBeNull();
+        expect(document.querySelector('.graph-layout > .graph-panel-build')).not.toBeNull();
+        expect(document.querySelector('.graph-layout > .graph-canvas')).not.toBeNull();
     });
 
     it('open and close from their toggles', async () => {
@@ -628,11 +663,21 @@ describe('the panels', () => {
         expect(document.querySelector('.graph-panel-build .graph-panel-summary')).toBeNull();
     });
 
-    it('head the build column for the wide layout, where nothing toggles', async () => {
+    it('keep each column in the document outline while it is folded away', async () => {
+        //
+        // the toggle sits INSIDE the heading rather than replacing it. Both
+        // columns now fold at every width, and a bare button is not a heading --
+        // a reader navigating this page by headings would otherwise find the
+        // graph and the tables and nothing that names either reference column.
+        //
         await setup();
 
-        expect(document.querySelector('.graph-panel-build .graph-panel-heading').textContent)
-            .toBe('Build');
+        ['build', 'legend'].forEach((key) => {
+            const heading = document.querySelector(`.graph-panel-${key} .graph-panel-heading`);
+
+            expect(heading.tagName).toBe('H6');
+            expect(heading.querySelector('.graph-panel-toggle')).not.toBeNull();
+        });
     });
 
     it('are absent when there is nothing to put in them', async () => {
