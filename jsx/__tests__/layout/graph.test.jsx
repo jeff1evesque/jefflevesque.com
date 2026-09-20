@@ -41,7 +41,9 @@ jest.mock('../../import/animation/graph-explorer.jsx', () => ({
         <div
             data-testid='explorer'
             data-types={data ? Object.keys(data.node_types).length : 'none'}
-            data-emphasis={emphasis ? `${emphasis.kind}:${emphasis.value}` : 'none'}
+            data-emphasis={emphasis && emphasis.length
+                ? emphasis.map((m) => `${m.kind}:${m.value}`).join(' ')
+                : 'none'}
             onClick={onClear}
         />
     ),
@@ -75,6 +77,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import GraphLayout, { EXPLORER_NODE_TYPES } from '../../import/layout/graph/graph.jsx';
 import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
+import { writeLayout } from '../../import/general/layout-preference.js';
+
+// the shim setup.js installs, kept so a test that replaces it can put it back
+const storage = window.localStorage;
 
 const BUILD_A = {
     id: 'build-a',
@@ -194,6 +200,13 @@ function detail(label) {
 
 beforeEach(() => {
     jest.clearAllMocks();
+    //
+    // every test is a first visit unless it says otherwise. The page keeps how
+    // it was arranged in localStorage, and the shim from setup.js is one object
+    // for the whole file -- so without this, a test that folds a column leaves
+    // it folded for every test that runs after it.
+    //
+    window.localStorage.clear();
     getGraphListing.mockResolvedValue(LISTING);
     getGraphById.mockResolvedValue(schemaOf(4));
 });
@@ -931,6 +944,511 @@ describe('the divider between a column and the graph', () => {
 });
 
 //
+// how the page was arranged, kept for the next visit. The module underneath has
+// its own suite for everything a stored value can be; what matters HERE is that
+// the page writes what the reader did and reads it back against the screen it
+// has now, rather than against the one they did it on.
+//
+describe('remembering how the page was arranged', () => {
+    const panel = (key) => document.querySelector(`.graph-panel-${key}`);
+    const width = (key) => panel(key).style.getPropertyValue('--graph-panel-width');
+    const entry = (name) => screen.getByRole('button', { name: new RegExp(`^${name}`) });
+    const real = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'offsetWidth');
+
+    function pointer(type, target, init = {}) {
+        fireEvent(target, new MouseEvent(type, { bubbles: true, cancelable: true, ...init }));
+    }
+
+    //
+    // jsdom lays nothing out, and the restore measures every box it is about to
+    // apply a stored size to -- so the width has to come from somewhere before
+    // the page mounts, which means the prototype rather than an element.
+    //
+    function laidOut(px) {
+        Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', {
+            configurable: true,
+            get() { return px; },
+        });
+    }
+
+    async function revisit(previous) {
+        previous.unmount();
+
+        return setup();
+    }
+
+    beforeEach(() => {
+        window.matchMedia = jest.fn().mockReturnValue({ matches: true });
+    });
+
+    afterEach(() => {
+        Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', real);
+        delete window.matchMedia;
+    });
+
+    it('opens a column the reader folded, folded', async () => {
+        const first = await setup();
+
+        fireEvent.click(toggle('Build details'));
+        await revisit(first);
+
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('opens a column the reader unfolded, open', async () => {
+        //
+        // the narrow default is folded, so this is the direction that proves a
+        // stored `false` is read as an answer rather than as an absence.
+        //
+        delete window.matchMedia;
+        const first = await setup();
+
+        fireEvent.click(toggle('Legend'));
+        await revisit(first);
+
+        expect(toggle('Legend').getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('brings back a width the reader dragged', async () => {
+        laidOut(312);
+        const first = await setup();
+
+        pointer('pointerdown', panel('build').querySelector('.graph-panel-grip'), {
+            clientX: 500,
+            button: 0,
+        });
+        pointer('pointermove', window, { clientX: 400 });
+        pointer('pointerup', window);
+
+        await revisit(first);
+
+        expect(width('build')).toBe('212px');
+    });
+
+    it('does not write a width on every pointer move', async () => {
+        //
+        // a drag is a hundred pointer events and localStorage is synchronous.
+        // The pointer coming up is the reader settling on a size.
+        //
+        laidOut(312);
+        await setup();
+
+        //
+        // counted rather than spied on: the shim in setup.js defines setItem
+        // through a getter, which jest.spyOn cannot replace.
+        //
+        const writes = [];
+
+        Object.defineProperty(window, 'localStorage', {
+            configurable: true,
+            value: {
+                getItem: () => null,
+                setItem: (key, value) => writes.push(value),
+                clear() {},
+            },
+        });
+
+        try {
+            pointer('pointerdown', panel('build').querySelector('.graph-panel-grip'), {
+                clientX: 500,
+                button: 0,
+            });
+            [450, 430, 410, 400].forEach((x) => pointer('pointermove', window, { clientX: x }));
+
+            expect(writes).toHaveLength(0);
+
+            pointer('pointerup', window);
+
+            expect(writes).toHaveLength(1);
+        } finally {
+            Object.defineProperty(window, 'localStorage', {
+                configurable: true,
+                value: storage,
+            });
+        }
+    });
+
+    it('drops a stored width this screen cannot give', async () => {
+        //
+        // dragged on a wider monitor. Honouring it would make the column wider
+        // than the layout ever intended.
+        //
+        writeLayout('graph', 'wide', { fold: {}, size: { build: 900 } });
+        laidOut(312);
+
+        await setup();
+
+        expect(width('build')).toBe('');
+    });
+
+    it('drops a stored width under the floor rather than folding the column', async () => {
+        //
+        // folding somebody's column on page load, because of a number left over
+        // from another screen, is a page that opens broken to explain itself.
+        //
+        writeLayout('graph', 'wide', { fold: {}, size: { build: 40 } });
+        laidOut(312);
+
+        await setup();
+
+        expect(width('build')).toBe('');
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('keeps a stored width this screen can give', async () => {
+        writeLayout('graph', 'wide', { fold: {}, size: { build: 212 } });
+        laidOut(312);
+
+        await setup();
+
+        expect(width('build')).toBe('212px');
+    });
+
+    it('drops the width of a column that comes back folded', async () => {
+        //
+        // it cannot be checked against this screen while the box is closed, and
+        // a column reopens at the width the layout designed for it.
+        //
+        writeLayout('graph', 'wide', { fold: { build: true }, size: { build: 212 } });
+        laidOut(312);
+
+        await setup();
+
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('false');
+        expect(width('build')).toBe('');
+    });
+
+    it('keeps the wide and narrow arrangements apart', async () => {
+        //
+        // a reader folds both columns on a phone because a phone has room for
+        // one thing. Restoring that on a monitor is the stored preference
+        // disagreeing with the person.
+        //
+        let visit = await setup();
+        fireEvent.click(toggle('Build details'));
+
+        visit.unmount();
+        delete window.matchMedia;
+        visit = await setup();
+        fireEvent.click(toggle('Build details'));
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('true');
+
+        visit.unmount();
+        window.matchMedia = jest.fn().mockReturnValue({ matches: true });
+        await setup();
+
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('does not remember what the legend was holding', async () => {
+        //
+        // a mark is a question about the graph in front of the reader, not an
+        // arrangement of the page. A canvas that opens dimmed against a
+        // namespace chosen last week reads as a rendering fault.
+        //
+        const first = await setup();
+
+        fireEvent.click(entry('bls'));
+        expect(explorer().getAttribute('data-emphasis')).toBe('namespace:bls');
+
+        await revisit(first);
+
+        expect(explorer().getAttribute('data-emphasis')).toBe('none');
+    });
+
+    it('opens exactly as it does today when storage refuses', async () => {
+        Object.defineProperty(window, 'localStorage', {
+            configurable: true,
+            value: {
+                getItem() { throw new Error('denied'); },
+                setItem() { throw new Error('denied'); },
+                clear() {},
+            },
+        });
+
+        try {
+            await setup();
+
+            expect(toggle('Build details').getAttribute('aria-expanded')).toBe('true');
+            expect(() => fireEvent.click(toggle('Legend'))).not.toThrow();
+        } finally {
+            Object.defineProperty(window, 'localStorage', {
+                configurable: true,
+                value: storage,
+            });
+        }
+    });
+});
+
+//
+// the rule above the tables, which is the boundary between the graph and
+// everything the graph could not draw. Same strip and same arrow as the two
+// beside the canvas, turned ninety degrees.
+//
+describe('the divider above the tables', () => {
+    const canvas = () => document.querySelector('.graph-canvas');
+    const grip = () => document.querySelector('.graph-row-grip');
+    const fold = () => document.querySelector('.graph-row-fold');
+    const bar = () => screen.queryByRole('button', { name: /Show the graph/ });
+    const height = () => canvas().style.getPropertyValue('--graph-canvas-height');
+
+    function pointer(type, target, init = {}) {
+        fireEvent(target, new MouseEvent(type, { bubbles: true, cancelable: true, ...init }));
+    }
+
+    //
+    // jsdom lays nothing out, so the canvas's own height and the floor under it
+    // are supplied. 500 is the height the page opens at and the ceiling a drag
+    // may not pass; 200 stands in for whichever reference column is taller.
+    //
+    function sized(open = 500, floor = 200) {
+        Object.defineProperty(canvas(), 'offsetHeight', { value: open, configurable: true });
+        canvas().style.minHeight = `${floor}px`;
+    }
+
+    it('puts a strip and an arrow on the rule', async () => {
+        await setup();
+
+        expect(grip()).not.toBeNull();
+        expect(grip()).toHaveAttribute('aria-hidden', 'true');
+        expect(fold()).toHaveAttribute('aria-label', 'Collapse the graph');
+    });
+
+    it('points its arrow up, the way the row travels as it closes', async () => {
+        await setup();
+
+        expect(fold().querySelector('[data-testid="ExpandLessIcon"]')).not.toBeNull();
+    });
+
+    it('folds the whole row from the arrow', async () => {
+        await setup();
+
+        fireEvent.click(fold());
+
+        expect(document.querySelector('.graph-layout')).toHaveClass('graph-row-folded');
+    });
+
+    it('takes the arrow away with the row it folded', async () => {
+        await setup();
+
+        fireEvent.click(fold());
+
+        expect(fold()).toBeNull();
+        expect(grip()).toBeNull();
+    });
+
+    it('keeps the title and the build picker when the row is folded', async () => {
+        //
+        // a reader who has put the graph away is reading the tables, and still
+        // has to be able to tell which build they are for and choose another.
+        //
+        await setup();
+
+        fireEvent.click(fold());
+
+        expect(screen.getByRole('heading', { name: 'Knowledge graph' })).toBeTruthy();
+        expect(picker()).toBeTruthy();
+        expect(document.querySelector('[data-testid="tables"]')).not.toBeNull();
+    });
+
+    it('leaves a bar that brings the row back', async () => {
+        await setup();
+
+        fireEvent.click(fold());
+        expect(bar()).toHaveAttribute('aria-expanded', 'false');
+
+        fireEvent.click(bar());
+
+        expect(document.querySelector('.graph-layout')).toHaveClass('graph-row-open');
+        expect(fold()).not.toBeNull();
+    });
+
+    it('keeps the graph mounted while the row is folded', async () => {
+        //
+        // hidden by the stylesheet rather than unmounted: a fresh d3 layout on
+        // every reopen would make the graph a different shape each time.
+        //
+        await setup();
+
+        fireEvent.click(fold());
+
+        expect(explorer()).not.toBeNull();
+    });
+
+    it('drags the canvas shorter', async () => {
+        await setup();
+        sized();
+
+        pointer('pointerdown', grip(), { clientY: 600, button: 0 });
+        pointer('pointermove', window, { clientY: 500 });
+
+        expect(height()).toBe('400px');
+    });
+
+    it('will not drag the canvas taller than it opens at', async () => {
+        await setup();
+        sized();
+
+        pointer('pointerdown', grip(), { clientY: 600, button: 0 });
+        pointer('pointermove', window, { clientY: 900 });
+
+        expect(height()).toBe('500px');
+    });
+
+    it('stops at the height of the taller reference column', async () => {
+        //
+        // below that the ROW's height is the column's rather than the canvas's,
+        // so the rule would not move however far the pointer went.
+        //
+        await setup();
+        sized(500, 300);
+
+        // the pointer goes BELOW the floor and the height stops at it
+        pointer('pointerdown', grip(), { clientY: 600, button: 0 });
+        pointer('pointermove', window, { clientY: 380 });
+
+        expect(height()).toBe('300px');
+        expect(document.querySelector('.graph-layout')).toHaveClass('graph-row-open');
+    });
+
+    it('folds the row once it is dragged well past that floor', async () => {
+        await setup();
+        sized(500, 200);
+
+        pointer('pointerdown', grip(), { clientY: 600, button: 0 });
+        pointer('pointermove', window, { clientY: 240 });
+
+        expect(document.querySelector('.graph-layout')).toHaveClass('graph-row-folded');
+    });
+
+    it('gives the row its designed height back after a drag folded it', async () => {
+        await setup();
+        sized(500, 200);
+
+        pointer('pointerdown', grip(), { clientY: 600, button: 0 });
+        pointer('pointermove', window, { clientY: 240 });
+        fireEvent.click(bar());
+
+        expect(height()).toBe('');
+    });
+});
+
+//
+// the two reference columns are held at the height of the taller, so the rules
+// that frame the graph start level and stop level.
+//
+describe('the two columns matching heights', () => {
+    const real = global.ResizeObserver;
+    let observers;
+
+    const panel = (key) => document.querySelector(`.graph-panel-${key}`);
+    const body = (key) => panel(key).querySelector('.graph-panel-body');
+    const held = (key) => panel(key).style.getPropertyValue('--graph-panel-height');
+
+    function tall(key, px) {
+        Object.defineProperty(body(key), 'offsetHeight', { value: px, configurable: true });
+    }
+
+    //
+    // one observer watches both bodies, so reporting once is enough
+    //
+    function reflow() {
+        observers.filter((o) => !o.disconnected).forEach((o) => o.callback());
+    }
+
+    const watching = () => observers[observers.length - 1];
+
+    beforeEach(() => {
+        observers = [];
+        window.matchMedia = jest.fn().mockReturnValue({ matches: true });
+        global.ResizeObserver = class {
+            constructor(callback) {
+                this.callback = callback;
+                this.targets = [];
+                observers.push(this);
+            }
+
+            observe(target) {
+                this.targets.push(target);
+            }
+
+            disconnect() {
+                this.disconnected = true;
+            }
+        };
+    });
+
+    afterEach(() => {
+        global.ResizeObserver = real;
+        delete window.matchMedia;
+    });
+
+    it('watches both column bodies', async () => {
+        await setup();
+
+        //
+        // attached again once a build has loaded, because there are no panels
+        // to watch before that -- so the live one is the last one made.
+        //
+        expect(watching().targets).toEqual([body('build'), body('legend')]);
+        expect(observers.slice(0, -1).every((o) => o.disconnected)).toBe(true);
+    });
+
+    it('holds both columns at the taller one, growing the shorter', async () => {
+        await setup();
+        tall('build', 320);
+        tall('legend', 180);
+
+        act(() => { reflow(); });
+
+        expect(held('build')).toBe('320px');
+        expect(held('legend')).toBe('320px');
+    });
+
+    it('follows whichever column is taller', async () => {
+        await setup();
+        tall('build', 120);
+        tall('legend', 260);
+
+        act(() => { reflow(); });
+
+        expect(held('build')).toBe('260px');
+        expect(held('legend')).toBe('260px');
+    });
+
+    it('leaves a folded column out of it', async () => {
+        //
+        // a folded column is already the full height of the row, and its body
+        // is display:none and measures nothing.
+        //
+        await setup();
+        tall('build', 320);
+        tall('legend', 180);
+        fireEvent.click(toggle('Build details'));
+
+        act(() => { reflow(); });
+
+        expect(held('legend')).toBe('180px');
+    });
+
+    it('holds nothing before a build has loaded', async () => {
+        getGraphListing.mockResolvedValue(null);
+
+        await setup();
+
+        expect(document.querySelector('.graph-panel')).toBeNull();
+    });
+
+    it('stops watching once unmounted', async () => {
+        const { unmount } = await setup();
+
+        unmount();
+
+        expect(watching().disconnected).toBe(true);
+    });
+});
+
+//
 // the legend points at the canvas: what a reader can do by clicking a node,
 // they can now do to a whole class of them from the words beside it.
 //
@@ -960,28 +1478,72 @@ describe('the legend as a control over the canvas', () => {
         expect(emphasis()).toBe('none');
     });
 
-    it('moves the hold to another entry rather than adding to it', async () => {
+    it('adds a second entry to the hold rather than replacing the first', async () => {
+        //
+        // the question a single mark could not answer: where two namespaces sit
+        // relative to EACH OTHER, rather than either one against everything.
+        //
         await setup();
 
         fireEvent.click(entry('bls'));
         fireEvent.click(entry('sec'));
 
-        expect(entry('bls')).toHaveAttribute('aria-pressed', 'false');
+        expect(entry('bls')).toHaveAttribute('aria-pressed', 'true');
         expect(entry('sec')).toHaveAttribute('aria-pressed', 'true');
+        expect(emphasis()).toBe('namespace:bls namespace:sec');
     });
 
-    it('previews a pointed entry over the held one, and returns to it', async () => {
+    it('takes only the clicked entry out of the hold', async () => {
+        await setup();
+
+        fireEvent.click(entry('bls'));
+        fireEvent.click(entry('sec'));
+        fireEvent.click(entry('bls'));
+
+        expect(entry('bls')).toHaveAttribute('aria-pressed', 'false');
+        expect(entry('sec')).toHaveAttribute('aria-pressed', 'true');
+        expect(emphasis()).toBe('namespace:sec');
+    });
+
+    it('holds namespaces and an edge origin at the same time', async () => {
         //
-        // the same rule the canvas follows for a node: pointing at another one
-        // previews it, and moving off returns to the pinned one.
+        // two channels, not one list: neither cancels the other, so a namespace
+        // clicked after an origin does not silently drop it.
+        //
+        await setup();
+
+        fireEvent.click(entry('bls'));
+        fireEvent.click(entry('enrichment'));
+        fireEvent.click(entry('sec'));
+
+        expect(emphasis()).toBe('namespace:bls origin:enrichment namespace:sec');
+        ['bls', 'sec', 'enrichment'].forEach((name) => {
+            expect(entry(name)).toHaveAttribute('aria-pressed', 'true');
+        });
+    });
+
+    it('previews a pointed entry alongside what is held', async () => {
+        //
+        // what clicking it would ADD. Previewing it alone -- which is what a
+        // single mark did -- makes the entries already lined up vanish while
+        // the pointer is elsewhere, and come back when it moves away.
         //
         await setup();
 
         fireEvent.click(entry('bls'));
         fireEvent.mouseEnter(entry('sec'));
-        expect(emphasis()).toBe('namespace:sec');
+        expect(emphasis()).toBe('namespace:bls namespace:sec');
 
         fireEvent.mouseLeave(entry('sec'));
+        expect(emphasis()).toBe('namespace:bls');
+    });
+
+    it('changes nothing when the pointer is on an entry already held', async () => {
+        await setup();
+
+        fireEvent.click(entry('bls'));
+        fireEvent.mouseEnter(entry('bls'));
+
         expect(emphasis()).toBe('namespace:bls');
     });
 
