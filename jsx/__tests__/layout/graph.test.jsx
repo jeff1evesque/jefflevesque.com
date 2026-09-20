@@ -640,6 +640,23 @@ describe('the panels', () => {
         expect(toggle('Legend').textContent).toContain('2 namespaces');
     });
 
+    it('drop the summary once the panel is open, leaving the heading the line', async () => {
+        //
+        // the summary is what a FOLDED panel says instead of its contents, so it
+        // is gone once the contents are there. Open, it was a second copy of
+        // something one or two lines below it -- '9.88M nodes' over the Nodes
+        // row, '2 namespaces' over a list of two namespaces -- and on a wide
+        // screen the pair shared a 16rem column, which wrapped 'Legend' and its
+        // count onto two lines to say one thing twice.
+        //
+        await setup();
+
+        fireEvent.click(toggle('Legend'));
+
+        expect(document.querySelector('.graph-panel-legend .graph-panel-summary')).toBeNull();
+        expect(document.querySelector('.graph-panel-build .graph-panel-summary')).not.toBeNull();
+    });
+
     it('do not pluralise a single namespace', async () => {
         getGraphById.mockResolvedValue({
             node_types: { bls_A: { count: 1, source_type_uri: 'https://example.com/ontology/bls/A' } },
