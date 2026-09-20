@@ -190,6 +190,69 @@ $graph-held-edge: $green-4;
 }
 
 //
+// the whole three-column row, folded away.
+//
+// What folds is the row, not the page: the title and the build picker stay, and
+// they have to -- a reader who has put the graph away is reading the tables, and
+// still has to be able to tell which build they are for and point them at
+// another one.
+//
+// Note: hidden by the stylesheet rather than unmounted by react, the same as a
+//       folded panel's body and for a stronger reason. Unmounting the canvas
+//       would throw away a settled d3 layout and compute a fresh one every time
+//       the row came back, and the graph would be a different shape each time.
+//
+.graph-row-folded {
+  .graph-panel,
+  .graph-canvas {
+    display: none;
+  }
+}
+
+.graph-row-open .graph-row-bar {
+  display: none;
+}
+
+//
+// the bar a folded row leaves behind: the way back, in the green the folded
+// columns wear, with its chevron pointing down because down is where the graph
+// will come from.
+//
+.graph-row-bar {
+  align-items: center;
+  background-image: linear-gradient(
+    to bottom,
+    rgba($green-2, 0.42),
+    rgba($green-4, 0.16)
+  );
+  border: 0;
+  border-radius: 0.25rem;
+  color: $green-6;
+  display: flex;
+  font-size: 0.75rem;
+  font-weight: 600;
+  gap: 0.4rem;
+  grid-area: canvas;
+  justify-content: center;
+  letter-spacing: 0.06em;
+  padding: 0.55rem;
+  text-transform: uppercase;
+  width: 100%;
+
+  &:hover {
+    background-image: linear-gradient(
+      to bottom,
+      rgba($green-2, 0.6),
+      rgba($green-4, 0.28)
+    );
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+}
+
+//
 // the page title and the build picker are a grid item, so the layout decides
 // where they sit rather than the markup: first and alone on a narrow screen,
 // and over the middle column on a wide one. See the note in graph.jsx.
@@ -307,9 +370,49 @@ $graph-held-edge: $green-4;
 // them on. Below the breakpoint the columns are stacked bands with a rule ABOVE
 // each of them and no vertical edge between anything.
 //
-.graph-panel-grip,
-.graph-panel-fold {
+.graph-grip,
+.graph-fold {
   display: none;
+}
+
+//
+// the strip a divider is dragged by, and the arrow that folds what it divides.
+// Both are placed by the modifier beside these -- '.graph-panel-*' down the
+// side of a column, '.graph-row-*' across the top of the tables -- and share
+// everything else, because they are one control facing two ways.
+//
+// Note: the arrow is gray at rest and green under the pointer. At rest it is a
+//       mark on a rule and should not compete with the graph beside it; green
+//       is what this page says about a state the reader can change.
+//
+.graph-fold {
+  align-items: center;
+  background-color: $white-1;
+  border: 1px solid $gray-3;
+  border-radius: 50%;
+  color: $gray-6;
+  font-size: 1.05rem;
+  height: 1.5rem;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  width: 1.5rem;
+  z-index: 2;
+
+  &:hover {
+    background-color: $graph-held;
+    border-color: $graph-held-edge;
+    color: $green-6;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+}
+
+.graph-grip {
+  position: absolute;
+  z-index: 1;
 }
 
 .graph-legend h6 + ul {
@@ -462,15 +565,23 @@ $graph-held-edge: $green-4;
 //
 // Note: the WIDTH is not here at all, and that is the point of the grid's 'auto'
 //       side tracks -- see the wide layout below. Folding a reference column
-//       widens this box without changing its height, so the graph grows sideways
-//       and never downward. graph-explorer.jsx watches the box for exactly that.
+//       widens this box without changing its height, so a fold grows the graph
+//       sideways rather than reflowing it. graph-explorer.jsx watches the box
+//       for exactly that.
+//
+// Note: the height IS here, but as the fallback of a custom property rather than
+//       as the last word. The rule above the tables drags, and what it drags is
+//       this -- so the figure below is the height the page OPENS at and the
+//       ceiling a drag may not pass, which graph.jsx reads back off this element
+//       rather than keeping a copy of. The floor is the reference columns'
+//       height, which is a number only the page can know.
 //
 .graph-canvas {
   display: flex;
   flex-direction: column;
   grid-area: canvas;
-  height: calc(100vh - 13rem - #{$graph-tables-peek});
-  height: calc(100svh - 13rem - #{$graph-tables-peek});
+  height: var(--graph-canvas-height, calc(100vh - 13rem - #{$graph-tables-peek}));
+  height: var(--graph-canvas-height, calc(100svh - 13rem - #{$graph-tables-peek}));
   min-height: 26rem;
   min-width: 0;
 }
@@ -620,9 +731,18 @@ $graph-held-edge: $green-4;
 //       side of it. What separates the tables from the graph is the rule, not
 //       the distance.
 //
+// Note: that gap is on the WRAPPER rather than here, so the wrapper's top edge
+//       and the rule are the same line. The divider's two controls are placed
+//       against that edge, and a margin between the two would put them a
+//       dozen pixels above the rule they belong to.
+//
+.graph-below {
+  margin-top: 0.75rem;
+  position: relative;
+}
+
 .graph-tables {
   border-top: 1px solid $gray-2;
-  margin-top: 0.75rem;
   padding-top: 0.75rem;
 }
 
@@ -819,8 +939,14 @@ $graph-held-edge: $green-4;
   // an open panel holds the rail width; a closed one shrinks to the width of its
   // own rotated label. The side tracks are 'auto', so what a folded panel gives
   // up goes to the 'minmax(0, 1fr)' between them -- which is why folding a column
-  // widens the GRAPH. The canvas takes its height from the viewport and does not
-  // change, so the graph grows sideways and never downward.
+  // widens the GRAPH.
+  //
+  // Note: it used to say here that the canvas took its height from the viewport
+  //       and could not change, so a fold grew the graph sideways and never
+  //       downward. The rule above the tables drags now, and the height is the
+  //       fallback of a custom property rather than the last word -- so what is
+  //       still true is that a FOLD only ever changes the width, and what is no
+  //       longer true is that nothing changes the height.
   //
   // Note: widening the BOX is only half of it. The svg is laid out against a
   //       measurement of that box, and a fold moves no window, so the graph used
@@ -857,55 +983,41 @@ $graph-held-edge: $green-4;
   }
 
   //
-  // the strip the divider can be dragged by: centred on the rule, and wide
+  // both reference columns are held at the height of the taller, so the two
+  // rules that frame the graph start level and stop level. graph.jsx measures
+  // the bodies and hands the number down -- see measureColumns, and note that
+  // it is the PANEL that carries the height and the BODY that is measured,
+  // which is what keeps the measurement from feeding itself.
+  //
+  // Note: the fallback is 0, so a browser with no ResizeObserver, or a build
+  //       that has not loaded, gets exactly the unmatched layout this had
+  //       before rather than a collapsed one.
+  //
+  .graph-panel-open {
+    min-height: var(--graph-panel-height, 0);
+  }
+
+  //
+  // the strip a vertical divider is dragged by: centred on the rule, and wide
   // enough to be caught by a pointer that is not aimed exactly at a 1px line.
   //
   .graph-panel-grip {
     bottom: 0;
     cursor: col-resize;
     display: block;
-    position: absolute;
     top: 0;
     width: 0.875rem;
-    z-index: 1;
   }
 
   //
-  // and the arrow that folds the column, on the same rule. It points OUTWARD --
-  // the way the column's edge travels as it closes -- which is the direction
-  // the folded rail's own chevron then points back along to reopen it.
+  // and the arrow, on the same rule, halfway down it. It points OUTWARD -- the
+  // way the column's edge travels as it closes -- which is the direction the
+  // folded rail's own chevron then points back along to reopen it.
   //
   .graph-panel-fold {
-    align-items: center;
-    background-color: $white-1;
-    border: 1px solid $gray-3;
-    border-radius: 50%;
-    color: $gray-6;
     display: flex;
-    font-size: 1.05rem;
-    height: 1.5rem;
-    justify-content: center;
-    padding: 0;
-    position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 1.5rem;
-    z-index: 2;
-
-    //
-    // gray at rest and green under the pointer: at rest it is a mark on a rule
-    // and should not compete with the graph beside it, and green is what this
-    // page says about a state the reader can change.
-    //
-    &:hover {
-      background-color: $graph-held;
-      border-color: $graph-held-edge;
-      color: $green-6;
-    }
-
-    &:focus-visible {
-      outline: 2px solid $focus;
-    }
   }
 
   //
@@ -926,6 +1038,34 @@ $graph-held-edge: $green-4;
 
   .graph-panel-legend .graph-panel-fold {
     left: -0.75rem;
+  }
+
+  //
+  // the third divider: the rule above the tables, which is the boundary between
+  // the graph and everything the graph could not draw. Same strip and same
+  // arrow as the two beside the canvas, turned ninety degrees -- it drags the
+  // canvas shorter, and folds the whole three-column row when it is pushed past
+  // the point where the reference columns are already taller than the graph.
+  //
+  .graph-row-grip {
+    cursor: row-resize;
+    display: block;
+    height: 0.875rem;
+    left: 0;
+    right: 0;
+    top: -0.4375rem;
+  }
+
+  //
+  // pointing UP, the way the row travels as it closes, and centred on the rule
+  // rather than at one end: this boundary spans the page, and an arrow in a
+  // corner of it would read as belonging to whatever it sat over.
+  //
+  .graph-row-fold {
+    display: flex;
+    left: 50%;
+    top: -0.75rem;
+    transform: translateX(-50%);
   }
 
   //
