@@ -22,7 +22,12 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 
-import GraphCluster, { clamp, segClosest } from '../../import/animation/graph-cluster.jsx';
+import GraphCluster, {
+    clamp,
+    segClosest,
+    CHARGE_SMALL,
+    GRAPH_TOP_PAD,
+} from '../../import/animation/graph-cluster.jsx';
 import { colors } from '../../import/general/colors.js';
 import schema from '../fixtures/graph-schema.mock.json';
 
@@ -303,7 +308,7 @@ describe('on a phone-sized screen', () => {
 
         const { page } = setup();
 
-        expect(page.simulation.force('charge').strength()()).toBe(-60);
+        expect(page.simulation.force('charge').strength()()).toBe(CHARGE_SMALL);
     });
 });
 
@@ -502,23 +507,79 @@ describe('applyResize', () => {
 
         const svg = page.svgRef.current;
         expect(svg.getAttribute('width')).toBe('1400');
-        expect(svg.getAttribute('height')).toBe('900');
+        expect(svg.getAttribute('height')).toBe(String(900 - GRAPH_TOP_PAD));
     });
 
-    it('leaves room for the construction banner when one is present', () => {
-        //
-        // the svg is absolutely positioned, so without the offset it would sit under the
-        // banner and the top of the cluster would be hidden behind it.
-        //
-        const banner = document.createElement('div');
-        banner.className = 'under-construction';
-        document.body.appendChild(banner);
-        const { page } = setup();
+    //
+    // the svg is absolutely positioned, so without an offset it starts at y=0 and
+    // the cluster drifts up behind whatever the page keeps at the top.
+    //
+    // Note: jsdom measures every element as a zero rect, so a bar has to be given
+    //       a height for any of this to be observable. The old version of this
+    //       case appended a banner, measured nothing, and asserted the offset was
+    //       zero -- which passed whether the offset worked or not.
+    //
+    describe.each([
+        ['the construction banner', 'under-construction', 48],
+        ['the main navigation', 'main-navigation', 64],
+    ])('leaves room for %s', (_name, className, height) => {
+        let bar;
 
-        page.applyResize();
+        beforeEach(() => {
+            bar = document.createElement('div');
+            bar.className = className;
+            bar.getBoundingClientRect = () => ({ height: height, bottom: height });
+            document.body.appendChild(bar);
+        });
 
-        expect(page.topMargin).toBe(0);
-        expect(page.svgRef.current.style.top).toBe('0px');
+        afterEach(() => {
+            bar.remove();
+        });
+
+        it('offsets the canvas below it', () => {
+            const { page } = setup();
+
+            page.applyResize();
+
+            expect(page.topMargin).toBe(height + GRAPH_TOP_PAD);
+            expect(page.svgRef.current.style.top).toBe(`${height + GRAPH_TOP_PAD}px`);
+        });
+
+        it('takes the offset off the canvas height, so it still ends at the fold', () => {
+            window.innerHeight = 900;
+            const { page } = setup();
+
+            page.applyResize();
+
+            expect(page.svgRef.current.getAttribute('height'))
+                .toBe(String(900 - height - GRAPH_TOP_PAD));
+        });
+    });
+
+    it('offsets below whichever bar reaches lowest, not the first one found', () => {
+        //
+        // there are two navigation bars in the markup -- a desktop one and a
+        // taller mobile one -- and the stylesheet decides which is on screen.
+        // The hidden one measures zero, so the visible one is what counts.
+        //
+        const hidden = document.createElement('div');
+        hidden.className = 'main-navigation';
+        hidden.getBoundingClientRect = () => ({ height: 0, bottom: 0 });
+        const shown = document.createElement('div');
+        shown.className = 'main-navigation';
+        shown.getBoundingClientRect = () => ({ height: 96, bottom: 96 });
+        document.body.append(hidden, shown);
+
+        try {
+            const { page } = setup();
+
+            page.applyResize();
+
+            expect(page.topMargin).toBe(96 + GRAPH_TOP_PAD);
+        } finally {
+            hidden.remove();
+            shown.remove();
+        }
     });
 
     it('re-centres the simulation forces on the new middle', () => {

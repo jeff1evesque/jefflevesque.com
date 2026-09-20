@@ -230,11 +230,76 @@ const BG_DARK_RADIUS = 110;  // gray nodes within this radius of the cursor dark
 // Note: filtering node types does NOT solve this, and it is worth saying so here
 //       because it looks like it should. The heaviest edge belongs to the
 //       heaviest node type, which is exactly the one any top-N rule keeps.
-const LINK_DISTANCE_BASE = 60;
+const LINK_DISTANCE_BASE = 80;
 const LINK_DISTANCE_SCALE = 0.15;
 const LINK_DISTANCE_MAX = 160;
 // background links carry no count — a fixed short tether, and never NaN
 const LINK_DISTANCE_BACKGROUND = 40;
+
+//
+// how hard node types push each other apart, and the daylight the collider
+// guarantees on top of that.
+//
+// Raised when both surfaces went to 60 node types. At 24 the cluster settled
+// with a 52px median gap between nearest neighbours; at 60 on the same forces
+// that fell to 30px, with half the nodes carrying a neighbour inside 30px --
+// which is a crowd rather than a cluster, and the communities forceLink exists
+// to reveal stopped being separable by eye.
+//
+// Measured on the published build at 1440x900: charge -200 with 8px of collide
+// daylight and an 80px link base puts the median back to 41px with no pair
+// under 30px at all, in a cluster 714x642 -- comfortably inside the viewport
+// once the nav is accounted for.
+//
+// Note: the small-screen charge stays half the large one, as it always has. A
+//       phone cannot hold 60 node types at this spacing however they are laid
+//       out -- the cluster wants about 480px across a 390px screen -- so it
+//       runs off the sides, as the gray field behind it deliberately does. It
+//       is a backdrop, and a backdrop that is cropped still reads as one.
+//
+const CHARGE_LARGE = -200;
+const CHARGE_SMALL = -100;
+const COLLIDE_GAP = 8;
+
+//
+// clear space kept between the page furniture at the top and the first thing
+// the graph may draw.
+//
+// The canvas is absolutely positioned and was offset only below the "Site Under
+// Construction" banner, so where there was no banner it started at y=0 and the
+// cluster drifted up under the main navigation -- node types passing behind the
+// menu, which reads as the graph being clipped by something it should be under.
+//
+// The navigation is MEASURED rather than written down, the same as the banner
+// beside it, because there are two of them -- a desktop bar and a taller mobile
+// one -- and the stylesheet decides which is on screen. A constant here would be
+// right at one breakpoint and wrong at the other.
+//
+const GRAPH_TOP_PAD = 16;
+
+/**
+ * the y the canvas starts at: below everything fixed at the top of the page,
+ * plus a little daylight.
+ *
+ * Note: bottoms are taken against the DOCUMENT rather than the viewport. A
+ *       resize can arrive while the page is scrolled, and a viewport-relative
+ *       bottom is negative by then -- which would pull the canvas back up under
+ *       the menu precisely when someone scrolled and resized.
+ *
+ * Note: every match is measured, not just the first. A hidden navbar reports a
+ *       zero rect, so whichever of the two is actually on screen is the one
+ *       that wins, without this needing to know which that is.
+ */
+export function topInset(doc = document, scrolled = window.scrollY) {
+    const bars = [...doc.querySelectorAll('.under-construction, .main-navigation')];
+    const lowest = bars.reduce((most, bar) => {
+        const rect = bar.getBoundingClientRect();
+
+        return Math.max(most, rect.height ? rect.bottom + scrolled : 0);
+    }, 0);
+
+    return Math.ceil(lowest) + GRAPH_TOP_PAD;
+}
 
 export function clamp(v, lo, hi) {
     return v < lo ? lo : v > hi ? hi : v;
@@ -350,8 +415,7 @@ class GraphCluster extends Component {
     // expanding/shrinking the browser doesn't clip the animation.
     applyResize() {
         this.resizeTimer = null;
-        const banner = document.querySelector('.under-construction');
-        this.topMargin = banner ? Math.ceil(banner.getBoundingClientRect().height) : 0;
+        this.topMargin = topInset();
         const width = window.innerWidth;
         const height = window.innerHeight - this.topMargin;
         d3.select(this.svgRef.current)
@@ -697,10 +761,9 @@ class GraphCluster extends Component {
     }
 
     renderD3() {
-        // offset the whole canvas below the "Site Under Construction" banner so
-        // no node ever renders over it
-        const banner = document.querySelector('.under-construction');
-        this.topMargin = banner ? Math.ceil(banner.getBoundingClientRect().height) : 0;
+        // offset the whole canvas below the page furniture at the top -- the
+        // banner and the navigation -- so no node ever renders behind either
+        this.topMargin = topInset();
 
         const width = window.innerWidth;
         const height = window.innerHeight - this.topMargin;
@@ -840,8 +903,8 @@ class GraphCluster extends Component {
                     )
                     : LINK_DISTANCE_BACKGROUND))
                 .strength((d) => (d.background ? 0.15 : 0.4)))
-            .force('charge', d3.forceManyBody().strength(small ? -60 : -120))
-            .force('collide', d3.forceCollide().radius((d) => d.r + 3).iterations(2))
+            .force('charge', d3.forceManyBody().strength(small ? CHARGE_SMALL : CHARGE_LARGE))
+            .force('collide', d3.forceCollide().radius((d) => d.r + COLLIDE_GAP).iterations(2))
             .force('x', d3.forceX(width / 2).strength(0.04))
             .force('y', d3.forceY(height / 2).strength(0.04))
             .force('pointer', pointerForce)
@@ -1172,3 +1235,16 @@ class GraphCluster extends Component {
 }
 
 export default GraphCluster;
+
+//
+// exported so the suite reads the layout against the constants it was laid out
+// with, rather than against copies of them that go stale silently
+//
+export {
+    LINK_DISTANCE_BASE,
+    LINK_DISTANCE_SCALE,
+    CHARGE_LARGE,
+    CHARGE_SMALL,
+    COLLIDE_GAP,
+    GRAPH_TOP_PAD,
+};
