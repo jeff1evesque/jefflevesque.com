@@ -114,17 +114,29 @@ export default function getGraphSchema(base = KNOWLEDGE_GRAPH) {
         .then((listing) => {
             {/*
 
-                Note: 'default' can be null, when the listing holds nothing
-                      servable. Asking for it anyway would send '?Graph=null'
-                      and be rejected.
+                'default' can be null while the listing still holds builds --
+                the service names one when it has a preference and leaves it
+                unset when it does not. So fall back to the first one listed,
+                which is the same rule /graph follows: the two surfaces draw
+                one build between them and had no business disagreeing about
+                which, least of all by one of them drawing nothing.
+
+                Note: asking for a null id anyway would send '?Graph=null' and
+                      be rejected, which is what this used to do by rejecting
+                      first. A listing with no builds in it still has no answer
+                      and still resolves to null.
 
             */}
 
-            if (!listing || !listing.default) {
+            const graphs = (listing && listing.graphs) || [];
+            const wanted = (listing && listing.default)
+                || (graphs.length ? graphs[0].id : null);
+
+            if (!wanted) {
                 return Promise.reject(listing);
             }
 
-            return report(knowledgeGraphUrl(listing.default, base));
+            return report(knowledgeGraphUrl(wanted, base));
         })
         .catch((e) => {
             const detail = (e && e.status) ? `status ${e.status}` : e;
