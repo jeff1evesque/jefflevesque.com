@@ -260,6 +260,19 @@ describe('the tables below the graph', () => {
         expect(tables().getAttribute('data-painted')).toBe('2');
     });
 
+    it('cost the page no extra request', async () => {
+        //
+        // the listing, and the build the picker selected. Adding the tables added
+        // neither a third call nor a second copy of either.
+        //
+        getGraphById.mockResolvedValue(schemaOf(200));
+
+        await setup();
+
+        expect(getGraphListing).toHaveBeenCalledTimes(1);
+        expect(getGraphById).toHaveBeenCalledTimes(1);
+    });
+
     it('are cleared when a build fails to load', async () => {
         //
         // the same rule the canvas follows: a stale table under a fresh label is
