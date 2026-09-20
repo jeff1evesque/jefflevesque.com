@@ -38,6 +38,7 @@ import GraphCluster from '../animation/graph-cluster.jsx';
 import PropTypes from 'prop-types';
 import getGraphSchema from '../general/get-graph-schema.js';
 import filterSchema from '../animation/filter-schema.js';
+import { buildPalette } from '../animation/encoding.js';
 
 class HomePage extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
@@ -50,7 +51,10 @@ class HomePage extends Component {
         this.currentUser = this.currentUser.bind(this);
 
         this.state = {
-            graph_schema: null
+            graph_schema: null,
+            // namespace -> colour for the WHOLE build, not for the slice drawn
+            // below it. See buildPalette, and the note in componentDidMount.
+            graph_palette: null
         }
     }
 
@@ -82,8 +86,24 @@ class HomePage extends Component {
 
         */}
 
+        {/*
+
+            Note: the palette is built from the UNFILTERED schema, beside the
+                  slice that gets drawn. Ranking it over the 24 types below --
+                  which is what happened for as long as the backdrop existed --
+                  ranks a different set from the one /graph ranks, so the same
+                  namespace came out a different colour on the two pages and
+                  /graph's legend described this cluster incorrectly. Both are
+                  set in ONE setState so the cluster never redraws holding one
+                  build's nodes and another's colours.
+
+        */}
+
         getGraphSchema().then((schema) => {
-            this.setState({ graph_schema: filterSchema(schema) });
+            this.setState({
+                graph_schema: filterSchema(schema),
+                graph_palette: buildPalette(schema),
+            });
         });
     }
 
@@ -102,7 +122,10 @@ class HomePage extends Component {
 
         return (
             <div className='main-full-span home'>
-                <GraphCluster data={this.state.graph_schema} />
+                <GraphCluster
+                    data={this.state.graph_schema}
+                    palette={this.state.graph_palette}
+                />
             </div>
         );
     }
