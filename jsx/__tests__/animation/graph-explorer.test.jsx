@@ -992,16 +992,21 @@ describe('the drift', () => {
 
     it('never takes a node further from home than the drift allows', () => {
         //
-        // 1600 frames is a full turn of the slowest term, so this covers the whole
-        // path rather than the start of it. The bound is twice DRIFT because the
-        // circle starts at the node instead of being centred on it.
+        // 1600 frames is several full turns of both terms, so this covers the
+        // whole path rather than the start of it.
+        //
+        // The bound is twice DRIFT PER AXIS -- the circle starts at the node
+        // instead of being centred on it, so each term ranges over [-2, 2] rather
+        // than [-1, 1] -- which makes the bound on the DISTANCE the diagonal of
+        // that square. Asserting 2 * DRIFT here passed only because the previous
+        // speed never swept far enough to put a node near a corner.
         //
         const { page } = setup();
 
         frames(1600);
 
         page.nodes.forEach((n) => {
-            expect(away(n)).toBeLessThanOrEqual(DRIFT * 2 + 1e-9);
+            expect(away(n)).toBeLessThanOrEqual(DRIFT * 2 * Math.SQRT2 + 1e-9);
         });
     });
 

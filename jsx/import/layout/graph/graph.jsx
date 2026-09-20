@@ -31,6 +31,7 @@ import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js
 import { knowledgeGraphUrl, API_DOCS } from '../../general/api-url.js';
 import ApiLinks from '../../general/api-links.jsx';
 import filterSchema from '../../animation/filter-schema.js';
+import GraphTables from './tables.jsx';
 import {
     sourceNamespace,
     assignNamespaceColors,
@@ -84,45 +85,23 @@ function count(n) {
     return typeof n === 'number' ? n.toLocaleString() : 'n/a';
 }
 
-const MONTH = new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    timeZone: 'UTC',
-    year: 'numeric',
-});
-
-/**
- * a build's period, which is a MONTH: '2026-09' reads 'September 2026'.
- *
- * A period is not a day. The builds are monthly -- the listing publishes
- * 'YYYY-MM', and the schema's own build_metadata carries the same 'time_period'
- * -- and what runs daily is the BUILD, each run taking in more of the month it
- * covers than the one before it.
- *
- * This used to derive a day range, '2026-09-01 – 2026-09-19', ending on the day
- * the build ran. Both halves were inventions. The first of the month is not
- * published anywhere, and the end was the run date wearing a coverage date's
- * clothes -- so a row labelled 'Period' answered a question about the run, which
- * the 'Run' row beside it already answers exactly and in UTC.
- *
- * Note: anything that is not a year-month is passed through as published rather
- *       than guessed at. A period in some other shape is still more use to a
- *       reader verbatim than as something this function made of it.
- *
- * Note: formatted on UTC. Without the zone, the first of the month is the last
- *       of the month before it anywhere west of Greenwich, and the row names the
- *       wrong month for most of the readers it has.
- */
-export function period(value) {
-    const month = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(value || ''));
-
-    if (!month) {
-        return value || null;
-    }
-
-    const [, year, mm] = month;
-
-    return MONTH.format(Date.UTC(Number(year), Number(mm) - 1, 1));
-}
+//
+// There is deliberately no 'Period' row below, and the listing's `period` is
+// read by nothing on this page.
+//
+// It is a PARTITION KEY: the builds are listed out of a partition, and an id is
+// selected from within it. It is not a window over the data, and a row headed
+// 'Period' invited every reader to take it for one. The September build carries
+// 76 distinct dates -- `bls_enrichment_UnifiedDay` in its own schema -- across
+// economic series going back eighteen years, so '2026-09' bounds none of it.
+//
+// The page said so twice before arriving here. First as a derived day range,
+// '2026-09-01 – 2026-09-19', whose end was the run date wearing a coverage
+// date's clothes. Then as 'September 2026', which dropped the invented precision
+// and kept the false framing. What a reader can actually use is in the rows that
+// remain -- and the partition itself is already in the picker's label, where it
+// reads as part of a build's name rather than as a claim about its contents.
+//
 
 class GraphLayout extends Component {
     constructor() {
@@ -132,8 +111,10 @@ class GraphLayout extends Component {
             listing: null,
             selected: null,
             schema: null,
-            // node types in the whole build, before it was cut down to the slice
-            published: null,
+            // the WHOLE build, beside the slice above. The tables read every node
+            // and edge type from here; it used to be measured for the caption and
+            // then discarded on the same line.
+            build: null,
             loading: true,
             failed: false,
             open: PANELS_CLOSED,
@@ -216,14 +197,14 @@ class GraphLayout extends Component {
      *       correct answer and is not one.
      */
     selectBuild(id) {
-        this.setState({ selected: id, schema: null, published: null, loading: true, failed: false });
+        this.setState({ selected: id, schema: null, build: null, loading: true, failed: false });
 
         return getGraphById(id).then((schema) => {
             const filtered = filterSchema(schema, EXPLORER_NODE_TYPES);
 
             this.setState({
                 schema: filtered,
-                published: filtered ? Object.keys(schema.node_types).length : null,
+                build: filtered ? schema : null,
                 loading: false,
                 failed: !filtered,
             });
@@ -252,18 +233,31 @@ class GraphLayout extends Component {
             return null;
         }
 
+        //
+        // memoised on the schema OBJECT, which only changes when a build is
+        // selected. Recomputed per render it would hand the tables below a fresh
+        // colour Map every time, and a table that caches its rows against that
+        // Map would rebuild all 976 of them on every keystroke in its filter box.
+        //
+        if (this.screenFor === schema) {
+            return this.screen;
+        }
+
         const nodes = Object.keys(schema.node_types).map((id) => ({
             id: id,
             namespace: sourceNamespace(schema.node_types[id], id),
         }));
 
-        return {
+        this.screenFor = schema;
+        this.screen = {
             namespaces: rankNamespaces(nodes),
             painted: assignNamespaceColors(nodes, TAIL),
             origins: [...new Set(
                 Object.values(schema.edge_types).map((e) => e.origin).filter(Boolean)
             )].sort(),
         };
+
+        return this.screen;
     }
 
     toggle(key) {
@@ -353,7 +347,6 @@ class GraphLayout extends Component {
         }
 
         const rows = [
-            ['Period', period(build.period)],
             ['Nodes', count(build.nodes)],
             ['Edges', count(build.edges)],
             ['Sources', (build.sources || []).join(', ')],
@@ -436,20 +429,21 @@ class GraphLayout extends Component {
     //       there whether or not a graph is.
     //
     caption() {
-        const { schema, published } = this.state;
+        const { schema, build } = this.state;
 
         if (!schema) {
             return null;
         }
 
         const drawn = Object.keys(schema.node_types).length;
-        const scope = published && published > drawn
+        const published = build ? Object.keys(build.node_types).length : 0;
+        const scope = published > drawn
             ? `${drawn} of ${published} node types`
             : `All ${drawn} node types`;
 
         return (
             <p className='graph-caption'>
-                {scope} · hover or tap a node for details
+                {scope} · hover or tap a node for details · the rest are below
             </p>
         );
     }
@@ -516,6 +510,19 @@ class GraphLayout extends Component {
                             {body()}
                         </div>
                     </div>
+                    {/*
+
+                        everything the canvas could not draw, at full width below
+                        the three columns. It reads the UNFILTERED build and is
+                        handed the canvas's own colour assignment, so a swatch in
+                        a row is the colour that namespace is above it.
+
+                    */}
+                    <GraphTables
+                        schema={this.state.build}
+                        drawn={schema}
+                        painted={shown ? shown.painted : null}
+                    />
                 </div>
             </ErrorBoundary>
         );

@@ -335,6 +335,126 @@ $graph-side: 16rem;
 }
 
 //
+// everything the canvas could not draw, below the three columns and across all
+// of them: a table is a wide thing, and putting it in the middle column would
+// have given it a third of the page while the legend beside it sat empty.
+//
+.graph-tables {
+  border-top: 1px solid $gray-2;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+}
+
+.graph-tables-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.graph-tables-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+//
+// a segmented control rather than a dropdown: there are two of them, and which
+// one is showing should be readable without opening anything.
+//
+.graph-tables-tab {
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 0.25rem;
+  color: $gray-8;
+  font-size: 0.9rem;
+  padding: 0.35rem 0.75rem;
+
+  &[aria-pressed='true'] {
+    background-color: $gray-2;
+    font-weight: 600;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+}
+
+//
+// the tally reads as a count belonging to the tab, not as part of its name
+//
+.graph-tables-tally {
+  color: $gray-6;
+  font-variant-numeric: tabular-nums;
+  font-weight: normal;
+  margin-left: 0.4rem;
+}
+
+.graph-tables-search {
+  background-color: $white-1;
+  border: 1px solid $gray-3;
+  border-radius: 0.25rem;
+  color: $gray-8;
+  margin-left: auto;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+
+  &:focus {
+    border-color: $focus;
+    outline: none;
+  }
+}
+
+//
+// bounded, with the header stuck to the top of it. Unbounded, a hundred rows
+// push the pagination control off the bottom of the window -- so the way to see
+// the next page is to scroll past every row on this one.
+//
+.graph-tables-scroll {
+  max-height: 32rem;
+}
+
+.graph-tables {
+  //
+  // type names are long CamelCase runs with no spaces; 'breakable' marks where
+  // they may be split and this is what lets the browser act on it
+  //
+  td {
+    overflow-wrap: anywhere;
+    vertical-align: top;
+  }
+
+  .graph-legend-swatch {
+    vertical-align: baseline;
+  }
+}
+
+.graph-tables-count {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.graph-tables-arrow {
+  color: $gray-6;
+}
+
+.graph-tables-origin {
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+
+//
+// the ontology uri is reference rather than reading, and it is the longest
+// column by far. Below the three-column breakpoint the table keeps the columns
+// that say what a type IS.
+//
+@media (max-width: $graph-columns - 0.02px) {
+  .graph-tables-uri {
+    display: none;
+  }
+}
+
+//
 // narrow: one column, and the two panels open and close. The toggle is a full
 // width row with a chevron and a one-line summary of what is inside, so a closed
 // panel still says something.

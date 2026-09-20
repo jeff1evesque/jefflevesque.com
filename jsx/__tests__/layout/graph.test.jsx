@@ -38,6 +38,23 @@ jest.mock('../../import/animation/graph-explorer.jsx', () => ({
     TAIL: 'shade',
 }));
 
+//
+// Note: the tables are a probe too, recording what reached them. They have their
+//       own suite; what matters HERE is which document the page hands down --
+//       the whole build, not the slice the canvas drew.
+//
+jest.mock('../../import/layout/graph/tables.jsx', () => ({
+    __esModule: true,
+    default: ({ schema, drawn, painted }) => (
+        <div
+            data-testid='tables'
+            data-node-types={schema ? Object.keys(schema.node_types).length : 'none'}
+            data-drawn={drawn ? Object.keys(drawn.node_types).length : 'none'}
+            data-painted={painted ? painted.size : 'none'}
+        />
+    ),
+}));
+
 jest.mock('../../import/general/get-graph-schema.js', () => ({
     __esModule: true,
     getGraphListing: jest.fn(),
@@ -46,7 +63,7 @@ jest.mock('../../import/general/get-graph-schema.js', () => ({
 
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
-import GraphLayout, { EXPLORER_NODE_TYPES, period } from '../../import/layout/graph/graph.jsx';
+import GraphLayout, { EXPLORER_NODE_TYPES } from '../../import/layout/graph/graph.jsx';
 import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
 
 const BUILD_A = {
@@ -63,7 +80,19 @@ const BUILD_A = {
     error: null,
 };
 
-const BUILD_B = { ...BUILD_A, id: 'build-b', label: 'September 2026 (b)', period: '2026-08' };
+//
+// Note: BUILD_B differs in its VARIANT as well as its id. It used to differ only
+//       by period, and with no Period row the two builds became indistinguishable
+//       in the panel -- so 'follows the picker' passed against a panel that had
+//       not changed.
+//
+const BUILD_B = {
+    ...BUILD_A,
+    id: 'build-b',
+    label: 'September 2026 (b)',
+    period: '2026-08',
+    variant: '512d',
+};
 const BUILD_BROKEN = { ...BUILD_A, id: 'build-broken', label: 'Broken build', error: 'malformed' };
 
 const LISTING = { default: 'build-a', graphs: [BUILD_A, BUILD_B] };
@@ -195,6 +224,82 @@ describe('loading the page', () => {
     });
 });
 
+describe('the tables below the graph', () => {
+    //
+    // the page fetched the whole schema in order to draw a slice of it, and used
+    // to discard the rest on the line that measured it -- keeping one integer so
+    // the caption could report the size of what it had thrown away.
+    //
+    const tables = () => document.querySelector('[data-testid="tables"]');
+
+    it('are handed the whole build, not the slice the canvas drew', async () => {
+        getGraphById.mockResolvedValue(schemaOf(200));
+
+        await setup();
+
+        expect(tables().getAttribute('data-node-types')).toBe('200');
+        expect(explorer().getAttribute('data-types')).toBe(String(EXPLORER_NODE_TYPES));
+    });
+
+    it('are told which types the canvas is drawing', async () => {
+        getGraphById.mockResolvedValue(schemaOf(200));
+
+        await setup();
+
+        expect(tables().getAttribute('data-drawn')).toBe(String(EXPLORER_NODE_TYPES));
+    });
+
+    it('are handed the canvas\'s own colour assignment', async () => {
+        //
+        // so a swatch in a row is the colour that namespace is in the graph above
+        // it. Recomputed over all 200 types it would rank them differently and
+        // paint something else.
+        //
+        await setup();
+
+        expect(tables().getAttribute('data-painted')).toBe('2');
+    });
+
+    it('cost the page no extra request', async () => {
+        //
+        // the listing, and the build the picker selected. Adding the tables added
+        // neither a third call nor a second copy of either.
+        //
+        getGraphById.mockResolvedValue(schemaOf(200));
+
+        await setup();
+
+        expect(getGraphListing).toHaveBeenCalledTimes(1);
+        expect(getGraphById).toHaveBeenCalledTimes(1);
+    });
+
+    it('are cleared when a build fails to load', async () => {
+        //
+        // the same rule the canvas follows: a stale table under a fresh label is
+        // indistinguishable from a correct one.
+        //
+        getGraphById.mockResolvedValue(null);
+
+        await setup();
+
+        expect(tables().getAttribute('data-node-types')).toBe('none');
+    });
+
+    it('follow the picker to another build', async () => {
+        getGraphById.mockResolvedValue(schemaOf(200));
+
+        await setup();
+
+        getGraphById.mockResolvedValue(schemaOf(7));
+
+        await act(async () => {
+            fireEvent.change(picker(), { target: { value: 'build-b' } });
+        });
+
+        expect(tables().getAttribute('data-node-types')).toBe('7');
+    });
+});
+
 describe('the picker', () => {
     it('offers every build the listing returned', async () => {
         await setup();
@@ -261,7 +366,7 @@ describe('the build details', () => {
             fireEvent.change(picker(), { target: { value: 'build-b' } });
         });
 
-        expect(detail('Period')).toBe('August 2026');
+        expect(detail('Variant')).toBe('512d');
     });
 
     it('puts the chosen build in the address, so it can be linked to', async () => {
@@ -298,10 +403,19 @@ describe('the build details', () => {
         expect(detail('Node types')).toBeUndefined();
     });
 
-    it('gives the period as the month it covers', async () => {
+    it('does not offer a Period row at all', async () => {
+        //
+        // the listing's `period` is a partition key -- the builds are listed out
+        // of a partition and an id is chosen from within it -- not a window over
+        // the data. This build carries 76 distinct dates and economic series going
+        // back eighteen years, so '2026-09' bounds none of it, and a row headed
+        // 'Period' read as though it did.
+        //
         await setup();
 
-        expect(detail('Period')).toBe('September 2026');
+        expect(detail('Period')).toBeUndefined();
+        expect([...document.querySelectorAll('.graph-details-row dt')].map(d => d.textContent))
+            .toEqual(['Nodes', 'Edges', 'Sources', 'Run', 'Built', 'Dataset', 'Variant']);
     });
 
     it('marks the run and build times as UTC', async () => {
@@ -333,52 +447,6 @@ describe('the build details', () => {
 
         expect(detail('Nodes')).toBe('n/a');
         expect(detail('Sources')).toBe('n/a');
-    });
-});
-
-//
-// a period is a month, which is what the listing publishes and what the schema's
-// own build_metadata carries. It used to be read out as the days it covered --
-// '2026-09-01 – 2026-09-19' -- and neither end of that was published: the first
-// of the month was assumed, and the last was the day the build RAN, which the
-// 'Run' row states exactly and in UTC.
-//
-describe('period', () => {
-    it('names the month the build covers', () => {
-        expect(period('2026-09')).toBe('September 2026');
-        expect(period('2026-01')).toBe('January 2026');
-        expect(period('2025-12')).toBe('December 2025');
-    });
-
-    it('names it on UTC, the zone the listing publishes in', () => {
-        //
-        // the first of the month is the last of the month before it in New York,
-        // where the suite runs -- so a period read on local time names the wrong
-        // month for every reader west of Greenwich.
-        //
-        expect(period('2026-03')).toBe('March 2026');
-        expect(period('2026-01')).not.toContain('2025');
-    });
-
-    it('does not vary with the build that carries it', () => {
-        //
-        // every run of a month's build covers that month. What differs between
-        // two of them is how much of it had been published by the time each ran,
-        // which is the 'Run' row's business rather than this one's.
-        //
-        expect(period('2026-09')).toBe(period('2026-09'));
-    });
-
-    it('passes a period in any other shape through as published', () => {
-        expect(period('2026-Q3')).toBe('2026-Q3');
-        expect(period('2026-13')).toBe('2026-13');
-        expect(period('2026-09-16')).toBe('2026-09-16');
-    });
-
-    it('answers nothing for no period', () => {
-        expect(period(undefined)).toBeNull();
-        expect(period('')).toBeNull();
-        expect(period(null)).toBeNull();
     });
 });
 

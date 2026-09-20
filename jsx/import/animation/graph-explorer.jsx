@@ -127,12 +127,22 @@ const RING_WIDTH = 2;
 // pull it off the fit it was handed. An offset from a remembered home cannot.
 //
 // The circle STARTS at the node rather than being centred on it -- see startDrift
-// -- so the furthest a node ever gets from where it settled is twice this, which
-// is still inside the node's own radius. At this size the graph breathes; at
-// twice it, edges visibly swing and the page becomes tiring to read.
+// -- so each axis strays at most twice this, and the distance from home at most
+// 2 * sqrt(2) * DRIFT, which stays inside the node's own radius.
+//
+// DRIFT_SPEED is radians per frame, so what a reader actually perceives is the
+// product of the two:
+//
+//     DRIFT * DRIFT_SPEED * 60fps  =  px per second
+//
+// That number is the one to tune, and it is easy to get wrong from the constants
+// alone: this shipped at DRIFT_SPEED 0.004, which is 0.48 px/s and a 26 second
+// cycle -- slow enough to be indistinguishable from a still image. 3.6 px/s reads
+// as alive without asking to be watched. Past about twice that, edges swing and
+// the page becomes tiring to read.
 //
 const DRIFT = 2;
-const DRIFT_SPEED = 0.004;
+const DRIFT_SPEED = 0.03;
 
 // the turn between two nodes' phases -- the golden angle, as in layout.js's
 // seed spiral. Neighbouring nodes land on opposite sides of their circles, so
