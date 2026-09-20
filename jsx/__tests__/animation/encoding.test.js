@@ -21,10 +21,18 @@ import {
     ORIGIN_DASH,
     ORIGIN_COLOR,
 } from '../../import/animation/encoding.js';
-import filterSchema, {
-    BACKDROP_NODE_TYPES,
-    EXPLORER_NODE_TYPES,
-} from '../../import/animation/filter-schema.js';
+import filterSchema, { GRAPH_NODE_TYPES } from '../../import/animation/filter-schema.js';
+
+//
+// a slice deliberately smaller than the one the surfaces draw.
+//
+// The property below is that the palette does not depend on how much of a build
+// its caller happens to be drawing, and that needs two DIFFERENT amounts to
+// demonstrate. It used to use the backdrop's budget against the explorer's,
+// which stopped being two amounts the moment they became one -- and a test
+// handed the same number twice passes while holding nothing at all.
+//
+const SMALLER_SLICE = 24;
 import { colors, colors_categorical, color_other } from '../../import/general/colors.js';
 
 const nodesOf = (namespaces) => namespaces.map((ns, i) => ({ id: `n${i}`, namespace: ns }));
@@ -299,8 +307,8 @@ describe('buildPalette', () => {
         // fixture has lost the property the rest of these cases depend on.
         //
         const perSlice = [
-            paintedPerSlice(schema, BACKDROP_NODE_TYPES),
-            paintedPerSlice(schema, EXPLORER_NODE_TYPES),
+            paintedPerSlice(schema, SMALLER_SLICE),
+            paintedPerSlice(schema, GRAPH_NODE_TYPES),
         ];
 
         expect(perSlice[0].get('alpha')).not.toBe(perSlice[1].get('alpha'));
@@ -313,25 +321,30 @@ describe('buildPalette', () => {
         expect(palette.get('gamma')).toBe(buildPalette(schema).get('gamma'));
     });
 
-    it('colours every namespace the backdrop draws', () => {
+    it('colours every namespace the surfaces draw, so no legend row is blank', () => {
         //
-        // the backdrop takes the smaller slice, so this is the direction that can
-        // actually fail: a namespace it draws that the palette's slice left out
-        // has no colour, and GraphCluster falls back to a neutral grey for it.
+        // both draw the same slice now, so this is one case rather than two. A
+        // namespace on screen that the palette left out has no colour, and the
+        // cluster falls back to a neutral grey for it.
         //
         const schema = rerankingBuild();
         const palette = buildPalette(schema);
 
-        namespacesIn(filterSchema(schema, BACKDROP_NODE_TYPES)).forEach((namespace) => {
+        namespacesIn(filterSchema(schema)).forEach((namespace) => {
             expect(palette.get(namespace)).toBeDefined();
         });
     });
 
-    it('colours every namespace the explorer draws, so no legend row is blank', () => {
+    it('colours every namespace a SMALLER slice would draw', () => {
+        //
+        // the direction that can actually fail, kept as its own case now that
+        // neither surface is the smaller one: the palette ranks over the shared
+        // slice, and anything drawn out of a subset of it must still be in it.
+        //
         const schema = rerankingBuild();
         const palette = buildPalette(schema);
 
-        namespacesIn(filterSchema(schema, EXPLORER_NODE_TYPES)).forEach((namespace) => {
+        namespacesIn(filterSchema(schema, SMALLER_SLICE)).forEach((namespace) => {
             expect(palette.get(namespace)).toBeDefined();
         });
     });
