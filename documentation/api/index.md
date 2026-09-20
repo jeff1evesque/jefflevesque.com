@@ -8,7 +8,7 @@ reader's browser at runtime. The application has no server of its own between th
 | [Performance](performance.md) | `https://api.jefflevesque.com/v1/public/performance` | `/stream` |
 | [Datalake](datalake.md) | `https://api.jefflevesque.com/v1/public/datalake` | `/data`, `/stream/:stream/alarm` |
 | [Knowledge graph](knowledge-graph.md) | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` |
-| [Knowledge graph tables](knowledge-graph.md#response-the-tables) | `https://api.jefflevesque.com/v1/public/knowledge-graph/tables/<question>` | documented, not yet read by a page |
+| [Knowledge graph tables](knowledge-graph.md#response-the-tables) | `https://api.jefflevesque.com/v1/public/knowledge-graph/tables/<question>` | documented, not yet read by a page — see below |
 
 ## What they share
 
@@ -38,6 +38,17 @@ icon share one builder, the icon cannot name a request the page did not make.
 
 Each pair sits with the thing it describes rather than with the page — in a chart's own
 corner, and at the top of the column `/graph` draws its graph in.
+
+## Two things called tables
+
+`/graph` shows tables of every node type and edge type in the selected build, and they
+are **not** the knowledge graph tables API above. They are read out of that build's
+schema, which the page has already fetched in order to draw it, so they add no request
+and are exact for the build in the picker.
+
+The `tables/<question>` paths are a different grain — entities and their facts, across
+the published window rather than within one build — and take no build id, which is why
+a page sitting under a build picker does not use them.
 
 ## How these pages are kept true
 
