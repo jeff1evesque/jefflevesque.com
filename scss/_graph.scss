@@ -40,6 +40,26 @@ $graph-side: clamp(16rem, 24vw, 18rem);
 //
 $graph-rail-pad: 1.5rem;
 
+//
+// how much of the page BELOW the canvas is left on screen, and therefore how much
+// is taken off the canvas's own height.
+//
+// The canvas used to take everything under the page header, so the tables began
+// exactly where the window ended: a reader who had not scrolled had no reason to
+// think there was anything under the graph at all, and the caption telling them
+// 'the rest are below' pointed at a page edge.
+//
+// Ten rems is the rule that heads the tables, the tab row and its filter box, and
+// then a row or two of the table itself -- enough that what shows reads as a table
+// that continues rather than as a stray control.
+//
+// Note: it is subtracted from a viewport height that already has a floor under it,
+//       so on a short window the floor wins and the peek is what is given up. A
+//       graph squeezed to make room for a preview of something else is worse than
+//       one that has to be scrolled past.
+//
+$graph-tables-peek: 10rem;
+
 .graph-page {
   padding-bottom: 1rem;
   padding-top: 1rem;
@@ -355,23 +375,29 @@ $graph-rail-pad: 1.5rem;
 // svg: the explorer measures this box to decide how big to lay the graph out,
 // so the box has to have a size before the graph does.
 //
-// Its height is what is left of the screen below the site and page headers, with
-// a floor for short windows. 'svh' is the SMALL viewport -- the screen with a
-// phone's address bar showing -- which does not change as that bar slides in and
-// out, so scrolling does not resize the canvas under the reader. 'vh' is the
-// fallback for a browser that predates it.
+// Its height is what is left of the screen below the site and page headers, less
+// the strip of the tables kept in view under it, with a floor for short windows.
+// 'svh' is the SMALL viewport -- the screen with a phone's address bar showing --
+// which does not change as that bar slides in and out, so scrolling does not
+// resize the canvas under the reader. 'vh' is the fallback for a browser that
+// predates it.
 //
 // Note: the offsets are measured, not derived: 13rem is the banner, menu, page
 //       header and bottom padding above and below a wide layout (about 180px),
 //       and the narrow one adds the two closed panel toggles. A header that
 //       grows costs a little scrolling, not a broken page.
 //
+// Note: the WIDTH is not here at all, and that is the point of the grid's 'auto'
+//       side tracks -- see the wide layout below. Folding a reference column
+//       widens this box without changing its height, so the graph grows sideways
+//       and never downward. graph-explorer.jsx watches the box for exactly that.
+//
 .graph-canvas {
   display: flex;
   flex-direction: column;
   grid-area: canvas;
-  height: calc(100vh - 13rem);
-  height: calc(100svh - 13rem);
+  height: calc(100vh - 13rem - #{$graph-tables-peek});
+  height: calc(100svh - 13rem - #{$graph-tables-peek});
   min-height: 26rem;
   min-width: 0;
 }
@@ -681,16 +707,31 @@ $graph-rail-pad: 1.5rem;
 
   .graph-canvas {
     border-top: 1px solid $gray-2;
-    height: calc(100vh - 21.5rem);
-    height: calc(100svh - 21.5rem);
+    height: calc(100vh - 21.5rem - #{$graph-tables-peek});
+    height: calc(100svh - 21.5rem - #{$graph-tables-peek});
     min-height: 22rem;
     padding-top: 0.6rem;
+  }
+
+  //
+  // closer to the graph than on a wide screen, where the tables are the next
+  // thing after three columns and want the separation.
+  //
+  // Stacked, they are the next thing after ONE column -- the graph, directly
+  // above -- and the canvas has already left clear space inside its own bottom
+  // edge: the layout is fitted with a pad inside every side (see FIT_PAD in
+  // graph-explorer.jsx), so 2.5rem of margin here sat under that and read as a
+  // gap with nothing on either side of it.
+  //
+  .graph-tables {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
   }
 }
 
 //
-// wide: three columns, with the panels always open and headed rather than
-// toggled.
+// wide: three columns, both reference columns folding into a rail down the side
+// of the graph.
 //
 @media (min-width: $graph-columns) {
   //
@@ -708,11 +749,16 @@ $graph-rail-pad: 1.5rem;
   }
 
   //
-  // an open panel holds the rail width; a closed one shrinks to its own rotated
-  // label. The side tracks are 'auto', so what a folded panel gives up goes to
-  // the 'minmax(0, 1fr)' between them -- which is why folding a column widens
-  // the GRAPH. The canvas takes its height from the viewport and does not change,
-  // so the graph grows sideways and never downward.
+  // an open panel holds the rail width; a closed one shrinks to the width of its
+  // own rotated label. The side tracks are 'auto', so what a folded panel gives
+  // up goes to the 'minmax(0, 1fr)' between them -- which is why folding a column
+  // widens the GRAPH. The canvas takes its height from the viewport and does not
+  // change, so the graph grows sideways and never downward.
+  //
+  // Note: widening the BOX is only half of it. The svg is laid out against a
+  //       measurement of that box, and a fold moves no window, so the graph used
+  //       to keep the width it was drawn at inside a canvas that had grown around
+  //       it. graph-explorer.jsx watches the box itself -- see watchFrame.
   //
   // Note: the width carries the padding as well as the rail, so the body inside
   //       still measures '$graph-side'. Without that the legend loses the ~18rem
@@ -723,17 +769,76 @@ $graph-rail-pad: 1.5rem;
     width: calc(#{$graph-side} + #{$graph-rail-pad});
   }
 
+  //
+  // a folded column is a green rail the full height of the graph beside it.
+  //
+  // Folded, it used to be two words of the same gray as every other label on the
+  // page, turned on their side. That said what the column WAS and nothing about
+  // the state it was in: the reader who had just collapsed it knew, and a reader
+  // arriving afterwards saw a narrow margin with some writing in it. The tint is
+  // the only colour on this page that is not a neutral or a namespace, which is
+  // what makes it read as a control rather than as a label, and the whole rail is
+  // the target that opens it.
+  //
+  // Note: stretched to the row, which is the canvas's height. 'align-items:
+  //       start' above leaves an OPEN panel at its content height on purpose --
+  //       see the rule below -- and a rail as tall as its own two words would be
+  //       a green sticker beside a 600px graph rather than a column that is shut.
+  //
+  // Note: the flex here and on the heading are what let the button fill that
+  //       height. The button is a grandchild -- panel, h6, button -- so it
+  //       stretches only if every box between it and the panel does.
+  //
   .graph-panel-closed {
+    align-self: stretch;
+    background-image: linear-gradient(
+      to bottom,
+      rgba($green-2, 0.42),
+      rgba($green-4, 0.16)
+    );
+    border-radius: 0.25rem;
+    display: flex;
     width: auto;
 
-    .graph-panel-toggle {
-      padding: 0.5rem 0.4rem;
-      width: auto;
-      writing-mode: vertical-rl;
+    &:hover {
+      background-image: linear-gradient(
+        to bottom,
+        rgba($green-2, 0.6),
+        rgba($green-4, 0.28)
+      );
     }
 
+    .graph-panel-heading {
+      display: flex;
+    }
+
+    .graph-panel-toggle {
+      color: $green-6;
+      justify-content: center;
+      padding: 0.75rem 0.4rem;
+      width: auto;
+      writing-mode: vertical-rl;
+
+      //
+      // the chevron's margins are horizontal, which is the gap between it and
+      // the label until the label turns on its side -- after which they are the
+      // reason it sits off the rail's centre line. The toggle's own 'gap' is
+      // what spaces the two either way.
+      //
+      &::before {
+        border-bottom-color: $green-6;
+        border-right-color: $green-6;
+        margin: 0;
+      }
+    }
+
+    //
+    // beside the title rather than at the far end of the rail: 'margin-left'
+    // pushes it right along a horizontal row, and along a vertical one it is a
+    // cross-axis margin that shoves it off the centre line instead.
+    //
     .graph-panel-summary {
-      display: none;
+      margin-left: 0;
     }
   }
 
@@ -746,12 +851,17 @@ $graph-rail-pad: 1.5rem;
   // panel it ends where that panel's own content ends, and nothing needs its
   // height matched to anything.
   //
-  .graph-panel-build {
+  // Note: on the OPEN state specifically. A folded column is a green rail with no
+  //       text column of its own, so the rail padding would widen it by 1.5rem of
+  //       nothing, and a gray rule would draw a second edge down a block that
+  //       already has one.
+  //
+  .graph-panel-build.graph-panel-open {
     border-right: 1px solid $gray-2;
     padding-right: $graph-rail-pad;
   }
 
-  .graph-panel-legend {
+  .graph-panel-legend.graph-panel-open {
     border-left: 1px solid $gray-2;
     padding-left: $graph-rail-pad;
   }
