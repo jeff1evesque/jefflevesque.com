@@ -75,7 +75,8 @@ jest.mock('../../import/general/get-graph-schema.js', () => ({
 
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
-import GraphLayout, { EXPLORER_NODE_TYPES } from '../../import/layout/graph/graph.jsx';
+import GraphLayout from '../../import/layout/graph/graph.jsx';
+import { GRAPH_NODE_TYPES } from '../../import/animation/filter-schema.js';
 import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
 import { writeLayout } from '../../import/general/layout-preference.js';
 
@@ -287,7 +288,7 @@ describe('the tables below the graph', () => {
         await setup();
 
         expect(tables().getAttribute('data-node-types')).toBe('200');
-        expect(explorer().getAttribute('data-types')).toBe(String(EXPLORER_NODE_TYPES));
+        expect(explorer().getAttribute('data-types')).toBe(String(GRAPH_NODE_TYPES));
     });
 
     it('are told which types the canvas is drawing', async () => {
@@ -295,7 +296,7 @@ describe('the tables below the graph', () => {
 
         await setup();
 
-        expect(tables().getAttribute('data-drawn')).toBe(String(EXPLORER_NODE_TYPES));
+        expect(tables().getAttribute('data-drawn')).toBe(String(GRAPH_NODE_TYPES));
     });
 
     it('are handed the canvas\'s own colour assignment', async () => {
@@ -1597,7 +1598,7 @@ describe('the caption', () => {
         await setup();
 
         expect(document.querySelector('.graph-caption').textContent)
-            .toContain(`${EXPLORER_NODE_TYPES} of 200 node types`);
+            .toContain(`${GRAPH_NODE_TYPES} of 200 node types`);
     });
 
     it('says when the canvas shows all of it', async () => {
@@ -1682,12 +1683,12 @@ describe('the legend', () => {
 });
 
 describe('the size of the slice', () => {
-    it('draws more than the front page does', async () => {
+    it('draws the budget both surfaces share', async () => {
         getGraphById.mockResolvedValue(schemaOf(200));
 
         await setup();
 
-        expect(explorer().getAttribute('data-types')).toBe(String(EXPLORER_NODE_TYPES));
+        expect(explorer().getAttribute('data-types')).toBe(String(GRAPH_NODE_TYPES));
     });
 
     it('draws a small build whole', async () => {
