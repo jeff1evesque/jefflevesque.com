@@ -307,10 +307,77 @@ describe('the picker', () => {
         expect(screen.getAllByRole('option')).toHaveLength(2);
     });
 
-    it('labels each build the way the listing does', async () => {
+    //
+    // the listing labels a build with a sentence -- 'September 2026
+    // (all-sources, 1024d, run 2026-09-19 05:00 UTC)' -- and the builds it
+    // returns differ only in the last few characters of it. Seven of those made
+    // a 466px control beside the page heading, and a phone's option list a
+    // screenful of wrapped paragraphs to choose between builds that read as
+    // identical until their end. Every constant part of that sentence is in the
+    // build panel directly below the picker.
+    //
+    it('labels a build by the run time that tells it from the others', async () => {
+        getGraphListing.mockResolvedValue({
+            default: 'build-a',
+            graphs: [BUILD_A, { ...BUILD_A, id: 'build-c', run: '2026-09-18T05:00:00Z' }],
+        });
+
+        await setup();
+
+        expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC' })).toBeTruthy();
+        expect(screen.getByRole('option', { name: '2026-09-18 05:00 UTC' })).toBeTruthy();
+    });
+
+    it('adds the field that varies when the run time is not the whole difference', async () => {
+        //
+        // the two builds in the listing were run at the same time and differ by
+        // variant, so the variant is part of what an option has to say. Neither
+        // is named when every build is the same, which is the published case.
+        //
+        await setup();
+
+        expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC · 1024d' })).toBeTruthy();
+        expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC · 512d' })).toBeTruthy();
+    });
+
+    it('says nothing about the period, which is a partition key', async () => {
+        //
+        // the same reason the build panel has no Period row: it is the partition
+        // the builds were listed out of, not a window over what is in them, and
+        // an option ending '2026-08' reads as though it bounded something.
+        //
+        await setup();
+
+        expect(picker().textContent).not.toContain('2026-08');
+    });
+
+    it('keeps the listing labels when the short ones would name two builds', async () => {
+        //
+        // two builds run in the same minute, of the same dataset and variant,
+        // derive one label between them. A shorter label is worth having; one
+        // that names two different builds is not.
+        //
+        getGraphListing.mockResolvedValue({
+            default: 'build-a',
+            graphs: [BUILD_A, { ...BUILD_A, id: 'build-c', label: 'September 2026 (c)' }],
+        });
+
         await setup();
 
         expect(screen.getByRole('option', { name: 'September 2026 (a)' })).toBeTruthy();
+        expect(screen.getByRole('option', { name: 'September 2026 (c)' })).toBeTruthy();
+    });
+
+    it('falls back to the listing label for a build with no run time', async () => {
+        getGraphListing.mockResolvedValue({
+            default: 'build-a',
+            graphs: [BUILD_A, { ...BUILD_A, id: 'build-c', label: 'Run unrecorded', run: null }],
+        });
+
+        await setup();
+
+        expect(screen.getByRole('option', { name: 'Run unrecorded' })).toBeTruthy();
+        expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC' })).toBeTruthy();
     });
 
     it('swaps the graph when another build is chosen', async () => {
