@@ -52,6 +52,7 @@ jest.mock('../../import/general/get-graph-schema.js', () => ({
 import Auth from '@aws-amplify/auth';
 import getGraphSchema from '../../import/general/get-graph-schema.js';
 import HomePage from '../../import/content/home-page.jsx';
+import { GRAPH_NODE_TYPES } from '../../import/animation/filter-schema.js';
 
 //
 // Note: async, and the render is awaited inside act(). componentDidMount fires the
@@ -242,17 +243,20 @@ describe('the knowledge-graph backdrop', () => {
         expect(clusterTypes()).toBe('5');
     });
 
-    it('filters a large schema down to the backdrop limit', async () => {
+    it('filters a large schema down to the budget /graph also draws', async () => {
         //
-        // the live build publishes 152 node types against the 24 this animation was
-        // built around, so the page filters before handing it over rather than drawing
-        // every type behind the hero text.
+        // the live build publishes 152 node types, so the page filters before
+        // handing it over rather than drawing every type behind the hero text.
         //
-        getGraphSchema.mockReturnValue(Promise.resolve(schemaOf(60)));
+        // The budget is the SHARED one. It used to be 24 here against 60 on
+        // /graph, which left the page people land on first drawing a fifth of
+        // the build's edges and missing a third of its namespaces entirely.
+        //
+        getGraphSchema.mockReturnValue(Promise.resolve(schemaOf(80)));
 
         await setup();
 
-        expect(clusterTypes()).toBe('24');
+        expect(clusterTypes()).toBe(String(GRAPH_NODE_TYPES));
     });
 
     it('hands the cluster nothing for an unusable payload', async () => {
