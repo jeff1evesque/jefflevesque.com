@@ -390,11 +390,20 @@ $graph-side: 16rem;
   margin-left: 0.4rem;
 }
 
+//
+// Note: 'font: inherit' first, then a size. A form control does not inherit the
+//       page's font -- left alone it is drawn in the browser's own 13px UI face,
+//       which beside page-font text is most of what makes a control look
+//       borrowed from somewhere else. The tab buttons beside it are 0.9rem and
+//       this matches them.
+//
 .graph-tables-search {
   background-color: $white-1;
   border: 1px solid $gray-3;
   border-radius: 0.25rem;
   color: $gray-8;
+  font: inherit;
+  font-size: 0.9rem;
   margin-left: auto;
   min-width: 0;
   padding: 0.35rem 0.5rem;
