@@ -11,13 +11,22 @@
  *
  * Both reference columns FOLD, at either width, and what they give up goes to
  * the graph. The grid's side tracks are sized to their contents, so a folded
- * column widens the canvas rather than leaving a gap; the canvas takes its
- * height from the viewport and does not change, which means the graph grows
- * sideways and never downward.
+ * column widens the canvas rather than leaving a gap, and the graph is laid out
+ * again for the box it now has.
  *
  * They start open where there is room for all three at once and closed where
  * there is not -- a phone that opened on a page-long list of metadata showed
- * the graph, the reason for the page, only after a long scroll.
+ * the graph, the reason for the page, only after a long scroll -- and after the
+ * first visit they start however the reader last left them. See save.
+ *
+ * All three of the page's boundaries are controls, and they are one control
+ * facing three ways: an arrow that folds what is on the far side of it, and a
+ * strip that drags it smaller. The two beside the canvas narrow a reference
+ * column; the one above the tables shortens the canvas, and folds the whole
+ * three-column row when it is pushed past the point where the columns beside it
+ * are already the taller thing. Smaller only, in every direction -- the size the
+ * stylesheet gives a box is the size its contents were designed against, so
+ * there is nothing a bigger one would show that it is not showing already.
  *
  * Note: the slice here is larger than the backdrop's. Both go through the same
  *       selection rule, which takes the limit as an argument precisely so two
@@ -37,11 +46,14 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import GraphExplorer from '../../animation/graph-explorer.jsx';
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
 import { knowledgeGraphUrl, API_DOCS } from '../../general/api-url.js';
 import ApiLinks from '../../general/api-links.jsx';
+import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import filterSchema, { EXPLORER_NODE_TYPES } from '../../animation/filter-schema.js';
 import GraphTables from './tables.jsx';
 import {
@@ -66,7 +78,13 @@ const ORIGIN_LABEL = {
 // the two panels that close on a narrow screen. Both start closed there, so a
 // phone opens on the graph; a wide screen ignores this and shows both.
 //
-const PANELS_CLOSED = { build: false, legend: false };
+const PANELS_START = { build: false, legend: false, row: true };
+
+//
+// what this page is called in the preference store, which keeps more than one
+// surface's arrangement under a single key.
+//
+const SURFACE = 'graph';
 
 //
 // where the layout becomes three columns, in pixels, mirroring '$graph-columns'
@@ -98,10 +116,60 @@ const RAIL_MIN = 176;
 const RAIL_FOLD = 40;
 
 //
-// which way the pointer travels to WIDEN each column, since their dividers face
-// opposite ways: the build column's is on its right, the legend's on its left.
+// what each of the three dividers does, since they differ only in which way
+// they face and what gives way when they are pushed past their floor.
 //
-const RAIL_WIDEN = { build: 1, legend: -1 };
+//   box       what the drag resizes, inside this page's own root. Looked up
+//             there rather than from the strip that was grabbed, because the
+//             horizontal one sits above the TABLES and so is not inside the
+//             canvas it resizes
+//   property  the custom property that carries the dragged size, whose FALLBACK
+//             in '_graph.scss' is the default -- so the stylesheet keeps the
+//             number and this only ever overrides it
+//   axis      which coordinate the pointer is read on
+//   grow      the direction of that axis that makes the box BIGGER. The two
+//             columns face opposite ways: the build column's rule is on its
+//             right, the legend's on its left
+//   floor     a method naming the smallest the box may be dragged to, or absent
+//             for the columns, which share RAIL_MIN
+//   folds     what closes when the pointer goes past that floor. A column folds
+//             itself; the canvas folds the whole three-column row, because a
+//             canvas alone between two reference columns is not a layout
+//
+const DRAG = {
+    build: {
+        box: '.graph-panel-build',
+        property: '--graph-panel-width',
+        axis: 'x',
+        grow: 1,
+        folds: 'build',
+    },
+    legend: {
+        box: '.graph-panel-legend',
+        property: '--graph-panel-width',
+        axis: 'x',
+        grow: -1,
+        folds: 'legend',
+    },
+    canvas: {
+        box: '.graph-canvas',
+        property: '--graph-canvas-height',
+        axis: 'y',
+        grow: 1,
+        floor: 'canvasFloor',
+        folds: 'row',
+    },
+};
+
+//
+// whether a set of legend marks already holds this one. Two marks are the same
+// mark when they name the same thing in the same channel -- 'raw' the edge
+// origin is not 'raw' the namespace, and a build carrying both would otherwise
+// have one entry toggling the other.
+//
+function holds(marks, mark) {
+    return marks.some((m) => m.kind === mark.kind && m.value === mark.value);
+}
 
 //
 // the menu the picker opens: under the control, aligned with it, and bounded.
@@ -213,12 +281,17 @@ class GraphLayout extends Component {
             build: null,
             loading: true,
             failed: false,
-            open: PANELS_CLOSED,
+            open: PANELS_START,
             //
-            // a column the reader has narrowed by dragging its divider, in px,
+            // a box the reader has made smaller by dragging its divider, in px,
             // or null for whatever the stylesheet gives it. See startDrag.
             //
-            width: { build: null, legend: null },
+            size: { build: null, legend: null, canvas: null },
+            //
+            // the height both reference columns are held at, which is the
+            // taller one's. See measureColumns.
+            //
+            columns: 0,
             //
             // what the LEGEND is asking the canvas to emphasise: the entry
             // under the pointer, and the entry a click pinned. Hovering wins
@@ -227,7 +300,7 @@ class GraphLayout extends Component {
             // for a node, and for the same reason.
             //
             hovered: null,
-            marked: null,
+            marked: [],
             // the picker's menu is controlled so a page scroll can close it --
             // see openPicker
             picker_open: false,
@@ -243,9 +316,17 @@ class GraphLayout extends Component {
         this.toggle = this.toggle.bind(this);
         this.panel = this.panel.bind(this);
         this.rail = this.rail.bind(this);
+        this.divider = this.divider.bind(this);
         this.startDrag = this.startDrag.bind(this);
         this.onDrag = this.onDrag.bind(this);
         this.endDrag = this.endDrag.bind(this);
+        this.releaseDrag = this.releaseDrag.bind(this);
+        this.save = this.save.bind(this);
+        this.restoreSizes = this.restoreSizes.bind(this);
+        this.settle = this.settle.bind(this);
+        this.watchColumns = this.watchColumns.bind(this);
+        this.measureColumns = this.measureColumns.bind(this);
+        this.emphasis = this.emphasis.bind(this);
         this.entry = this.entry.bind(this);
         this.markHover = this.markHover.bind(this);
         this.markPin = this.markPin.bind(this);
@@ -254,6 +335,10 @@ class GraphLayout extends Component {
         this.details = this.details.bind(this);
         this.picker = this.picker.bind(this);
         this.caption = this.caption.bind(this);
+
+        // the page's own root, so everything measured here is measured inside
+        // THIS layout rather than inside whatever else the document holds
+        this.layout = React.createRef();
     }
 
     componentDidMount() {
@@ -278,10 +363,44 @@ class GraphLayout extends Component {
 
         */}
 
-        if (typeof window.matchMedia === 'function'
-            && window.matchMedia(`(min-width: ${PANELS_WIDE}px)`).matches) {
-            this.setState({ open: { build: true, legend: true } });
-        }
+        const wide = typeof window.matchMedia === 'function'
+            && window.matchMedia(`(min-width: ${PANELS_WIDE}px)`).matches;
+        const stored = readLayout(SURFACE, wide ? 'wide' : 'narrow');
+
+        this.variant = wide ? 'wide' : 'narrow';
+
+        {/*
+
+            what the reader last arranged, where they arranged anything, and the
+            breakpoint's default where they did not. 'in' rather than a
+            truthiness test, because a stored `false` is an answer.
+
+        */}
+
+        const open = {
+            build: 'build' in stored.fold ? !stored.fold.build : wide,
+            legend: 'legend' in stored.fold ? !stored.fold.legend : wide,
+            row: 'row' in stored.fold ? !stored.fold.row : true,
+        };
+
+        {/*
+
+            sizes land in a SECOND pass, once there is something to measure.
+            Each one is checked against what its box would be without it, and
+            there are no boxes yet: the panels are drawn from the build, which
+            has not been asked for at this point, let alone arrived. A box
+            measured while it is still folded reports the width of its rail, so
+            the folds above have to be settled first as well. See settle.
+
+            Note: a size stored for a box that comes back FOLDED is dropped. It
+                  cannot be checked against this screen while the box is closed,
+                  and a column reopens at the width the layout designed for it,
+                  which is never wrong.
+
+        */}
+
+        this.stored = stored.size;
+        this.setState({ open: open });
 
         getGraphListing().then((listing) => {
             if (!listing || !listing.graphs.length) {
@@ -297,6 +416,10 @@ class GraphLayout extends Component {
     componentWillUnmount() {
         window.removeEventListener('scroll', this.closePicker);
         this.endDrag();
+
+        if (this.columnObserver) {
+            this.columnObserver.disconnect();
+        }
     }
 
     /**
@@ -396,7 +519,7 @@ class GraphLayout extends Component {
             loading: true,
             failed: false,
             hovered: null,
-            marked: null,
+            marked: [],
         });
 
         return getGraphById(id).then((schema) => {
@@ -407,7 +530,7 @@ class GraphLayout extends Component {
                 build: filtered ? schema : null,
                 loading: false,
                 failed: !filtered,
-            });
+            }, this.settle);
         });
     }
 
@@ -472,7 +595,10 @@ class GraphLayout extends Component {
     }
 
     toggle(key) {
-        this.setState((state) => ({ open: { ...state.open, [key]: !state.open[key] } }));
+        this.setState(
+            (state) => ({ open: { ...state.open, [key]: !state.open[key] } }),
+            this.save
+        );
     }
 
     /**
@@ -498,25 +624,65 @@ class GraphLayout extends Component {
      *       no vertical rule to put either one on.
      */
     rail(key, title) {
-        const Arrow = key === 'build' ? ChevronLeftIcon : ChevronRightIcon;
+        return this.divider(
+            key,
+            `Collapse ${title.toLowerCase()}`,
+            key === 'build' ? ChevronLeftIcon : ChevronRightIcon,
+            'graph-panel'
+        );
+    }
 
+    /**
+     * the same control for any of the three dividers, which differ only in
+     * which way they face.
+     *
+     * `scope` is the class prefix its two parts wear, so the stylesheet can
+     * place a vertical rule's controls down the side of a column and a
+     * horizontal one's across the top of the tables without either knowing
+     * about the other. Everything else -- what the arrow means, what the strip
+     * does, what each is called to assistive technology -- is one behaviour.
+     */
+    divider(key, label, Arrow, scope) {
         return (
             <React.Fragment>
                 <div
-                    className='graph-panel-grip'
+                    className={`graph-grip ${scope}-grip`}
                     aria-hidden='true'
                     onPointerDown={(event) => this.startDrag(key, event)}
                 />
                 <button
                     type='button'
-                    className='graph-panel-fold'
-                    aria-label={`Collapse ${title.toLowerCase()}`}
-                    onClick={() => this.toggle(key)}
+                    className={`graph-fold ${scope}-fold`}
+                    aria-label={label}
+                    onClick={() => this.toggle(DRAG[key].folds)}
                 >
                     <Arrow fontSize='inherit' />
                 </button>
             </React.Fragment>
         );
+    }
+
+    /**
+     * the shortest the canvas may be dragged.
+     *
+     * The taller reference column, because that is where the drag stops having
+     * an effect: below it the ROW's height is the column's rather than the
+     * canvas's, so the rule would not move however far the pointer went, and a
+     * boundary that does not follow the pointer reads as broken.
+     *
+     * That number is only a single number because both columns are matched to
+     * each other -- see measureColumns. When there is no column to measure,
+     * because both are folded or no build has loaded, the canvas's own
+     * `min-height` answers instead.
+     *
+     * Note: read off the element rather than written down here, the same as the
+     *       columns' ceiling and for the same reason: '_graph.scss' owns that
+     *       floor and would have to be kept in step with a copy.
+     */
+    canvasFloor(canvas) {
+        const declared = parseFloat(window.getComputedStyle(canvas).minHeight);
+
+        return Math.max(this.columnHeight || 0, Number.isFinite(declared) ? declared : 0);
     }
 
     /**
@@ -539,27 +705,43 @@ class GraphLayout extends Component {
      *       strip. A pointer dragging a 14px target leaves it constantly, and a
      *       drag that stops the moment the pointer is off the rule is a drag
      *       that cannot reach the width it is being dragged to.
+     *
+     * Note: one set of handlers for all three dividers. They differ in which
+     *       axis they read, which way is bigger, what their floor is and what
+     *       folds when they pass it -- and in nothing else, which is why DRAG
+     *       is a table rather than three copies of this.
      */
     startDrag(key, event) {
         if (event.button !== 0) {
             return;
         }
 
-        const panel = event.currentTarget.closest('.graph-panel');
-        const start = panel.offsetWidth;
-        const inline = panel.style.getPropertyValue('--graph-panel-width');
+        const rules = DRAG[key];
+        const box = this.layout.current.querySelector(rules.box);
+        const measure = () => (rules.axis === 'x' ? box.offsetWidth : box.offsetHeight);
+        const start = measure();
+        const inline = box.style.getPropertyValue(rules.property);
 
-        panel.style.removeProperty('--graph-panel-width');
-        const ceiling = panel.offsetWidth;
+        box.style.removeProperty(rules.property);
+        const ceiling = measure();
 
         if (inline) {
-            panel.style.setProperty('--graph-panel-width', inline);
+            box.style.setProperty(rules.property, inline);
         }
 
-        this.drag = { key: key, from: event.clientX, start: start, ceiling: ceiling };
+        this.drag = {
+            key: key,
+            folds: rules.folds,
+            grow: rules.grow,
+            from: rules.axis === 'x' ? event.clientX : event.clientY,
+            at: rules.axis === 'x' ? 'clientX' : 'clientY',
+            start: start,
+            ceiling: ceiling,
+            floor: rules.floor ? this[rules.floor](box) : RAIL_MIN,
+        };
 
         window.addEventListener('pointermove', this.onDrag);
-        window.addEventListener('pointerup', this.endDrag);
+        window.addEventListener('pointerup', this.releaseDrag);
         event.preventDefault();
     }
 
@@ -570,37 +752,223 @@ class GraphLayout extends Component {
     //       it, so there is no path that reaches here without one.
     //
     onDrag(event) {
-        const { key, from, start, ceiling } = this.drag;
-        const wanted = start + (event.clientX - from) * RAIL_WIDEN[key];
+        const { key, folds, grow, from, at, start, ceiling, floor } = this.drag;
+        const wanted = start + (event[at] - from) * grow;
 
-        if (wanted < RAIL_MIN - RAIL_FOLD) {
+        if (wanted < floor - RAIL_FOLD) {
             this.endDrag();
 
             //
-            // folded by the drag, and back at its designed width when it is
-            // opened again. The width it folded at is the narrowest the drag
-            // would go, which is not a width anybody chose.
+            // folded by the drag, and back at its designed size when it is
+            // opened again. The size it folded at is the smallest the drag
+            // would go, which is not a size anybody chose.
             //
-            this.setState((state) => ({
-                open: { ...state.open, [key]: false },
-                width: { ...state.width, [key]: null },
-            }));
+            this.setState(
+                (state) => ({
+                    open: { ...state.open, [folds]: false },
+                    size: { ...state.size, [key]: null },
+                }),
+                this.save
+            );
 
             return;
         }
 
         this.setState((state) => ({
-            width: {
-                ...state.width,
-                [key]: Math.min(Math.max(wanted, RAIL_MIN), ceiling),
+            size: {
+                ...state.size,
+                [key]: Math.min(Math.max(wanted, floor), ceiling),
             },
         }));
     }
 
     endDrag() {
         window.removeEventListener('pointermove', this.onDrag);
-        window.removeEventListener('pointerup', this.endDrag);
+        window.removeEventListener('pointerup', this.releaseDrag);
         this.drag = null;
+    }
+
+    //
+    // the pointer coming up is the reader settling on a size, which is the
+    // moment worth keeping. Every move in between is not: a drag is a hundred
+    // pointer events, and localStorage is synchronous.
+    //
+    releaseDrag() {
+        this.endDrag();
+        this.save();
+    }
+
+    /**
+     * keep how the page is arranged, for the next visit.
+     *
+     * Note: per BREAKPOINT. A reader folds both columns on a phone because a
+     *       phone has room for one thing, and restoring that on a wide monitor
+     *       is the stored preference disagreeing with the person -- the same
+     *       disagreement the matchMedia note in componentDidMount is about,
+     *       arriving a week later instead of on a window drag.
+     *
+     * Note: folds rather than opens, because that is what the store calls them
+     *       and a boolean that means the opposite of its name in one of two
+     *       files is a bug waiting for whoever reads the other one.
+     */
+    save() {
+        const { open, size } = this.state;
+
+        writeLayout(SURFACE, this.variant, {
+            fold: { build: !open.build, legend: !open.legend, row: !open.row },
+            size: size,
+        });
+    }
+
+    /**
+     * a stored size, against what this screen can actually give the box.
+     *
+     * Returns null -- meaning 'whatever the stylesheet says' -- rather than a
+     * number, wherever the stored one cannot be honoured: it is bigger than the
+     * box's own default, so honouring it would make a column wider than the
+     * layout ever intended; or it is below the floor a drag would have stopped
+     * at, in which case it came from a screen this is not.
+     *
+     * Note: a size under the floor is DROPPED and not folded. Folding somebody's
+     *       column on page load, because of a number left over from another
+     *       screen, is a page that opens broken to explain a preference.
+     */
+    restoreSize(stored, natural, floor) {
+        if (!Number.isFinite(stored) || stored < floor || stored >= natural) {
+            return null;
+        }
+
+        return stored;
+    }
+
+    //
+    // every stored size, measured against the box it belongs to as this screen
+    // would draw it. See the note in componentDidMount for why this runs after
+    // the folds and not with them.
+    //
+    restoreSizes(stored) {
+        const root = this.layout.current;
+
+        if (!root) {
+            return;
+        }
+
+        const size = { build: null, legend: null, canvas: null };
+
+        Object.keys(DRAG).forEach((key) => {
+            const rules = DRAG[key];
+            const box = root.querySelector(rules.box);
+
+            if (!box || (key !== 'canvas' && !box.classList.contains('graph-panel-open'))) {
+                return;
+            }
+
+            size[key] = this.restoreSize(
+                stored[key],
+                rules.axis === 'x' ? box.offsetWidth : box.offsetHeight,
+                rules.floor ? this[rules.floor](box) : RAIL_MIN
+            );
+        });
+
+        this.setState({ size: size });
+    }
+
+    /**
+     * what can only be done once the panels are on screen.
+     *
+     * Both of these need boxes to measure, and there are none until a build has
+     * loaded -- the panels are drawn from it. This runs whenever one arrives,
+     * because a build that fails takes the panels away again and the next one
+     * brings back different elements.
+     *
+     * Note: the sizes are restored ONCE. They are what the reader arranged on
+     *       their last visit, and re-applying them when they pick another build
+     *       would undo whatever they have dragged since.
+     */
+    settle() {
+        this.watchColumns();
+
+        if (!this.restored) {
+            this.restored = true;
+            this.restoreSizes(this.stored);
+        }
+    }
+
+    /**
+     * watch both column bodies, so the heights stay matched without anything
+     * having to remember to re-measure.
+     *
+     * A column changes height when the build changes, when it is dragged
+     * narrower -- the namespace grid drops from two abreast to one below 18rem,
+     * which roughly doubles the legend -- when either column folds, and on a
+     * window resize. One observer answers all four the same way; four callers
+     * remembering to recalculate answers three of them until somebody adds a
+     * fifth.
+     *
+     * Note: the same pattern the canvas uses in graph-explorer.jsx, and guarded
+     *       the same way. Without ResizeObserver the columns are simply not
+     *       matched, which is how the page looked before this.
+     */
+    watchColumns() {
+        if (typeof ResizeObserver !== 'function' || !this.layout.current) {
+            return;
+        }
+
+        //
+        // called again whenever the panels are rebuilt, because there are none
+        // to watch until a build has loaded -- and none again if one fails.
+        //
+        if (this.columnObserver) {
+            this.columnObserver.disconnect();
+        }
+
+        this.columnObserver = new ResizeObserver(this.measureColumns);
+        this.layout.current.querySelectorAll('.graph-panel-body').forEach((body) => {
+            this.columnObserver.observe(body);
+        });
+    }
+
+    /**
+     * both reference columns take the height of the taller.
+     *
+     * Two rules of visibly different lengths, starting level and stopping in
+     * different places, is what frames the graph otherwise -- the build panel is
+     * seven label/value rows and the legend is a namespace grid plus three edge
+     * origins, and they are never the same height by accident.
+     *
+     * The measurement is of the BODIES. The panels are what carry the height,
+     * so measuring those feeds the answer back into itself and the columns
+     * ratchet taller on every pass; a body is content-sized whatever its panel
+     * is doing.
+     *
+     * Note: this is also where the canvas drag gets its floor -- see
+     *       canvasFloor. The floor is a single number only because these two
+     *       are matched, which is why the two arrived together.
+     *
+     * Note: a folded column does not take part. It is already the full height of
+     *       the row by 'align-self: stretch', and its body is display:none and
+     *       measures zero.
+     */
+    measureColumns() {
+        const root = this.layout.current;
+
+        if (!root) {
+            return;
+        }
+
+        const tallest = ['build', 'legend'].reduce((most, key) => {
+            const panel = root.querySelector(`.graph-panel-${key}.graph-panel-open`);
+            const body = panel && panel.querySelector('.graph-panel-body');
+
+            return Math.max(most, body ? body.offsetHeight : 0);
+        }, 0);
+
+        if (tallest === this.columnHeight) {
+            return;
+        }
+
+        this.columnHeight = tallest;
+        this.setState({ columns: tallest });
     }
 
     //
@@ -612,35 +980,71 @@ class GraphLayout extends Component {
         this.setState({ hovered: mark });
     }
 
+    /**
+     * a click adds an entry to what is held, or takes it out again.
+     *
+     * It used to replace what was held, which meant the legend answered every
+     * question except the one worth asking of a sixty-node canvas: where do two
+     * namespaces sit RELATIVE to each other. A reader could see either against
+     * everything and never the two together, and clicking an edge origin
+     * silently dropped the namespaces they had lined up.
+     */
     markPin(mark) {
         this.setState((state) => ({
-            marked: state.marked
-                && state.marked.kind === mark.kind
-                && state.marked.value === mark.value
-                ? null
-                : mark,
+            marked: holds(state.marked, mark)
+                ? state.marked.filter((m) => !(m.kind === mark.kind && m.value === mark.value))
+                : [...state.marked, mark],
         }));
     }
 
     clearMarks() {
-        this.setState({ hovered: null, marked: null });
+        this.setState({ hovered: null, marked: [] });
+    }
+
+    /**
+     * what the canvas is being asked to emphasise: everything held, plus the
+     * entry under the pointer.
+     *
+     * Pointing at an entry that is NOT held previews what clicking it would
+     * add, because that is the question being asked at that moment. The
+     * alternative -- previewing the pointed entry ALONE, which is what a single
+     * mark did -- makes the three namespaces a reader has lined up vanish when
+     * they point at a fourth, and come back when they move away. That reads as
+     * the page dropping their work.
+     *
+     * Note: memoised on the two pieces of state it reads, so the array handed
+     *       down keeps its identity between renders. The explorer repaints when
+     *       that identity changes, and a fresh array every render would repaint
+     *       the canvas on every keystroke in the table filter below it and on
+     *       every pointer move of a divider drag.
+     */
+    emphasis() {
+        const { marked, hovered } = this.state;
+
+        if (this.marksFor && this.marksFor.marked === marked && this.marksFor.hovered === hovered) {
+            return this.marks;
+        }
+
+        this.marksFor = { marked: marked, hovered: hovered };
+        this.marks = hovered && !holds(marked, hovered) ? [...marked, hovered] : marked;
+
+        return this.marks;
     }
 
     /**
      * one row of the legend, as a control over the canvas.
      *
      * A button rather than a list item with handlers on it. What these do --
-     * light one namespace's nodes, or one origin's edges, and drop the rest --
-     * is the same thing clicking a node on the canvas does, and a reader who
+     * light a namespace's nodes, or an origin's edges, and drop the rest -- is
+     * the same thing clicking a node on the canvas does, and a reader who
      * cannot use a pointer had no way to ask for it at all.
      *
      * Note: focus and blur drive the same preview hover does, so tabbing
      *       through the legend lights each class in turn.
      */
     entry(kind, value, children) {
-        const { marked } = this.state;
-        const pinned = !!marked && marked.kind === kind && marked.value === value;
         const mark = { kind: kind, value: value };
+        const pinned = holds(this.state.marked, mark);
 
         return (
             <li key={value}>
@@ -693,12 +1097,28 @@ class GraphLayout extends Component {
         const open = this.state.open[key];
         const body = `graph-panel-${key}-body`;
         const state = open ? 'graph-panel-open' : 'graph-panel-closed';
-        const width = this.state.width[key];
+        const width = this.state.size[key];
+
+        //
+        // the height is the TALLER column's, so the two rules that frame the
+        // graph start level and stop level -- see measureColumns. It is carried
+        // as a custom property and consumed only by the wide stylesheet,
+        // because below the breakpoint the columns are stacked bands and
+        // matching their heights would pad one of them out with nothing.
+        //
+        const style = {};
+
+        if (width) {
+            style['--graph-panel-width'] = `${width}px`;
+        }
+        if (open && this.state.columns) {
+            style['--graph-panel-height'] = `${this.state.columns}px`;
+        }
 
         return (
             <section
                 className={`graph-panel graph-panel-${key} ${state}`}
-                style={width ? { '--graph-panel-width': `${width}px` } : undefined}
+                style={Object.keys(style).length ? style : undefined}
             >
                 <h6 className='graph-panel-heading'>
                     <button
@@ -914,7 +1334,7 @@ class GraphLayout extends Component {
                 <GraphExplorer
                     data={schema}
                     palette={shown ? shown.painted : null}
-                    emphasis={this.state.hovered || this.state.marked}
+                    emphasis={this.emphasis()}
                     onClear={this.clearMarks}
                 />
             );
@@ -958,7 +1378,12 @@ class GraphLayout extends Component {
                               nobody else did.
 
                     */}
-                    <div className='graph-layout'>
+                    <div
+                        className={`graph-layout ${this.state.open.row
+                            ? 'graph-row-open'
+                            : 'graph-row-folded'}`}
+                        ref={this.layout}
+                    >
                         <div className='graph-header'>
                             <h4>Knowledge graph</h4>
                             {listing ? (
@@ -970,7 +1395,13 @@ class GraphLayout extends Component {
                         </div>
                         {this.panel('build', 'Build details', nodes, this.details(build))}
                         {this.panel('legend', 'Legend', namespaces, this.legend(shown))}
-                        <div className='graph-canvas'>
+                        <div
+                            className='graph-canvas'
+                            id='graph-row'
+                            style={this.state.size.canvas
+                                ? { '--graph-canvas-height': `${this.state.size.canvas}px` }
+                                : undefined}
+                        >
                             {/*
 
                                 the caption and the api icons head the canvas
@@ -992,6 +1423,26 @@ class GraphLayout extends Component {
                             </div>
                             {body()}
                         </div>
+                        {/*
+
+                            the bar a folded row leaves behind, in the green the
+                            folded columns wear. It is the only way back, so it
+                            is rendered whatever the row is doing and hidden by
+                            the stylesheet while the row is open -- a control
+                            that exists only in the state it undoes is a control
+                            that cannot be reached from the state it undoes.
+
+                        */}
+                        <button
+                            type='button'
+                            className='graph-row-bar'
+                            aria-expanded={this.state.open.row}
+                            aria-controls='graph-row'
+                            onClick={() => this.toggle('row')}
+                        >
+                            <ExpandMoreIcon fontSize='inherit' />
+                            <span>Show the graph</span>
+                        </button>
                     </div>
                     {/*
 
@@ -1000,12 +1451,23 @@ class GraphLayout extends Component {
                         handed the canvas's own colour assignment, so a swatch in
                         a row is the colour that namespace is above it.
 
+                        The rule above it is the third divider: the same strip
+                        and the same arrow as the two beside the graph, turned
+                        ninety degrees. It rides on this wrapper rather than on
+                        the tables, so the tables stay a component that draws a
+                        table and knows nothing about the layout around it.
+
                     */}
-                    <GraphTables
-                        schema={this.state.build}
-                        drawn={schema}
-                        painted={shown ? shown.painted : null}
-                    />
+                    <div className='graph-below'>
+                        {this.state.open.row
+                            ? this.divider('canvas', 'Collapse the graph', ExpandLessIcon, 'graph-row')
+                            : null}
+                        <GraphTables
+                            schema={this.state.build}
+                            drawn={schema}
+                            painted={shown ? shown.painted : null}
+                        />
+                    </div>
                 </div>
             </ErrorBoundary>
         );
