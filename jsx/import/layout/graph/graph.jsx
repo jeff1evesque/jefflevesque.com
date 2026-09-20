@@ -426,6 +426,13 @@ class GraphLayout extends Component {
      * a heading, and a reader navigating this page by headings would find the
      * graph and the tables and nothing that names either column.
      *
+     * The summary is what a FOLDED panel says INSTEAD of its contents, so it is
+     * gone once the contents are there. Open, it was a second copy of something
+     * on screen a line or two below it -- '10.4M nodes' over the Nodes row, '12
+     * namespaces' over a list of twelve namespaces -- and on a wide screen the
+     * pair had to share a 16rem column, which wrapped 'Legend' and its count
+     * onto two lines to say one thing twice.
+     *
      * Note: the closed body stays in the document and is hidden by the
      *       stylesheet, not by React. Unmounting it would throw away the
      *       measured legend every time it was folded away, and the explorer
@@ -451,7 +458,9 @@ class GraphLayout extends Component {
                         onClick={() => this.toggle(key)}
                     >
                         <span className='graph-panel-title'>{title}</span>
-                        {summary ? <span className='graph-panel-summary'>{summary}</span> : null}
+                        {summary && !open
+                            ? <span className='graph-panel-summary'>{summary}</span>
+                            : null}
                     </button>
                 </h6>
                 <div className='graph-panel-body' id={body}>
