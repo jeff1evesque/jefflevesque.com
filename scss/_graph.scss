@@ -35,23 +35,59 @@ $graph-side: 16rem;
   }
 }
 
-.graph-picker {
+//
+// the build picker: a mui Select wearing the border the filter box below the
+// graph wears, so the page's two controls are one control drawn twice.
+//
+// Note: '.graph-header' is carried for the specificity, the same lesson as the
+//       uri column further down. Every property below is one mui also sets on
+//       this element -- its own font, its own colour -- from a stylesheet
+//       emotion injects after this one at the same one-class weight. A bare
+//       '.graph-picker' loses all of them and silently keeps mui's.
+//
+// Note: the padding is on the element mui draws the value into rather than on
+//       the root, which is a flex wrapper holding that element, the chevron and
+//       a hidden input. Padding the root would indent the chevron instead.
+//
+.graph-header .graph-picker {
   background-color: $white-1;
   border: 1px solid $gray-3;
   border-radius: 0.25rem;
   color: $gray-8;
   flex: 0 1 auto;
+  font: inherit;
+  font-size: 0.9rem;
   max-width: 100%;
   min-width: 0;
-  padding: 0.35rem 0.5rem;
 
-  &:focus {
+  &.Mui-focused {
     border-color: $focus;
-    outline: none;
   }
 
-  option:disabled {
-    color: $gray-5;
+  .MuiSelect-select {
+    // room at the right for the chevron, which is absolutely positioned there
+    min-height: 0;
+    padding: 0.35rem 1.75rem 0.35rem 0.5rem;
+
+    &:focus {
+      background-color: transparent;
+    }
+  }
+
+  .MuiSelect-icon {
+    color: $gray-6;
+  }
+}
+
+//
+// the menu it opens. It is portalled to the end of the document rather than
+// rendered here, so it is styled by its own class and inherits the page font
+// from the body rather than from the control.
+//
+.graph-picker-menu {
+  .MuiMenuItem-root {
+    font: inherit;
+    font-size: 0.9rem;
   }
 }
 
@@ -582,7 +618,13 @@ $graph-side: 16rem;
 // filter fills the one below. The build picker above does the same thing.
 //
 @media (max-width: 575.98px) {
-  .graph-picker {
+  //
+  // Note: '.graph-header' again, and for a second reason. The base rule above
+  //       carries it for mui's sake, and a bare '.graph-picker' here would now
+  //       be the weaker of the two selectors -- a media query that loses to the
+  //       rule it is meant to override.
+  //
+  .graph-header .graph-picker {
     flex-basis: 100%;
   }
 
