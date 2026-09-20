@@ -270,11 +270,42 @@ class GraphExplorer extends Component {
         this.describe = this.describe.bind(this);
         this.handleResize = this.handleResize.bind(this);
         this.applyResize = this.applyResize.bind(this);
+        this.watchFrame = this.watchFrame.bind(this);
     }
 
     componentDidMount() {
         this.renderD3();
         window.addEventListener('resize', this.handleResize);
+        this.watchFrame();
+    }
+
+    /**
+     * the canvas can change size without the WINDOW changing size.
+     *
+     * Either reference column on the graph page folds away, and the track it
+     * gives up goes to the middle one the canvas sits in -- so the frame widens
+     * by the better part of 300px while the window stays exactly where it is.
+     * With only a 'resize' listener the svg kept the width it was last laid out
+     * at, and the graph went on occupying the left two thirds of a canvas that
+     * had just grown: folding a column looked like it had done nothing.
+     *
+     * Note: routed through handleResize rather than straight to renderD3, so a
+     *       fold is debounced and guarded exactly as a window resize is. An
+     *       observer reports the CURRENT size as soon as it is connected, and
+     *       applyResize drops that first report because nothing has changed.
+     *
+     * Note: guarded. ResizeObserver is a browser global rather than something
+     *       this bundle carries, and a browser without it still has the window
+     *       listener above -- it misses the fold, which is what shipped, rather
+     *       than failing to mount.
+     */
+    watchFrame() {
+        if (typeof ResizeObserver !== 'function') {
+            return;
+        }
+
+        this.frameObserver = new ResizeObserver(this.handleResize);
+        this.frameObserver.observe(this.svgRef.current.parentNode);
     }
 
     componentDidUpdate(prevProps) {
@@ -290,6 +321,9 @@ class GraphExplorer extends Component {
         window.removeEventListener('resize', this.handleResize);
         this.stopDrift();
 
+        if (this.frameObserver) {
+            this.frameObserver.disconnect();
+        }
         if (this.resizeTimer) {
             clearTimeout(this.resizeTimer);
         }
