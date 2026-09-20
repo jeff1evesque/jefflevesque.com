@@ -143,8 +143,34 @@ async function setup(path = '/graph') {
 }
 
 const explorer = () => document.querySelector('[data-testid="explorer"]');
-const picker = () => screen.getByLabelText('Published build');
+const picker = () => screen.getByRole('combobox', { name: 'Published build' });
 const toggle = (name) => screen.getByRole('button', { name: new RegExp(name) });
+
+//
+// the picker is a mui Select: an element with role='combobox' and a menu that
+// is portalled into the document only while it is open. So a test that reads or
+// chooses an option opens the menu first, where against a <select> it fired one
+// change event at the control.
+//
+// Note: chosen by `data-value`, which is the build id mui puts on each item, so
+//       these read the same as the change events they replace -- by id, not by
+//       whatever the option happens to be labelled.
+//
+async function openPicker() {
+    await act(async () => {
+        fireEvent.mouseDown(picker());
+    });
+
+    return screen.getAllByRole('option');
+}
+
+async function chooseBuild(id) {
+    await openPicker();
+
+    await act(async () => {
+        fireEvent.click(document.querySelector(`[role='option'][data-value='${id}']`));
+    });
+}
 
 //
 // the value beside a label in the build details, or undefined
@@ -292,9 +318,7 @@ describe('the tables below the graph', () => {
 
         getGraphById.mockResolvedValue(schemaOf(7));
 
-        await act(async () => {
-            fireEvent.change(picker(), { target: { value: 'build-b' } });
-        });
+        await chooseBuild('build-b');
 
         expect(tables().getAttribute('data-node-types')).toBe('7');
     });
@@ -304,7 +328,7 @@ describe('the picker', () => {
     it('offers every build the listing returned', async () => {
         await setup();
 
-        expect(screen.getAllByRole('option')).toHaveLength(2);
+        expect(await openPicker()).toHaveLength(2);
     });
 
     //
@@ -323,6 +347,7 @@ describe('the picker', () => {
         });
 
         await setup();
+        await openPicker();
 
         expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC' })).toBeTruthy();
         expect(screen.getByRole('option', { name: '2026-09-18 05:00 UTC' })).toBeTruthy();
@@ -335,6 +360,7 @@ describe('the picker', () => {
         // is named when every build is the same, which is the published case.
         //
         await setup();
+        await openPicker();
 
         expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC · 1024d' })).toBeTruthy();
         expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC · 512d' })).toBeTruthy();
@@ -347,8 +373,9 @@ describe('the picker', () => {
         // an option ending '2026-08' reads as though it bounded something.
         //
         await setup();
+        const options = await openPicker();
 
-        expect(picker().textContent).not.toContain('2026-08');
+        expect(options.map((one) => one.textContent).join()).not.toContain('2026-08');
     });
 
     it('keeps the listing labels when the short ones would name two builds', async () => {
@@ -363,6 +390,7 @@ describe('the picker', () => {
         });
 
         await setup();
+        await openPicker();
 
         expect(screen.getByRole('option', { name: 'September 2026 (a)' })).toBeTruthy();
         expect(screen.getByRole('option', { name: 'September 2026 (c)' })).toBeTruthy();
@@ -375,6 +403,7 @@ describe('the picker', () => {
         });
 
         await setup();
+        await openPicker();
 
         expect(screen.getByRole('option', { name: 'Run unrecorded' })).toBeTruthy();
         expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC' })).toBeTruthy();
@@ -384,9 +413,7 @@ describe('the picker', () => {
         await setup();
         getGraphById.mockResolvedValue(schemaOf(3));
 
-        await act(async () => {
-            fireEvent.change(picker(), { target: { value: 'build-b' } });
-        });
+        await chooseBuild('build-b');
 
         expect(getGraphById).toHaveBeenLastCalledWith('build-b');
         expect(explorer().getAttribute('data-types')).toBe('3');
@@ -400,9 +427,10 @@ describe('the picker', () => {
         getGraphListing.mockResolvedValue({ default: 'build-a', graphs: [BUILD_A, BUILD_BROKEN] });
 
         await setup();
+        await openPicker();
 
         const broken = screen.getByRole('option', { name: /Broken build/ });
-        expect(broken).toBeDisabled();
+        expect(broken).toHaveAttribute('aria-disabled', 'true');
         expect(broken.textContent).toContain('unavailable');
     });
 });
@@ -429,9 +457,7 @@ describe('the build details', () => {
     it('follows the picker', async () => {
         await setup();
 
-        await act(async () => {
-            fireEvent.change(picker(), { target: { value: 'build-b' } });
-        });
+        await chooseBuild('build-b');
 
         expect(detail('Variant')).toBe('512d');
     });
@@ -444,12 +470,10 @@ describe('the build details', () => {
         //
         await setup();
 
-        await act(async () => {
-            fireEvent.change(picker(), { target: { value: 'build-b' } });
-        });
+        await chooseBuild('build-b');
 
         expect(getGraphById).toHaveBeenLastCalledWith('build-b');
-        expect(picker().value).toBe('build-b');
+        expect(picker()).toHaveTextContent('2026-09-15 05:00 UTC · 512d');
     });
 
     it('names the sources that went into the build', async () => {
@@ -765,9 +789,7 @@ describe('when something cannot be loaded', () => {
 
         getGraphById.mockResolvedValue(null);
 
-        await act(async () => {
-            fireEvent.change(picker(), { target: { value: 'build-b' } });
-        });
+        await chooseBuild('build-b');
 
         expect(explorer()).toBeNull();
         expect(document.body.textContent).toContain('could not be loaded');
@@ -848,9 +870,7 @@ describe('the api icons', () => {
     it('follow the picker to another build', async () => {
         await setup();
 
-        await act(async () => {
-            fireEvent.change(picker(), { target: { value: 'build-b' } });
-        });
+        await chooseBuild('build-b');
 
         expect(screen.getByRole('link', { name: 'This request' }))
             .toHaveAttribute('href', String(knowledgeGraphUrl('build-b')));
