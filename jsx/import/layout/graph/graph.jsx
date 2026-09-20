@@ -25,6 +25,8 @@
 import React, { Component } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import GraphExplorer, { TAIL } from '../../animation/graph-explorer.jsx';
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
@@ -66,6 +68,25 @@ const ORIGIN_LABEL = {
 //
 const PANELS_CLOSED = { build: false, legend: false };
 
+//
+// the menu the picker opens: under the control, aligned with it, and bounded.
+//
+// Bounded is the point. A native <select> hands its options to the operating
+// system, which on a phone draws them as a sheet the page has no say over --
+// however many builds the listing holds, at whatever size the platform likes.
+// This menu is a popover of this page's own, so a listing longer than the
+// screen scrolls inside it rather than becoming the screen.
+//
+// Note: 48px is a mui menu row. Eight of them is a menu that is clearly a menu
+//       rather than a page, and still shows more builds at once than the
+//       listing has carried so far.
+//
+const PICKER_MENU = {
+    anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
+    transformOrigin: { vertical: 'top', horizontal: 'left' },
+    PaperProps: { className: 'graph-picker-menu', style: { maxHeight: 48 * 8 } },
+};
+
 const COMPACT = new Intl.NumberFormat('en-US', {
     notation: 'compact',
     maximumSignificantDigits: 3,
@@ -83,6 +104,46 @@ function when(iso) {
 
 function count(n) {
     return typeof n === 'number' ? n.toLocaleString() : 'n/a';
+}
+
+//
+// what tells the builds in the picker apart, which is not what the listing
+// calls them.
+//
+// The listing labels a build with a sentence -- 'September 2026 (all-sources,
+// 1024d, run 2026-09-19 05:00 UTC)' -- and the builds it returns differ only in
+// the last few characters of it. Seven of those made a 466px control beside the
+// page heading, and, in a phone's option list, seven wrapped paragraphs to
+// choose between builds that read as identical until their end.
+//
+// Every constant part of that sentence is already on the page, in the build
+// panel directly below it: Dataset, Variant, Run. So an option says the run
+// time -- the part that differs, in the words the Run row uses -- and then
+// whatever else actually varies across THIS listing, which is nothing while
+// every published build is the same dataset and variant.
+//
+// Note: `period` is deliberately not one of the fields that can be added. It is
+//       a partition key rather than a window over the data -- see the note below
+//       -- and an option ending '2026-09' would put it back in front of a reader
+//       as though it bounded something.
+//
+// Note: the listing's own labels are used for ALL of them when the derived ones
+//       do not tell every build apart: two builds run in the same minute would
+//       both read '2026-09-19 05:00 UTC'. A shorter label is worth having, and a
+//       label that names two different builds is not.
+//
+const DISTINGUISHING = ['dataset', 'variant'];
+
+function pickerLabels(graphs) {
+    const varies = DISTINGUISHING.filter(
+        (key) => new Set(graphs.map((build) => build[key])).size > 1
+    );
+
+    const labels = graphs.map((build) => (build.run
+        ? [when(build.run), ...varies.map((key) => build[key]).filter(Boolean)].join(' · ')
+        : build.label));
+
+    return new Set(labels).size === labels.length ? labels : graphs.map((build) => build.label);
 }
 
 //
@@ -306,6 +367,25 @@ class GraphLayout extends Component {
         );
     }
 
+    /**
+     * which published build the page is showing.
+     *
+     * A mui Select rather than a <select>, for the menu it opens rather than for
+     * how it looks closed. A native control delegates its option list to the
+     * platform, which on a phone is a full height sheet -- the page cannot bound
+     * it, style it, or keep it from covering the thing it belongs to. This one is
+     * an ordinary popover of the page's own; see PICKER_MENU.
+     *
+     * Note: 'standard' with no underline, rather than the outlined variant mui
+     *       defaults to. Outlined draws its own border as a fieldset, and the
+     *       stylesheet already draws this control's border -- the same one the
+     *       filter box below the graph has. Two borders, or one; this is one.
+     *
+     * Note: the accessible name travels in `inputProps`, which is where mui puts
+     *       props meant for the element it gives role='combobox'. Passed as a
+     *       plain `aria-label` it lands on the hidden input beside that element
+     *       instead, where nothing reads it.
+     */
     picker() {
         const { listing, selected } = this.state;
 
@@ -313,19 +393,24 @@ class GraphLayout extends Component {
             return null;
         }
 
+        const labels = pickerLabels(listing.graphs);
+
         return (
-            <select
+            <Select
                 className='graph-picker'
-                aria-label='Published build'
+                variant='standard'
+                disableUnderline
                 value={selected || ''}
                 onChange={(event) => this.navigateToBuild(event.target.value)}
+                inputProps={{ 'aria-label': 'Published build' }}
+                MenuProps={PICKER_MENU}
             >
-                {listing.graphs.map((build) => (
-                    <option key={build.id} value={build.id} disabled={!!build.error}>
-                        {build.error ? `${build.label} (unavailable)` : build.label}
-                    </option>
+                {listing.graphs.map((build, index) => (
+                    <MenuItem key={build.id} value={build.id} disabled={!!build.error}>
+                        {build.error ? `${labels[index]} (unavailable)` : labels[index]}
+                    </MenuItem>
                 ))}
-            </select>
+            </Select>
         );
     }
 
