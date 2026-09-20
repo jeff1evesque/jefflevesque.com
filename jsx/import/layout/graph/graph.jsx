@@ -7,9 +7,17 @@
  *
  * Laid out in three columns on a wide screen -- what the build is, the graph,
  * and how to read its colours -- so all three are in view together. On a narrow
- * one the columns stack in the same order, and the two panels above the graph
- * start closed: a phone that opened on a page-long list of metadata showed the
- * graph, the reason for the page, only after a long scroll.
+ * one they stack, and the title leads.
+ *
+ * Both reference columns FOLD, at either width, and what they give up goes to
+ * the graph. The grid's side tracks are sized to their contents, so a folded
+ * column widens the canvas rather than leaving a gap; the canvas takes its
+ * height from the viewport and does not change, which means the graph grows
+ * sideways and never downward.
+ *
+ * They start open where there is room for all three at once and closed where
+ * there is not -- a phone that opened on a page-long list of metadata showed
+ * the graph, the reason for the page, only after a long scroll.
  *
  * Note: the slice here is larger than the backdrop's. Both go through the same
  *       selection rule, which takes the limit as an argument precisely so two
@@ -57,6 +65,18 @@ const ORIGIN_LABEL = {
 // phone opens on the graph; a wide screen ignores this and shows both.
 //
 const PANELS_CLOSED = { build: false, legend: false };
+
+//
+// where the layout becomes three columns, in pixels, mirroring '$graph-columns'
+// in '_graph.scss'.
+//
+// Duplicated rather than shared because the two languages cannot read one
+// another's constants, and the alternative -- measuring the rendered layout to
+// find out which one is in force -- reads the answer back out of the thing it is
+// meant to decide. The pair is small enough to keep in step by hand; what it
+// decides is only which panels START open.
+//
+const PANELS_WIDE = 992;
 
 //
 // the menu the picker opens: under the control, aligned with it, and bounded.
@@ -190,6 +210,32 @@ class GraphLayout extends Component {
     }
 
     componentDidMount() {
+        {/*
+
+            both panels start open on a wide screen and closed on a narrow one,
+            which is one piece of state answering to two different defaults.
+
+            The narrow default is the deliberate one: a phone that opened on a
+            page-long list of metadata showed the graph, the reason for the page,
+            only after a long scroll. A wide screen has room for all three
+            columns at once and should show them.
+
+            Note: read once, at mount, and not watched afterwards. A media query
+                  listener would reopen a panel the reader had just closed
+                  whenever the window crossed the breakpoint, which is the
+                  window disagreeing with the person about their own choice.
+
+            Note: guarded. jsdom does not implement matchMedia, so under test
+                  this falls through to the closed default -- which is the state
+                  the panel suite is written against.
+
+        */}
+
+        if (typeof window.matchMedia === 'function'
+            && window.matchMedia(`(min-width: ${PANELS_WIDE}px)`).matches) {
+            this.setState({ open: { build: true, legend: true } });
+        }
+
         getGraphListing().then((listing) => {
             if (!listing || !listing.graphs.length) {
                 this.setState({ listing: null, loading: false, failed: true });
@@ -368,40 +414,46 @@ class GraphLayout extends Component {
     }
 
     /**
-     * a column on a wide screen, and a section that opens and closes on a narrow
-     * one.
+     * a reference column that opens and closes, at every width.
      *
-     * Both forms are rendered and the stylesheet shows one: the toggle button
-     * below the breakpoint, the plain heading above it. Hiding with display:none
-     * also hides from assistive technology, so a screen reader meets a button
-     * where there is something to open and a heading where there is not --
-     * never a button announcing 'collapsed' over content that is on screen.
+     * It used to render two headers and let the stylesheet show one -- a toggle
+     * button below the breakpoint, a plain heading above it -- because the wide
+     * layout never closed anything. Now that both columns collapse on a wide
+     * screen too, there is one header at both widths and it is a button.
+     *
+     * The button lives INSIDE the heading rather than replacing it. A collapsed
+     * section still has to appear in the document outline: a bare button is not
+     * a heading, and a reader navigating this page by headings would find the
+     * graph and the tables and nothing that names either column.
      *
      * Note: the closed body stays in the document and is hidden by the
-     *       stylesheet, not by React. Unmounting it would make the wide layout,
-     *       which never closes anything, depend on state it has no control of.
+     *       stylesheet, not by React. Unmounting it would throw away the
+     *       measured legend every time it was folded away, and the explorer
+     *       beside it reads its colours from the same render.
      */
-    panel(key, title, summary, heading, content) {
+    panel(key, title, summary, content) {
         if (!content) {
             return null;
         }
 
         const open = this.state.open[key];
         const body = `graph-panel-${key}-body`;
+        const state = open ? 'graph-panel-open' : 'graph-panel-closed';
 
         return (
-            <section className={`graph-panel graph-panel-${key}${open ? ' graph-panel-open' : ''}`}>
-                <button
-                    type='button'
-                    className='graph-panel-toggle'
-                    aria-expanded={open}
-                    aria-controls={body}
-                    onClick={() => this.toggle(key)}
-                >
-                    <span className='graph-panel-title'>{title}</span>
-                    {summary ? <span className='graph-panel-summary'>{summary}</span> : null}
-                </button>
-                {heading ? <h6 className='graph-panel-heading'>{heading}</h6> : null}
+            <section className={`graph-panel graph-panel-${key} ${state}`}>
+                <h6 className='graph-panel-heading'>
+                    <button
+                        type='button'
+                        className='graph-panel-toggle'
+                        aria-expanded={open}
+                        aria-controls={body}
+                        onClick={() => this.toggle(key)}
+                    >
+                        <span className='graph-panel-title'>{title}</span>
+                        {summary ? <span className='graph-panel-summary'>{summary}</span> : null}
+                    </button>
+                </h6>
                 <div className='graph-panel-body' id={body}>
                     {content}
                 </div>
@@ -615,20 +667,22 @@ class GraphLayout extends Component {
                         the page's title, and the one control that changes what
                         the whole page shows.
 
-                        Both used to sit together at the left end of this row:
-                        an <h5> -- the level this codebase uses for a chart's
-                        title INSIDE a page -- with an unlabelled select box
-                        immediately beside it. Over an 18rem left column, that
-                        reads as a heading for that column rather than for the
-                        page, and the control beside it reads as belonging to
-                        the heading. Neither is what either one is.
+                        It is a GRID ITEM, and which cell it lands in is the
+                        whole point. Sitting at the left end of a row above
+                        three columns, a title aligns with the leftmost one and
+                        reads as that column's heading -- moving it to an <h4>
+                        and pushing the picker to the far end did not fix that,
+                        because the left edge is still the left edge.
 
-                        So the heading takes the level the site's other page
-                        titles take (h4, as /stream/trigger and the alarms page
-                        do), and the control moves to the far end of the row
-                        under a visible label. A row with something at both ends
-                        spans the page, which is what makes the title read as
-                        the page's rather than the column's.
+                        So on a wide screen it is placed in the MIDDLE column,
+                        directly over the graph, where what it names is not in
+                        question. On a narrow screen there is only one column
+                        and it is placed first, ahead of both panels, because a
+                        page title that arrives third is not a page title. The
+                        stylesheet decides which, by naming grid areas; the
+                        markup is the same at both widths, so nothing is
+                        duplicated and no heading is hidden from a reader who
+                        navigates by them.
 
                         Note: the visible 'Build' is what a sighted reader was
                               missing -- the accessible name has always been
@@ -636,18 +690,18 @@ class GraphLayout extends Component {
                               nobody else did.
 
                     */}
-                    <div className='graph-header'>
-                        <h4>Knowledge graph</h4>
-                        {listing ? (
-                            <div className='graph-picker-field'>
-                                <span className='graph-picker-label'>Build</span>
-                                {this.picker()}
-                            </div>
-                        ) : null}
-                    </div>
                     <div className='graph-layout'>
-                        {this.panel('build', 'Build details', nodes, 'Build', this.details(build))}
-                        {this.panel('legend', 'Legend', namespaces, null, this.legend(shown))}
+                        <div className='graph-header'>
+                            <h4>Knowledge graph</h4>
+                            {listing ? (
+                                <div className='graph-picker-field'>
+                                    <span className='graph-picker-label'>Build</span>
+                                    {this.picker()}
+                                </div>
+                            ) : null}
+                        </div>
+                        {this.panel('build', 'Build details', nodes, this.details(build))}
+                        {this.panel('legend', 'Legend', namespaces, this.legend(shown))}
                         <div className='graph-canvas'>
                             {/*
 
