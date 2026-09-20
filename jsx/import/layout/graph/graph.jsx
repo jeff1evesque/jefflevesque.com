@@ -86,6 +86,46 @@ function count(n) {
 }
 
 //
+// what tells the builds in the picker apart, which is not what the listing
+// calls them.
+//
+// The listing labels a build with a sentence -- 'September 2026 (all-sources,
+// 1024d, run 2026-09-19 05:00 UTC)' -- and the builds it returns differ only in
+// the last few characters of it. Seven of those made a 466px control beside the
+// page heading, and, in a phone's option list, seven wrapped paragraphs to
+// choose between builds that read as identical until their end.
+//
+// Every constant part of that sentence is already on the page, in the build
+// panel directly below it: Dataset, Variant, Run. So an option says the run
+// time -- the part that differs, in the words the Run row uses -- and then
+// whatever else actually varies across THIS listing, which is nothing while
+// every published build is the same dataset and variant.
+//
+// Note: `period` is deliberately not one of the fields that can be added. It is
+//       a partition key rather than a window over the data -- see the note below
+//       -- and an option ending '2026-09' would put it back in front of a reader
+//       as though it bounded something.
+//
+// Note: the listing's own labels are used for ALL of them when the derived ones
+//       do not tell every build apart: two builds run in the same minute would
+//       both read '2026-09-19 05:00 UTC'. A shorter label is worth having, and a
+//       label that names two different builds is not.
+//
+const DISTINGUISHING = ['dataset', 'variant'];
+
+function pickerLabels(graphs) {
+    const varies = DISTINGUISHING.filter(
+        (key) => new Set(graphs.map((build) => build[key])).size > 1
+    );
+
+    const labels = graphs.map((build) => (build.run
+        ? [when(build.run), ...varies.map((key) => build[key]).filter(Boolean)].join(' · ')
+        : build.label));
+
+    return new Set(labels).size === labels.length ? labels : graphs.map((build) => build.label);
+}
+
+//
 // There is deliberately no 'Period' row below, and the listing's `period` is
 // read by nothing on this page.
 //
@@ -313,6 +353,8 @@ class GraphLayout extends Component {
             return null;
         }
 
+        const labels = pickerLabels(listing.graphs);
+
         return (
             <select
                 className='graph-picker'
@@ -320,9 +362,9 @@ class GraphLayout extends Component {
                 value={selected || ''}
                 onChange={(event) => this.navigateToBuild(event.target.value)}
             >
-                {listing.graphs.map((build) => (
+                {listing.graphs.map((build, index) => (
                     <option key={build.id} value={build.id} disabled={!!build.error}>
-                        {build.error ? `${build.label} (unavailable)` : build.label}
+                        {build.error ? `${labels[index]} (unavailable)` : labels[index]}
                     </option>
                 ))}
             </select>
