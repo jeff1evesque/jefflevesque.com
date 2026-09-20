@@ -47,6 +47,22 @@
 const BACKDROP_NODE_TYPES = 24;
 
 //
+// how many node types the explorer page carries.
+//
+// Larger than the front page, which carries 24 because that is the density a
+// backdrop reads at. Measured against the published build, the selection stays
+// in one connected piece from about 40 upward; 60 is comfortably inside that and
+// still legible. It is a look-at-it number and can move.
+//
+// Note: it lives HERE, beside the other budget, rather than in the page that
+//       spends it, because it is no longer only a drawing budget -- encoding.js
+//       ranks the shared colour palette over this same slice, so the front page
+//       depends on it too. Two copies of 60 in two files is exactly the drift
+//       the palette was consolidated to end.
+//
+const EXPLORER_NODE_TYPES = 60;
+
+//
 // what fraction of the budget is spent on the biggest types before connectivity
 // gets a say. Two thirds -- 16 of 24 -- keeps the graph's mass on screen (all
 // five of the live build's largest types survive) while leaving room for the
@@ -319,4 +335,4 @@ export default function filterSchema(schema, limit = BACKDROP_NODE_TYPES) {
     return { ...schema, node_types: kept_nodes, edge_types: kept_edges };
 }
 
-export { BACKDROP_NODE_TYPES, SEED_FRACTION, CONNECTOR_MIN_LINKS };
+export { BACKDROP_NODE_TYPES, EXPLORER_NODE_TYPES, SEED_FRACTION, CONNECTOR_MIN_LINKS };
