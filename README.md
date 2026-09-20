@@ -32,7 +32,7 @@ comes from three public APIs, called from the browser at runtime.
 | `/stream/:stream/trigger` | trigger conditions for one stream, charted against its history | |
 | `/stream/:stream/alarm` | alarms raised for a stream | datalake |
 | `/data` | each stream's data as it is stored, with its distribution for a chosen month | datalake |
-| `/graph` | every published knowledge graph build, with a picker, a legend, a readable slice of the graph, and tables of every node and edge type it holds | knowledge graph |
+| `/graph` | every published knowledge graph build, with a picker, a legend that lights what it names on the graph, and tables of every node and edge type it holds. Its columns fold and drag, and it opens the way it was last left | knowledge graph |
 | `/graph/:graph` | the same page, opened on one build, so a build can be linked to | knowledge graph |
 | `/model` | model article listing, with filters and performance | |
 | `/login`, `/logout`, `/register`, `/login/reset` | Cognito-backed authentication | |
