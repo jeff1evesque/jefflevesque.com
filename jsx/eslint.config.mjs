@@ -40,6 +40,9 @@ const browserGlobals = {
     Node: 'readonly',
     Event: 'readonly',
     CustomEvent: 'readonly',
+    // jsdom implements no PointerEvent, so the graph suite dispatches a
+    // MouseEvent of the pointer event's TYPE to carry clientX onto a drag.
+    MouseEvent: 'readonly',
     MutationObserver: 'readonly',
     IntersectionObserver: 'readonly',
     ResizeObserver: 'readonly',
