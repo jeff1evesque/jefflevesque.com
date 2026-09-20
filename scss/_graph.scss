@@ -16,7 +16,22 @@
 //       'medium' class covers widths well below it.
 
 $graph-columns: 992px;
-$graph-side: 16rem;
+
+//
+// the two reference columns flanking the graph.
+//
+// A clamp rather than a fixed width, so the namespace legend can run two abreast
+// where there is room for it. '.graph-legend-namespaces' auto-fills at an 8.5rem
+// minimum, which resolves to ONE column at 16rem and TWO at 18rem -- so a wide
+// window gets a legend half as tall, a narrow one gets the single column it has
+// room for, and no second media query has to decide which.
+//
+// Note: 24vw reaches 18rem at about 1200px. Below that the clamp holds at 16rem,
+//       which is what keeps the canvas from being squeezed at the breakpoint
+//       itself, where the container is only about 960px wide and two 18rem
+//       columns plus their gaps would leave the graph a sliver.
+//
+$graph-side: clamp(16rem, 24vw, 18rem);
 
 .graph-page {
   padding-bottom: 1rem;
@@ -30,9 +45,37 @@ $graph-side: 16rem;
   gap: 0.5rem 1rem;
   margin-bottom: 1rem;
 
-  h5 {
+  h4 {
     margin: 0;
   }
+}
+
+//
+// the build picker and the label that says what it is, at the far end of the
+// header row.
+//
+// 'margin-left: auto' is doing more than alignment here. The title and the
+// control used to sit side by side at the left end, over an 18rem column, which
+// made the heading look like that column's and the control look like part of the
+// heading. A row with something at BOTH ends spans the page, and a title in a row
+// that spans the page reads as the page's.
+//
+.graph-picker-field {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+  min-width: 0;
+}
+
+//
+// quieter than the value it labels: it names the control once, and then the
+// build's own name is the thing worth reading.
+//
+.graph-picker-label {
+  color: $gray-6;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 //
@@ -168,14 +211,22 @@ $graph-side: 16rem;
 }
 
 //
-// as many columns of namespaces as fit at a width that holds the longest name
-// on one line: one in the wide layout's side column, two or three across an
-// opened panel on a phone, where a single column would run a dozen lines long.
+// as many columns of namespaces as fit at a width that holds the longest name on
+// one line: two in the wide layout's side column where the clamp above has opened
+// it to 18rem, one where it has not, and two or three across an opened panel on a
+// phone, where a single column would run a dozen lines long.
+//
+// Note: 8.5rem is measured against the longest namespace a published build has
+//       carried -- 'market-quotes', which with its swatch and gap wants about
+//       8.25rem at the body font. Two of these plus the 0.75rem column gap need
+//       17.75rem, which is why the side column's clamp tops out at 18rem and not
+//       at the 16rem it used to be fixed at: at 16rem the pair does not fit and
+//       auto-fill correctly falls back to one.
 //
 .graph-legend-namespaces {
   column-gap: 0.75rem;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
 
   li {
     flex-wrap: nowrap;
@@ -595,13 +646,37 @@ $graph-side: 16rem;
 @media (min-width: $graph-columns) {
   .graph-layout {
     align-items: start;
-    column-gap: 2rem;
+    column-gap: 1.5rem;
     grid-template-areas: 'build canvas legend';
     grid-template-columns: $graph-side minmax(0, 1fr) $graph-side;
   }
 
   .graph-panel-toggle {
     display: none;
+  }
+
+  //
+  // a hairline down each side of the graph, separating the figure from the
+  // reference columns that flank it.
+  //
+  // The rules are on the CANVAS rather than between the grid items, and that is
+  // the whole trick. A rule drawn between two columns has to decide where to
+  // stop, which means making all three columns the same height and stretching
+  // two of them past their content to get there. The canvas already has a height
+  // -- it is the one column that does -- so a border on it starts and ends
+  // somewhere definite, and 'align-items: start' can stay exactly as it is.
+  //
+  // Note: this is the same border the narrow layout already draws above the
+  //       canvas, for the same reason, turned ninety degrees.
+  //
+  // Note: box-sizing is border-box site-wide, so the 2px this adds comes out of
+  //       the canvas rather than being added to the height calc above.
+  //
+  .graph-canvas {
+    border-left: 1px solid $gray-2;
+    border-right: 1px solid $gray-2;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 }
 
@@ -624,8 +699,17 @@ $graph-side: 16rem;
   //       be the weaker of the two selectors -- a media query that loses to the
   //       rule it is meant to override.
   //
-  .graph-header .graph-picker {
+  //
+  // the label stays beside the control and the pair takes the line, rather than
+  // the control alone taking it and leaving its label stranded above.
+  //
+  .graph-picker-field {
     flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  .graph-header .graph-picker {
+    flex: 1 1 auto;
   }
 
   .graph-tables-tabs {

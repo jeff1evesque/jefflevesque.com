@@ -20,6 +20,7 @@
  */
 
 import { colors, colors_categorical, color_other, color_tail } from '../general/colors.js';
+import filterSchema, { EXPLORER_NODE_TYPES } from './filter-schema.js';
 
 // ontology uris are '<origin>/ontology/<namespace>/<Type>'; the id prefix is the
 // fallback for anything that does not match.
@@ -98,6 +99,56 @@ export function assignNamespaceColors(nodes, tail = 'roll-up') {
     });
 
     return assigned;
+}
+
+/**
+ * the ONE namespace -> colour map for a published build.
+ *
+ * assignNamespaceColors ranks the namespaces it is handed and deals out eight
+ * categorical slots, so the answer depends entirely on WHICH node types were in
+ * the set. Both surfaces called it, and each handed it its own slice -- the
+ * backdrop its 24, the explorer its 60 -- so the same build came out painted two
+ * different ways. Measured on the September build: of the eight namespaces the
+ * front page draws, SEVEN were a different colour on /graph. `metro` was the
+ * blue on the front page and orange on /graph, where the legend called the blue
+ * `empsit` -- a namespace the front page does not draw at all. Nothing failed,
+ * because both still rendered.
+ *
+ * That is the drift this module's header promises to prevent, and it slipped
+ * through because the mapping was pinned while its INPUT was not. So the input
+ * is pinned here instead: the ranking is taken over the explorer's slice of the
+ * whole build, and every surface reads the result rather than ranking its own.
+ *
+ * Note: the explorer's slice, not the whole schema, is the basis on purpose. The
+ *       build carries seventeen namespaces for eight categorical slots, and
+ *       three of the largest -- jolts, realer, wkyeng -- are drawn by neither
+ *       page. Ranking over all 151 node types spends three of the eight slots on
+ *       namespaces that are never on screen and pushes six of the front page's
+ *       eight into the tail, which on the backdrop is a single flat grey. The
+ *       drawn slice spends every slot on something a reader can actually see.
+ *
+ * Note: always 'shade'. One map serves both surfaces, so there is no longer a
+ *       per-surface tail policy to choose -- the backdrop inherits the shaded
+ *       tail, which it mutes toward white at rest anyway.
+ *
+ * Note: takes the UNFILTERED schema. A caller holding only its own filtered
+ *       slice cannot produce this map, which is the point -- that is exactly the
+ *       call that used to disagree.
+ */
+export function buildPalette(schema, limit = EXPLORER_NODE_TYPES) {
+    const drawn = filterSchema(schema, limit);
+
+    if (!drawn) {
+        return null;
+    }
+
+    return assignNamespaceColors(
+        Object.keys(drawn.node_types).map((id) => ({
+            id: id,
+            namespace: sourceNamespace(drawn.node_types[id], id),
+        })),
+        'shade'
+    );
 }
 
 {/*

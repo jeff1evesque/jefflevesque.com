@@ -275,6 +275,8 @@ class GraphCluster extends Component {
             node_types: PropTypes.object,
             edge_types: PropTypes.object,
         }),
+        // namespace -> colour, ranked over the whole build by buildPalette
+        palette: PropTypes.instanceOf(Map),
     }
 
     constructor(props) {
@@ -430,9 +432,20 @@ class GraphCluster extends Component {
             };
         });
 
-        // the palette is assigned per build, from the namespaces this schema
-        // actually carries — see assignNamespaceColors
-        this.namespaceColors = assignNamespaceColors(nodes);
+        //
+        // the palette comes from the whole build, via the mount site, so this
+        // backdrop and the explorer's legend agree about what a colour means.
+        //
+        // It used to be assigned here, from the namespaces in THIS schema --
+        // which is the 24-type slice -- while the explorer assigned its own from
+        // its 60. Same build, same rule, different input, and so a namespace was
+        // one colour on the front page and another on /graph. See buildPalette.
+        //
+        // Note: the fallback is for a caller that has only a slice in hand, which
+        //       is every test in the suite and nothing that ships. It ranks what
+        //       it was given, exactly as this line always did.
+        //
+        this.namespaceColors = this.props.palette || assignNamespaceColors(nodes);
 
         {/*
 

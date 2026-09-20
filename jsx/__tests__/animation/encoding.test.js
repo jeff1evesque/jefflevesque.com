@@ -16,14 +16,61 @@ import {
     sourceNamespace,
     rankNamespaces,
     assignNamespaceColors,
+    buildPalette,
     originColor,
     ORIGIN_DASH,
     ORIGIN_COLOR,
 } from '../../import/animation/encoding.js';
+import filterSchema, {
+    BACKDROP_NODE_TYPES,
+    EXPLORER_NODE_TYPES,
+} from '../../import/animation/filter-schema.js';
 import { colors, colors_categorical, color_other } from '../../import/general/colors.js';
 
 const nodesOf = (namespaces) => namespaces.map((ns, i) => ({ id: `n${i}`, namespace: ns }));
 const manyNamespaces = (n) => [...Array(n)].map((_, i) => `ns${String(i).padStart(2, '0')}`);
+
+//
+// a build whose namespaces RE-RANK depending on how much of it you take.
+//
+// That is the shape the live build has and the shape the bug needed: `alpha`
+// contributes the most node types among the two dozen biggest, so a small slice
+// ranks it first, while `gamma` contributes far more across the whole build and
+// a larger slice ranks it first instead. Rank decides which categorical slot a
+// namespace gets, so the two slices disagree about what colour `alpha` is.
+//
+// Note: no edge types, so filterSchema reduces to "the largest by count" -- the
+//       connector and swap passes need an adjacency to do anything. What is
+//       under test here is the colour, not the selection.
+//
+const namespaced = (namespace, n, from) => {
+    const types = {};
+    [...Array(n)].forEach((_, i) => {
+        types[`${namespace}_Type${i}`] = { count: from - i, category: 'entity' };
+    });
+    return types;
+};
+
+const rerankingBuild = () => ({
+    version: '1.3',
+    node_types: {
+        ...namespaced('alpha', 10, 200),
+        ...namespaced('beta', 5, 190),
+        ...namespaced('gamma', 60, 100),
+    },
+    edge_types: {},
+});
+
+const namespacesIn = (schema) => Object.keys(schema.node_types)
+    .map((id) => sourceNamespace(schema.node_types[id], id));
+
+const paintedPerSlice = (schema, limit) => assignNamespaceColors(
+    Object.keys(filterSchema(schema, limit).node_types).map((id) => ({
+        id: id,
+        namespace: sourceNamespace(filterSchema(schema, limit).node_types[id], id),
+    })),
+    'shade'
+);
 
 describe('sourceNamespace', () => {
     it('reads the namespace out of an ontology uri', () => {
@@ -228,5 +275,93 @@ describe('link styling by edge origin', () => {
 
     it('leaves an unknown origin undashed rather than throwing', () => {
         expect(ORIGIN_DASH['something-new']).toBeUndefined();
+    });
+});
+
+//
+// the guarantee this whole module exists for, pinned at the level that actually
+// broke.
+//
+// The mapping was already covered above and was never wrong. What went wrong was
+// its INPUT: the backdrop ranked its 24 node types, the explorer ranked its 60,
+// and the same build came out painted two different ways -- seven of the eight
+// namespaces the front page draws were a different colour on /graph, whose
+// legend named the blue as a namespace the front page does not draw at all.
+// Nothing threw, because both surfaces still rendered.
+//
+describe('buildPalette', () => {
+    it('is the same answer for a build however much of it a surface draws', () => {
+        const schema = rerankingBuild();
+
+        //
+        // the old behaviour, reproduced: ranking each slice on its own makes the
+        // two surfaces disagree about `alpha`. If this ever stops being true the
+        // fixture has lost the property the rest of these cases depend on.
+        //
+        const perSlice = [
+            paintedPerSlice(schema, BACKDROP_NODE_TYPES),
+            paintedPerSlice(schema, EXPLORER_NODE_TYPES),
+        ];
+
+        expect(perSlice[0].get('alpha')).not.toBe(perSlice[1].get('alpha'));
+
+        // and the answer this module gives instead, which does not ask the caller
+        // what it happens to be drawing
+        const palette = buildPalette(schema);
+
+        expect(palette.get('alpha')).toBe(buildPalette(schema).get('alpha'));
+        expect(palette.get('gamma')).toBe(buildPalette(schema).get('gamma'));
+    });
+
+    it('colours every namespace the backdrop draws', () => {
+        //
+        // the backdrop takes the smaller slice, so this is the direction that can
+        // actually fail: a namespace it draws that the palette's slice left out
+        // has no colour, and GraphCluster falls back to a neutral grey for it.
+        //
+        const schema = rerankingBuild();
+        const palette = buildPalette(schema);
+
+        namespacesIn(filterSchema(schema, BACKDROP_NODE_TYPES)).forEach((namespace) => {
+            expect(palette.get(namespace)).toBeDefined();
+        });
+    });
+
+    it('colours every namespace the explorer draws, so no legend row is blank', () => {
+        const schema = rerankingBuild();
+        const palette = buildPalette(schema);
+
+        namespacesIn(filterSchema(schema, EXPLORER_NODE_TYPES)).forEach((namespace) => {
+            expect(palette.get(namespace)).toBeDefined();
+        });
+    });
+
+    it('shades the tail rather than rolling it up', () => {
+        //
+        // one map serves both surfaces, so there is no per-surface tail policy
+        // left to choose -- and the surface that carries a legend is the one that
+        // cannot say "and four others". The backdrop inherits the shaded tail and
+        // mutes it toward white at rest anyway.
+        //
+        const many = {
+            version: '1.3',
+            node_types: manyNamespaces(12).reduce(
+                (types, ns, i) => Object.assign(types, namespaced(ns, 2, 100 - i)),
+                {}
+            ),
+            edge_types: {},
+        };
+
+        const painted = [...buildPalette(many).values()];
+
+        expect(painted).toHaveLength(12);
+        expect(painted).not.toContain(color_other);
+        expect(new Set(painted).size).toBe(12);
+    });
+
+    it('answers null for a schema it cannot read, like the filter it is built on', () => {
+        expect(buildPalette(null)).toBeNull();
+        expect(buildPalette({})).toBeNull();
+        expect(buildPalette({ node_types: {} })).toBeNull();
     });
 });

@@ -28,29 +28,19 @@ import { ErrorBoundary } from 'react-error-boundary';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
-import GraphExplorer, { TAIL } from '../../animation/graph-explorer.jsx';
+import GraphExplorer from '../../animation/graph-explorer.jsx';
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
 import { knowledgeGraphUrl, API_DOCS } from '../../general/api-url.js';
 import ApiLinks from '../../general/api-links.jsx';
-import filterSchema from '../../animation/filter-schema.js';
+import filterSchema, { EXPLORER_NODE_TYPES } from '../../animation/filter-schema.js';
 import GraphTables from './tables.jsx';
 import {
     sourceNamespace,
-    assignNamespaceColors,
+    buildPalette,
     rankNamespaces,
     ORIGIN_DASH,
     originColor,
 } from '../../animation/encoding.js';
-
-//
-// how many node types this page draws.
-//
-// Larger than the front page, which carries 24 because that is the density a
-// backdrop reads at. Measured against the published build, the selection stays
-// in one connected piece from about 40 upward; 60 is comfortably inside that and
-// still legible. It is a look-at-it number and can move.
-//
-const EXPLORER_NODE_TYPES = 60;
 
 //
 // what each origin means, for the legend. The styling itself lives in
@@ -179,8 +169,13 @@ class GraphLayout extends Component {
             loading: true,
             failed: false,
             open: PANELS_CLOSED,
+            // the picker's menu is controlled so a page scroll can close it --
+            // see openPicker
+            picker_open: false,
         };
 
+        this.openPicker = this.openPicker.bind(this);
+        this.closePicker = this.closePicker.bind(this);
         this.selectBuild = this.selectBuild.bind(this);
         this.navigateToBuild = this.navigateToBuild.bind(this);
         this.requestedBuild = this.requestedBuild.bind(this);
@@ -204,6 +199,42 @@ class GraphLayout extends Component {
             this.setState({ listing: listing });
             this.selectBuild(this.requestedBuild(listing));
         });
+    }
+
+    componentWillUnmount() {
+        window.removeEventListener('scroll', this.closePicker);
+    }
+
+    /**
+     * the picker's menu closes when the PAGE scrolls under it.
+     *
+     * mui renders the menu into a portal positioned against the viewport, and
+     * relies on the modal behind it locking body scroll to keep the page still
+     * while it is open. That lock is `overflow: hidden` on the body, which iOS
+     * Safari does not honour for touch scrolling -- so on a phone the page slid
+     * away underneath a menu that stayed nailed to the screen, leaving the
+     * options floating with no visible relationship to the control they came
+     * from.
+     *
+     * Closing is the right answer rather than repositioning: the menu has its
+     * own scroll for a listing longer than itself (see PICKER_MENU), so nobody
+     * scrolls the PAGE while choosing a build on purpose.
+     *
+     * Note: the listener is on window, which only hears the document scroll.
+     *       'scroll' does not bubble from an element, so scrolling the menu's
+     *       own option list does not reach this and does not close it.
+     *
+     * Note: on a desktop browser the lock works, no scroll event is fired, and
+     *       this changes nothing.
+     */
+    openPicker() {
+        window.addEventListener('scroll', this.closePicker, { passive: true });
+        this.setState({ picker_open: true });
+    }
+
+    closePicker() {
+        window.removeEventListener('scroll', this.closePicker);
+        this.setState({ picker_open: false });
     }
 
     /**
@@ -309,10 +340,21 @@ class GraphLayout extends Component {
             namespace: sourceNamespace(schema.node_types[id], id),
         }));
 
+        //
+        // the namespaces LISTED are the ones on screen, from the slice; the
+        // colours they are listed in come from the whole build, so this legend
+        // describes the front page's backdrop as well as this page's canvas.
+        // See buildPalette -- the two used to rank separately and disagree.
+        //
+        // Note: every namespace in `namespaces` is in `painted`. Both are taken
+        //       over the same slice -- buildPalette filters the build at
+        //       EXPLORER_NODE_TYPES, which is what `schema` already is -- so a
+        //       swatch can never come back undefined here.
+        //
         this.screenFor = schema;
         this.screen = {
             namespaces: rankNamespaces(nodes),
-            painted: assignNamespaceColors(nodes, TAIL),
+            painted: buildPalette(this.state.build),
             origins: [...new Set(
                 Object.values(schema.edge_types).map((e) => e.origin).filter(Boolean)
             )].sort(),
@@ -404,6 +446,9 @@ class GraphLayout extends Component {
                 onChange={(event) => this.navigateToBuild(event.target.value)}
                 inputProps={{ 'aria-label': 'Published build' }}
                 MenuProps={PICKER_MENU}
+                open={this.state.picker_open}
+                onOpen={this.openPicker}
+                onClose={this.closePicker}
             >
                 {listing.graphs.map((build, index) => (
                     <MenuItem key={build.id} value={build.id} disabled={!!build.error}>
@@ -552,7 +597,7 @@ class GraphLayout extends Component {
                 );
             }
 
-            return <GraphExplorer data={schema} />;
+            return <GraphExplorer data={schema} palette={shown ? shown.painted : null} />;
         };
 
         const nodes = build && typeof build.nodes === 'number'
@@ -565,9 +610,40 @@ class GraphLayout extends Component {
         return (
             <ErrorBoundary FallbackComponent={ErrorFallback}>
                 <div className='container graph-page'>
+                    {/*
+
+                        the page's title, and the one control that changes what
+                        the whole page shows.
+
+                        Both used to sit together at the left end of this row:
+                        an <h5> -- the level this codebase uses for a chart's
+                        title INSIDE a page -- with an unlabelled select box
+                        immediately beside it. Over an 18rem left column, that
+                        reads as a heading for that column rather than for the
+                        page, and the control beside it reads as belonging to
+                        the heading. Neither is what either one is.
+
+                        So the heading takes the level the site's other page
+                        titles take (h4, as /stream/trigger and the alarms page
+                        do), and the control moves to the far end of the row
+                        under a visible label. A row with something at both ends
+                        spans the page, which is what makes the title read as
+                        the page's rather than the column's.
+
+                        Note: the visible 'Build' is what a sighted reader was
+                              missing -- the accessible name has always been
+                              'Published build', which screen readers got and
+                              nobody else did.
+
+                    */}
                     <div className='graph-header'>
-                        <h5>Knowledge graph</h5>
-                        {this.picker()}
+                        <h4>Knowledge graph</h4>
+                        {listing ? (
+                            <div className='graph-picker-field'>
+                                <span className='graph-picker-label'>Build</span>
+                                {this.picker()}
+                            </div>
+                        ) : null}
                     </div>
                     <div className='graph-layout'>
                         {this.panel('build', 'Build details', nodes, 'Build', this.details(build))}

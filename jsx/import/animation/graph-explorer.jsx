@@ -240,6 +240,8 @@ class GraphExplorer extends Component {
             edge_types: PropTypes.object,
         }),
         height: PropTypes.number,
+        // namespace -> colour, ranked over the whole build by buildPalette
+        palette: PropTypes.instanceOf(Map),
     }
 
     constructor(props) {
@@ -568,7 +570,17 @@ class GraphExplorer extends Component {
             }
         });
 
-        this.namespaceColors = assignNamespaceColors(nodes, TAIL);
+        //
+        // handed down rather than assigned here, so the canvas, the legend
+        // beside it, the tables below it and the front page backdrop are all
+        // reading one map. See buildPalette -- ranking per surface is what made
+        // the same namespace two different colours on the two pages.
+        //
+        // Note: the fallback ranks what it was given, which is what this line
+        //       always did. It covers a caller holding only a slice -- the suite,
+        //       and nothing that ships.
+        //
+        this.namespaceColors = this.props.palette || assignNamespaceColors(nodes, TAIL);
 
         const radius = small ? NODE_RADIUS_SMALL : NODE_RADIUS;
         nodes.forEach((d) => { d.r = radius; });
