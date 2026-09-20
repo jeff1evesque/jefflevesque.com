@@ -29,12 +29,20 @@
 import React from 'react';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 
+//
+// Note: the probe records what the legend asked the canvas to emphasise, and
+//       calls back on a click the way the real canvas does. What the explorer
+//       DOES with an emphasis is its own suite's business; what matters here is
+//       that the legend and the canvas agree on one at a time.
+//
 jest.mock('../../import/animation/graph-explorer.jsx', () => ({
     __esModule: true,
-    default: ({ data }) => (
+    default: ({ data, emphasis, onClear }) => (
         <div
             data-testid='explorer'
             data-types={data ? Object.keys(data.node_types).length : 'none'}
+            data-emphasis={emphasis ? `${emphasis.kind}:${emphasis.value}` : 'none'}
+            onClick={onClear}
         />
     ),
     TAIL: 'shade',
@@ -703,6 +711,320 @@ describe('the panels', () => {
         await setup();
 
         expect(document.querySelector('.graph-panel')).toBeNull();
+    });
+});
+
+//
+// the rule between a reference column and the graph, which carries both of the
+// things a boundary can do: an arrow that folds the column, and a strip that
+// drags it narrower.
+//
+// Note: these run with the wide default, because below the breakpoint the
+//       columns are stacked bands and there is no vertical rule to put either
+//       control on. jsdom implements no matchMedia at all, which is why the
+//       query has to be supplied.
+//
+// Note: jsdom lays nothing out, so every width a drag reads back off the
+//       element is supplied by the test. 312px is the rail plus its padding at
+//       the top of the clamp -- 18rem + 1.5rem -- which is what a wide window
+//       actually gives these columns.
+//
+describe('the divider between a column and the graph', () => {
+    const panel = (key) => document.querySelector(`.graph-panel-${key}`);
+    const grip = (key) => panel(key).querySelector('.graph-panel-grip');
+    const fold = (key) => panel(key).querySelector('.graph-panel-fold');
+    const width = (key) => panel(key).style.getPropertyValue('--graph-panel-width');
+
+    //
+    // jsdom implements no PointerEvent, so testing-library cannot carry clientX
+    // on one. A MouseEvent of the same TYPE can: react dispatches on the type,
+    // and clientX and button are MouseEvent's own properties.
+    //
+    function pointer(type, target, init = {}) {
+        fireEvent(target, new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            ...init,
+        }));
+    }
+
+    function sized(key, px) {
+        Object.defineProperty(panel(key), 'offsetWidth', { value: px, configurable: true });
+    }
+
+    beforeEach(() => {
+        window.matchMedia = jest.fn().mockReturnValue({ matches: true });
+    });
+
+    afterEach(() => {
+        delete window.matchMedia;
+    });
+
+    it('folds the column from the arrow on the rule', async () => {
+        await setup();
+
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('true');
+
+        fireEvent.click(fold('build'));
+
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('takes both controls away with the column they folded', async () => {
+        await setup();
+
+        fireEvent.click(fold('build'));
+
+        expect(fold('build')).toBeNull();
+        expect(grip('build')).toBeNull();
+    });
+
+    it('points each arrow outward, the way its own column closes', async () => {
+        //
+        // which is the direction the folded rail's chevron then points back
+        // along to reopen it. Both used to point right, so the legend's said
+        // 'closes off the edge of the page'.
+        //
+        await setup();
+
+        expect(fold('build').querySelector('[data-testid="ChevronLeftIcon"]')).not.toBeNull();
+        expect(fold('legend').querySelector('[data-testid="ChevronRightIcon"]')).not.toBeNull();
+    });
+
+    it('names the column each arrow folds', async () => {
+        await setup();
+
+        expect(fold('build')).toHaveAttribute('aria-label', 'Collapse build details');
+        expect(fold('legend')).toHaveAttribute('aria-label', 'Collapse legend');
+    });
+
+    it('keeps the drag strip out of the accessibility tree', async () => {
+        //
+        // folding is on the keyboard path twice over -- the heading and the
+        // arrow -- and a width is a preference rather than information. A
+        // draggable div in the tab order would announce a control that does
+        // nothing when it is reached.
+        //
+        await setup();
+
+        expect(grip('build')).toHaveAttribute('aria-hidden', 'true');
+        expect(grip('build')).not.toHaveAttribute('tabindex');
+    });
+
+    it('narrows the column as it is dragged inward', async () => {
+        await setup();
+        sized('build', 312);
+
+        pointer('pointerdown', grip('build'), { clientX: 500, button: 0 });
+        pointer('pointermove', window, { clientX: 400 });
+
+        expect(width('build')).toBe('212px');
+    });
+
+    it('drags the legend the other way, its rule being on its left', async () => {
+        await setup();
+        sized('legend', 312);
+
+        pointer('pointerdown', grip('legend'), { clientX: 500, button: 0 });
+        pointer('pointermove', window, { clientX: 600 });
+
+        expect(width('legend')).toBe('212px');
+    });
+
+    it('will not make a column wider than the stylesheet gives it', async () => {
+        //
+        // there is nothing a wider column would show that it is not showing
+        // already -- the legend's namespace grid is two abreast at 18rem and
+        // stays two -- and the space would come out of the graph.
+        //
+        await setup();
+        sized('build', 312);
+
+        pointer('pointerdown', grip('build'), { clientX: 500, button: 0 });
+        pointer('pointermove', window, { clientX: 900 });
+
+        expect(width('build')).toBe('312px');
+    });
+
+    it('resists at its minimum before it gives way', async () => {
+        //
+        // 176px is the floor; a boundary that folded the instant it was reached
+        // would fold the column whenever somebody overshot by a pixel.
+        //
+        await setup();
+        sized('build', 312);
+
+        pointer('pointerdown', grip('build'), { clientX: 500, button: 0 });
+        pointer('pointermove', window, { clientX: 350 });
+
+        expect(width('build')).toBe('176px');
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('folds the column once it is dragged well past that', async () => {
+        await setup();
+        sized('build', 312);
+
+        pointer('pointerdown', grip('build'), { clientX: 500, button: 0 });
+        pointer('pointermove', window, { clientX: 300 });
+
+        expect(toggle('Build details').getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('gives a column folded by the drag its designed width back', async () => {
+        //
+        // the width it folded at is the narrowest the drag would go, which is
+        // not a width anybody chose.
+        //
+        await setup();
+        sized('build', 312);
+
+        pointer('pointerdown', grip('build'), { clientX: 500, button: 0 });
+        pointer('pointermove', window, { clientX: 300 });
+        fireEvent.click(toggle('Build details'));
+
+        expect(width('build')).toBe('');
+    });
+
+    it('keeps the stylesheet\'s width as the ceiling on a second drag', async () => {
+        //
+        // the ceiling is read off the element with the inline width taken off
+        // and then put back, so a column already narrowed can still be dragged
+        // back out to the width the stylesheet gives it rather than being
+        // capped at wherever the last drag left it.
+        //
+        await setup();
+        sized('build', 312);
+
+        pointer('pointerdown', grip('build'), { clientX: 500, button: 0 });
+        pointer('pointermove', window, { clientX: 400 });
+        pointer('pointerup', window);
+        expect(width('build')).toBe('212px');
+
+        pointer('pointerdown', grip('build'), { clientX: 400, button: 0 });
+        pointer('pointermove', window, { clientX: 900 });
+
+        expect(width('build')).toBe('312px');
+    });
+
+    it('stops narrowing once the pointer is released', async () => {
+        await setup();
+        sized('build', 312);
+
+        pointer('pointerdown', grip('build'), { clientX: 500, button: 0 });
+        pointer('pointermove', window, { clientX: 400 });
+        pointer('pointerup', window);
+        pointer('pointermove', window, { clientX: 250 });
+
+        expect(width('build')).toBe('212px');
+    });
+
+    it('ignores a drag that did not start with the primary button', async () => {
+        await setup();
+        sized('build', 312);
+
+        pointer('pointerdown', grip('build'), { clientX: 500, button: 2 });
+        pointer('pointermove', window, { clientX: 400 });
+
+        expect(width('build')).toBe('');
+    });
+});
+
+//
+// the legend points at the canvas: what a reader can do by clicking a node,
+// they can now do to a whole class of them from the words beside it.
+//
+describe('the legend as a control over the canvas', () => {
+    const entry = (name) => screen.getByRole('button', { name: new RegExp(`^${name}`) });
+    const emphasis = () => explorer().getAttribute('data-emphasis');
+
+    it('lights a namespace while it is pointed at, and drops it on the way out', async () => {
+        await setup();
+
+        fireEvent.mouseEnter(entry('bls'));
+        expect(emphasis()).toBe('namespace:bls');
+
+        fireEvent.mouseLeave(entry('bls'));
+        expect(emphasis()).toBe('none');
+    });
+
+    it('holds one when it is clicked, and lets go when it is clicked again', async () => {
+        await setup();
+
+        fireEvent.click(entry('bls'));
+        expect(entry('bls')).toHaveAttribute('aria-pressed', 'true');
+        expect(emphasis()).toBe('namespace:bls');
+
+        fireEvent.click(entry('bls'));
+        expect(entry('bls')).toHaveAttribute('aria-pressed', 'false');
+        expect(emphasis()).toBe('none');
+    });
+
+    it('moves the hold to another entry rather than adding to it', async () => {
+        await setup();
+
+        fireEvent.click(entry('bls'));
+        fireEvent.click(entry('sec'));
+
+        expect(entry('bls')).toHaveAttribute('aria-pressed', 'false');
+        expect(entry('sec')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('previews a pointed entry over the held one, and returns to it', async () => {
+        //
+        // the same rule the canvas follows for a node: pointing at another one
+        // previews it, and moving off returns to the pinned one.
+        //
+        await setup();
+
+        fireEvent.click(entry('bls'));
+        fireEvent.mouseEnter(entry('sec'));
+        expect(emphasis()).toBe('namespace:sec');
+
+        fireEvent.mouseLeave(entry('sec'));
+        expect(emphasis()).toBe('namespace:bls');
+    });
+
+    it('marks an edge origin rather than a namespace', async () => {
+        await setup();
+
+        fireEvent.click(entry('enrichment'));
+
+        expect(emphasis()).toBe('origin:enrichment');
+    });
+
+    it('lights an entry reached by the keyboard', async () => {
+        await setup();
+
+        fireEvent.focus(entry('bls'));
+        expect(emphasis()).toBe('namespace:bls');
+
+        fireEvent.blur(entry('bls'));
+        expect(emphasis()).toBe('none');
+    });
+
+    it('lets go when the canvas is clicked', async () => {
+        await setup();
+
+        fireEvent.click(entry('bls'));
+        fireEvent.click(explorer());
+
+        expect(emphasis()).toBe('none');
+        expect(entry('bls')).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('lets go when another build is selected', async () => {
+        //
+        // a namespace out of the build being left need not exist in the next
+        // one, and an emphasis on something the new legend does not list is a
+        // canvas dimmed against nothing.
+        //
+        await setup();
+
+        fireEvent.click(entry('bls'));
+        await chooseBuild('build-b');
+
+        expect(emphasis()).toBe('none');
     });
 });
 
