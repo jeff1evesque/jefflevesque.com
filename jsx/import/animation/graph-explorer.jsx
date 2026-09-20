@@ -243,15 +243,16 @@ class GraphExplorer extends Component {
         // namespace -> colour, ranked over the whole build by buildPalette
         palette: PropTypes.instanceOf(Map),
         //
-        // a whole CLASS of the graph to emphasise, asked for from outside the
-        // canvas: one namespace's nodes, or one origin's edges. The legend
-        // beside the canvas is what sets it -- see highlight, where it is the
-        // state the canvas rests at rather than a fourth kind of focus.
+        // the classes of the graph to emphasise, asked for from outside the
+        // canvas: namespaces, whose nodes are lit, and origins, whose edges
+        // are. The legend beside the canvas is what sets them -- see highlight,
+        // where they are the state the canvas rests at rather than a fourth
+        // kind of focus, and where the two kinds filter independently.
         //
-        emphasis: PropTypes.shape({
+        emphasis: PropTypes.arrayOf(PropTypes.shape({
             kind: PropTypes.oneOf(['namespace', 'origin']),
             value: PropTypes.string,
-        }),
+        })),
         // a click anywhere on the canvas, so whatever set `emphasis` can let go
         onClear: PropTypes.func,
     }
@@ -518,18 +519,27 @@ class GraphExplorer extends Component {
      * than against an empty canvas.
      *
      * With no node focused the canvas is not necessarily at rest: the legend
-     * can ask for a whole CLASS of it instead -- one namespace's nodes, or one
-     * origin's edges -- and that is what `emphasis` carries. It is deliberately
-     * the WEAKEST of the three, and reads as the state the canvas rests at
-     * rather than as a fourth kind of focus: a node under the pointer, or one
-     * pinned by a click, is the reader asking about that node, and the pointer
-     * is nowhere near the legend while either is true.
+     * can ask for whole CLASSES of it instead -- namespaces, whose nodes it
+     * lights, and origins, whose edges it lights -- and that is what `emphasis`
+     * carries. It is deliberately the WEAKEST of the three, and reads as the
+     * state the canvas rests at rather than as a fourth kind of focus: a node
+     * under the pointer, or one pinned by a click, is the reader asking about
+     * that node, and the pointer is nowhere near the legend while either is
+     * true.
+     *
+     * Namespaces and origins are two CHANNELS rather than one list, because
+     * they light different things. Each filters its own marks, neither cancels
+     * the other, and any number of either is an ordinary state -- three
+     * namespaces beside one origin reads as 'these types, and the derived edges
+     * between things', which is a question that needs both halves askable at
+     * once.
      *
      * Note: a namespace drops the edges rather than lighting the ones it
      *       touches. Most edges in a published build touch a given namespace
      *       somewhere, so lighting them lights nearly the whole canvas and
      *       answers a question nobody asked. The question this one answers is
-     *       'which circles are these', and the answer is the circles.
+     *       'which circles are these', and the answer is the circles. An origin
+     *       held alongside is what puts edges back, and says which.
      *
      * Note: link ends are read as node objects. forceLink swaps the ids for the
      *       nodes themselves as soon as the simulation is built, and nothing can
@@ -542,15 +552,19 @@ class GraphExplorer extends Component {
 
         const active = nodeId != null;
         const near = new Set(active ? [nodeId, ...(this.neighbours.get(nodeId) || [])] : []);
-        const mark = active ? null : this.props.emphasis;
+        const marks = active ? [] : (this.props.emphasis || []);
+        const namespaces = new Set(
+            marks.filter((m) => m.kind === 'namespace').map((m) => m.value)
+        );
+        const origins = new Set(marks.filter((m) => m.kind === 'origin').map((m) => m.value));
 
         this.nodeSel
             .attr('opacity', (d) => {
                 if (active) {
                     return near.has(d.id) ? 1 : DIM_OPACITY;
                 }
-                if (mark && mark.kind === 'namespace') {
-                    return d.namespace === mark.value ? 1 : DIM_OPACITY;
+                if (namespaces.size) {
+                    return namespaces.has(d.namespace) ? 1 : DIM_OPACITY;
                 }
 
                 return 1;
@@ -562,8 +576,8 @@ class GraphExplorer extends Component {
             if (active) {
                 return d.source.id === nodeId || d.target.id === nodeId ? LINK_LIT : LINK_DIM;
             }
-            if (mark) {
-                return mark.kind === 'origin' && d.origin === mark.value ? LINK_LIT : LINK_DIM;
+            if (namespaces.size || origins.size) {
+                return origins.has(d.origin) ? LINK_LIT : LINK_DIM;
             }
 
             return LINK_REST;
