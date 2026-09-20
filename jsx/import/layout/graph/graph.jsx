@@ -35,6 +35,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import GraphExplorer from '../../animation/graph-explorer.jsx';
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
@@ -77,6 +79,29 @@ const PANELS_CLOSED = { build: false, legend: false };
 // decides is only which panels START open.
 //
 const PANELS_WIDE = 992;
+
+//
+// dragging the divider between a reference column and the graph.
+//
+// RAIL_MIN is the narrowest a column may be dragged to, in px against a 16px
+// root -- 11rem, which still holds the longest namespace the published builds
+// carry beside its swatch, and a 'Sources' value on two lines rather than four.
+// RAIL_FOLD is how far PAST that the pointer has to go before the column folds
+// away instead of resisting: a boundary that gives way the instant it is reached
+// folds the column whenever someone overshoots by a pixel.
+//
+// Note: px rather than rem because the pointer speaks px, and the conversion
+//       would need the root font size read back out of the document on every
+//       move to save writing one number down.
+//
+const RAIL_MIN = 176;
+const RAIL_FOLD = 40;
+
+//
+// which way the pointer travels to WIDEN each column, since their dividers face
+// opposite ways: the build column's is on its right, the legend's on its left.
+//
+const RAIL_WIDEN = { build: 1, legend: -1 };
 
 //
 // the menu the picker opens: under the control, aligned with it, and bounded.
@@ -189,6 +214,20 @@ class GraphLayout extends Component {
             loading: true,
             failed: false,
             open: PANELS_CLOSED,
+            //
+            // a column the reader has narrowed by dragging its divider, in px,
+            // or null for whatever the stylesheet gives it. See startDrag.
+            //
+            width: { build: null, legend: null },
+            //
+            // what the LEGEND is asking the canvas to emphasise: the entry
+            // under the pointer, and the entry a click pinned. Hovering wins
+            // while it lasts, so pointing at one entry previews it and moving
+            // off returns to the pinned one -- the same rule the canvas follows
+            // for a node, and for the same reason.
+            //
+            hovered: null,
+            marked: null,
             // the picker's menu is controlled so a page scroll can close it --
             // see openPicker
             picker_open: false,
@@ -203,6 +242,14 @@ class GraphLayout extends Component {
         this.onScreen = this.onScreen.bind(this);
         this.toggle = this.toggle.bind(this);
         this.panel = this.panel.bind(this);
+        this.rail = this.rail.bind(this);
+        this.startDrag = this.startDrag.bind(this);
+        this.onDrag = this.onDrag.bind(this);
+        this.endDrag = this.endDrag.bind(this);
+        this.entry = this.entry.bind(this);
+        this.markHover = this.markHover.bind(this);
+        this.markPin = this.markPin.bind(this);
+        this.clearMarks = this.clearMarks.bind(this);
         this.legend = this.legend.bind(this);
         this.details = this.details.bind(this);
         this.picker = this.picker.bind(this);
@@ -249,6 +296,7 @@ class GraphLayout extends Component {
 
     componentWillUnmount() {
         window.removeEventListener('scroll', this.closePicker);
+        this.endDrag();
     }
 
     /**
@@ -335,7 +383,21 @@ class GraphLayout extends Component {
      *       correct answer and is not one.
      */
     selectBuild(id) {
-        this.setState({ selected: id, schema: null, build: null, loading: true, failed: false });
+        //
+        // the legend's marks go with the build. They name a namespace or an
+        // origin out of the build being left, and the next one need not carry
+        // either -- an emphasis on something the new legend does not list is a
+        // canvas dimmed against nothing.
+        //
+        this.setState({
+            selected: id,
+            schema: null,
+            build: null,
+            loading: true,
+            failed: false,
+            hovered: null,
+            marked: null,
+        });
 
         return getGraphById(id).then((schema) => {
             const filtered = filterSchema(schema, EXPLORER_NODE_TYPES);
@@ -414,6 +476,191 @@ class GraphLayout extends Component {
     }
 
     /**
+     * the boundary between a reference column and the graph, as a control.
+     *
+     * Two things sit on the rule, because a boundary can do two things and they
+     * want different affordances. An arrow pointing OUTWARD folds the column --
+     * outward is the way its edge travels when it closes, which is also the way
+     * the folded rail's own chevron then points back. And the strip the arrow
+     * sits on drags, to narrow the column without folding it.
+     *
+     * Note: the strip is aria-hidden and the arrow is not. The arrow is a
+     *       button with a name, and the heading above it toggles the same
+     *       column, so folding is on the keyboard path twice over; dragging is
+     *       a pointer affordance for choosing a width, and a width is a
+     *       preference rather than information. Marking the strip hidden is
+     *       what keeps a draggable div out of the tab order and off the
+     *       accessibility tree, instead of announcing a control that would do
+     *       nothing when it was reached.
+     *
+     * Note: rendered only while the column is open, and shown only by the wide
+     *       stylesheet. Below the breakpoint the columns are stacked bands with
+     *       no vertical rule to put either one on.
+     */
+    rail(key, title) {
+        const Arrow = key === 'build' ? ChevronLeftIcon : ChevronRightIcon;
+
+        return (
+            <React.Fragment>
+                <div
+                    className='graph-panel-grip'
+                    aria-hidden='true'
+                    onPointerDown={(event) => this.startDrag(key, event)}
+                />
+                <button
+                    type='button'
+                    className='graph-panel-fold'
+                    aria-label={`Collapse ${title.toLowerCase()}`}
+                    onClick={() => this.toggle(key)}
+                >
+                    <Arrow fontSize='inherit' />
+                </button>
+            </React.Fragment>
+        );
+    }
+
+    /**
+     * dragging a divider narrows its column, and folds it once it is dragged
+     * well past the point where the contents stop fitting.
+     *
+     * NARROWER only, which is the whole shape of this. The width the stylesheet
+     * gives a column is the width its contents were designed against -- the
+     * legend's namespace grid runs two abreast at 18rem and one below that --
+     * so there is nothing a wider column would show that it is not showing
+     * already, and the space it would take is the graph, which is the page.
+     *
+     * Note: the ceiling is read back off the element with the inline width
+     *       taken off, rather than written down here. '_graph.scss' clamps that
+     *       width against the viewport, so a copy in this file would be both a
+     *       second number to keep in step and the wrong one at most window
+     *       sizes.
+     *
+     * Note: the move and release listeners go on the window rather than on the
+     *       strip. A pointer dragging a 14px target leaves it constantly, and a
+     *       drag that stops the moment the pointer is off the rule is a drag
+     *       that cannot reach the width it is being dragged to.
+     */
+    startDrag(key, event) {
+        if (event.button !== 0) {
+            return;
+        }
+
+        const panel = event.currentTarget.closest('.graph-panel');
+        const start = panel.offsetWidth;
+        const inline = panel.style.getPropertyValue('--graph-panel-width');
+
+        panel.style.removeProperty('--graph-panel-width');
+        const ceiling = panel.offsetWidth;
+
+        if (inline) {
+            panel.style.setProperty('--graph-panel-width', inline);
+        }
+
+        this.drag = { key: key, from: event.clientX, start: start, ceiling: ceiling };
+
+        window.addEventListener('pointermove', this.onDrag);
+        window.addEventListener('pointerup', this.endDrag);
+        event.preventDefault();
+    }
+
+    //
+    // Note: no guard on `this.drag`. endDrag takes this listener off the window
+    //       before it clears the drag, and both of the things that end a drag --
+    //       the pointer coming up, and the component going away -- go through
+    //       it, so there is no path that reaches here without one.
+    //
+    onDrag(event) {
+        const { key, from, start, ceiling } = this.drag;
+        const wanted = start + (event.clientX - from) * RAIL_WIDEN[key];
+
+        if (wanted < RAIL_MIN - RAIL_FOLD) {
+            this.endDrag();
+
+            //
+            // folded by the drag, and back at its designed width when it is
+            // opened again. The width it folded at is the narrowest the drag
+            // would go, which is not a width anybody chose.
+            //
+            this.setState((state) => ({
+                open: { ...state.open, [key]: false },
+                width: { ...state.width, [key]: null },
+            }));
+
+            return;
+        }
+
+        this.setState((state) => ({
+            width: {
+                ...state.width,
+                [key]: Math.min(Math.max(wanted, RAIL_MIN), ceiling),
+            },
+        }));
+    }
+
+    endDrag() {
+        window.removeEventListener('pointermove', this.onDrag);
+        window.removeEventListener('pointerup', this.endDrag);
+        this.drag = null;
+    }
+
+    //
+    // the legend points at the canvas: hovering an entry previews it, clicking
+    // pins it, and clicking the pinned one again lets go. A click on the canvas
+    // clears both -- see clearMarks, which the explorer calls.
+    //
+    markHover(mark) {
+        this.setState({ hovered: mark });
+    }
+
+    markPin(mark) {
+        this.setState((state) => ({
+            marked: state.marked
+                && state.marked.kind === mark.kind
+                && state.marked.value === mark.value
+                ? null
+                : mark,
+        }));
+    }
+
+    clearMarks() {
+        this.setState({ hovered: null, marked: null });
+    }
+
+    /**
+     * one row of the legend, as a control over the canvas.
+     *
+     * A button rather than a list item with handlers on it. What these do --
+     * light one namespace's nodes, or one origin's edges, and drop the rest --
+     * is the same thing clicking a node on the canvas does, and a reader who
+     * cannot use a pointer had no way to ask for it at all.
+     *
+     * Note: focus and blur drive the same preview hover does, so tabbing
+     *       through the legend lights each class in turn.
+     */
+    entry(kind, value, children) {
+        const { marked } = this.state;
+        const pinned = !!marked && marked.kind === kind && marked.value === value;
+        const mark = { kind: kind, value: value };
+
+        return (
+            <li key={value}>
+                <button
+                    type='button'
+                    className='graph-legend-entry'
+                    aria-pressed={pinned}
+                    onClick={() => this.markPin(mark)}
+                    onMouseEnter={() => this.markHover(mark)}
+                    onMouseLeave={() => this.markHover(null)}
+                    onFocus={() => this.markHover(mark)}
+                    onBlur={() => this.markHover(null)}
+                >
+                    {children}
+                </button>
+            </li>
+        );
+    }
+
+    /**
      * a reference column that opens and closes, at every width.
      *
      * It used to render two headers and let the stylesheet show one -- a toggle
@@ -446,9 +693,13 @@ class GraphLayout extends Component {
         const open = this.state.open[key];
         const body = `graph-panel-${key}-body`;
         const state = open ? 'graph-panel-open' : 'graph-panel-closed';
+        const width = this.state.width[key];
 
         return (
-            <section className={`graph-panel graph-panel-${key} ${state}`}>
+            <section
+                className={`graph-panel graph-panel-${key} ${state}`}
+                style={width ? { '--graph-panel-width': `${width}px` } : undefined}
+            >
                 <h6 className='graph-panel-heading'>
                     <button
                         type='button'
@@ -466,6 +717,7 @@ class GraphLayout extends Component {
                 <div className='graph-panel-body' id={body}>
                     {content}
                 </div>
+                {open ? this.rail(key, title) : null}
             </section>
         );
     }
@@ -575,21 +827,21 @@ class GraphLayout extends Component {
             <div className='graph-legend'>
                 <h6>Namespaces</h6>
                 <ul className='graph-legend-namespaces'>
-                    {shown.namespaces.map((namespace) => (
-                        <li key={namespace}>
+                    {shown.namespaces.map((namespace) => this.entry('namespace', namespace, (
+                        <React.Fragment>
                             <span
                                 className='graph-legend-swatch'
                                 style={{ backgroundColor: shown.painted.get(namespace) }}
                             />
                             {namespace}
-                        </li>
-                    ))}
+                        </React.Fragment>
+                    )))}
                 </ul>
 
                 <h6>Edges</h6>
                 <ul className='graph-legend-origins'>
-                    {shown.origins.map((origin) => (
-                        <li key={origin}>
+                    {shown.origins.map((origin) => this.entry('origin', origin, (
+                        <React.Fragment>
                             <svg width='34' height='10' aria-hidden='true'>
                                 <line
                                     x1='0' y1='5' x2='34' y2='5'
@@ -602,8 +854,8 @@ class GraphLayout extends Component {
                             <span className='graph-legend-note'>
                                 {ORIGIN_LABEL[origin] || ''}
                             </span>
-                        </li>
-                    ))}
+                        </React.Fragment>
+                    )))}
                 </ul>
             </div>
         );
@@ -658,7 +910,14 @@ class GraphLayout extends Component {
                 );
             }
 
-            return <GraphExplorer data={schema} palette={shown ? shown.painted : null} />;
+            return (
+                <GraphExplorer
+                    data={schema}
+                    palette={shown ? shown.painted : null}
+                    emphasis={this.state.hovered || this.state.marked}
+                    onClear={this.clearMarks}
+                />
+            );
         };
 
         const nodes = build && typeof build.nodes === 'number'
