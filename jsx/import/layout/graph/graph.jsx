@@ -25,6 +25,8 @@
 import React, { Component } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import GraphExplorer, { TAIL } from '../../animation/graph-explorer.jsx';
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
@@ -65,6 +67,25 @@ const ORIGIN_LABEL = {
 // phone opens on the graph; a wide screen ignores this and shows both.
 //
 const PANELS_CLOSED = { build: false, legend: false };
+
+//
+// the menu the picker opens: under the control, aligned with it, and bounded.
+//
+// Bounded is the point. A native <select> hands its options to the operating
+// system, which on a phone draws them as a sheet the page has no say over --
+// however many builds the listing holds, at whatever size the platform likes.
+// This menu is a popover of this page's own, so a listing longer than the
+// screen scrolls inside it rather than becoming the screen.
+//
+// Note: 48px is a mui menu row. Eight of them is a menu that is clearly a menu
+//       rather than a page, and still shows more builds at once than the
+//       listing has carried so far.
+//
+const PICKER_MENU = {
+    anchorOrigin: { vertical: 'bottom', horizontal: 'left' },
+    transformOrigin: { vertical: 'top', horizontal: 'left' },
+    PaperProps: { className: 'graph-picker-menu', style: { maxHeight: 48 * 8 } },
+};
 
 const COMPACT = new Intl.NumberFormat('en-US', {
     notation: 'compact',
@@ -346,6 +367,25 @@ class GraphLayout extends Component {
         );
     }
 
+    /**
+     * which published build the page is showing.
+     *
+     * A mui Select rather than a <select>, for the menu it opens rather than for
+     * how it looks closed. A native control delegates its option list to the
+     * platform, which on a phone is a full height sheet -- the page cannot bound
+     * it, style it, or keep it from covering the thing it belongs to. This one is
+     * an ordinary popover of the page's own; see PICKER_MENU.
+     *
+     * Note: 'standard' with no underline, rather than the outlined variant mui
+     *       defaults to. Outlined draws its own border as a fieldset, and the
+     *       stylesheet already draws this control's border -- the same one the
+     *       filter box below the graph has. Two borders, or one; this is one.
+     *
+     * Note: the accessible name travels in `inputProps`, which is where mui puts
+     *       props meant for the element it gives role='combobox'. Passed as a
+     *       plain `aria-label` it lands on the hidden input beside that element
+     *       instead, where nothing reads it.
+     */
     picker() {
         const { listing, selected } = this.state;
 
@@ -356,18 +396,21 @@ class GraphLayout extends Component {
         const labels = pickerLabels(listing.graphs);
 
         return (
-            <select
+            <Select
                 className='graph-picker'
-                aria-label='Published build'
+                variant='standard'
+                disableUnderline
                 value={selected || ''}
                 onChange={(event) => this.navigateToBuild(event.target.value)}
+                inputProps={{ 'aria-label': 'Published build' }}
+                MenuProps={PICKER_MENU}
             >
                 {listing.graphs.map((build, index) => (
-                    <option key={build.id} value={build.id} disabled={!!build.error}>
+                    <MenuItem key={build.id} value={build.id} disabled={!!build.error}>
                         {build.error ? `${labels[index]} (unavailable)` : labels[index]}
-                    </option>
+                    </MenuItem>
                 ))}
-            </select>
+            </Select>
         );
     }
 
