@@ -224,26 +224,29 @@ $graph-held-edge: $green-4;
 //       wide as its label, and a folded row spanning a 1320px container to say
 //       'Show the graph' is a great deal of green for one short sentence.
 //
-// Note: this one is a BUTTON rather than a tint, and it is the site's primary
-//       button -- see 'a.btn-primary' in 'style.scss', which the sign-up
-//       control wears. The folded columns are surfaces the reader turned off
-//       and can turn back on, and a wash of green says that; this is the single
-//       thing to press on a page with its graph put away, and it should look
-//       like the other thing on this site you press.
+// Note: a label at rest, and green only under the pointer. It reads the way
+//       every other control on this page reads -- the legend entries carry
+//       nothing until they are pointed at, and green when they are held -- so
+//       the page has one behaviour for 'this is pressable' rather than one for
+//       the legend and a filled button for this.
 //
-// Note: one step down the ramp from btn-primary's, because that one is read at
-//       body size and this is 12px spaced capitals. White on '$green-5' is
-//       3.3:1 and on the '$green-2' its gradient starts at, nearer 2:1 -- which
-//       is what made the first version of this hard to read. '$green-5' into
-//       '$green-6' puts the text between 4.4:1 and 5.7:1 instead.
+//       It was briefly the site's primary button, white on a green gradient.
+//       That solved a contrast problem by shouting: the single thing on an
+//       otherwise empty half of the page does not need to be the loudest thing
+//       on it, and dark gray is about 17:1 on white and 14:1 on the hover
+//       green -- neither of which needed a filled button to achieve.
+//
+// Note: the hover green is '$graph-held', which is the colour a HELD legend
+//       entry wears rather than the gray a pointed-at one does. Pressing this
+//       is not a preview of anything -- it brings the graph back -- so it is
+//       the committing colour of the two.
 //
 .graph-row-bar {
   align-items: center;
-  background-color: $green-6;
-  background-image: linear-gradient($green-5, $green-6);
-  border: 1px solid $green-7;
+  background: none;
+  border: 0;
   border-radius: 0.25rem;
-  color: $white-1;
+  color: $gray-8;
   display: flex;
   font-size: 0.75rem;
   font-weight: 600;
@@ -255,13 +258,8 @@ $graph-held-edge: $green-4;
   text-transform: uppercase;
   width: 100%;
 
-  //
-  // the same small uniform darkening btn-primary uses, and for the same reason
-  // -- the '$green-*' ramp steps too coarsely to express 'slightly darker'
-  //
   &:hover {
-    background-color: darken($green-6, 5%);
-    background-image: linear-gradient(darken($green-5, 5%), darken($green-6, 5%));
+    background-color: $graph-held;
   }
 
   &:focus-visible {
@@ -787,6 +785,23 @@ $graph-held-edge: $green-4;
   color: $gray-8;
   font-size: 0.9rem;
   padding: 0.35rem 0.75rem;
+
+  //
+  // the gray a legend entry takes under the pointer, and for the same reason:
+  // this is the other switched pair on the page, and the one that is showing
+  // said so in green while the one that is not said nothing at all -- so the
+  // tab a reader was about to press was the only control here that did not
+  // answer being pointed at.
+  //
+  // Note: BEFORE the pressed rule, which is how the legend orders its two as
+  //       well. Both selectors weigh the same, so source order is what decides
+  //       a tab that is showing AND under the pointer, and it should stay
+  //       green -- pointing at what you already chose is not a preview of
+  //       anything.
+  //
+  &:hover {
+    background-color: $gray-1;
+  }
 
   &[aria-pressed='true'] {
     background-color: $graph-held;
