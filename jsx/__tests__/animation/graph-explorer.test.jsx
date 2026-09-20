@@ -346,7 +346,7 @@ describe('emphasis asked for by the legend', () => {
         .map((el) => Number(el.getAttribute('opacity')));
 
     it('lights one namespace and dims the rest', () => {
-        setup({ emphasis: { kind: 'namespace', value: 'sec' } });
+        setup({ emphasis: [{ kind: 'namespace', value: 'sec' }] });
 
         // bls_A, bls_B, sec_C -- one lit, two dropped back
         expect(opacities('circle')).toEqual([DIM_OPACITY, DIM_OPACITY, 1]);
@@ -358,7 +358,7 @@ describe('emphasis asked for by the legend', () => {
         // lighting the ones it touches lights nearly the whole canvas. The
         // question a namespace asks is which CIRCLES it is.
         //
-        setup({ emphasis: { kind: 'namespace', value: 'bls' } });
+        setup({ emphasis: [{ kind: 'namespace', value: 'bls' }] });
 
         expect(opacities('line').every((o) => o < LINK_REST)).toBe(true);
     });
@@ -367,7 +367,7 @@ describe('emphasis asked for by the legend', () => {
         //
         // the schema carries one raw edge and one enrichment edge, in that order
         //
-        setup({ emphasis: { kind: 'origin', value: 'enrichment' } });
+        setup({ emphasis: [{ kind: 'origin', value: 'enrichment' }] });
 
         const [raw, enrichment] = opacities('line');
         expect(enrichment).toBeGreaterThan(0.9);
@@ -375,7 +375,7 @@ describe('emphasis asked for by the legend', () => {
     });
 
     it('lights the raw edges when raw is the one asked for', () => {
-        setup({ emphasis: { kind: 'origin', value: 'raw' } });
+        setup({ emphasis: [{ kind: 'origin', value: 'raw' }] });
 
         const [raw, enrichment] = opacities('line');
         expect(raw).toBeGreaterThan(0.9);
@@ -383,7 +383,7 @@ describe('emphasis asked for by the legend', () => {
     });
 
     it('leaves the nodes alone while an origin is lit', () => {
-        setup({ emphasis: { kind: 'origin', value: 'raw' } });
+        setup({ emphasis: [{ kind: 'origin', value: 'raw' }] });
 
         expect(opacities('circle')).toEqual([1, 1, 1]);
     });
@@ -393,7 +393,7 @@ describe('emphasis asked for by the legend', () => {
         // the pointer cannot be on the legend and the canvas at once, and the
         // node under it is the more specific question.
         //
-        const { page } = setup({ emphasis: { kind: 'namespace', value: 'sec' } });
+        const { page } = setup({ emphasis: [{ kind: 'namespace', value: 'sec' }] });
 
         pointAt(page, 'bls_A');
 
@@ -402,8 +402,91 @@ describe('emphasis asked for by the legend', () => {
         expect(opacities('circle')).toEqual([1, 1, DIM_OPACITY]);
     });
 
+    it('lights two namespaces at once', () => {
+        //
+        // the question a single mark could not answer: where two namespaces sit
+        // relative to each other, rather than either one against everything.
+        //
+        setup({
+            emphasis: [
+                { kind: 'namespace', value: 'bls' },
+                { kind: 'namespace', value: 'sec' },
+            ],
+        });
+
+        expect(opacities('circle')).toEqual([1, 1, 1]);
+    });
+
+    it('still dims what is in neither of two namespaces', () => {
+        const three = {
+            ...schema,
+            node_types: { ...schema.node_types, noaa_D: { count: 5, source_type_uri: 'x' } },
+        };
+        render(<GraphExplorer data={three} emphasis={[{ kind: 'namespace', value: 'sec' }]} />);
+
+        // bls_A, bls_B, sec_C, noaa_D
+        expect(opacities('circle')).toEqual([DIM_OPACITY, DIM_OPACITY, 1, DIM_OPACITY]);
+    });
+
+    it('lights two origins at once', () => {
+        setup({
+            emphasis: [
+                { kind: 'origin', value: 'raw' },
+                { kind: 'origin', value: 'enrichment' },
+            ],
+        });
+
+        opacities('line').forEach((o) => expect(o).toBeGreaterThan(0.9));
+    });
+
+    it('filters nodes and edges independently when both kinds are held', () => {
+        //
+        // 'these types, and the derived edges between things'. Each channel
+        // filters its own marks and neither cancels the other.
+        //
+        setup({
+            emphasis: [
+                { kind: 'namespace', value: 'sec' },
+                { kind: 'origin', value: 'enrichment' },
+            ],
+        });
+
+        expect(opacities('circle')).toEqual([DIM_OPACITY, DIM_OPACITY, 1]);
+
+        const [raw, enrichment] = opacities('line');
+        expect(enrichment).toBeGreaterThan(0.9);
+        expect(raw).toBeLessThan(enrichment);
+    });
+
+    it('puts the edges back when an origin joins a namespace', () => {
+        //
+        // a namespace alone drops every edge, on purpose. An origin held
+        // alongside is what puts them back, and says which.
+        //
+        setup({ emphasis: [{ kind: 'namespace', value: 'sec' }] });
+        const dropped = opacities('line');
+
+        setup({
+            emphasis: [
+                { kind: 'namespace', value: 'sec' },
+                { kind: 'origin', value: 'raw' },
+            ],
+        });
+        const withOrigin = opacities('line');
+
+        expect(Math.max(...dropped)).toBeLessThan(LINK_REST);
+        expect(Math.max(...withOrigin)).toBeGreaterThan(0.9);
+    });
+
+    it('treats an empty set as nothing held', () => {
+        setup({ emphasis: [] });
+
+        expect(opacities('circle')).toEqual([1, 1, 1]);
+        opacities('line').forEach((o) => expect(o).toBeCloseTo(LINK_REST));
+    });
+
     it('comes back once the pointer leaves the canvas', () => {
-        const { page } = setup({ emphasis: { kind: 'namespace', value: 'sec' } });
+        const { page } = setup({ emphasis: [{ kind: 'namespace', value: 'sec' }] });
 
         pointAt(page, 'bls_A');
         fireEvent.mouseLeave(svg());
@@ -421,7 +504,11 @@ describe('emphasis asked for by the legend', () => {
         const before = circles().map((c) => c.getAttribute('cx'));
 
         rerender(
-            <GraphExplorer ref={held} data={schema} emphasis={{ kind: 'namespace', value: 'sec' }} />
+            <GraphExplorer
+                ref={held}
+                data={schema}
+                emphasis={[{ kind: 'namespace', value: 'sec' }]}
+            />
         );
 
         expect(drew).not.toHaveBeenCalled();
