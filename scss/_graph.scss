@@ -553,8 +553,33 @@ $graph-side: 16rem;
   }
 }
 
+//
+// phone: the controls that head the tables no longer fit on one line together.
+//
+// Left to wrap on their own, the two tabs hold two thirds of the first line and
+// the filter box drops below them -- still carrying the margin that parks it at
+// the right end of a wide screen, so the pair ends up in opposite corners of a
+// two line block, which reads as a mistake rather than as a row that wrapped.
+//
+// So each takes a line of its own: the tabs split theirs between them, which is
+// what a two-button segmented control should look like at this width, and the
+// filter fills the one below. The build picker above does the same thing.
+//
 @media (max-width: 575.98px) {
   .graph-picker {
     flex-basis: 100%;
+  }
+
+  .graph-tables-tabs {
+    flex: 1 1 100%;
+  }
+
+  .graph-tables-tab {
+    flex: 1 1 0;
+  }
+
+  .graph-tables-search {
+    flex-basis: 100%;
+    margin-left: 0;
   }
 }
