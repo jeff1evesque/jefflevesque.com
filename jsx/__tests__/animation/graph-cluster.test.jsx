@@ -34,7 +34,12 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 
-import GraphCluster from '../../import/animation/graph-cluster.jsx';
+import GraphCluster, {
+    LINK_DISTANCE_BASE,
+    LINK_DISTANCE_SCALE,
+    GRAPH_TOP_PAD,
+    topInset,
+} from '../../import/animation/graph-cluster.jsx';
 import schema from '../fixtures/graph-schema.mock.json';
 
 const NODE_TYPES = Object.keys(schema.node_types);
@@ -461,7 +466,8 @@ describe('how far apart the simulation holds a linked pair', () => {
     it('leaves an ordinary edge unclamped', () => {
         const distance = distanceFn();
 
-        expect(distance({ count: 266 })).toBeCloseTo(60 + Math.sqrt(266) * 0.15);
+        expect(distance({ count: 266 }))
+            .toBeCloseTo(LINK_DISTANCE_BASE + Math.sqrt(266) * LINK_DISTANCE_SCALE);
     });
 
     it('gives a countless link the fixed background tether', () => {
@@ -473,5 +479,73 @@ describe('how far apart the simulation holds a linked pair', () => {
 
         expect(distance({})).toBe(40);
         expect(Number.isNaN(distance({}))).toBe(false);
+    });
+});
+
+
+//
+// where the canvas is allowed to start: below the banner and the navigation,
+// which are the two things this page keeps at the top of the viewport.
+//
+describe('topInset', () => {
+    //
+    // a fake document, because jsdom measures every real element as a zero rect
+    // and this function is entirely about measurements.
+    //
+    const docOf = (...bars) => ({
+        querySelectorAll: () => bars.map((bar) => ({
+            getBoundingClientRect: () => bar,
+        })),
+    });
+
+    it('is just the padding when the page keeps nothing at the top', () => {
+        expect(topInset(docOf(), 0)).toBe(GRAPH_TOP_PAD);
+    });
+
+    it('clears a bar, plus the padding', () => {
+        expect(topInset(docOf({ height: 64, bottom: 64 }), 0)).toBe(64 + GRAPH_TOP_PAD);
+    });
+
+    it('clears whichever bar reaches lowest', () => {
+        //
+        // a banner above a navigation bar: the one that matters is the bottom
+        // edge of the lower, not the taller.
+        //
+        const inset = topInset(docOf(
+            { height: 48, bottom: 48 },
+            { height: 40, bottom: 88 }
+        ), 0);
+
+        expect(inset).toBe(88 + GRAPH_TOP_PAD);
+    });
+
+    it('ignores a bar the stylesheet has hidden', () => {
+        //
+        // there are two navigation bars in the markup and one is always hidden.
+        // A hidden element reports a zero rect, which must not be read as a
+        // bottom edge of zero and win.
+        //
+        const inset = topInset(docOf(
+            { height: 0, bottom: 0 },
+            { height: 72, bottom: 72 }
+        ), 0);
+
+        expect(inset).toBe(72 + GRAPH_TOP_PAD);
+    });
+
+    it('measures against the document, not the scrolled viewport', () => {
+        //
+        // a resize can arrive while the page is scrolled, and a viewport-relative
+        // bottom is negative by then -- which would pull the canvas back up under
+        // the menu precisely when someone scrolled and resized.
+        //
+        const scrolled = topInset(docOf({ height: 64, bottom: -400 }), 464);
+
+        expect(scrolled).toBe(64 + GRAPH_TOP_PAD);
+    });
+
+    it('rounds up, so the canvas never starts half a pixel high', () => {
+        expect(topInset(docOf({ height: 63.4, bottom: 63.4 }), 0))
+            .toBe(64 + GRAPH_TOP_PAD);
     });
 });
