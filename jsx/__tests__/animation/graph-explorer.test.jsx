@@ -903,6 +903,108 @@ describe('resizing', () => {
         stopped.mockRestore();
     });
 
+    //
+    // the canvas changes size without the window changing size: either reference
+    // column on the graph page folds away, and its track goes to the one the
+    // canvas sits in. jsdom's ResizeObserver is a no-op shim (see setup.js), so
+    // these install one that hands back its callback and report the fold by hand.
+    //
+    describe('a canvas that resized on its own', () => {
+        const real = global.ResizeObserver;
+        let observers;
+
+        beforeEach(() => {
+            observers = [];
+            global.ResizeObserver = class {
+                constructor(callback) {
+                    this.callback = callback;
+                    this.disconnected = false;
+                    observers.push(this);
+                }
+
+                observe(target) {
+                    this.target = target;
+                }
+
+                disconnect() {
+                    this.disconnected = true;
+                }
+            };
+        });
+
+        afterEach(() => {
+            global.ResizeObserver = real;
+        });
+
+        it('watches the frame the graph is drawn into', () => {
+            setup();
+
+            expect(observers).toHaveLength(1);
+            expect(observers[0].target).toBe(document.querySelector('.graph-explorer-frame'));
+        });
+
+        it('lays the graph out again when a folded column widens it', () => {
+            //
+            // the window has not moved. Without this the svg kept the width it
+            // was last laid out at, and the graph went on occupying the left two
+            // thirds of a canvas that had just grown.
+            //
+            setup();
+            jest.useFakeTimers();
+
+            const frame = document.querySelector('.graph-explorer-frame');
+            Object.defineProperty(frame, 'clientWidth', { value: 880, configurable: true });
+
+            observers[0].callback();
+            act(() => { jest.advanceTimersByTime(150); });
+
+            expect(svg().getAttribute('width')).toBe('880');
+        });
+
+        it('ignores the report it gets for simply being connected', () => {
+            //
+            // an observer states the current size as soon as it is attached, and
+            // the graph was just laid out at that size.
+            //
+            const { page } = setup();
+            jest.useFakeTimers();
+            const drew = jest.spyOn(page, 'renderD3');
+
+            observers[0].callback();
+            act(() => { jest.advanceTimersByTime(150); });
+
+            expect(drew).not.toHaveBeenCalled();
+            drew.mockRestore();
+        });
+
+        it('stops watching once unmounted', () => {
+            const { unmount } = render(<GraphExplorer data={schema} />);
+
+            unmount();
+
+            expect(observers[0].disconnected).toBe(true);
+        });
+    });
+
+    it('mounts where the browser has no ResizeObserver', () => {
+        //
+        // the fold is missed, which is what shipped before it was watched for.
+        // Failing to mount is not the trade.
+        //
+        const real = global.ResizeObserver;
+        delete global.ResizeObserver;
+
+        try {
+            const { unmount } = render(<GraphExplorer data={schema} />);
+
+            expect(circles()).toHaveLength(TYPES.length);
+
+            unmount();
+        } finally {
+            global.ResizeObserver = real;
+        }
+    });
+
     it('drops a pending resize once unmounted', () => {
         const held = React.createRef();
         const { unmount } = render(<GraphExplorer ref={held} data={schema} />);
