@@ -448,8 +448,15 @@ $graph-side: 16rem;
 // column by far. Below the three-column breakpoint the table keeps the columns
 // that say what a type IS.
 //
+// Note: '.graph-tables' is carried for the specificity, not to scope anything.
+//       The cell is a mui TableCell, whose own 'display: table-cell' is injected
+//       into the document head by emotion at runtime -- after this stylesheet,
+//       and at the same one-class specificity. A bare '.graph-tables-uri' loses
+//       that tie on source order, which is why this rule appeared to do nothing
+//       and a phone drew the column anyway, off the side of the table.
+//
 @media (max-width: $graph-columns - 0.02px) {
-  .graph-tables-uri {
+  .graph-tables .graph-tables-uri {
     display: none;
   }
 }
