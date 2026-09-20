@@ -60,6 +60,19 @@ $graph-rail-pad: 1.5rem;
 //
 $graph-tables-peek: 10rem;
 
+//
+// 'you turned this on, and can turn it off again'.
+//
+// The one non-neutral on this page that is not a namespace's own colour, and it
+// says the same thing in three places: a column folded away into its rail, a
+// legend entry the reader has pinned onto the canvas, and whichever of the two
+// tables is showing. Gray said 'this one' in the tab strip while gray also said
+// 'heading', 'rule' and 'disabled' everywhere else on the page, so the one state
+// a reader can actually change looked like part of the furniture.
+//
+$graph-held: rgba($green-2, 0.32);
+$graph-held-edge: $green-4;
+
 .graph-page {
   padding-bottom: 1rem;
   padding-top: 1rem;
@@ -256,7 +269,18 @@ $graph-tables-peek: 10rem;
   transform: rotate(45deg);
 }
 
+//
+// darker than the toggle around it, which is what tells the COLUMN's name from
+// the names of the sections inside it.
+//
+// The legend's first section is headed 'Namespaces', in the same small gray
+// spaced capitals the column's own 'Legend' was in, one line directly below it.
+// Two headings drawn identically and stacked do not read as two headings: they
+// read as one label that wrapped, and 'LEGEND NAMESPACES' was reported as a
+// wrapping bug rather than as the two things it is.
+//
 .graph-panel-title {
+  color: $gray-8;
   font-weight: 600;
 }
 
@@ -276,6 +300,16 @@ $graph-tables-peek: 10rem;
 
 .graph-panel-open > .graph-panel-body {
   display: block;
+}
+
+//
+// the divider's two controls, which exist only where there is a divider to put
+// them on. Below the breakpoint the columns are stacked bands with a rule ABOVE
+// each of them and no vertical edge between anything.
+//
+.graph-panel-grip,
+.graph-panel-fold {
+  display: none;
 }
 
 .graph-legend h6 + ul {
@@ -311,10 +345,46 @@ $graph-tables-peek: 10rem;
   }
 
   li {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.15rem;
+  }
+}
+
+//
+// every legend row is a control over the canvas: pointing at one lights that
+// namespace's nodes or that origin's edges and drops the rest, and clicking
+// holds it there.
+//
+// The row's layout lives here rather than on the '<li>' around it because the
+// button is what has to fill the row -- a button narrower than its row is a
+// target with dead space beside it, and the origin rows carry a second line
+// (the note) that has to sit inside the same control.
+//
+.graph-legend-entry {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 0.25rem;
+  color: inherit;
+  display: flex;
+  flex-wrap: wrap;
+  font: inherit;
+  padding: 0.15rem 0.3rem;
+  text-align: left;
+  width: 100%;
+
+  &:hover {
+    background-color: $gray-1;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+
+  //
+  // held, rather than merely pointed at
+  //
+  &[aria-pressed='true'] {
+    background-color: $graph-held;
   }
 }
 
@@ -336,9 +406,12 @@ $graph-tables-peek: 10rem;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
 
-  li {
+  .graph-legend-entry {
     flex-wrap: nowrap;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
@@ -540,10 +613,17 @@ $graph-tables-peek: 10rem;
 // of them: a table is a wide thing, and putting it in the middle column would
 // have given it a third of the page while the legend beside it sat empty.
 //
+// Note: the gap above them is small, and was 2.5rem. The canvas already leaves
+//       clear space inside its own bottom edge -- the layout is fitted with a
+//       pad on every side, see FIT_PAD in graph-explorer.jsx -- so most of that
+//       margin sat under empty canvas and read as a gap with nothing on either
+//       side of it. What separates the tables from the graph is the rule, not
+//       the distance.
+//
 .graph-tables {
   border-top: 1px solid $gray-2;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
 }
 
 .graph-tables-controls {
@@ -572,7 +652,8 @@ $graph-tables-peek: 10rem;
   padding: 0.35rem 0.75rem;
 
   &[aria-pressed='true'] {
-    background-color: $gray-2;
+    background-color: $graph-held;
+    border-color: $graph-held-edge;
     font-weight: 600;
   }
 
@@ -713,20 +794,6 @@ $graph-tables-peek: 10rem;
     padding-top: 0.6rem;
   }
 
-  //
-  // closer to the graph than on a wide screen, where the tables are the next
-  // thing after three columns and want the separation.
-  //
-  // Stacked, they are the next thing after ONE column -- the graph, directly
-  // above -- and the canvas has already left clear space inside its own bottom
-  // edge: the layout is fitted with a pad inside every side (see FIT_PAD in
-  // graph-explorer.jsx), so 2.5rem of margin here sat under that and read as a
-  // gap with nothing on either side of it.
-  //
-  .graph-tables {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-  }
 }
 
 //
@@ -765,8 +832,100 @@ $graph-tables-peek: 10rem;
   //       its two-column namespace grid is sized against and silently drops back
   //       to one column.
   //
+  // Note: the width is a custom property with the clamp as its FALLBACK, so the
+  //       stylesheet keeps the default and a column the reader has dragged
+  //       narrower carries its own value inline. graph.jsx reads this same
+  //       element back to find the ceiling a drag may not pass -- see startDrag
+  //       -- so the number below is the only place that width is written down.
+  //
   .graph-panel {
-    width: calc(#{$graph-side} + #{$graph-rail-pad});
+    position: relative;
+    width: var(--graph-panel-width, calc(#{$graph-side} + #{$graph-rail-pad}));
+  }
+
+  //
+  // the column's name, ruled off from what it names.
+  //
+  // Before the rule and the space below it, 'Legend' and the 'Namespaces'
+  // heading of its first section sat on consecutive lines in the same small
+  // capitals, and read as one label that had wrapped. See '.graph-panel-title',
+  // which darkens the column's own name for the same reason.
+  //
+  .graph-panel-open > .graph-panel-heading {
+    border-bottom: 1px solid $gray-2;
+    margin-bottom: 0.85rem;
+  }
+
+  //
+  // the strip the divider can be dragged by: centred on the rule, and wide
+  // enough to be caught by a pointer that is not aimed exactly at a 1px line.
+  //
+  .graph-panel-grip {
+    bottom: 0;
+    cursor: col-resize;
+    display: block;
+    position: absolute;
+    top: 0;
+    width: 0.875rem;
+    z-index: 1;
+  }
+
+  //
+  // and the arrow that folds the column, on the same rule. It points OUTWARD --
+  // the way the column's edge travels as it closes -- which is the direction
+  // the folded rail's own chevron then points back along to reopen it.
+  //
+  .graph-panel-fold {
+    align-items: center;
+    background-color: $white-1;
+    border: 1px solid $gray-3;
+    border-radius: 50%;
+    color: $gray-6;
+    display: flex;
+    font-size: 1.05rem;
+    height: 1.5rem;
+    justify-content: center;
+    padding: 0;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.5rem;
+    z-index: 2;
+
+    //
+    // gray at rest and green under the pointer: at rest it is a mark on a rule
+    // and should not compete with the graph beside it, and green is what this
+    // page says about a state the reader can change.
+    //
+    &:hover {
+      background-color: $graph-held;
+      border-color: $graph-held-edge;
+      color: $green-6;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $focus;
+    }
+  }
+
+  //
+  // each column's divider is the edge it shares with the graph, so they face
+  // opposite ways: the build column's is on its right, the legend's on its left.
+  //
+  .graph-panel-build .graph-panel-grip {
+    right: -0.4375rem;
+  }
+
+  .graph-panel-build .graph-panel-fold {
+    right: -0.75rem;
+  }
+
+  .graph-panel-legend .graph-panel-grip {
+    left: -0.4375rem;
+  }
+
+  .graph-panel-legend .graph-panel-fold {
+    left: -0.75rem;
   }
 
   //
@@ -833,6 +992,15 @@ $graph-tables-peek: 10rem;
     }
 
     //
+    // the title carries its own colour at both widths -- see
+    // '.graph-panel-title' -- so the rail's green has to reach it directly
+    // rather than being inherited from the toggle.
+    //
+    .graph-panel-title {
+      color: $green-6;
+    }
+
+    //
     // beside the title rather than at the far end of the rail: 'margin-left'
     // pushes it right along a horizontal row, and along a vertical one it is a
     // cross-axis margin that shoves it off the centre line instead.
@@ -840,6 +1008,20 @@ $graph-tables-peek: 10rem;
     .graph-panel-summary {
       margin-left: 0;
     }
+  }
+
+  //
+  // a folded column's chevron points the way that column will TRAVEL when it is
+  // opened: the left one opens rightward, the right one leftward.
+  //
+  // Both used to point right, because the base rule is written for a disclosure
+  // triangle on a stacked phone layout, where closed means 'opens downward' and
+  // right-then-down is the convention. Turned on its side in a rail beside the
+  // graph it stops being a disclosure triangle and becomes a direction, and on
+  // the right-hand rail it was pointing off the edge of the page.
+  //
+  .graph-panel-legend.graph-panel-closed .graph-panel-toggle::before {
+    transform: rotate(135deg);
   }
 
   //

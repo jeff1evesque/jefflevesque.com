@@ -33,6 +33,8 @@ import GraphExplorer, {
     TAP_REACH,
     CARD_DOCK_WIDTH,
     DRIFT,
+    DIM_OPACITY,
+    LINK_REST,
 } from '../../import/animation/graph-explorer.jsx';
 
 const schema = {
@@ -330,6 +332,125 @@ describe('focusing a node', () => {
         held.current.nodeSel = null;
 
         expect(() => held.current.highlight('anything')).not.toThrow();
+    });
+});
+
+//
+// a whole CLASS of the graph, asked for from outside the canvas by the legend on
+// the page. It is what 'nothing focused' means rather than a fourth kind of
+// focus -- see highlight -- so these drive it through the prop and read the
+// canvas back, exactly as the page does.
+//
+describe('emphasis asked for by the legend', () => {
+    const opacities = (selector) => [...document.querySelectorAll(selector)]
+        .map((el) => Number(el.getAttribute('opacity')));
+
+    it('lights one namespace and dims the rest', () => {
+        setup({ emphasis: { kind: 'namespace', value: 'sec' } });
+
+        // bls_A, bls_B, sec_C -- one lit, two dropped back
+        expect(opacities('circle')).toEqual([DIM_OPACITY, DIM_OPACITY, 1]);
+    });
+
+    it('drops the edges while a namespace is lit', () => {
+        //
+        // most edges in a published build touch a given namespace somewhere, so
+        // lighting the ones it touches lights nearly the whole canvas. The
+        // question a namespace asks is which CIRCLES it is.
+        //
+        setup({ emphasis: { kind: 'namespace', value: 'bls' } });
+
+        expect(opacities('line').every((o) => o < LINK_REST)).toBe(true);
+    });
+
+    it('lights one edge origin and dims the other', () => {
+        //
+        // the schema carries one raw edge and one enrichment edge, in that order
+        //
+        setup({ emphasis: { kind: 'origin', value: 'enrichment' } });
+
+        const [raw, enrichment] = opacities('line');
+        expect(enrichment).toBeGreaterThan(0.9);
+        expect(raw).toBeLessThan(enrichment);
+    });
+
+    it('lights the raw edges when raw is the one asked for', () => {
+        setup({ emphasis: { kind: 'origin', value: 'raw' } });
+
+        const [raw, enrichment] = opacities('line');
+        expect(raw).toBeGreaterThan(0.9);
+        expect(enrichment).toBeLessThan(raw);
+    });
+
+    it('leaves the nodes alone while an origin is lit', () => {
+        setup({ emphasis: { kind: 'origin', value: 'raw' } });
+
+        expect(opacities('circle')).toEqual([1, 1, 1]);
+    });
+
+    it('loses to a node the reader is pointing at', () => {
+        //
+        // the pointer cannot be on the legend and the canvas at once, and the
+        // node under it is the more specific question.
+        //
+        const { page } = setup({ emphasis: { kind: 'namespace', value: 'sec' } });
+
+        pointAt(page, 'bls_A');
+
+        // bls_A and its neighbour bls_B are lit; sec_C, which the legend asked
+        // for, is not
+        expect(opacities('circle')).toEqual([1, 1, DIM_OPACITY]);
+    });
+
+    it('comes back once the pointer leaves the canvas', () => {
+        const { page } = setup({ emphasis: { kind: 'namespace', value: 'sec' } });
+
+        pointAt(page, 'bls_A');
+        fireEvent.mouseLeave(svg());
+
+        expect(opacities('circle')).toEqual([DIM_OPACITY, DIM_OPACITY, 1]);
+    });
+
+    it('repaints without laying the graph out again', () => {
+        //
+        // pointing at a word beside the canvas must not move every node on it.
+        //
+        const held = React.createRef();
+        const { rerender } = render(<GraphExplorer ref={held} data={schema} />);
+        const drew = jest.spyOn(held.current, 'renderD3');
+        const before = circles().map((c) => c.getAttribute('cx'));
+
+        rerender(
+            <GraphExplorer ref={held} data={schema} emphasis={{ kind: 'namespace', value: 'sec' }} />
+        );
+
+        expect(drew).not.toHaveBeenCalled();
+        expect(circles().map((c) => c.getAttribute('cx'))).toEqual(before);
+        expect(opacities('circle')).toEqual([DIM_OPACITY, DIM_OPACITY, 1]);
+        drew.mockRestore();
+    });
+
+    it('tells the page to let go when the EMPTY canvas is clicked', () => {
+        const cleared = jest.fn();
+        const { page } = setup({ onClear: cleared });
+
+        //
+        // a click that lands on a node is a question about that node, and the
+        // node outranks the legend anyway -- clearing here would throw away a
+        // mark the reader never asked to lose, and they would find it gone when
+        // they unpinned the node.
+        //
+        clickAt(page, 'bls_A');
+        expect(cleared).not.toHaveBeenCalled();
+
+        fireEvent.click(svg(), { clientX: -500, clientY: -500 });
+        expect(cleared).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not require the page to want telling', () => {
+        setup();
+
+        expect(() => fireEvent.click(svg(), { clientX: -500, clientY: -500 })).not.toThrow();
     });
 });
 

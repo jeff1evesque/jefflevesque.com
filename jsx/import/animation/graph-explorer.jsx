@@ -242,6 +242,18 @@ class GraphExplorer extends Component {
         height: PropTypes.number,
         // namespace -> colour, ranked over the whole build by buildPalette
         palette: PropTypes.instanceOf(Map),
+        //
+        // a whole CLASS of the graph to emphasise, asked for from outside the
+        // canvas: one namespace's nodes, or one origin's edges. The legend
+        // beside the canvas is what sets it -- see highlight, where it is the
+        // state the canvas rests at rather than a fourth kind of focus.
+        //
+        emphasis: PropTypes.shape({
+            kind: PropTypes.oneOf(['namespace', 'origin']),
+            value: PropTypes.string,
+        }),
+        // a click anywhere on the canvas, so whatever set `emphasis` can let go
+        onClear: PropTypes.func,
     }
 
     constructor(props) {
@@ -314,6 +326,16 @@ class GraphExplorer extends Component {
                 this.simulation.stop();
             }
             this.renderD3();
+            return;
+        }
+
+        //
+        // the legend asked for something different. Repaint only -- the layout
+        // has not changed, and re-running it would move every node on screen
+        // because the reader pointed at a word beside the canvas.
+        //
+        if (prevProps.emphasis !== this.props.emphasis) {
+            this.highlight(this.hoveredId != null ? this.hoveredId : this.pinnedId);
         }
     }
 
@@ -488,13 +510,31 @@ class GraphExplorer extends Component {
         }
     }
 
-    // focusing a node lifts it and everything it touches; the rest drops back
-    // but stays on screen, so the neighbourhood reads against the whole rather
-    // than against an empty canvas.
-    //
-    // Note: link ends are read as node objects. forceLink swaps the ids for the
-    //       nodes themselves as soon as the simulation is built, and nothing can
-    //       be focused before that.
+    /**
+     * what the canvas is emphasising.
+     *
+     * Focusing a node lifts it and everything it touches; the rest drops back
+     * but stays on screen, so the neighbourhood reads against the whole rather
+     * than against an empty canvas.
+     *
+     * With no node focused the canvas is not necessarily at rest: the legend
+     * can ask for a whole CLASS of it instead -- one namespace's nodes, or one
+     * origin's edges -- and that is what `emphasis` carries. It is deliberately
+     * the WEAKEST of the three, and reads as the state the canvas rests at
+     * rather than as a fourth kind of focus: a node under the pointer, or one
+     * pinned by a click, is the reader asking about that node, and the pointer
+     * is nowhere near the legend while either is true.
+     *
+     * Note: a namespace drops the edges rather than lighting the ones it
+     *       touches. Most edges in a published build touch a given namespace
+     *       somewhere, so lighting them lights nearly the whole canvas and
+     *       answers a question nobody asked. The question this one answers is
+     *       'which circles are these', and the answer is the circles.
+     *
+     * Note: link ends are read as node objects. forceLink swaps the ids for the
+     *       nodes themselves as soon as the simulation is built, and nothing can
+     *       be focused before that.
+     */
     highlight(nodeId) {
         if (!this.nodeSel) {
             return;
@@ -502,17 +542,31 @@ class GraphExplorer extends Component {
 
         const active = nodeId != null;
         const near = new Set(active ? [nodeId, ...(this.neighbours.get(nodeId) || [])] : []);
+        const mark = active ? null : this.props.emphasis;
 
         this.nodeSel
-            .attr('opacity', (d) => (!active || near.has(d.id) ? 1 : DIM_OPACITY))
+            .attr('opacity', (d) => {
+                if (active) {
+                    return near.has(d.id) ? 1 : DIM_OPACITY;
+                }
+                if (mark && mark.kind === 'namespace') {
+                    return d.namespace === mark.value ? 1 : DIM_OPACITY;
+                }
+
+                return 1;
+            })
             .attr('stroke', (d) => (d.id === nodeId ? RING : '#ffffff'))
             .attr('stroke-width', (d) => (d.id === nodeId ? RING_WIDTH : 1));
+
         this.linkSel.attr('opacity', (d) => {
-            if (!active) {
-                return LINK_REST;
+            if (active) {
+                return d.source.id === nodeId || d.target.id === nodeId ? LINK_LIT : LINK_DIM;
+            }
+            if (mark) {
+                return mark.kind === 'origin' && d.origin === mark.value ? LINK_LIT : LINK_DIM;
             }
 
-            return d.source.id === nodeId || d.target.id === nodeId ? LINK_LIT : LINK_DIM;
+            return LINK_REST;
         });
     }
 
@@ -653,6 +707,14 @@ class GraphExplorer extends Component {
             .attr('stroke-width', 1);
 
         //
+        // and straight into whatever the legend is asking for, rather than into
+        // the rest state and then into that on the next render. A build swapped
+        // under a held legend entry would otherwise paint itself undimmed for a
+        // frame and then dim, which reads as the graph flinching.
+        //
+        this.highlight(null);
+
+        //
         // the layout is run to rest HERE, synchronously, and drawn once. See
         // layout.js: started on the next frame instead, the first thing on
         // screen is the whole graph sweeping in from the top-left corner.
@@ -705,7 +767,27 @@ class GraphExplorer extends Component {
 
         svg.on('mousemove', (event) => this.hover(nearest(event, HOVER_REACH)));
         svg.on('mouseleave', () => this.hover(null));
-        svg.on('click', (event) => this.pin(nearest(event, TAP_REACH)));
+
+        //
+        // a click on EMPTY canvas is the page's 'never mind': it lets go of the
+        // pinned node, and of whatever the legend beside the canvas was holding.
+        //
+        // Empty specifically. A click that lands ON a node is a question about
+        // that node, and it is already answered -- a focused node outranks the
+        // legend's mark, so the canvas shows the node either way. Clearing the
+        // legend there as well would quietly throw away a mark the reader set
+        // deliberately and never asked to lose, and they would find it gone
+        // when they unpinned the node.
+        //
+        svg.on('click', (event) => {
+            const hit = nearest(event, TAP_REACH);
+
+            this.pin(hit);
+
+            if (hit == null && this.props.onClear) {
+                this.props.onClear();
+            }
+        });
     }
 
     card() {
@@ -761,4 +843,15 @@ export default GraphExplorer;
 // exported so the legend on the page paints from the same assignment this
 // component does -- a legend computed with a different tail would name colours
 // that are not on screen.
-export { TAIL, HOVER_REACH, TAP_REACH, CARD_DOCK_WIDTH, DRIFT, DRIFT_SPEED };
+export {
+    TAIL,
+    HOVER_REACH,
+    TAP_REACH,
+    CARD_DOCK_WIDTH,
+    DRIFT,
+    DRIFT_SPEED,
+    // exported so the suite reads the canvas against the constants it was
+    // painted with rather than against copies of them
+    DIM_OPACITY,
+    LINK_REST,
+};
