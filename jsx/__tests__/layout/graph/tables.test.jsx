@@ -140,6 +140,78 @@ describe('reaching the whole build', () => {
     });
 });
 
+describe('before the build arrives', () => {
+    //
+    // no schema is where a page that has not loaded yet and a page whose build
+    // failed both land, and they want opposite things: the first is a table on
+    // its way and should look like one, the second is over and should leave the
+    // failure above it to do the talking. `loading` is what tells them apart.
+    //
+    // What the empty one is for is the bottom of a phone screen. The rule, the
+    // tabs, the filter box and a hundred rows used to appear together, all at
+    // once, under a page that had been blank -- and on a wide screen the rule
+    // the page's third divider rides on was not there to ride on.
+    //
+    const waiting = (props = {}) => setup({ schema: null, loading: true, ...props });
+
+    it('draws the table empty rather than not at all', () => {
+        const { container } = waiting();
+
+        expect(container.querySelector('.graph-tables-pending')).not.toBeNull();
+        expect(container.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
+    });
+
+    it('heads it with the columns the node table will have', () => {
+        //
+        // 'nodes' is the tab the real one opens on, so these are the headings
+        // that will still be there when the rows arrive. Heading it with the
+        // other table's columns would be a row of labels that changes under the
+        // reader for no reason they asked for.
+        //
+        const { container } = waiting();
+
+        expect([...container.querySelectorAll('thead th')].map((cell) => cell.textContent))
+            .toEqual(['Node type', 'Nodes', 'On canvas', 'Ontology term']);
+    });
+
+    it('offers the controls without letting them be used', () => {
+        //
+        // a filter box that takes keystrokes and drops them when the build
+        // lands is worse than one that says it is not ready.
+        //
+        const { container } = waiting();
+
+        [...container.querySelectorAll('.graph-tables-tab')].forEach((button) => {
+            expect(button).toBeDisabled();
+        });
+
+        expect(container.querySelector('.graph-tables-search')).toBeDisabled();
+    });
+
+    it('is hidden from assistive technology', () => {
+        //
+        // it is a picture of a table rather than a table: there is nothing in it
+        // to read, and the page announces the wait once, in the canvas above.
+        //
+        const { container } = waiting();
+
+        expect(container.querySelector('.graph-tables-pending'))
+            .toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('stops as soon as there is a build, loading or not', () => {
+        //
+        // the placeholder answers to the absence of a schema rather than to the
+        // flag, so a build that lands while the flag is still up is drawn
+        // rather than covered by a picture of itself.
+        //
+        const { container } = setup({ loading: true });
+
+        expect(container.querySelector('.graph-tables-pending')).toBeNull();
+        expect(bodyRows().length).toBeGreaterThan(0);
+    });
+});
+
 describe('switching tabs', () => {
     it('shows the edge types when asked', () => {
         setup();
