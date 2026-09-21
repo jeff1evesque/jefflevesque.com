@@ -19,9 +19,10 @@
  *       not. The schema in hand is exact for this build and cost nothing more.
  *
  * Note: it draws itself EMPTY while the build is on its way rather than not at
- *       all -- the controls, the column headings and a dozen blank rows, so the
- *       bottom of the page is the shape it will be. See pending() below, and
- *       pending.jsx for the rest of the page doing the same thing.
+ *       all -- the controls, the column headings, a boxful of blank rows and
+ *       the pager, so the bottom of the page is the shape it will be. See
+ *       pending() below, and pending.jsx for the rest of the page doing the
+ *       same thing.
  *
  * Note: colours come from the assignment the CANVAS made, handed down rather
  *       than recomputed. assignNamespaceColors ranks namespaces and deals out
@@ -92,14 +93,21 @@ const EDGE_COLUMNS = [
 ];
 
 //
-// how many rows the placeholder stands in for.
+// how many rows the placeholder stands in for: enough to fill the box the real
+// table fills, and no more.
 //
-// '.graph-tables-scroll' is 32rem tall and a dense mui row is a little over
-// 2rem, so a dozen is what the box actually shows -- enough that it reads as a
-// table that continues below the fold, which is what the real one does, and not
-// so many that a phone scrolls through a screen of grey.
+// '.graph-tables-scroll' stops at 32rem, which is 448px here, and the table
+// that replaces this opens on 25 rows, which always reach it. A dense mui row is
+// 30.5px -- a 17.5px line, 6px of padding either side and a 1px rule -- under a
+// 34px heading, so the box holds thirteen and a half. A dozen used to be drawn,
+// which left the placeholder 48px shorter than the table replacing it, and
+// everything under it moved when the build landed.
 //
-const PENDING_ROWS = 12;
+// Note: fourteen OVERFILL the box, and the placeholder's box clips the last
+//       rather than scrolling to it -- see '.graph-tables-pending' in
+//       '_graph.scss'. Thirteen would stop short of the edge by half a row.
+//
+const PENDING_ROWS = 14;
 
 /**
  * a long CamelCase type name, wrapped where a browser may break it.
@@ -426,6 +434,12 @@ class GraphTables extends Component {
      * Note: the NODE columns, because 'nodes' is the tab the real one opens on.
      *       A placeholder headed with the other table's columns would be a
      *       column of headings that changes when the data arrives.
+     *
+     * Note: the pager is the real one too, and 'disabled' turns off both its
+     *       dropdown and its arrows. It used to be missing, so a 52px row
+     *       appeared under the table when the build landed. Its count is a bar
+     *       rather than the '0-0 of 0' a count of nothing would print: what
+     *       it will say depends on the build, and nothing here invents a value.
      */
     pending() {
         return (
@@ -492,6 +506,17 @@ class GraphTables extends Component {
                         </TableBody>
                     </Table>
                 </TableContainer>
+
+                <TablePagination
+                    component='div'
+                    count={0}
+                    page={0}
+                    rowsPerPage={ROWS_PER_PAGE[0]}
+                    rowsPerPageOptions={ROWS_PER_PAGE}
+                    onPageChange={() => {}}
+                    labelDisplayedRows={() => <PendingBar width='4.75rem' />}
+                    disabled
+                />
             </section>
         );
     }
@@ -561,4 +586,4 @@ class GraphTables extends Component {
 
 export default GraphTables;
 
-export { TABS, ROWS_PER_PAGE };
+export { TABS, ROWS_PER_PAGE, PENDING_ROWS };
