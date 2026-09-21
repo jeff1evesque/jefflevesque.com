@@ -254,6 +254,26 @@ html {
   .MuiTablePagination-displayedRows {
     margin: 0;
   }
+
+  //
+  // and the number in the dropdown between them on that same line.
+  //
+  // Note: mui pads it 4px above and 5px below, so it sits half a pixel higher
+  //       than the text either side of it -- a whole pixel on a retina screen,
+  //       and plain to see beside the '25' in '1-25 of 151'. Even padding and
+  //       the labels' own line height put the two lines at the same height
+  //       whatever the font size. The 9px of padding is kept, so the control
+  //       is no smaller to press.
+  //
+  // Note: 'min-height: 0' as well, because mui holds the box open to its own
+  //       taller line height, which would put the number back where it was.
+  //
+  .MuiTablePagination-select {
+    line-height: 1.43;
+    min-height: 0;
+    padding-bottom: 4.5px;
+    padding-top: 4.5px;
+  }
 }
 
 #bootstrap-override {

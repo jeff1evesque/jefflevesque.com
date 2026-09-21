@@ -23,21 +23,32 @@
  *       answers 200, so a status check passes all of them and changes nothing.
  */
 
+import { DATASETS } from './api-url.js';
+
 //
 // where each stream's archive lives, how far back it goes, and whether it is
 // filed by year or by month.
 //
-// Note: the two stock market streams are deliberately absent. Nothing is
-//       published for either -- '/ingest/stockmarket/', '/ingest/article/
-//       stockmarket/', '/ingest/article/stocksplit/' and a month-nested variant
-//       were all tried against the live site and none resolves -- so the page
-//       has nothing to offer and should say so rather than offer four links
-//       that download the app's shell. Give one an entry here when its csvs
-//       start being published.
+// Note: the two stock market streams are filed under their DATASET name, not
+//       their stream id -- 'ingest/stock-market/2024.csv', where the id would
+//       say 'ingest/stockmarket/'. Those are different strings for exactly
+//       these two streams, and DATASETS in api-url.js is where that is written
+//       down, so their paths are read from it rather than spelled out again.
+//
+//       Spelling them out again is how this list once came to leave both
+//       streams out: it looked for their files under the id, found nothing
+//       there, and recorded that as nothing being published. Both publish a
+//       file a year from 2023.
 //
 const ARCHIVES = {
     bls: { path: 'ingest/article/bls', since: 2024, by: 'year' },
     sec: { path: 'ingest/article/sec', since: 2024, by: 'month' },
+    stockmarket: { path: `ingest/${DATASETS.stockmarket}`, since: 2023, by: 'year' },
+    stockmarketstocksplit: {
+        path: `ingest/${DATASETS.stockmarketstocksplit}`,
+        since: 2023,
+        by: 'year',
+    },
     usnationalweather: { path: 'ingest/article/weather', since: 2024, by: 'month' },
 };
 

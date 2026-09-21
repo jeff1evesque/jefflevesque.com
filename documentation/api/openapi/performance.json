@@ -3,7 +3,7 @@
   "info": {
     "title": "Performance",
     "version": "v1",
-    "description": "How much one ingest stream took in, and how much of it succeeded, bucketed over a trailing window. Read by the /stream page."
+    "description": "How much one ingest stream took in, and how much of it succeeded, bucketed over a trailing window. Read by the /stream page.\n\n**The archive.** The same measurement is also published as static csv, one file per year or per month, under `https://www.jefflevesque.com/artifact/performance/ingest/`. The files are served by the website rather than by this api, which is why no operation below reaches them:\n\n- `bls`: `article/bls/<year>.csv`, by year, from 2024\n- `sec`: `article/sec/<year>/<month>.csv`, by month, from 2024\n- `usnationalweather`: `article/weather/<year>/<month>.csv`, by month, from 2024\n- `stockmarket`: `stock-market/<year>.csv`, by year, from 2023\n- `stockmarketstocksplit`: `stock-split/<year>.csv`, by year, from 2023\n\nThe two stock market streams are filed under their dataset's name, not their stream id. Not every file in a range exists, and a missing one does not answer 404: the website answers any path it does not hold with its own page, a `200` with `content-type: text/html`. Judge a download by its content type, not its status."
   },
   "servers": [
     {
