@@ -94,13 +94,51 @@ describe('which files a stream might have', () => {
     it.each([
         ['stockmarket'],
         ['stockmarketstocksplit'],
-    ])('offers nothing for %s, which publishes nothing', (stream) => {
+    ])('offers a file per year from 2023 for %s', (stream) => {
         //
-        // four paths were tried against the live site for each and none
-        // resolves. A stream with no archive should offer no links rather than
-        // four that download the app's shell.
+        // these two used to offer nothing, and a test here said that was right:
+        // four paths had been tried for each and none resolved. All four were
+        // built from the stream id, and the files are filed under the dataset
+        // name -- a file a year from 2023, every one of them there.
         //
-        expect(archiveCandidates(stream, BASE, SEPTEMBER)).toEqual([]);
+        expect(labels(stream, BASE, SEPTEMBER))
+            .toEqual(['2026.csv', '2025.csv', '2024.csv', '2023.csv']);
+    });
+
+    it.each([
+        ['stockmarket', 'stock-market'],
+        ['stockmarketstocksplit', 'stock-split'],
+    ])('files %s under its dataset name, %s, not its stream id', (stream, dataset) => {
+        //
+        // the whole bug, and the one assertion that would have caught it
+        //
+        const href = archiveCandidates(stream, BASE, SEPTEMBER)[0].href;
+
+        expect(href).toBe(`${BASE}/ingest/${dataset}/2026.csv`);
+        expect(href).not.toContain(`/${stream}/`);
+    });
+
+    it('reads the dataset name from api-url.js rather than keeping a copy', () => {
+        //
+        // a copy spelled the same today passes every assertion above, and
+        // drifts the first time one of the two is edited -- which is how the
+        // stream id ended up standing in for the dataset name. So the mapping
+        // is changed here, and the archive has to follow it.
+        //
+        jest.isolateModules(() => {
+            jest.doMock('../../import/general/api-url.js', () => ({
+                DATASETS: { stockmarket: 'renamed', stockmarketstocksplit: 'renamed-too' },
+            }));
+
+            const isolated = require('../../import/general/archive-links.js');
+
+            expect(isolated.archiveCandidates('stockmarket', BASE, SEPTEMBER)[0].href)
+                .toBe(`${BASE}/ingest/renamed/2026.csv`);
+            expect(isolated.archiveCandidates('stockmarketstocksplit', BASE, SEPTEMBER)[0].href)
+                .toBe(`${BASE}/ingest/renamed-too/2026.csv`);
+        });
+
+        jest.dontMock('../../import/general/api-url.js');
     });
 
     it('offers nothing for a stream it does not know', () => {
