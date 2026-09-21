@@ -22,9 +22,35 @@
 import { colors, colors_categorical, color_other, color_tail } from '../general/colors.js';
 import filterSchema, { GRAPH_NODE_TYPES } from './filter-schema.js';
 
-// ontology uris are '<origin>/ontology/<namespace>/<Type>'; the id prefix is the
+//
+// the vocabulary a node type is published under: everything between
+// '/ontology/' and the type name, joined on hyphens. The id prefix is the
 // fallback for anything that does not match.
-const NAMESPACE_FROM_URI = /\/ontology\/([^/]+)\//;
+//
+// The WHOLE path, rather than its first segment, because the builder nests
+// vocabularies under their source -- 'ontology/bls/jolts/OpeningsRate' -- and
+// takes enrichment vocabularies to 'ontology/<source>/enrichment/'. Reading the
+// first segment there answers 'bls' for ten different vocabularies: the current
+// build puts 118 of its 151 node types under that one source, so three quarters
+// of the graph would resolve to a single colour, on both surfaces, while still
+// looking like a working encoding. That is the state this module's own header
+// records climbing out of, and it would arrive silently.
+//
+// Note: a FLAT uri -- 'ontology/jolts/OpeningsRate', which is every uri
+//       published today -- comes out of this byte-identical to what the old
+//       first-segment rule gave it. Verified across all 151 types in the
+//       published build: 17 namespaces before, the same 17 after. So this can
+//       ship ahead of the builder and change nothing until its output moves.
+//
+// Note: the hyphen join is not a new convention. Published builds already carry
+//       'market-quotes', 'sec-filings' and 'sec-common', so 'bls-jolts' reads
+//       as one of the same family.
+//
+// Note: enrichment is why the LAST segment is not enough either. Every source
+//       has one, and taking the final vocabulary alone would pool them into a
+//       single 'enrichment' namespace belonging to nobody.
+//
+const NAMESPACE_FROM_URI = /\/ontology\/(.+)\/[^/]+$/;
 
 /**
  * the namespace a node type belongs to.
@@ -37,7 +63,7 @@ export function sourceNamespace(meta, id) {
     const match = NAMESPACE_FROM_URI.exec(uri);
 
     if (match) {
-        return match[1];
+        return match[1].replace(/\//g, '-');
     }
 
     const underscore = id.indexOf('_');
