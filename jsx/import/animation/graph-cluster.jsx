@@ -257,6 +257,39 @@ const LINK_DISTANCE_BACKGROUND = 40;
 //       runs off the sides, as the gray field behind it deliberately does. It
 //       is a backdrop, and a backdrop that is cropped still reads as one.
 //
+//
+// the canvas edge pushes back.
+//
+// The cluster had no viewport bound of any kind -- the gray field has one and
+// it does not -- while pointerForce adds velocity with no ceiling at all:
+//
+//     n.vx += (dx / dist) * push;
+//
+// against a centring force of strength 0.04 at an ambient alpha of 0.05. So
+// sweeping the cursor along the cluster's rim shoves nodes outward faster than
+// the centring recovers them, and the outermost svg clips at its own box, so
+// what a reader sees is the graph cut off rather than drawn over anything.
+//
+// It shows at the TOP first, because that is where the clearance is thinnest,
+// and spreading the cluster in #78 made it thinner still: the layout went from
+// 607px tall to 660px while the canvas did not grow, which on any 768-high
+// window leaves fourteen pixels above the cluster. One sweep erases that.
+//
+// Proportional to the overshoot rather than a fixed shove, which makes this a
+// spring instead of a wall: a node a pixel over is nudged, one fifty px over is
+// pulled hard, and a cluster that genuinely wants more room than the canvas has
+// settles against the edge rather than stacking along it. That last part is why
+// this is not the hard clamp() the gray field uses -- right for a lattice
+// snapping back to fixed home spots, wrong for a layout still finding its shape.
+//
+// Note: deliberately NOT scaled by alpha, which is what makes it work at all.
+//       The cluster idles at AMBIENT_ALPHA forever; an alpha-scaled correction
+//       would fade out exactly when the drift and the cursor do not. Neither of
+//       the other two custom forces scales either.
+//
+const EDGE_MARGIN = 24;
+const EDGE_STRENGTH = 0.25;
+
 const CHARGE_LARGE = -200;
 const CHARGE_SMALL = -100;
 const COLLIDE_GAP = 8;
@@ -878,6 +911,52 @@ class GraphCluster extends Component {
             });
         };
 
+        //
+        // keep the cluster inside the canvas -- see EDGE_MARGIN.
+        //
+        // Note: the live viewport, not the one this closure captured. A resize
+        //       does not rebuild the simulation, so the captured pair goes
+        //       stale and the boundary would sit where the window used to be.
+        //       'viewW'/'viewH' exist for exactly this and are kept current by
+        //       applyResize.
+        //
+        // Note: every width, including a phone. #78 let the cluster run off the
+        //       sides there, reasoning that 60 node types at this spacing want
+        //       about 480px across a 390px screen and that bounding them would
+        //       crush the layout. Measured, it does not: a phone is tall, the
+        //       settled cluster only fills 577 of its 764 usable pixels, and a
+        //       bound layout redistributes into that slack rather than
+        //       compressing. It comes out 330x577 instead of 482x584 -- five
+        //       node types that were off the canvas come back, the guaranteed
+        //       daylight is unchanged at 16px, and the median gap between
+        //       neighbours goes UP, from 16px to 18px.
+        //
+        const edgeForce = () => {
+            const viewW = this.viewW || width;
+            const viewH = this.viewH || height;
+
+            //
+            // Note: no 'is this a background node' guard, unlike pointerForce
+            //       above. The gray field is not in this simulation -- it is a
+            //       separate array the tick handler positions by hand -- so
+            //       nothing here can reach it, and a guard would be a branch
+            //       that never runs. ('background' is a property of LINKS, see
+            //       LINK_DISTANCE_BACKGROUND.)
+            //
+            nodes.forEach((n) => {
+                const edge = EDGE_MARGIN + n.r;
+                const left = edge - n.x;
+                const right = n.x - (viewW - edge);
+                const top = edge - n.y;
+                const bottom = n.y - (viewH - edge);
+
+                if (left > 0) n.vx += left * EDGE_STRENGTH;
+                if (right > 0) n.vx -= right * EDGE_STRENGTH;
+                if (top > 0) n.vy += top * EDGE_STRENGTH;
+                if (bottom > 0) n.vy -= bottom * EDGE_STRENGTH;
+            });
+        };
+
         // ambient wander: nudge each node along a slow per-node sine cycle so
         // the cluster is always gently drifting/jittering, even when idle.
         let driftT = 0;
@@ -909,6 +988,8 @@ class GraphCluster extends Component {
             .force('y', d3.forceY(height / 2).strength(0.04))
             .force('pointer', pointerForce)
             .force('drift', driftForce)
+            // last, so it corrects whatever the two above just added
+            .force('edge', edgeForce)
             .on('tick', () => {
                 // wobble the gray field gently around its fixed home grid
                 const colored = this.nodes;
@@ -1241,6 +1322,8 @@ export default GraphCluster;
 // with, rather than against copies of them that go stale silently
 //
 export {
+    EDGE_MARGIN,
+    EDGE_STRENGTH,
     LINK_DISTANCE_BASE,
     LINK_DISTANCE_SCALE,
     CHARGE_LARGE,
