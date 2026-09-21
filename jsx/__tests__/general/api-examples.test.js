@@ -21,6 +21,7 @@ import getData from '../../import/general/get-data.js';
 import getBlsDistribution from '../../import/general/get-data/distribution/bls.js';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import filterSchema from '../../import/animation/filter-schema.js';
+import { sourceNamespace } from '../../import/animation/encoding.js';
 import { performanceUrl, datalakeUrl } from '../../import/general/api-url.js';
 
 const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', 'openapi');
@@ -132,5 +133,25 @@ describe('knowledge graph, as the /graph page loads it', () => {
 
         expect(Object.keys(drawn.node_types).sort()).toEqual(['cpi_Category', 'cpi_OneMonthPercentChange']);
         expect(Object.keys(drawn.edge_types)).toHaveLength(1);
+    });
+
+    it('resolves the documented uris to the vocabulary that colours them', async () => {
+        //
+        // the example is what a reader copies, and its uris are what the graph
+        // reads a namespace out of -- which is the colour channel for both the
+        // front page and /graph. A documented uri the namespace rule disagrees
+        // with is a documented api this site would draw wrong.
+        //
+        // 'bls-cpi' rather than 'bls': the builder nests a vocabulary under the
+        // source that publishes it, and one source publishes ten of them. The
+        // first segment alone would pool them into one colour.
+        //
+        answering(schemaMedia.example);
+
+        const schema = await getGraphById('all-sources.2026-09.20260916T171546Z.1024d');
+        const drawn = Object.entries(schema.node_types)
+            .map(([id, meta]) => sourceNamespace(meta, id));
+
+        expect([...new Set(drawn)]).toEqual(['bls-cpi']);
     });
 });

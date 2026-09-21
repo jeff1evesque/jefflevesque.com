@@ -88,6 +88,65 @@ describe('sourceNamespace', () => {
         )).toBe('bls');
     });
 
+    //
+    // the builder nests vocabularies under their source, and publishes the
+    // nested spelling. Reading the first segment after '/ontology/' answers
+    // the SOURCE there, which pools ten vocabularies -- 118 of the current
+    // build's 151 node types -- into one namespace and one colour.
+    //
+    it('reads the vocabulary out of a nested uri, not the source', () => {
+        expect(sourceNamespace(
+            { source_type_uri: 'https://example.com/ontology/bls/jolts/OpeningsRate' },
+            'jolts_OpeningsRate'
+        )).toBe('bls-jolts');
+    });
+
+    it('keeps an enrichment vocabulary with the source it belongs to', () => {
+        //
+        // every source has one, so the LAST segment alone would pool them all
+        // into a single 'enrichment' namespace belonging to nobody.
+        //
+        expect(sourceNamespace(
+            { source_type_uri: 'https://example.com/ontology/bls/enrichment/UnifiedDay' },
+            'bls_enrichment_UnifiedDay'
+        )).toBe('bls-enrichment');
+
+        expect(sourceNamespace(
+            { source_type_uri: 'https://example.com/ontology/sec/enrichment/Filing' },
+            'sec_enrichment_Filing'
+        )).toBe('sec-enrichment');
+    });
+
+    it('keeps reading a flat uri exactly as it always did', () => {
+        //
+        // this is the case that lets the change ship before the builder's does:
+        // every uri published today is flat, and none of them moves.
+        //
+        expect(sourceNamespace(
+            { source_type_uri: 'https://example.com/ontology/jolts/OpeningsRate' },
+            'jolts_OpeningsRate'
+        )).toBe('jolts');
+    });
+
+    it('goes as deep as the uri does', () => {
+        expect(sourceNamespace(
+            { source_type_uri: 'https://example.com/ontology/a/b/c/Type' },
+            'x_Type'
+        )).toBe('a-b-c');
+    });
+
+    it('falls back for a uri that names a namespace rather than a type', () => {
+        //
+        // a trailing slash leaves no type segment to stop at. The id prefix
+        // answers the same thing here anyway, which is why this is a fallback
+        // rather than a special case.
+        //
+        expect(sourceNamespace(
+            { source_type_uri: 'https://example.com/ontology/bls/' },
+            'bls_CensusRegion'
+        )).toBe('bls');
+    });
+
     it('falls back to the id prefix when there is no uri', () => {
         expect(sourceNamespace({}, 'market_EquityQuote')).toBe('market');
     });
