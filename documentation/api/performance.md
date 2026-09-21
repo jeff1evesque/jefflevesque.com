@@ -60,7 +60,12 @@ this morning.
 | `bls` | `ingest/article/bls/<year>.csv` | by year, from 2024 |
 | `sec` | `ingest/article/sec/<year>/<month>.csv` | by month, from 2024 |
 | `usnationalweather` | `ingest/article/weather/<year>/<month>.csv` | by month, from 2024 |
-| `stockmarket`, `stockmarketstocksplit` | -- | nothing published yet |
+| `stockmarket` | `ingest/stock-market/<year>.csv` | by year, from 2023 |
+| `stockmarketstocksplit` | `ingest/stock-split/<year>.csv` | by year, from 2023 |
+
+The two stock market streams are filed under their dataset's name -- the one
+the datalake api takes as `Data` -- rather than under their stream id:
+`stock-market`, not `stockmarket`.
 
 Not every file in that range exists. A path with nothing behind it does **not**
 answer 404: the site serves the single-page app's shell for any unmatched path,
