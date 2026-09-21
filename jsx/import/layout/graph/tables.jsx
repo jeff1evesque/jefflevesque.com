@@ -18,6 +18,11 @@
  *       their rows would read as belonging to the selected build when they do
  *       not. The schema in hand is exact for this build and cost nothing more.
  *
+ * Note: it draws itself EMPTY while the build is on its way rather than not at
+ *       all -- the controls, the column headings and a dozen blank rows, so the
+ *       bottom of the page is the shape it will be. See pending() below, and
+ *       pending.jsx for the rest of the page doing the same thing.
+ *
  * Note: colours come from the assignment the CANVAS made, handed down rather
  *       than recomputed. assignNamespaceColors ranks namespaces and deals out
  *       eight categorical slots, so the same namespace gets a different colour
@@ -39,6 +44,7 @@ import TableRow from '@mui/material/TableRow';
 import TableSortLabel from '@mui/material/TableSortLabel';
 import { sourceNamespace, originColor, ORIGIN_DASH } from '../../animation/encoding.js';
 import { breakable } from '../../animation/graph-explorer.jsx';
+import { PendingBar } from './pending.jsx';
 
 const ROWS_PER_PAGE = [25, 50, 100];
 
@@ -57,6 +63,43 @@ const TABS = [
     { key: 'nodes', label: 'Node types' },
     { key: 'edges', label: 'Edge types' },
 ];
+
+//
+// what each table heads its columns with, and how a row sorts on each.
+//
+// Module constants rather than two lists built inside the methods that render
+// them, because the placeholder this component draws while the build is still
+// on its way heads itself with the same names -- see pending() below. It is a
+// table with no rows in it, and a table with neither rows nor headings is an
+// empty box.
+//
+// 'pending' is the width that column's bar takes while there is nothing to put
+// in it, chosen to be about what the real values measure: a type name is long,
+// a count is short, and 'On canvas' is a single dot. Only the node columns
+// carry one, because the placeholder is always the node table -- see pending().
+//
+const NODE_COLUMNS = [
+    { key: 'id', label: 'Node type', pending: '11rem' },
+    { key: 'count', label: 'Nodes', numeric: true, pending: '3.5rem' },
+    { key: 'drawn', label: 'On canvas', pending: '0.6rem' },
+    { key: 'uri', label: 'Ontology term', className: 'graph-tables-uri', pending: '15rem' },
+];
+
+const EDGE_COLUMNS = [
+    { key: 'src', label: 'Edge type' },
+    { key: 'count', label: 'Edges', numeric: true },
+    { key: 'origin', label: 'Origin' },
+];
+
+//
+// how many rows the placeholder stands in for.
+//
+// '.graph-tables-scroll' is 32rem tall and a dense mui row is a little over
+// 2rem, so a dozen is what the box actually shows -- enough that it reads as a
+// table that continues below the fold, which is what the real one does, and not
+// so many that a phone scrolls through a screen of grey.
+//
+const PENDING_ROWS = 12;
 
 /**
  * a long CamelCase type name, wrapped where a browser may break it.
@@ -198,6 +241,11 @@ class GraphTables extends Component {
         // object every render and defeat the row cache below.
         drawn: PropTypes.shape({ node_types: PropTypes.object }),
         painted: PropTypes.instanceOf(Map),
+        // whether the build is still on its way, which is what tells a page
+        // that has not loaded yet from one that failed. Both arrive here as no
+        // schema, and only the first of them is worth drawing an empty table
+        // for.
+        loading: PropTypes.bool,
     }
 
     constructor(props) {
@@ -302,16 +350,9 @@ class GraphTables extends Component {
     }
 
     nodeTable(shown) {
-        const columns = [
-            { key: 'id', label: 'Node type' },
-            { key: 'count', label: 'Nodes', numeric: true },
-            { key: 'drawn', label: 'On canvas' },
-            { key: 'uri', label: 'Ontology term', className: 'graph-tables-uri' },
-        ];
-
         return (
             <Table stickyHeader size='small' aria-label='Node types in this build'>
-                {this.header(columns)}
+                {this.header(NODE_COLUMNS)}
                 <TableBody>
                     {shown.map((row) => (
                         <TableRow key={row.key} hover>
@@ -340,15 +381,9 @@ class GraphTables extends Component {
     }
 
     edgeTable(shown) {
-        const columns = [
-            { key: 'src', label: 'Edge type' },
-            { key: 'count', label: 'Edges', numeric: true },
-            { key: 'origin', label: 'Origin' },
-        ];
-
         return (
             <Table stickyHeader size='small' aria-label='Edge types in this build'>
-                {this.header(columns)}
+                {this.header(EDGE_COLUMNS)}
                 <TableBody>
                     {shown.map((row) => (
                         <TableRow key={row.key} hover>
@@ -373,11 +408,99 @@ class GraphTables extends Component {
         );
     }
 
+    /**
+     * the tables before there is a build to fill them.
+     *
+     * The controls are the real ones, turned off: two tabs and a filter box, at
+     * the size and in the place they will be usable in. They used to arrive with
+     * the schema, which on a phone meant the rule, the tabs, the box and a
+     * hundred rows all appeared at once at the bottom of a page that had been
+     * empty -- and on a wide screen it meant the rule this page's third divider
+     * rides on was not there to ride on.
+     *
+     * Note: disabled rather than merely inert. A filter box that accepts
+     *       keystrokes and drops them when the build lands is worse than one
+     *       that says it is not ready, and 'disabled' is also what keeps this
+     *       whole aria-hidden block off the tab order.
+     *
+     * Note: the NODE columns, because 'nodes' is the tab the real one opens on.
+     *       A placeholder headed with the other table's columns would be a
+     *       column of headings that changes when the data arrives.
+     */
+    pending() {
+        return (
+            <section className='graph-tables graph-tables-pending' aria-hidden='true'>
+                <div className='graph-tables-controls'>
+                    <div className='graph-tables-tabs'>
+                        {TABS.map((one) => (
+                            <button
+                                key={one.key}
+                                type='button'
+                                className='graph-tables-tab'
+                                aria-pressed={one.key === 'nodes'}
+                                disabled
+                            >
+                                {one.label}
+                                <span className='graph-tables-tally'>
+                                    <PendingBar width='1.5rem' />
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                    <input
+                        className='graph-tables-search'
+                        type='search'
+                        value=''
+                        placeholder='Filter'
+                        readOnly
+                        disabled
+                    />
+                </div>
+
+                <TableContainer className='graph-tables-scroll'>
+                    <Table stickyHeader size='small'>
+                        <TableHead>
+                            <TableRow>
+                                {NODE_COLUMNS.map((column) => (
+                                    <TableCell
+                                        key={column.key}
+                                        className={column.className}
+                                        align={column.numeric ? 'right' : 'left'}
+                                    >
+                                        {column.label}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {[...Array(PENDING_ROWS).keys()].map((row) => (
+                                <TableRow key={row}>
+                                    {NODE_COLUMNS.map((column) => (
+                                        <TableCell
+                                            key={column.key}
+                                            className={column.className}
+                                            align={column.numeric ? 'right' : 'left'}
+                                        >
+                                            <PendingBar
+                                                width={column.pending}
+                                                delay={row * 50}
+                                            />
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </section>
+        );
+    }
+
     render() {
-        const { schema } = this.props;
+        const { schema, loading } = this.props;
 
         if (!schema || !schema.node_types || !schema.edge_types) {
-            return null;
+            return loading ? this.pending() : null;
         }
 
         const { tab, query, page, rows_per_page } = this.state;
