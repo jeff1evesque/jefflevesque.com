@@ -35,6 +35,7 @@ import { useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName from '../../general/stream-name.js';
+import { archiveCandidates, published } from '../../general/archive-links.js';
 import { datalakeUrl, DATASETS } from '../../general/api-url.js';
 
 class StreamAlarm extends Component {
@@ -65,12 +66,19 @@ class StreamAlarm extends Component {
             expand_archive_stockmarket: false,
             expand_archive_usnationalweather: false,
             expand_archive_bls: false,
-            expand_archive_sec: false
+            expand_archive_sec: false,
+            //
+            // per stream: absent until asked, then the files that really exist.
+            // See loadArchive -- this list used to be a date loop, and half of
+            // what it produced was not there.
+            //
+            archive: {}
         }
 
         this.callbackGetData = this.callbackGetData.bind(this);
         this.downloadData = this.downloadData.bind(this);
         this.handleArchiveClick = this.handleArchiveClick.bind(this);
+        this.loadArchive = this.loadArchive.bind(this);
     }
 
     componentDidMount() {
@@ -97,6 +105,47 @@ class StreamAlarm extends Component {
     handleArchiveClick(stream=null) {
         stream = stream ? stream : this.state.stream;
         this.setState({ [`expand_archive_${stream}`]: ! this.state[`expand_archive_${stream}`] });
+        this.loadArchive(stream);
+    }
+
+    /**
+     * ask which of a stream's archive files are really published.
+     *
+     * On EXPANSION rather than on load, and once per stream. The sublinks sit
+     * inside a Collapse with `unmountOnExit`, so they do not exist until a
+     * reader opens that stream -- which is what makes asking affordable: at
+     * most twenty-seven requests, on a click, for one stream, instead of a
+     * hundred on every page view.
+     *
+     * Note: HEAD, so nothing is downloaded to find out whether it is there.
+     *
+     * Note: a request that fails outright is treated as 'not published', the
+     *       same as one answering the app's shell. Either way there is nothing
+     *       to offer, and a link that might work is the thing being removed.
+     */
+    loadArchive(stream) {
+        const key = String(stream).toLowerCase();
+
+        if (this.state.archive[key]) {
+            return;
+        }
+
+        const candidates = archiveCandidates(key, this.state.performance_link);
+
+        this.setState((state) => ({ archive: { ...state.archive, [key]: [] } }));
+
+        if (!candidates.length) {
+            return;
+        }
+
+        Promise.all(candidates.map((file) => fetch(file.href, { method: 'HEAD' })
+            .then((answer) => (published(answer.headers.get('content-type')) ? file : null))
+            .catch(() => null)))
+            .then((found) => {
+                this.setState((state) => ({
+                    archive: { ...state.archive, [key]: found.filter(Boolean) },
+                }));
+            });
     }
 
     //
@@ -331,7 +380,7 @@ class StreamAlarm extends Component {
         const notice = (
             <>
                 {`
-                    To subscribe to ${this.state.stream} ${term},
+                    To subscribe to ${streamName(this.state.stream)} ${term},
                 `}
                 <span className='bold'>you must accept the terms and conditions.</span>
             </>
@@ -345,124 +394,50 @@ class StreamAlarm extends Component {
             var alarm_count = parseInt(this.state.total_source);
         }
 
-        const max_year = new Date().getFullYear();
-
-        if (stream === 'usnationalweather') {
-            var min_year = 2024;
-            var download_prefix = `${this.state.performance_link}/ingest/article/weather`;
-        } else if (['stockmarket', 'stockmarketstocksplit'].includes(stream)) {
-            var min_year = 2023;
-            var download_prefix = `${this.state.performance_link}/ingest/${stream}`;
-        } else if (stream === 'bls') {
-            var min_year = 2024;
-            var download_prefix = [
-                `${this.state.performance_link}/ingest/article/bls`
-            ]
-        } else if (stream === 'sec') {
-            var min_year = 2024;
-            var download_prefix = [
-                `${this.state.performance_link}/ingest/article/sec`
-            ]
-        }
-
-        const links = [];
-        if (Array.isArray(download_prefix)) {
-            for (let index = 0; index < download_prefix.length; index++) {
-                const item = download_prefix[index];
-                const stream = item.split('/').pop();
-                const sublinks = [];
-
-                for (let i = max_year; i >= min_year; i--) {
-                    if (['sec', 'weather'].includes(stream)) {
-                        for (let j = 1; j <= this.state.mm; j++) {
-                            const month = (j).toLocaleString(
-                                undefined,
-                                {minimumIntegerDigits: 2}
-                            );
-
-                            sublinks.push(
-                                <a href={`${item}/${i}/${month}.csv`} download>
-                                    <ListItemButton key={`${item}-${i}-${j}-${index}`}>
-                                        <ListItemText primary={`${month}/${i}.csv`} />
+        //
+        // the archive column: the files this stream really published, which the
+        // page has asked about -- see loadArchive. Empty until it has, and
+        // empty for good on a stream that publishes nothing.
+        //
+        const key = String(stream).toLowerCase();
+        const found = this.state.archive[key];
+        const links = [
+            <div key={key}>
+                <ListItemButton onClick={() => {
+                    this.handleArchiveClick(key);
+                }}>
+                    <ListItemText primary={streamName(key)} />
+                    {this.state[`expand_archive_${key}`] ? <ExpandLess /> : <ExpandMore />}
+                </ListItemButton>
+                <Collapse
+                    in={this.state[`expand_archive_${key}`]}
+                    timeout='auto'
+                    unmountOnExit
+                >
+                    <List component='div' disablePadding>
+                        {found && found.length
+                            ? found.map((file) => (
+                                <a href={file.href} download key={file.href}>
+                                    <ListItemButton>
+                                        <ListItemText primary={file.label} />
                                     </ListItemButton>
                                 </a>
-                            );
-                        }
-                    } else {
-                        sublinks.push(
-                            <a href={`${i}.csv`}download>
-                                <ListItemButton>
-                                    <ListItemText primary={`${i}.csv`} />
+                            ))
+                            : (
+                                <ListItemButton disabled>
+                                    <ListItemText
+                                        primary={found
+                                            ? 'Nothing published yet'
+                                            : 'Checking...'}
+                                    />
                                 </ListItemButton>
-                            </a>
-                        );
-                    }
-                }
-                links.push(
-                    <div key={`${item}-${index}`}>
-                        <ListItemButton onClick={() => {
-                            this.handleArchiveClick(stream);
-                        }}>
-                            <ListItemText primary={stream} />
-                            {this.state[`expand_archive_${stream}`] ? <ExpandLess /> : <ExpandMore />}
-                        </ListItemButton>
-                        <Collapse in={this.state[`expand_archive_${stream}`]} timeout='auto' unmountOnExit>
-                            <List component='div' disablePadding>{sublinks}</List>
-                        </Collapse>
-                    </div>
-                );
-            }
-        } else {
-            const stream = download_prefix.split('/').pop() === 'stockmarketstocksplit'
-                ? 'stocksplit'
-                : download_prefix.split('/').pop();
-            const sublinks = [];
+                            )}
+                    </List>
+                </Collapse>
+            </div>,
+        ];
 
-            for (let i = max_year; i >= min_year; i--) {
-                if (['sec', 'weather'].includes(stream)) {
-                    for (let j = 1; j <= this.state.mm; j++) {
-                        const month = (j).toLocaleString(
-                            undefined,
-                            {minimumIntegerDigits: 2}
-                        );
-
-                        sublinks.push(
-                            <a href={`${download_prefix}/${i}/${month}.csv`} download>
-                                <ListItemButton key={`${stream}-${i}-${j}`}>
-                                    <ListItemText primary={`${month}/${i}.csv`} />
-                                </ListItemButton>
-                            </a>
-                        );
-                    }
-                } else {
-                    sublinks.push(
-                        <a href={`${download_prefix}/${i}.csv`}download>
-                            <ListItemButton>
-                                <ListItemText primary={`${i}.csv`} />
-                            </ListItemButton>
-                        </a>
-                    );
-                }
-            }
-
-            if (sublinks.length > 0) {
-                links.push(
-                    <div>
-                        <ListItemButton onClick={() => {
-                            this.handleArchiveClick(stream);
-                        }}>
-                            <ListItemText primary={stream} />
-                            {this.state[`expand_archive_${stream}`] ? <ExpandLess /> : <ExpandMore />}
-                        </ListItemButton>
-                        <Collapse in={this.state[`expand_archive_${stream}`]} timeout='auto' unmountOnExit>
-                            <List component='div' disablePadding>{sublinks}</List>
-                        </Collapse>
-                    </div>
-                );
-            }
-        }
-
-        const archive_text = `Download raw ${this.state.stream} ingest performance metrics`;
+        const archive_text = `Download raw ${streamName(this.state.stream)} ingest performance metrics`;
         const tool_tip = ! isMobile
             ? (
                 <Tooltip
@@ -518,7 +493,7 @@ class StreamAlarm extends Component {
 
         const summary = (
             <div>{`
-                The ${this.state.stream} ingest stream runs ${ingest_interval}.
+                The ${streamName(this.state.stream)} ingest stream runs ${ingest_interval}.
                 ${ingest_content_1}.
             `}
                 {isMobile ? null : summary_graphic}
