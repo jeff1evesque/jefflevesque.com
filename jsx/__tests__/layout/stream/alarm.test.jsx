@@ -606,13 +606,43 @@ describe('the archive list', () => {
         expect(offered()).not.toContain(`12/${THIS_YEAR}.csv`);
     });
 
-    it('offers nothing for a stream that publishes nothing', async () => {
+    it.each([
+        ['stockmarket', 'stock-market'],
+        ['stockmarketstocksplit', 'stock-split'],
+    ])('offers %s a file a year from 2023, filed under %s', async (stream, dataset) => {
         //
-        // both stock market streams. Nothing is published for either, so the
-        // page says so rather than offering four links to the app's shell.
+        // both stock market streams said 'Nothing published yet', and this
+        // case said that was right. The files were there all along, under the
+        // dataset's name rather than the stream's -- the page had only ever
+        // asked for them under the stream's.
+        //
+        answering(() => CSV);
+        renderAlarm(stream);
+
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+
+        const years = [];
+        for (let year = THIS_YEAR; year >= 2023; year -= 1) {
+            years.push(`${year}.csv`);
+        }
+
+        expect(offered()).toEqual(years);
+        expect(screen.queryByText('Nothing published yet')).not.toBeInTheDocument();
+        [...document.querySelectorAll('.left-column a[download]')].forEach((anchor) => {
+            expect(anchor.getAttribute('href')).toContain(`/ingest/${dataset}/`);
+        });
+    });
+
+    it('offers nothing for a stream the archive does not know', async () => {
+        //
+        // the branch the stock market streams used to reach, and a real one
+        // still: a stream with no entry has nothing to ask about, so nothing
+        // is asked and the page says so rather than guessing at a path.
         //
         const fetcher = answering(() => CSV);
-        renderAlarm('stockmarket');
+        renderAlarm('no-such-stream');
 
         await userEvent.click(archiveToggle());
         // the HEAD answers land after the click, so let them settle
