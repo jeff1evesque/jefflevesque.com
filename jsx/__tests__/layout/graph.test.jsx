@@ -78,12 +78,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import GraphLayout from '../../import/layout/graph/graph.jsx';
 import { GRAPH_NODE_TYPES } from '../../import/animation/filter-schema.js';
-import {
-    CLUSTER_EDGES,
-    CLUSTER_NODES,
-    PENDING_NAMESPACES,
-    PENDING_ORIGINS,
-} from '../../import/layout/graph/pending.jsx';
+import { PENDING_NAMESPACES, PENDING_ORIGINS } from '../../import/layout/graph/pending.jsx';
+import { nodeRadius } from '../../import/animation/explorer-layout.js';
 import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
 import { writeLayout } from '../../import/general/layout-preference.js';
 
@@ -375,9 +371,9 @@ describe('while the build is still on its way', () => {
             .toHaveLength(PENDING_ORIGINS);
     });
 
-    it('draws a cluster where the graph will be, and says so in words', async () => {
+    it('draws a graph where the graph will be, and says so in words', async () => {
         //
-        // a cluster rather than a spinner, because the box it fills is the
+        // a graph rather than a spinner, because the box it fills is the
         // graph's -- and the sentence as well as the drawing, because one of
         // them is the wait as a picture and the other is the only part of it a
         // screen reader gets.
@@ -389,23 +385,50 @@ describe('while the build is still on its way', () => {
         const canvas = document.querySelector('.graph-canvas .graph-pending-canvas');
 
         expect(canvas).not.toBeNull();
-        expect(canvas.querySelectorAll('.graph-pending-node'))
-            .toHaveLength(CLUSTER_NODES.length);
+        expect(canvas.querySelectorAll('.graph-pending-node')).toHaveLength(GRAPH_NODE_TYPES);
         expect(canvas.querySelector('.graph-pending-cluster'))
             .toHaveAttribute('aria-hidden', 'true');
         expect(screen.getByRole('status')).toHaveTextContent('Loading the graph');
     });
 
-    it('links only nodes that cluster has', () => {
+    it('draws its nodes the size the graph replacing them will be', async () => {
         //
-        // hand-written coordinates, read by index. One past the end of the list
-        // throws while the placeholder is being drawn, which is the one render
-        // nobody exercises until the day the api is slow.
+        // the placeholder used to be drawn into a viewBox scaled to its box, so
+        // its nodes came out at whatever the scale made of them -- up to twice
+        // the real ones. jsdom lays nothing out, so the box measures as the
+        // window, which is what the canvas would size its own nodes by too.
         //
-        CLUSTER_EDGES.forEach(([from, to]) => {
-            expect(CLUSTER_NODES[from]).toBeDefined();
-            expect(CLUSTER_NODES[to]).toBeDefined();
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        document.querySelectorAll('.graph-pending-node').forEach((circle) => {
+            expect(Number(circle.getAttribute('r'))).toBe(nodeRadius(window.innerWidth));
         });
+    });
+
+    it('says so on the caption\'s line, not across the graph', async () => {
+        //
+        // the placeholder fills the canvas now, so a sentence in the middle of
+        // it would sit over whatever node is there. It takes the line the
+        // caption will, which then says how much of the build is drawn.
+        //
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        const status = screen.getByRole('status');
+
+        expect(status.closest('.graph-canvas-header')).not.toBeNull();
+        expect(status.closest('.graph-pending-canvas')).toBeNull();
+    });
+
+    it('hands the caption\'s line back to the caption once the build lands', async () => {
+        await setup();
+
+        expect(screen.queryByRole('status')).toBeNull();
+        expect(document.querySelector('.graph-canvas-header .graph-caption'))
+            .toHaveTextContent('node types');
     });
 
     it('tells the tables below that a build is coming', async () => {

@@ -981,30 +981,16 @@ $graph-held-edge: $green-4;
 }
 
 //
-// the canvas, before there is a graph in it: the cluster centred in the box the
-// real one will fill, with the sentence that says so underneath it.
+// the canvas, before there is a graph in it: a made-up graph in greys, drawn
+// into the frame the real one will fill. It wears the canvas's own classes, so
+// its box needs no rules of its own -- see PendingCanvas.
 //
-.graph-pending-canvas {
-  align-items: center;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 0;
-}
-
+// Note: it used to be bounded to 22rem, because nine nodes stretched across a
+//       whole canvas would read as a diagram the page meant to show. What
+//       stretched was the drawing, radii and all, and the bound only capped
+//       how far: its nodes still came out at up to twice the real ones. It
+//       fills the canvas now by spreading its nodes rather than enlarging them.
 //
-// bounded rather than filling the box. The canvas is most of a screen tall and
-// the full width of the container when both columns are folded; a nine node
-// cluster stretched across that reads as a diagram the page is showing on
-// purpose, which is the one thing a placeholder must not do.
-//
-.graph-pending-cluster {
-  height: auto;
-  max-width: 22rem;
-  width: 100%;
-}
-
 .graph-pending-links line {
   animation: graph-pending-flow 1.4s linear infinite;
   stroke: $gray-3;
@@ -1013,26 +999,20 @@ $graph-held-edge: $green-4;
 }
 
 //
-// darker than the bars, and slower. The cluster is one drawing rather than
-// thirty blocks, so it can carry more weight without becoming the page -- and
-// at the bars' own 1.4s nine circles pulsing beside a table of them read as the
-// same widget twice.
+// darker than the bars, and slower. The graph is one drawing rather than thirty
+// blocks, so it can carry more weight without becoming the page -- and at the
+// bars' own 1.4s its circles pulsing beside a table of bars read as the same
+// widget twice.
+//
+// Note: the white ring is the real node's -- graph-explorer.jsx strokes every
+//       circle 1px white -- so the two are the same size at the edge a reader
+//       sees, not only at the radius.
 //
 .graph-pending-node {
   animation: graph-pending-breathe 1.8s ease-in-out infinite;
   fill: $gray-5;
-}
-
-//
-// under the cluster rather than at the top of the box. '.graph-status' pads
-// itself away from the top of the canvas, which is where it used to sit on its
-// own with nothing else in there.
-//
-// Note: after '.graph-status' in this file and at the same weight, which is
-//       what lets it win. Both are one class.
-//
-.graph-pending-status {
-  padding-top: 1rem;
+  stroke: $white-1;
+  stroke-width: 1;
 }
 
 //
@@ -1059,6 +1039,28 @@ $graph-held-edge: $green-4;
   .graph-tables-search {
     color: $gray-6;
     cursor: default;
+  }
+
+  //
+  // the box the rows fill, cut off at its edge rather than scrolled past it.
+  // It is drawn one row more than it holds, so it is as tall as the real
+  // table's -- see PENDING_ROWS in tables.jsx.
+  //
+  // Note: '.graph-tables-pending' for the specificity as well as the scope.
+  //       The box is a mui TableContainer, whose own 'overflow-x: auto' is
+  //       injected after this stylesheet at one class.
+  //
+  .graph-tables-scroll {
+    overflow: hidden;
+  }
+
+  //
+  // the pager, in the grey the disabled tabs above it wear. mui greys its own
+  // disabled dropdown and arrows, and would leave 'Rows per page' in black
+  // beside them.
+  //
+  .MuiTablePagination-root {
+    color: $gray-6;
   }
 }
 
@@ -1517,6 +1519,48 @@ $graph-held-edge: $green-4;
 
   .graph-tables-search {
     flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  //
+  // and the pager at their foot does not fit at all. Its spacing is mui's, sized
+  // for a desktop -- a 16px gutter at the left, 8px and 32px either side of the
+  // dropdown, 20px before the arrows -- which makes the row about 354px wide,
+  // where a 375px iPhone leaves the page 333px. mui's own 'overflow: auto' turns
+  // the difference into a row that scrolls sideways under a clipped next-page
+  // arrow.
+  //
+  // So the gutter and most of the gaps go. The dropdown's own padding and the
+  // arrows' own padding already keep each piece clear of the next, and the row
+  // then fits a 360px phone on every page -- the widest label, '101-125 of 151',
+  // is 21px wider than the first page's, and a row that fits only the first page
+  // moves the next-page arrow out from under the thumb that is pressing it.
+  //
+  // Note: wrap is for anything narrower still, which gets the arrows on a line of
+  //       their own rather than off the edge. The spacer goes because it is
+  //       'flex: 1 1 100%', which in a row that can wrap claims a line for
+  //       itself -- 'flex-end' is what keeps the row at the right without it.
+  //
+  // Note: the arrows carry the toolbar class as well as '.graph-tables'. mui
+  //       spaces them from a two-class selector, '.css-<hash>
+  //       .MuiTablePagination-actions', injected after this stylesheet.
+  //
+  .graph-tables .MuiTablePagination-toolbar {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    padding-left: 0;
+  }
+
+  .graph-tables .MuiTablePagination-spacer {
+    display: none;
+  }
+
+  .graph-tables .MuiTablePagination-input {
+    margin-left: 0;
+    margin-right: 0.5rem;
+  }
+
+  .graph-tables .MuiTablePagination-toolbar .MuiTablePagination-actions {
     margin-left: 0;
   }
 }

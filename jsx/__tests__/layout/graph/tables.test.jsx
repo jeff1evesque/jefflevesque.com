@@ -19,7 +19,12 @@
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 
-import GraphTables, { nodeRows, edgeRows, arrange } from '../../../import/layout/graph/tables.jsx';
+import GraphTables, {
+    nodeRows,
+    edgeRows,
+    arrange,
+    PENDING_ROWS,
+} from '../../../import/layout/graph/tables.jsx';
 
 //
 // `n` node types across two namespaces with descending counts, and one edge per
@@ -197,6 +202,50 @@ describe('before the build arrives', () => {
 
         expect(container.querySelector('.graph-tables-pending'))
             .toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('draws more rows than the box holds, so it is as tall as the table', () => {
+        //
+        // the box stops at 32rem -- 448px, at this site's 14px root -- and the
+        // table that replaces this opens on 25 rows, which always reach it. A
+        // dense row is 30.5px under a 34px heading, so a dozen fell 48px short
+        // and everything under the table moved when the build landed.
+        //
+        const { container } = waiting();
+
+        expect(container.querySelectorAll('tbody tr')).toHaveLength(PENDING_ROWS);
+        expect(34 + PENDING_ROWS * 30.5).toBeGreaterThanOrEqual(448);
+    });
+
+    it('holds the pager\'s place under the rows, turned off', () => {
+        //
+        // the pager used to arrive with the build: a 52px row appearing under a
+        // table that had been on screen all along.
+        //
+        const { container } = waiting();
+        const pager = container.querySelector('.graph-tables-pending .MuiTablePagination-root');
+
+        expect(pager).not.toBeNull();
+        expect(pager.querySelectorAll('button').length).toBeGreaterThan(0);
+        pager.querySelectorAll('button').forEach((button) => {
+            expect(button).toBeDisabled();
+        });
+        expect(pager.querySelector('.MuiSelect-select')).toHaveAttribute('aria-disabled', 'true');
+    });
+
+    it('leaves the count the pager will show blank', () => {
+        //
+        // a count of nothing prints '0-0 of 0', which is a wrong answer on
+        // screen rather than an honest wait. What it will say depends on the
+        // build, so it is a bar until there is one.
+        //
+        const { container } = waiting();
+        const shown = container.querySelector(
+            '.graph-tables-pending .MuiTablePagination-displayedRows'
+        );
+
+        expect(shown.textContent).toBe('');
+        expect(shown.querySelector('.graph-pending-bar')).not.toBeNull();
     });
 
     it('stops as soon as there is a build, loading or not', () => {

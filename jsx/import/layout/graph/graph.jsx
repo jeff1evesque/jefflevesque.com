@@ -66,7 +66,13 @@ import ApiLinks from '../../general/api-links.jsx';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import filterSchema from '../../animation/filter-schema.js';
 import GraphTables from './tables.jsx';
-import { PendingCanvas, PendingDetails, PendingLegend, PendingPicker } from './pending.jsx';
+import {
+    PendingCanvas,
+    PendingCaption,
+    PendingDetails,
+    PendingLegend,
+    PendingPicker,
+} from './pending.jsx';
 import {
     sourceNamespace,
     buildPalette,
@@ -1339,9 +1345,16 @@ class GraphLayout extends Component {
     //       guard, because it now shares its row with the api icons, which are
     //       there whether or not a graph is.
     //
+    // Note: while a build is on its way the line says so instead -- see
+    //       PendingCaption, which moved here from the middle of the canvas
+    //       once the placeholder there grew to fill it.
+    //
     caption() {
-        const { schema, build } = this.state;
+        const { schema, build, loading } = this.state;
 
+        if (loading) {
+            return <PendingCaption />;
+        }
         if (!schema) {
             return null;
         }

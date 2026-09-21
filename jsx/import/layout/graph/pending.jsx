@@ -36,12 +36,21 @@
  * Note: the motion is the point of a placeholder -- a still grey block is
  *       indistinguishable from a page that has given up -- and is also the
  *       first thing given up. Everything animated here stops under
- *       'prefers-reduced-motion' and leaves the same blocks standing still. See
- *       '_graph.scss'.
+ *       'prefers-reduced-motion' and leaves the same blocks standing still: the
+ *       breathing and the marching in '_graph.scss', and the canvas's drift in
+ *       driftNodes, which asks for itself.
  */
 
-import React from 'react';
+import React, { Component } from 'react';
 import PropTypes from 'prop-types';
+import * as d3 from 'd3';
+import { GRAPH_NODE_TYPES } from '../../animation/filter-schema.js';
+import {
+    frameSize,
+    nodeRadius,
+    settleLayout,
+    driftNodes,
+} from '../../animation/explorer-layout.js';
 
 //
 // how far apart, in milliseconds, two neighbouring bars breathe.
@@ -173,82 +182,244 @@ export function PendingLegend() {
 }
 
 //
-// a cluster the shape of the one that is coming: a hub, a ring around it, and
-// links between neighbours as well as to the middle. Each entry is [x, y, r] in
-// the viewBox below, and the radii vary the way the real ones do -- the canvas
-// sizes a node by how many of that type the build holds.
+// the made-up graph the canvas placeholder draws -- see pendingGraph.
 //
-const CLUSTER_NODES = [
-    [130, 85, 13],
-    [72, 48, 9],
-    [196, 52, 10],
-    [58, 120, 8],
-    [205, 122, 9],
-    [130, 24, 6],
-    [130, 148, 7],
-    [30, 82, 6],
-    [232, 88, 6],
-];
+// HUB_POWER is what gives it hubs. A node joins an earlier one picked in
+// proportion to that one's links plus one, raised to this power. At 1 -- plain
+// preferential attachment -- the busiest of sixty nodes gathers about fifteen
+// neighbours and the rest spread evenly, which reads as a mesh. The build
+// published in September 2026 gives one type 48 neighbours and two others 25
+// while the median type has 4, and squaring is what gets most of the way there.
+//
+// LOOPS is the share of nodes that join a second one as well. With none, the
+// graph is a tree of stars; the real one has loops running through its hubs.
+//
+// Note: seeded, so it is the same graph every time. It is laid out again when
+//       its box changes size -- a phone turned on its side mid-load -- and a
+//       stand-in that became a different graph then, or on every visit, would
+//       be one more thing moving on a page that is only waiting.
+//
+const PENDING_SEED = 7;
+const HUB_POWER = 2;
+const LOOPS = 0.35;
 
-const CLUSTER_EDGES = [
-    [0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [0, 6], [0, 7], [0, 8],
-    [1, 5], [5, 2], [3, 7], [4, 8], [1, 7], [2, 8], [3, 6], [6, 4],
-];
+/**
+ * a graph the shape of the ones this page draws: `count` nodes, most of their
+ * links gathered at a few hubs, and a few loops through them.
+ *
+ * Note: `random` is an argument so a test can hand in its own sequence. The page
+ *       passes nothing and gets the seeded one.
+ */
+export function pendingGraph(count = GRAPH_NODE_TYPES, random = d3.randomLcg(PENDING_SEED)) {
+    const nodes = d3.range(count).map((id) => ({ id: id }));
+    const links = [];
+    const degree = nodes.map(() => 0);
+
+    // one of the first `before` nodes, other than `not`, weighted by its links
+    const pick = (before, not) => {
+        const reach = d3.cumsum(
+            d3.range(before),
+            (index) => (index === not ? 0 : (degree[index] + 1) ** HUB_POWER)
+        );
+
+        return d3.bisectRight(reach, random() * reach[before - 1]);
+    };
+
+    const join = (from, to) => {
+        links.push({ source: from, target: to });
+        degree[from] += 1;
+        degree[to] += 1;
+    };
+
+    for (let index = 1; index < count; index += 1) {
+        const first = pick(index, -1);
+
+        join(index, first);
+
+        if (index > 1 && random() < LOOPS) {
+            join(index, pick(index, first));
+        }
+    }
+
+    return { nodes: nodes, links: links };
+}
 
 /**
  * the canvas, before there is a graph in it.
  *
- * A cluster rather than a spinner, because the box it fills is the graph's and
- * a spinner in it says only 'something is happening somewhere'. It is drawn in
- * neutral greys and on a MARCHING dash, which is what keeps it from being read
- * as a real graph that came back colourless -- a plausible enough failure on a
- * page whose colours are assigned per build.
+ * A graph rather than a spinner, because the box it fills is the graph's and a
+ * spinner in it says only 'something is happening somewhere'. It is the real
+ * canvas's graph in everything but its data: as many nodes as the canvas draws,
+ * at the radius it draws them, laid out by its forces, fitted to the box the way
+ * it fits them and set drifting by its motion -- all of it explorer-layout.js's
+ * -- so what arrives takes on colour and settles into its own shape, rather than
+ * replacing one drawing with a differently sized one.
+ *
+ * It used to be nine hand-placed circles in a viewBox scaled into a 22rem box,
+ * their radii varying 'the way the real ones do'. The real ones do not vary, and
+ * the scale drew the nine at 7 to 15px ahead of a graph drawn at 7.
+ *
+ * What keeps it from reading as a real graph that came back colourless is what
+ * always has: neutral greys, links on a MARCHING dash, and the sentence saying
+ * what it is waiting for -- see PendingCaption, which holds the caption's place
+ * above it.
  *
  * Note: the dash is '3 5', which is neither of the two ORIGIN_DASH patterns in
  *       encoding.js. Those mean something on this page, and a placeholder
  *       wearing 'enrichment' beside a legend that has not loaded is a legend
  *       entry nobody can check.
  *
- * Note: the drawing is aria-hidden and the sentence below it is a live region.
- *       One of them is the wait as a picture and the other is the wait as
- *       words; announcing both would say it twice.
+ * Note: it wears the canvas's own classes, '.graph-explorer-frame' and
+ *       '.graph-explorer', so it is laid out by the rules the canvas will be.
  */
-export function PendingCanvas() {
+export class PendingCanvas extends Component {
+    constructor(props) {
+        super(props);
+
+        this.svgRef = React.createRef();
+        this.size = { width: 0, height: 0 };
+        this.drift = null;
+
+        this.draw = this.draw.bind(this);
+        this.handleResize = this.handleResize.bind(this);
+        this.applyResize = this.applyResize.bind(this);
+    }
+
+    componentDidMount() {
+        this.renderD3();
+
+        //
+        // laid out again when the box changes size. ResizeObserver rather than
+        // the window's own event, because the box also changes with the window
+        // standing still -- either column beside it folds -- and guarded, the
+        // way the canvas guards it. Without one, the placeholder keeps the size
+        // it was first drawn at, for the few seconds it is on screen.
+        //
+        if (typeof ResizeObserver === 'function') {
+            this.frameObserver = new ResizeObserver(this.handleResize);
+            this.frameObserver.observe(this.svgRef.current.parentNode);
+        }
+    }
+
+    componentWillUnmount() {
+        this.stopDrift();
+
+        if (this.frameObserver) {
+            this.frameObserver.disconnect();
+        }
+        if (this.resizeTimer) {
+            clearTimeout(this.resizeTimer);
+        }
+    }
+
+    handleResize() {
+        if (this.resizeTimer) {
+            clearTimeout(this.resizeTimer);
+        }
+        this.resizeTimer = setTimeout(this.applyResize, 150);
+    }
+
+    // an observer reports the size it starts at as well, which is not a change
+    applyResize() {
+        this.resizeTimer = null;
+
+        const { width, height } = frameSize(this.svgRef.current.parentNode);
+
+        if (width !== this.size.width || height !== this.size.height) {
+            this.renderD3();
+        }
+    }
+
+    stopDrift() {
+        if (this.drift !== null) {
+            this.drift();
+            this.drift = null;
+        }
+    }
+
+    draw() {
+        this.linkSel
+            .attr('x1', (d) => d.source.x)
+            .attr('y1', (d) => d.source.y)
+            .attr('x2', (d) => d.target.x)
+            .attr('y2', (d) => d.target.y);
+        this.nodeSel
+            .attr('cx', (d) => d.x)
+            .attr('cy', (d) => d.y);
+    }
+
+    renderD3() {
+        const { width, height } = frameSize(this.svgRef.current.parentNode);
+        const { nodes, links } = pendingGraph();
+        const radius = nodeRadius(width);
+
+        this.size = { width: width, height: height };
+        nodes.forEach((node) => { node.r = radius; });
+        settleLayout(nodes, links, width, height);
+
+        const svg = d3.select(this.svgRef.current)
+            .attr('width', width)
+            .attr('height', height);
+
+        svg.selectAll('*').remove();
+
+        this.linkSel = svg.append('g')
+            .attr('class', 'graph-pending-links')
+            .selectAll('line')
+            .data(links)
+            .join('line');
+
+        //
+        // Note: each node's breathing is staggered by a NEGATIVE delay, which
+        //       starts it partway through its cycle rather than holding it still
+        //       until its turn comes. Sixty turns at STAGGER apart is over five
+        //       seconds, and a build usually lands well inside that.
+        //
+        this.nodeSel = svg.append('g')
+            .selectAll('circle')
+            .data(nodes)
+            .join('circle')
+            .attr('class', 'graph-pending-node')
+            .attr('r', (d) => d.r)
+            .style('animation-delay', (d, index) => `${-index * STAGGER}ms`);
+
+        this.draw();
+        this.stopDrift();
+        this.drift = driftNodes(nodes, this.draw);
+    }
+
+    render() {
+        return (
+            <div className='graph-explorer-frame graph-pending-canvas'>
+                <svg
+                    className='graph-explorer graph-pending-cluster'
+                    ref={this.svgRef}
+                    aria-hidden='true'
+                />
+            </div>
+        );
+    }
+}
+
+/**
+ * the wait, in words, in the caption's place above the canvas.
+ *
+ * It used to sit under the placeholder's cluster, in the middle of the box. The
+ * placeholder is the whole box now, and a sentence across the middle of a graph
+ * is a sentence across whatever node is there -- so it takes the line the
+ * caption will, where the sentence saying how much of the build is drawn
+ * replaces it.
+ *
+ * Note: the drawing is aria-hidden and this is a live region. One of them is
+ *       the wait as a picture and the other is the wait as words; announcing
+ *       both would say it twice.
+ */
+export function PendingCaption() {
     return (
-        <div className='graph-pending-canvas'>
-            <svg
-                className='graph-pending-cluster'
-                viewBox='0 0 260 170'
-                preserveAspectRatio='xMidYMid meet'
-                aria-hidden='true'
-            >
-                <g className='graph-pending-links'>
-                    {CLUSTER_EDGES.map(([from, to]) => (
-                        <line
-                            key={`${from}-${to}`}
-                            x1={CLUSTER_NODES[from][0]}
-                            y1={CLUSTER_NODES[from][1]}
-                            x2={CLUSTER_NODES[to][0]}
-                            y2={CLUSTER_NODES[to][1]}
-                        />
-                    ))}
-                </g>
-                {CLUSTER_NODES.map(([cx, cy, r], index) => (
-                    <circle
-                        key={index}
-                        className='graph-pending-node'
-                        cx={cx}
-                        cy={cy}
-                        r={r}
-                        style={{ animationDelay: `${index * 120}ms` }}
-                    />
-                ))}
-            </svg>
-            <p className='graph-status graph-pending-status' role='status'>
-                Loading the graph&hellip;
-            </p>
-        </div>
+        <p className='graph-caption' role='status'>
+            Loading the graph&hellip;
+        </p>
     );
 }
 
-export { PENDING_NAMESPACES, PENDING_ORIGINS, CLUSTER_NODES, CLUSTER_EDGES };
+export { PENDING_NAMESPACES, PENDING_ORIGINS };
