@@ -238,6 +238,22 @@ html {
     margin-bottom: 0;
     margin-top: 0;
   }
+
+  //
+  // mui's table pager -- 'Rows per page', the dropdown, '1-25 of 151' and the
+  // two arrows -- level on one line, on every page that draws one.
+  //
+  // Note: mui draws the two pieces of text as <p> and gives them no margin of
+  //       its own, so bootstrap's unscoped 'p { margin-bottom: 1rem }' gives
+  //       them one. The pager centres each item's MARGIN box, so 14px under the
+  //       text lifts it 7px above the dropdown and the arrows. Here rather than
+  //       in a page's partial because every pager inherits the same reboot:
+  //       /graph's tables and /stream's trigger tables both sat 7px out.
+  //
+  .MuiTablePagination-selectLabel,
+  .MuiTablePagination-displayedRows {
+    margin: 0;
+  }
 }
 
 #bootstrap-override {
