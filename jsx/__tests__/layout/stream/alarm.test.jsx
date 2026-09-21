@@ -147,6 +147,18 @@ describe('every stream id the application links to', () => {
     // exactly the ids layout/stream/stream.jsx puts in the url. There is no
     // sixth stream; this is the complete set of links to this page.
     //
+    // These used to CRASH. The archive column read a `download_prefix` that no
+    // branch assigned for a capitalised id, `.split()` threw inside the same
+    // render() that would have created this page's ErrorBoundary -- so the
+    // boundary never mounted, the error escaped to the one in layout/page.jsx,
+    // and the whole site went down, navigation included. Every link from
+    // /stream to an alarm page did this.
+    //
+    // The column no longer reads a prefix at all: it lower-cases the id, asks
+    // what that stream publishes, and offers nothing when the answer is
+    // nothing. A stream it does not recognise is the same case as one that
+    // publishes nothing, which is why an unknown id renders too.
+    //
     const LINKED = [
         'StockMarket',
         'StockMarketStockSplit',
@@ -155,51 +167,35 @@ describe('every stream id the application links to', () => {
         'SEC',
     ];
 
-    it.each(LINKED)('/stream/%s/alarm throws during render', (stream) => {
-        const error = crashFrom(stream);
-
-        expect(error).toBeInstanceOf(TypeError);
-        expect(error.message).toMatch(/split/);
+    it.each(LINKED)('/stream/%s/alarm renders', (stream) => {
+        expect(crashFrom(stream)).toBeNull();
     });
 
-    it('fails on the download prefix, which no branch assigned', () => {
+    it('renders the same page whatever the casing', () => {
         //
-        // the specific failure, so a change to the surrounding code that moves
-        // the crash somewhere else does not quietly keep this test passing.
+        // the crux of the old defect: same page, same route, same stream, and
+        // the only difference was the case of the url segment.
         //
-        expect(crashFrom('StockMarket').message)
-            .toMatch(/Cannot read propert.* of undefined \(reading 'split'\)/);
-    });
-
-    it('is a casing problem and nothing else', () => {
-        //
-        // the crux. Same page, same route, same stream -- the only difference is
-        // the case of the url segment.
-        //
-        expect(crashFrom('StockMarket')).toBeInstanceOf(TypeError);
+        expect(crashFrom('StockMarket')).toBeNull();
         expect(crashFrom('stockmarket')).toBeNull();
     });
 
-    it('takes the page down rather than showing the error fallback', () => {
+    it('renders for a stream that does not exist', () => {
         //
-        // alarm.jsx wraps its output in an ErrorBoundary, but the throw happens
-        // in the same render() that would have created it, so the boundary is
-        // never mounted and cannot catch its own parent. The error escapes to
-        // whatever boundary is above -- in the running app that is the one in
-        // layout/page.jsx, which replaces the ENTIRE page, navigation included.
+        // indistinguishable from a mis-cased known one, and it should be: a
+        // stream with no archive is a stream with no archive.
         //
-        crashFrom('StockMarket');
-
-        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-        expect(screen.queryByText('Something went wrong:')).not.toBeInTheDocument();
+        expect(crashFrom('no-such-stream')).toBeNull();
     });
 
-    it('also throws for a stream that does not exist', () => {
+    it('shows the archive heading rather than taking the page down', () => {
         //
-        // same root cause: no else branch. An unknown stream is indistinguishable
-        // from a mis-cased known one.
+        // the old failure replaced the ENTIRE page. This asserts the opposite
+        // of what it used to: the page is here.
         //
-        expect(crashFrom('no-such-stream')).toBeInstanceOf(TypeError);
+        renderAlarm('StockMarket');
+
+        expect(screen.getByText('Latest Archive')).toBeInTheDocument();
     });
 });
 
@@ -465,138 +461,235 @@ describe('the ticker count arriving from the worker', () => {
 });
 
 describe('the archive list', () => {
+    //
+    // the list is no longer invented from a date loop. The page asks which
+    // files a stream really published -- HEAD per candidate, on expansion --
+    // and offers the ones that answered as a file.
+    //
+    // A missing object does NOT 404 here: the site answers an unmatched path
+    // with the app's shell, 200 and text/html, and the anchors carry
+    // `download`, so a dead link used to save half a kilobyte of markup under
+    // the name `2026.csv`. That is why these answer with a content type and why
+    // the judgement is on the type rather than the status.
+    //
+    const CSV = 'binary/octet-stream';
+    const SHELL = 'text/html';
+
+    function answering(typeFor) {
+        global.fetch = jest.fn((url) => Promise.resolve({
+            headers: { get: () => typeFor(String(url)) },
+        }));
+
+        return global.fetch;
+    }
+
     function archiveToggle() {
         //
-        // the collapsed row is the only ListItemButton rendered before expansion.
+        // the collapsed row is the only ListItemButton rendered before expansion
         //
         return document.querySelector('.left-column .MuiListItemButton-root');
     }
 
+    const offered = () => [...document.querySelectorAll('.left-column a[download]')]
+        .map((a) => a.textContent);
+
+    afterEach(() => {
+        delete global.fetch;
+    });
+
     it('is collapsed until it is clicked', () => {
+        answering(() => CSV);
         renderAlarm('bls');
 
         expect(screen.queryByText(`${THIS_YEAR}.csv`)).not.toBeInTheDocument();
     });
 
-    it('expands to a csv per year when clicked', async () => {
-        renderAlarm('bls');
-
-        await userEvent.click(archiveToggle());
-
-        expect(screen.getByText(`${THIS_YEAR}.csv`)).toBeInTheDocument();
-        expect(screen.getByText('2024.csv')).toBeInTheDocument();
-    });
-
-    it('collapses again on a second click', async () => {
-        renderAlarm('bls');
-
-        await userEvent.click(archiveToggle());
-        expect(screen.getByText('2024.csv')).toBeInTheDocument();
-
-        await userEvent.click(archiveToggle());
-
-        expect(screen.queryByText('2024.csv')).not.toBeInTheDocument();
-    });
-
-    it('counts back to the stream\'s own first year', async () => {
+    it('asks nothing until a reader expands it', () => {
         //
-        // bls and sec start in 2024, the stock streams in 2023. The list is
-        // built from the current year down, so it grows by one row every January.
+        // the whole reason asking is affordable: it costs a click, not a page
+        // view.
         //
+        const fetcher = answering(() => CSV);
+        renderAlarm('bls');
+
+        expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it('asks with HEAD, so nothing is downloaded to find out', async () => {
+        const fetcher = answering(() => CSV);
         renderAlarm('bls');
 
         await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
 
-        const years = [];
-        for (let year = THIS_YEAR; year >= 2024; year--) {
-            years.push(`${year}.csv`);
-        }
-
-        years.forEach(label => expect(screen.getByText(label)).toBeInTheDocument());
-        expect(screen.queryByText('2023.csv')).not.toBeInTheDocument();
+        expect(fetcher.mock.calls.every(([, init]) => init.method === 'HEAD')).toBe(true);
     });
 
-    it('goes back to 2023 for the stock-market stream', async () => {
-        renderAlarm('stockmarket');
+    it('offers a file that is published', async () => {
+        answering(() => CSV);
+        renderAlarm('bls');
 
         await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
 
-        expect(screen.getByText('2023.csv')).toBeInTheDocument();
-        expect(screen.queryByText('2022.csv')).not.toBeInTheDocument();
+        expect(offered()).toContain(`${THIS_YEAR}.csv`);
+    });
+
+    it('does not offer one that answers with the app shell', async () => {
+        //
+        // the case the old list got wrong thirty-one times over
+        //
+        answering((url) => (url.includes('2024') ? CSV : SHELL));
+        renderAlarm('bls');
+
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+
+        expect(offered()).toEqual(['2024.csv']);
+    });
+
+    it('judges the content type rather than the status', async () => {
+        //
+        // every dead path answers 200, so a status check would pass all of them
+        // and change nothing at all.
+        //
+        answering(() => SHELL);
+        renderAlarm('bls');
+
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+
+        expect(offered()).toEqual([]);
+        expect(screen.getByText('Nothing published yet')).toBeInTheDocument();
+    });
+
+    it('drops a candidate whose request fails outright', async () => {
+        global.fetch = jest.fn(() => Promise.reject(new Error('offline')));
+        renderAlarm('bls');
+
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+
+        expect(offered()).toEqual([]);
     });
 
     it('breaks the year down by month for sec', async () => {
-        //
-        // sec and weather publish monthly rather than yearly, so their rows are
-        // 'MM/YYYY.csv' and run to the CURRENT month only.
-        //
+        answering(() => CSV);
         renderAlarm('sec');
 
         await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
 
-        const month = String(new Date().getMonth() + 1).padStart(2, '0');
-        expect(screen.getByText(`01/${THIS_YEAR}.csv`)).toBeInTheDocument();
-        expect(screen.getByText(`${month}/${THIS_YEAR}.csv`)).toBeInTheDocument();
+        expect(offered()).toContain(`01/${THIS_YEAR}.csv`);
     });
 
-    it.each([
-        ['bls', 'bls'],
-        ['sec', 'sec'],
-        ['stockmarket', 'stockmarket'],
-        ['stockmarketstocksplit', 'stocksplit'],
-        ['usnationalweather', 'weather'],
-    ])('%s labels its archive row "%s"', (stream, label) => {
+    it('offers a past year in full, not truncated at this month', async () => {
         //
-        // the label is the last path segment of the artifact prefix, not the
-        // stream id -- which is why usnationalweather reads 'weather' and the
-        // split stream is shortened back to 'stocksplit'.
+        // the month bound is the CURRENT month and used to cap every year, so
+        // in September the archive hid October to December of 2024 and 2025 --
+        // real files, withheld because of the date on the reader's clock.
         //
-        renderAlarm(stream);
-
-        expect(within(document.querySelector('.left-column')).getByText(label))
-            .toBeInTheDocument();
-    });
-
-    it('toggles a state key the constructor never declared', async () => {
-        //
-        // WORTH KNOWING: the constructor seeds expand_archive_usnationalweather,
-        // but the key actually toggled is built from the archive LABEL, so this
-        // stream uses expand_archive_weather and the declared field is dead. It
-        // works only because toggling an undefined field with ! yields true.
-        //
-        renderAlarm('usnationalweather');
+        answering(() => CSV);
+        renderAlarm('sec');
 
         await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
 
-        const month = String(new Date().getMonth() + 1).padStart(2, '0');
-        expect(screen.getByText(`${month}/${THIS_YEAR}.csv`)).toBeInTheDocument();
+        expect(offered()).toContain(`12/${THIS_YEAR - 1}.csv`);
+        expect(offered()).not.toContain(`12/${THIS_YEAR}.csv`);
     });
 
-    it('puts the react key on the wrong element', async () => {
+    it('offers nothing for a stream that publishes nothing', async () => {
         //
-        // DEFECT, and the reason renderAlarm() has to filter console output: the
-        // repeated element is the <a> wrapper, but the key is set on the
-        // ListItemButton nested INSIDE it, so React sees an array of unkeyed
-        // anchors and warns.
+        // both stock market streams. Nothing is published for either, so the
+        // page says so rather than offering four links to the app's shell.
         //
-        // The warning itself is not asserted here. React deduplicates it per
-        // owner component, so it appears exactly once per module registry --
-        // whichever test renders this page first absorbs it, which would make an
-        // assertion on it depend on test order. The structure that causes it is
-        // stable, so that is what gets pinned.
-        //
+        const fetcher = answering(() => CSV);
+        renderAlarm('stockmarket');
+
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+
+        expect(fetcher).not.toHaveBeenCalled();
+        expect(screen.getByText('Nothing published yet')).toBeInTheDocument();
+    });
+
+    it('collapses again on a second click', async () => {
+        answering(() => CSV);
         renderAlarm('bls');
 
         await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+        expect(offered().length).toBeGreaterThan(0);
 
-        const anchors = document.querySelectorAll('.left-column .MuiCollapse-root a');
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
 
+        expect(offered()).toEqual([]);
+    });
+
+    it('asks once, not again on every expansion', async () => {
+        const fetcher = answering(() => CSV);
+        renderAlarm('bls');
+
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+        const first = fetcher.mock.calls.length;
+
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+
+        expect(fetcher.mock.calls.length).toBe(first);
+    });
+
+    it.each([
+        ['bls', 'Bureau of Labor Statistics'],
+        ['sec', 'SEC Filings'],
+        ['stockmarket', 'S&P 500'],
+        ['stockmarketstocksplit', 'Stock Splits'],
+        ['usnationalweather', 'US Weather Alerts'],
+    ])('labels the %s row with its name, not its id', (stream, label) => {
+        //
+        // stream-name.js exists to keep identifiers out of the page and carries
+        // the reasoning for each of these. This column printed the raw id.
+        //
+        answering(() => CSV);
+        renderAlarm(stream);
+
+        expect(screen.getByText(label)).toBeInTheDocument();
+    });
+
+    it('puts the react key on the anchor it repeats', async () => {
+        answering(() => CSV);
+        renderAlarm('bls');
+
+        await userEvent.click(archiveToggle());
+        // the HEAD answers land after the click, so let them settle
+        await act(async () => {});
+
+        const anchors = [...document.querySelectorAll('.left-column a[download]')];
         expect(anchors.length).toBeGreaterThan(0);
-        anchors.forEach(anchor => {
+        anchors.forEach((anchor) => {
             expect(anchor.querySelector('.MuiListItemButton-root')).toBeInTheDocument();
         });
     });
 });
+
 
 describe('the archive help tooltip', () => {
     it('is offered on a desktop viewport', () => {
