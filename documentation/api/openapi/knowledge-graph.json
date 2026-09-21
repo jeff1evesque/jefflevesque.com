@@ -309,7 +309,8 @@
                                 "type": "integer"
                               },
                               "source_type_uri": {
-                                "type": "string"
+                                "type": "string",
+                                "description": "The ontology term this node type comes from. The path after /ontology/ is the vocabulary, which is nested under the source that publishes it -- ontology/bls/cpi/Category, and ontology/<source>/enrichment/<Term> for terms derived during the build. Read the whole path rather than its first segment: the first segment names the source, and one source publishes many vocabularies."
                               },
                               "category": {
                                 "type": "string"
@@ -391,12 +392,12 @@
                     "node_types": {
                       "cpi_Category": {
                         "count": 322,
-                        "source_type_uri": "https://jefflevesque.com/ontology/cpi/Category",
+                        "source_type_uri": "https://jefflevesque.com/ontology/bls/cpi/Category",
                         "category": "entity"
                       },
                       "cpi_OneMonthPercentChange": {
                         "count": 2548,
-                        "source_type_uri": "https://jefflevesque.com/ontology/cpi/OneMonthPercentChange",
+                        "source_type_uri": "https://jefflevesque.com/ontology/bls/cpi/OneMonthPercentChange",
                         "category": "entity"
                       }
                     },
