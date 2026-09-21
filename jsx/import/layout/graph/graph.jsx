@@ -39,6 +39,14 @@
  *       screen. A stale graph beside a fresh label is indistinguishable from a
  *       correct one, which is the worst outcome available here -- worse than an
  *       error, and much worse than an empty panel.
+ *
+ * Note: while it WAITS the page draws itself empty rather than drawing nothing.
+ *       Every piece of it -- the picker, both columns, the canvas, the tables
+ *       and their controls -- is on screen at its own size from the first
+ *       paint, holding a placeholder, and the data fills those in. See
+ *       pending.jsx, and note that the page arrives in two pieces: the listing
+ *       answers the picker and the whole build panel, and only the legend, the
+ *       canvas and the tables are waiting on the schema behind it.
  */
 
 import React, { Component } from 'react';
@@ -58,6 +66,7 @@ import ApiLinks from '../../general/api-links.jsx';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import filterSchema from '../../animation/filter-schema.js';
 import GraphTables from './tables.jsx';
+import { PendingCanvas, PendingDetails, PendingLegend, PendingPicker } from './pending.jsx';
 import {
     sourceNamespace,
     buildPalette,
@@ -212,6 +221,27 @@ function count(n) {
 }
 
 //
+// the build panel's rows: what each is called, and how to read it off a listing
+// entry.
+//
+// A table rather than a list built inline, because the placeholder that stands
+// in for this panel while the listing is still on its way is laid out from the
+// same labels -- see pending.jsx. Two copies of them drift apart the first time
+// a row is added to one of them.
+//
+const DETAILS = [
+    ['Nodes', (build) => count(build.nodes)],
+    ['Edges', (build) => count(build.edges)],
+    ['Sources', (build) => (build.sources || []).join(', ')],
+    ['Run', (build) => when(build.run)],
+    ['Built', (build) => when(build.built)],
+    ['Dataset', (build) => build.dataset],
+    ['Variant', (build) => build.variant],
+];
+
+const DETAIL_LABELS = DETAILS.map(([label]) => label);
+
+//
 // what tells the builds in the picker apart, which is not what the listing
 // calls them.
 //
@@ -335,6 +365,7 @@ class GraphLayout extends Component {
         this.clearMarks = this.clearMarks.bind(this);
         this.legend = this.legend.bind(this);
         this.details = this.details.bind(this);
+        this.pending = this.pending.bind(this);
         this.picker = this.picker.bind(this);
         this.caption = this.caption.bind(this);
 
@@ -1211,26 +1242,41 @@ class GraphLayout extends Component {
             return null;
         }
 
-        const rows = [
-            ['Nodes', count(build.nodes)],
-            ['Edges', count(build.edges)],
-            ['Sources', (build.sources || []).join(', ')],
-            ['Run', when(build.run)],
-            ['Built', when(build.built)],
-            ['Dataset', build.dataset],
-            ['Variant', build.variant],
-        ];
-
         return (
             <dl className='graph-details'>
-                {rows.map(([label, value]) => (
+                {DETAILS.map(([label, read]) => (
                     <div key={label} className='graph-details-row'>
                         <dt>{label}</dt>
-                        <dd>{value || 'n/a'}</dd>
+                        <dd>{read(build) || 'n/a'}</dd>
                     </div>
                 ))}
             </dl>
         );
+    }
+
+    /**
+     * what a reference column holds while what belongs in it is still on its
+     * way.
+     *
+     * Null once the request is over however it ended, which is the half of the
+     * question this answers: a placeholder still up after a failed load is a
+     * page claiming to be trying. The other half -- whether the real thing has
+     * arrived yet -- is answered at the call site, where each of these is the
+     * fallback of the content it stands in for.
+     *
+     * Note: which matters, because the two columns stop waiting a whole round
+     *       trip apart. The build panel is drawn entirely from the LISTING, so
+     *       it fills in at the first response, while the legend is waiting on
+     *       the schema behind it.
+     */
+    pending(key) {
+        if (!this.state.loading) {
+            return null;
+        }
+
+        return key === 'build'
+            ? <PendingDetails labels={DETAIL_LABELS} />
+            : <PendingLegend />;
     }
 
     //
@@ -1320,7 +1366,7 @@ class GraphLayout extends Component {
 
         const body = () => {
             if (loading) {
-                return <p className='graph-status'>Loading the graph…</p>;
+                return <PendingCanvas />;
             }
             if (failed || !schema) {
                 return (
@@ -1388,15 +1434,38 @@ class GraphLayout extends Component {
                     >
                         <div className='graph-header'>
                             <h4>Knowledge graph</h4>
-                            {listing ? (
+                            {/*
+
+                                the field is here while the listing is on its
+                                way as well as once it has arrived, holding a
+                                box the size of the control.
+
+                                It is a whole line of the page on a phone --
+                                '.graph-picker-field' takes one to itself below
+                                576px -- so a control that arrives with the
+                                listing is a header that grows a line under the
+                                reader, and everything below it moves down.
+
+                            */}
+                            {listing || loading ? (
                                 <div className='graph-picker-field'>
                                     <span className='graph-picker-label'>Build</span>
-                                    {this.picker()}
+                                    {listing ? this.picker() : <PendingPicker />}
                                 </div>
                             ) : null}
                         </div>
-                        {this.panel('build', 'Build details', nodes, this.details(build))}
-                        {this.panel('legend', 'Legend', namespaces, this.legend(shown))}
+                        {this.panel(
+                            'build',
+                            'Build details',
+                            nodes,
+                            this.details(build) || this.pending('build')
+                        )}
+                        {this.panel(
+                            'legend',
+                            'Legend',
+                            namespaces,
+                            this.legend(shown) || this.pending('legend')
+                        )}
                         <div
                             className='graph-canvas'
                             id='graph-row'
@@ -1468,6 +1537,7 @@ class GraphLayout extends Component {
                             schema={this.state.build}
                             drawn={schema}
                             painted={shown ? shown.painted : null}
+                            loading={loading}
                         />
                     </div>
                 </div>

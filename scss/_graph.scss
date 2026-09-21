@@ -887,6 +887,228 @@ $graph-held-edge: $green-4;
 }
 
 //
+// what the page holds while the build it draws is still on its way.
+//
+// Every rule below dresses a box that stands in for something real, and the
+// markup they dress wears the REAL element's class as well as one of these --
+// '.graph-details graph-pending', '.graph-picker graph-pending-picker' -- so a
+// placeholder is laid out by the same rules its content will be and nothing has
+// to be kept in step by hand. See pending.jsx.
+//
+// Note: grey, and only grey. This page spends green on one thing -- a state the
+//       reader turned on -- and a namespace's own colour on another, and a
+//       placeholder is neither. It is also why the pending tab strip overrides
+//       the green a pressed tab wears: nobody pressed it.
+//
+// Note: one animation, three speeds. The bars breathe, the cluster's nodes
+//       breathe more slowly, and its links march -- so the page reads as one
+//       thing waiting rather than as four widgets each with a loading state.
+//
+// Note: '$gray-2' rather than the '$gray-1' a blank block would reach for
+//       first. What breathes here is OPACITY, and #eee at the low end of the
+//       keyframe resolves to about #f8f8f8 against this page's white -- a bar
+//       that vanishes and comes back rather than one that breathes. #ddd swings
+//       between itself and about #ececec, which is a pulse a reader sees
+//       without it asking to be looked at.
+//
+.graph-pending-bar,
+.graph-pending-rule,
+.graph-pending .graph-legend-swatch {
+  animation: graph-pending-breathe 1.4s ease-in-out infinite;
+  background-color: $gray-2;
+}
+
+//
+// one value that has not arrived. Its WIDTH comes from the markup, which is
+// where the thing being stood in for is known; what is here is everything that
+// is the same whatever it stands in for.
+//
+// Note: 'inline-block' with a height, rather than text. A bar made of blank
+//       characters would be whatever the font made of them, and would be
+//       selected and read out as blank text by anything walking the page.
+//
+.graph-pending-bar {
+  border-radius: 0.25rem;
+  display: inline-block;
+  height: 0.7rem;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+//
+// where the legend draws an edge origin's own line.
+//
+// A flat bar rather than a dashed one, at the same 34px the real line measures.
+// A dash pattern is what that entry MEANS on this page -- see ORIGIN_DASH in
+// encoding.js -- so a placeholder drawn in one would be claiming an origin
+// before the build that has them has arrived.
+//
+.graph-pending-rule {
+  border-radius: 0.25rem;
+  flex: none;
+  height: 0.35rem;
+  margin-right: 0.5rem;
+  width: 34px;
+}
+
+//
+// a legend row that is not a control yet, at the size of the one it stands in
+// for. It is deliberately NOT '.graph-legend-entry': that is a button, and it
+// answers the pointer with a highlight -- an offer this cannot honour.
+//
+.graph-pending-entry {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0.15rem 0.3rem;
+  width: 100%;
+}
+
+//
+// the build picker's box, before there is a listing to choose from.
+//
+// It wears '.graph-picker' for the border, the height and the font, and adds
+// the padding the real control carries on the element mui draws its value into
+// -- a child this has no equivalent of.
+//
+// Note: '.graph-header' for the specificity, the same reason the rule it is
+//       matching carries it.
+//
+.graph-header .graph-pending-picker {
+  align-items: center;
+  display: inline-flex;
+  padding: 0.35rem 1.75rem 0.35rem 0.5rem;
+}
+
+//
+// the canvas, before there is a graph in it: the cluster centred in the box the
+// real one will fill, with the sentence that says so underneath it.
+//
+.graph-pending-canvas {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+//
+// bounded rather than filling the box. The canvas is most of a screen tall and
+// the full width of the container when both columns are folded; a nine node
+// cluster stretched across that reads as a diagram the page is showing on
+// purpose, which is the one thing a placeholder must not do.
+//
+.graph-pending-cluster {
+  height: auto;
+  max-width: 22rem;
+  width: 100%;
+}
+
+.graph-pending-links line {
+  animation: graph-pending-flow 1.4s linear infinite;
+  stroke: $gray-3;
+  stroke-dasharray: 3 5;
+  stroke-width: 1;
+}
+
+//
+// darker than the bars, and slower. The cluster is one drawing rather than
+// thirty blocks, so it can carry more weight without becoming the page -- and
+// at the bars' own 1.4s nine circles pulsing beside a table of them read as the
+// same widget twice.
+//
+.graph-pending-node {
+  animation: graph-pending-breathe 1.8s ease-in-out infinite;
+  fill: $gray-5;
+}
+
+//
+// under the cluster rather than at the top of the box. '.graph-status' pads
+// itself away from the top of the canvas, which is where it used to sit on its
+// own with nothing else in there.
+//
+// Note: after '.graph-status' in this file and at the same weight, which is
+//       what lets it win. Both are one class.
+//
+.graph-pending-status {
+  padding-top: 1rem;
+}
+
+//
+// the tables' controls, present but not yet usable.
+//
+// Disabled is a real state with a real look, and the browser's own -- a greyed
+// label at whatever contrast the platform likes -- is not the one the rest of
+// this page uses. The tab that will be showing says so in the gray a pointed-at
+// tab wears rather than in the green a chosen one does, because nobody has
+// chosen it.
+//
+.graph-tables-pending {
+  .graph-tables-tab {
+    background-color: transparent;
+    border-color: $gray-3;
+    color: $gray-6;
+    cursor: default;
+
+    &[aria-pressed='true'] {
+      background-color: $gray-1;
+    }
+  }
+
+  .graph-tables-search {
+    color: $gray-6;
+    cursor: default;
+  }
+}
+
+//
+// Note: 0.55 rather than something nearer zero. These are pale greys on white
+//       to begin with, and a keyframe that takes them most of the way out is a
+//       placeholder that blinks rather than one that breathes -- which reads as
+//       something going wrong rather than as something on its way.
+//
+@keyframes graph-pending-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
+//
+// the dash length plus its gap, so the pattern travels exactly one period and
+// the loop has no seam in it
+//
+@keyframes graph-pending-flow {
+  from {
+    stroke-dashoffset: 8;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+//
+// Note: removed rather than paused. A paused animation holds whichever frame it
+//       had reached, and half of these frames are 40% opacity -- so pausing
+//       leaves a placeholder that looks like it has already given up.
+//
+@media (prefers-reduced-motion: reduce) {
+  .graph-pending-bar,
+  .graph-pending-rule,
+  .graph-pending .graph-legend-swatch,
+  .graph-pending-links line,
+  .graph-pending-node {
+    animation: none;
+  }
+}
+
+//
 // the ontology uri is reference rather than reading, and it is the longest
 // column by far. Below the three-column breakpoint the table keeps the columns
 // that say what a type IS.

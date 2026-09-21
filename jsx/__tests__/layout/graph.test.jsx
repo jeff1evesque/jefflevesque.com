@@ -57,12 +57,13 @@ jest.mock('../../import/animation/graph-explorer.jsx', () => ({
 //
 jest.mock('../../import/layout/graph/tables.jsx', () => ({
     __esModule: true,
-    default: ({ schema, drawn, painted }) => (
+    default: ({ schema, drawn, painted, loading }) => (
         <div
             data-testid='tables'
             data-node-types={schema ? Object.keys(schema.node_types).length : 'none'}
             data-drawn={drawn ? Object.keys(drawn.node_types).length : 'none'}
             data-painted={painted ? painted.size : 'none'}
+            data-loading={String(!!loading)}
         />
     ),
 }));
@@ -77,6 +78,12 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import GraphLayout from '../../import/layout/graph/graph.jsx';
 import { GRAPH_NODE_TYPES } from '../../import/animation/filter-schema.js';
+import {
+    CLUSTER_EDGES,
+    CLUSTER_NODES,
+    PENDING_NAMESPACES,
+    PENDING_ORIGINS,
+} from '../../import/layout/graph/pending.jsx';
 import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
 import { writeLayout } from '../../import/general/layout-preference.js';
 
@@ -271,6 +278,181 @@ describe('loading the page', () => {
         await setup();
 
         expect(explorer()).toBeTruthy();
+    });
+});
+
+describe('while the build is still on its way', () => {
+    //
+    // the page used to be a title over an empty screen for as long as it took,
+    // and then to arrive in two jumps: the picker and the build panel when the
+    // listing landed, the legend, the canvas and the tables when the schema
+    // behind it did.
+    //
+    // On a desktop that is close to invisible -- both responses come back out
+    // of the browser's own cache, the schema served 'immutable' -- so the only
+    // reader who ever saw it was one arriving cold, which on a phone is two
+    // serial round trips and about half a megabyte of json.
+    //
+    // What is held here is that every part of the page is on screen from the
+    // first paint holding a placeholder, that each placeholder goes as soon as
+    // the thing it stands in for can be drawn rather than when the last request
+    // finishes, and that none of them is still there once the waiting is over
+    // -- whichever way it ended.
+    //
+    const anyPlaceholder = () => document.querySelector('[class*="graph-pending"]');
+    const probe = () => document.querySelector('[data-testid="tables"]');
+    const rowLabels = (root) => [...root.querySelectorAll('.graph-details-row dt')]
+        .map((dt) => dt.textContent);
+
+    it('holds the picker\'s place before there is a listing', async () => {
+        //
+        // the field is a whole line of the page on a phone, so a control that
+        // arrives with the listing is a header that grows a line under the
+        // reader and pushes everything below it down.
+        //
+        getGraphListing.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(document.querySelector('.graph-picker-field')).not.toBeNull();
+        expect(document.querySelector('.graph-pending-picker')).not.toBeNull();
+    });
+
+    it('names the same rows the build panel it stands in for will', async () => {
+        //
+        // both are laid out from one list of labels -- see DETAILS in graph.jsx
+        // -- so a row added to the panel is a row added here. Two copies of
+        // them drift apart the first time one is edited.
+        //
+        getGraphListing.mockReturnValue(new Promise(() => {}));
+        const waiting = await setup();
+
+        getGraphListing.mockResolvedValue(LISTING);
+        const loaded = await setup();
+
+        expect(rowLabels(waiting.container)).toEqual(rowLabels(loaded.container));
+        expect(rowLabels(waiting.container)).toContain('Nodes');
+    });
+
+    it('leaves every one of those values blank', async () => {
+        //
+        // a placeholder that guessed at '10.4M' would be a wrong answer on
+        // screen rather than an honest wait.
+        //
+        getGraphListing.mockReturnValue(new Promise(() => {}));
+
+        const { container } = await setup();
+
+        [...container.querySelectorAll('.graph-details-row dd')].forEach((dd) => {
+            expect(dd.textContent).toBe('');
+        });
+    });
+
+    it('fills the build panel a round trip before the legend', async () => {
+        //
+        // the two columns are waiting on different requests. Everything the
+        // build panel says is in the LISTING; only the legend needs the schema
+        // behind it. A page holding both until the last response arrived would
+        // be sitting on an answer it already had.
+        //
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(detail('Nodes')).toBe('9,884,064');
+        expect(document.querySelector('.graph-panel-build .graph-pending')).toBeNull();
+        expect(document.querySelector('.graph-panel-legend .graph-pending')).not.toBeNull();
+    });
+
+    it('stands in for a legend of about the size the build will need', async () => {
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(document.querySelectorAll('.graph-legend-namespaces li'))
+            .toHaveLength(PENDING_NAMESPACES.length);
+        expect(document.querySelectorAll('.graph-legend-origins li'))
+            .toHaveLength(PENDING_ORIGINS);
+    });
+
+    it('draws a cluster where the graph will be, and says so in words', async () => {
+        //
+        // a cluster rather than a spinner, because the box it fills is the
+        // graph's -- and the sentence as well as the drawing, because one of
+        // them is the wait as a picture and the other is the only part of it a
+        // screen reader gets.
+        //
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        const canvas = document.querySelector('.graph-canvas .graph-pending-canvas');
+
+        expect(canvas).not.toBeNull();
+        expect(canvas.querySelectorAll('.graph-pending-node'))
+            .toHaveLength(CLUSTER_NODES.length);
+        expect(canvas.querySelector('.graph-pending-cluster'))
+            .toHaveAttribute('aria-hidden', 'true');
+        expect(screen.getByRole('status')).toHaveTextContent('Loading the graph');
+    });
+
+    it('links only nodes that cluster has', () => {
+        //
+        // hand-written coordinates, read by index. One past the end of the list
+        // throws while the placeholder is being drawn, which is the one render
+        // nobody exercises until the day the api is slow.
+        //
+        CLUSTER_EDGES.forEach(([from, to]) => {
+            expect(CLUSTER_NODES[from]).toBeDefined();
+            expect(CLUSTER_NODES[to]).toBeDefined();
+        });
+    });
+
+    it('tells the tables below that a build is coming', async () => {
+        //
+        // no schema is where a page that has not loaded and a page that failed
+        // both land, and only the first of them is worth drawing an empty table
+        // for.
+        //
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(probe().getAttribute('data-loading')).toBe('true');
+    });
+
+    it('takes every placeholder away once the build lands', async () => {
+        await setup();
+
+        expect(anyPlaceholder()).toBeNull();
+        expect(probe().getAttribute('data-loading')).toBe('false');
+    });
+
+    it('puts none of them back up after a load that failed', async () => {
+        //
+        // a placeholder still on screen once the request is over is a page
+        // claiming to be trying. The failure has its own sentence, and that is
+        // what belongs there instead.
+        //
+        getGraphById.mockResolvedValue(null);
+
+        await setup();
+
+        expect(anyPlaceholder()).toBeNull();
+        expect(document.body.textContent).toContain('could not be loaded');
+    });
+
+    it('leaves no empty picker behind when the listing fails', async () => {
+        //
+        // there is nothing coming to fill it, so the field goes rather than
+        // waiting for a listing that already answered.
+        //
+        getGraphListing.mockResolvedValue(null);
+
+        await setup();
+
+        expect(document.querySelector('.graph-picker-field')).toBeNull();
+        expect(anyPlaceholder()).toBeNull();
     });
 });
 
