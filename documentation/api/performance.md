@@ -38,6 +38,38 @@ It stacks each source's successes by bucket for the chart, and computes the stre
 health and ingest coverage from the same rows. See
 [Ingest coverage](../application/ingest-coverage.md).
 
+## The archive behind it
+
+The same measurement is also published as static csv, a file per year or per
+month, under `https://www.jefflevesque.com/artifact/performance/ingest/`. The
+alarm page for each stream links to them in its *Latest Archive* column.
+
+The two are not copies of each other, and each holds what the other cannot:
+
+| | the archive | this endpoint |
+|---|---|---|
+| a row is | one ingest event | one bucket, summarised |
+| columns | `group_by`, `window_start`, `total_success`, `total_fail`, `window_every` | the first four, plus `_mean` and `_max` for each total |
+| window | a whole year, historical | trails from now |
+
+So this endpoint cannot answer for March 2024, and the archive cannot answer for
+this morning.
+
+| Stream | Where | Filed |
+|---|---|---|
+| `bls` | `ingest/article/bls/<year>.csv` | by year, from 2024 |
+| `sec` | `ingest/article/sec/<year>/<month>.csv` | by month, from 2024 |
+| `usnationalweather` | `ingest/article/weather/<year>/<month>.csv` | by month, from 2024 |
+| `stockmarket`, `stockmarketstocksplit` | -- | nothing published yet |
+
+Not every file in that range exists. A path with nothing behind it does **not**
+answer 404: the site serves the single-page app's shell for any unmatched path,
+with a 200 and `content-type: text/html`. So a reader saving one of these
+programmatically should judge the **content type**, not the status -- a status
+check accepts every miss, and the file lands on disk as html under a `.csv`
+name. The alarm page checks each candidate this way before offering it, in
+[`jsx/import/general/archive-links.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/archive-links.js).
+
 ## Errors
 
 | Status | `report` |
