@@ -27,6 +27,7 @@ import GraphCluster, {
     segClosest,
     CHARGE_SMALL,
     GRAPH_TOP_PAD,
+    EDGE_MARGIN,
 } from '../../import/animation/graph-cluster.jsx';
 import { colors } from '../../import/general/colors.js';
 import schema from '../fixtures/graph-schema.mock.json';
@@ -1106,5 +1107,156 @@ describe('the touch handlers', () => {
         fireEvent.touchEnd(svgOf(page));
 
         expect(page.touchedAt).toBeGreaterThan(0);
+    });
+});
+
+
+//
+// the canvas edge pushes back.
+//
+// The cluster had no viewport bound at all while pointerForce adds velocity with
+// no ceiling, so sweeping the cursor along its rim shoved nodes out of frame --
+// off the top first, where the clearance is thinnest.
+//
+describe('the canvas edge', () => {
+    //
+    // a node placed `over` px past one edge, with the viewport stated: the force
+    // reads the live size rather than whatever the closure captured, so a test
+    // sets it the same way a resize would.
+    //
+    function strayed(page, axis, over, view = { w: 1200, h: 800 }) {
+        const node = page.nodes[0];
+
+        page.viewW = view.w;
+        page.viewH = view.h;
+        node.x = view.w / 2;
+        node.y = view.h / 2;
+        node.vx = 0;
+        node.vy = 0;
+
+        const edge = EDGE_MARGIN + node.r;
+
+        if (axis === 'top') node.y = edge - over;
+        if (axis === 'bottom') node.y = view.h - edge + over;
+        if (axis === 'left') node.x = edge - over;
+        if (axis === 'right') node.x = view.w - edge + over;
+
+        page.simulation.force('edge')(1);
+
+        return node;
+    }
+
+    it('pushes a node back down when it strays over the top', () => {
+        const { page } = setup();
+
+        expect(strayed(page, 'top', 40).vy).toBeGreaterThan(0);
+    });
+
+    it('pushes back up, left and right from the other three edges', () => {
+        const { page } = setup();
+
+        expect(strayed(page, 'bottom', 40).vy).toBeLessThan(0);
+        expect(strayed(page, 'left', 40).vx).toBeGreaterThan(0);
+        expect(strayed(page, 'right', 40).vx).toBeLessThan(0);
+    });
+
+    //
+    // the four edges are independent, so a node past two of them at once gets
+    // both pushes and comes back diagonally. Worth holding explicitly: a
+    // boundary written as one 'which edge is nearest' branch would pick a side
+    // and leave the corner leaking, and a phone is where that shows -- the
+    // cluster is widest against the sides while the drift and the cursor are
+    // still moving it up and down.
+    //
+    it.each([
+        ['top left', 'left', 'top', 1, 1],
+        ['top right', 'right', 'top', -1, 1],
+        ['bottom left', 'left', 'bottom', 1, -1],
+        ['bottom right', 'right', 'bottom', -1, -1],
+    ])('pushes a node out of the %s corner on both axes', (_name, across, down, sx, sy) => {
+        const { page } = setup();
+        const view = { w: 390, h: 760 };
+        const node = page.nodes[0];
+        const edge = EDGE_MARGIN + node.r;
+
+        page.viewW = view.w;
+        page.viewH = view.h;
+        node.x = across === 'left' ? edge - 50 : view.w - edge + 50;
+        node.y = down === 'top' ? edge - 50 : view.h - edge + 50;
+        node.vx = 0;
+        node.vy = 0;
+
+        page.simulation.force('edge')(1);
+
+        expect(Math.sign(node.vx)).toBe(sx);
+        expect(Math.sign(node.vy)).toBe(sy);
+    });
+
+    it('leaves a node inside the margin alone', () => {
+        //
+        // a spring at the boundary, not a force field across the canvas
+        //
+        const { page } = setup();
+        const node = strayed(page, 'top', -20);
+
+        expect(node.vx).toBe(0);
+        expect(node.vy).toBe(0);
+    });
+
+    it('pushes harder the further out the node is', () => {
+        const { page } = setup();
+
+        const near = strayed(page, 'top', 10).vy;
+        const far = strayed(page, 'top', 100).vy;
+
+        expect(far).toBeGreaterThan(near);
+    });
+
+    it('follows a resize rather than bounding the window that has gone', () => {
+        //
+        // a resize does not rebuild the simulation, so a boundary read from the
+        // captured size would sit where the window used to be.
+        //
+        const { page } = setup();
+
+        const inside = strayed(page, 'bottom', -60, { w: 1200, h: 1400 });
+        expect(inside.vy).toBe(0);
+
+        const outside = strayed(page, 'bottom', 60, { w: 1200, h: 400 });
+        expect(outside.vy).toBeLessThan(0);
+    });
+
+    it('bounds a phone as well, which is where nodes were being lost', () => {
+        //
+        // #78 let the cluster run off the sides here, on the reasoning that it
+        // wants more width than a phone has and bounding it would crush the
+        // layout. Measured, it does not: the cluster only fills 577 of a
+        // phone's 764 usable pixels vertically, so a bound layout spreads into
+        // that slack instead. Five node types come back on screen and the
+        // median gap between neighbours goes up rather than down.
+        //
+        const { page } = setup();
+        const node = strayed(page, 'left', 120, { w: 390, h: 760 });
+
+        expect(node.vx).toBeGreaterThan(0);
+    });
+
+    it('cannot reach the gray field, which is not in the simulation', () => {
+        //
+        // the lattice snaps back to fixed home spots and the tick handler
+        // bounds it already. It is a separate array rather than simulation
+        // nodes, which is WHY the force needs no guard against it -- this
+        // holds the reason, since a guard would be a branch that never runs.
+        //
+        // Note: written against the simulation's own node list rather than by
+        //       shoving a field node and checking it did not move. That version
+        //       passed whatever the force did, because the object it moved was
+        //       never handed to the force in the first place.
+        //
+        const { page } = setup();
+        const inSimulation = page.simulation.nodes();
+
+        expect(page.background.nodes.length).toBeGreaterThan(0);
+        expect(inSimulation.some((n) => page.background.nodes.includes(n))).toBe(false);
     });
 });
