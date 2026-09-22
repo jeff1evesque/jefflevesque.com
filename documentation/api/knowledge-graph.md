@@ -63,7 +63,7 @@ Each build in `graphs` carries:
 | `period` | the partition the build was published under, as `YYYY-MM`. **Not a window over its data** — see below |
 | `run`, `built` | when the build ran and when it finished, in UTC |
 | `nodes`, `edges` | every node and every edge in the build |
-| `sources` | the sources that went into it |
+| `sources` | every source the build's run read. **Not always the sources in its graph** — see below |
 | `error` | why the build cannot be served, or `null` when it can |
 
 ## Response: a build's schema
@@ -75,7 +75,9 @@ Each build in `graphs` carries:
 | `node_types` | keyed by node type, each with its `count` and the ontology term it comes from, `source_type_uri` |
 | `edge_types` | keyed by an opaque label, each naming its `src_type`, `relation` and `dst_type`, with its `count` and its `origin`: `raw`, `enrichment` or `unification` |
 | `summary` | totals: `total_node_types`, `total_edge_types`, `total_nodes`, `total_edges` |
-| `version`, `build_metadata`, `relation_groups` | carried through; the application does not read them |
+| `version` | the schema's version, which says which fields the rest of it carries |
+| `build_metadata` | how the build was made. `/graph` reads one field of it, `sources_in_graph`, from version `1.4` |
+| `relation_groups` | carried through; the application does not read it |
 
 `nodes` in the listing and `node_types` in the schema count different things. A build
 holds millions of nodes across well over a hundred node types, and the graph draws one
@@ -88,6 +90,16 @@ The types the canvas leaves out are not lost: `/graph` lists every `node_types` 
 request is made for them, and nothing there comes from the `tables` paths below -- those
 answer across the published window rather than for one build, which under a build picker
 would read as something they are not.
+
+**A build's `sources` are what its run read, not what its graph holds.** From schema
+`1.4`, `build_metadata.sources_in_graph` names the sources whose node types reached the
+graph, and the two lists can differ by a whole source: the daily run reads `noaa` and
+leaves every `noaa` node type out, so a `1.4` build of it has `bls, market, noaa, sec`
+as its `sources` and `bls, market, sec` in its graph. `/graph`'s Sources row reads
+`sources_in_graph` from a `1.4` schema, and the listing's `sources` from an older one,
+which has no account of what reached the graph. Which of the two applies is in the
+schema's `version`, so that one row waits for the schema rather than showing the
+listing's list first.
 
 **`period` is a partition key, not a window over the data.** Builds are published under
 a partition -- `YYYY-MM`, nested year then month -- and an `id` is selected from within

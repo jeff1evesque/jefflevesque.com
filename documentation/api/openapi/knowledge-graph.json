@@ -110,7 +110,8 @@
                                 ],
                                 "items": {
                                   "type": "string"
-                                }
+                                },
+                                "description": "Every source the build's run read. They need not all be in its graph: from schema version 1.4, the build's schema says which are, in build_metadata.sources_in_graph."
                               },
                               "error": {
                                 "type": [
@@ -291,10 +292,28 @@
                       ],
                       "properties": {
                         "version": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "The schema's version, which says which fields the rest of it carries. Check it before reading build_metadata's sources."
                         },
                         "build_metadata": {
-                          "type": "object"
+                          "type": "object",
+                          "description": "How the build was made.",
+                          "properties": {
+                            "sources": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Every source the build's run read. From schema version 1.3."
+                            },
+                            "sources_in_graph": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "The sources whose node types reached the graph, which can be fewer than the run read. From schema version 1.4, and absent before it."
+                            }
+                          }
                         },
                         "node_types": {
                           "type": "object",

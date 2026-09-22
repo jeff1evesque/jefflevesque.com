@@ -142,6 +142,21 @@ function schemaOf(n) {
 }
 
 //
+// a schema at `version` whose build_metadata says the run read what the listing
+// says it read -- bls and sec -- and that only `in_graph` of it reached the
+// graph. A 1.4 build says the second; one before it does not.
+//
+function saying(version, in_graph = ['bls']) {
+    const build_metadata = { sources: BUILD_A.sources };
+
+    if (in_graph) {
+        build_metadata.sources_in_graph = in_graph;
+    }
+
+    return { ...schemaOf(4), version: version, build_metadata: build_metadata };
+}
+
+//
 // rendered inside a router at a real address: the page reads its build from the
 // path, so a bare render would be testing it without the input it takes.
 //
@@ -347,9 +362,9 @@ describe('while the build is still on its way', () => {
     it('fills the build panel a round trip before the legend', async () => {
         //
         // the two columns are waiting on different requests. Everything the
-        // build panel says is in the LISTING; only the legend needs the schema
-        // behind it. A page holding both until the last response arrived would
-        // be sitting on an answer it already had.
+        // build panel says but its Sources row is in the LISTING; the legend
+        // needs the schema behind it. A page holding both until the last
+        // response arrived would be sitting on an answer it already had.
         //
         getGraphById.mockReturnValue(new Promise(() => {}));
 
@@ -358,6 +373,21 @@ describe('while the build is still on its way', () => {
         expect(detail('Nodes')).toBe('9,884,064');
         expect(document.querySelector('.graph-panel-build .graph-pending')).toBeNull();
         expect(document.querySelector('.graph-panel-legend .graph-pending')).not.toBeNull();
+    });
+
+    it('holds the Sources row\'s place until the schema says which list it is', async () => {
+        //
+        // the one row that waits for the schema, whose version says which of a
+        // build's two source lists the row reads. The listing's own list, put
+        // up in the meantime, would name noaa over a graph holding none of it,
+        // and then change under the reader.
+        //
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(detail('Sources')).toBe('');
+        expect(document.querySelectorAll('.graph-panel-build .graph-pending-bar')).toHaveLength(1);
     });
 
     it('stands in for a legend of about the size the build will need', async () => {
@@ -705,10 +735,102 @@ describe('the build details', () => {
         expect(picker()).toHaveTextContent('2026-09-15 05:00 UTC · 512d');
     });
 
-    it('names the sources that went into the build', async () => {
+    //
+    // the listing's `sources` is every source the build's run read. From schema
+    // 1.4 a build also says which of them reached the graph, and the two differ
+    // by a whole source on the daily run, which reads noaa and leaves every
+    // noaa node type out of the graph -- so the row named a source the graph
+    // did not hold.
+    //
+    it('names the sources the graph holds, on a build that says', async () => {
+        getGraphById.mockResolvedValue(saying('1.4'));
+
         await setup();
 
-        expect(document.body.textContent).toContain('bls, sec');
+        expect(detail('Sources')).toBe('bls');
+    });
+
+    it('names the sources the run read, on a build too old to say', async () => {
+        //
+        // below 1.4 a build has no account of what reached its graph, and the
+        // run's own list is the only one there is.
+        //
+        getGraphById.mockResolvedValue(saying('1.3', undefined));
+
+        await setup();
+
+        expect(detail('Sources')).toBe('bls, sec');
+    });
+
+    it('goes by the version, not by whether the field is there', async () => {
+        //
+        // the version is what says a field means what the builder defines it
+        // to mean, and its documentation asks for it to be checked first.
+        //
+        getGraphById.mockResolvedValue(saying('1.3'));
+
+        await setup();
+
+        expect(detail('Sources')).toBe('bls, sec');
+    });
+
+    it.each(['1.10', '2.0'])('reads %s as newer than 1.4', async (version) => {
+        //
+        // compared a part at a time. As one float, 1.10 is 1.1.
+        //
+        getGraphById.mockResolvedValue(saying(version));
+
+        await setup();
+
+        expect(detail('Sources')).toBe('bls');
+    });
+
+    it('reads a build with no version as too old to say', async () => {
+        getGraphById.mockResolvedValue({ ...saying('1.4'), version: undefined });
+
+        await setup();
+
+        expect(detail('Sources')).toBe('bls, sec');
+    });
+
+    it('reads n/a for a 1.4 build that carries no metadata, rather than failing', async () => {
+        //
+        // not a document the builder writes: its version promises a field it
+        // does not have. The row says it has no answer, and the listing's list
+        // is no substitute -- it may name a source the graph does not hold.
+        //
+        getGraphById.mockResolvedValue({ ...schemaOf(4), version: '1.4' });
+
+        await setup();
+
+        expect(detail('Sources')).toBe('n/a');
+        expect(explorer()).toBeTruthy();
+    });
+
+    it('reads n/a for the sources of a build that could not be loaded', async () => {
+        //
+        // with no schema there is no telling which list applies, and the
+        // listing's may name a source the graph does not hold. The rest of the
+        // panel is the listing's, and stays.
+        //
+        getGraphById.mockResolvedValue(null);
+
+        await setup();
+
+        expect(detail('Sources')).toBe('n/a');
+        expect(detail('Nodes')).toBe('9,884,064');
+    });
+
+    it('reads the sources again for another build', async () => {
+        getGraphById.mockResolvedValue(saying('1.4'));
+
+        await setup();
+
+        getGraphById.mockResolvedValue(saying('1.3', undefined));
+
+        await chooseBuild('build-b');
+
+        expect(detail('Sources')).toBe('bls, sec');
     });
 
     it('calls the build total Nodes, because that is what it counts', async () => {
