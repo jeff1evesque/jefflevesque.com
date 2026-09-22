@@ -131,8 +131,6 @@ function crashFrom(stream) {
     }
 }
 
-const THIS_YEAR = new Date().getFullYear();
-
 beforeEach(() => {
     jest.clearAllMocks();
     mockWorkers.length = 0;
@@ -462,22 +460,48 @@ describe('the ticker count arriving from the worker', () => {
 
 describe('the archive list', () => {
     //
-    // the list is no longer invented from a date loop. The page asks which
-    // files a stream really published -- HEAD per candidate, on expansion --
-    // and offers the ones that answered as a file.
+    // the list is the performance api's listing, asked once, on expansion. It
+    // used to be a HEAD per guessed file -- up to 33 per stream -- judged by
+    // content type, because the site answers a missing path with its own shell
+    // and a 200, and the anchors carry `download`. Nothing listed can be that
+    // shell, so nothing here judges a content type any more.
     //
-    // A missing object does NOT 404 here: the site answers an unmatched path
-    // with the app's shell, 200 and text/html, and the anchors carry
-    // `download`, so a dead link used to save half a kilobyte of markup under
-    // the name `2026.csv`. That is why these answer with a content type and why
-    // the judgement is on the type rather than the status.
-    //
-    const CSV = 'binary/octet-stream';
-    const SHELL = 'text/html';
+    const ORIGIN = 'https://www.jefflevesque.com/artifact/performance/ingest';
+    const LISTING_URL = 'https://api.jefflevesque.com/v1/public/performance/archive';
 
-    function answering(typeFor) {
-        global.fetch = jest.fn((url) => Promise.resolve({
-            headers: { get: () => typeFor(String(url)) },
+    const yearly = (stream, folder, years) => years.map((year) => ({
+        stream,
+        period: String(year),
+        id: `${stream}/${year}`,
+        url: `${ORIGIN}/${folder}/${year}.csv`,
+    }));
+
+    const monthly = (stream, folder, months) => months.map((period) => ({
+        stream,
+        period,
+        id: `${stream}/${period.replace('-', '/')}`,
+        url: `${ORIGIN}/${folder}/${period.replace('-', '/')}.csv`,
+    }));
+
+    //
+    // the api's shape, and the three things the guessing got wrong: two streams
+    // filed under a folder that is not their id, and 'bls', named but empty
+    //
+    const LISTING = {
+        streams: ['bls', 'sec', 'stockmarket', 'stockmarketstocksplit', 'usnationalweather'],
+        archives: [
+            ...monthly('sec', 'article/sec', ['2024-12', '2025-09']),
+            ...yearly('stockmarket', 'stock-market', [2023, 2024, 2025, 2026]),
+            ...yearly('stockmarketstocksplit', 'stock-split', [2023, 2024, 2025, 2026]),
+            ...monthly('usnationalweather', 'article/weather', ['2025-06', '2025-07']),
+        ],
+    };
+
+    function answering(listing = LISTING) {
+        global.fetch = jest.fn(() => Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ report: listing }),
         }));
 
         return global.fetch;
@@ -493,117 +517,63 @@ describe('the archive list', () => {
     const offered = () => [...document.querySelectorAll('.left-column a[download]')]
         .map((a) => a.textContent);
 
+    async function expand() {
+        await userEvent.click(archiveToggle());
+        // the listing lands after the click, so let it settle
+        await act(async () => {});
+    }
+
     afterEach(() => {
         delete global.fetch;
     });
 
     it('is collapsed until it is clicked', () => {
-        answering(() => CSV);
-        renderAlarm('bls');
+        answering();
+        renderAlarm('sec');
 
-        expect(screen.queryByText(`${THIS_YEAR}.csv`)).not.toBeInTheDocument();
+        expect(screen.queryByText('09/2025.csv')).not.toBeInTheDocument();
     });
 
     it('asks nothing until a reader expands it', () => {
-        //
-        // the whole reason asking is affordable: it costs a click, not a page
-        // view.
-        //
-        const fetcher = answering(() => CSV);
+        const fetcher = answering();
         renderAlarm('bls');
 
         expect(fetcher).not.toHaveBeenCalled();
     });
 
-    it('asks with HEAD, so nothing is downloaded to find out', async () => {
-        const fetcher = answering(() => CSV);
+    it('asks the listing once, with a plain GET -- no HEAD per file', async () => {
+        const fetcher = answering();
         renderAlarm('bls');
 
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
+        await expand();
 
-        expect(fetcher.mock.calls.every(([, init]) => init.method === 'HEAD')).toBe(true);
+        expect(fetcher).toHaveBeenCalledTimes(1);
+        expect(String(fetcher.mock.calls[0][0])).toBe(LISTING_URL);
+        expect(fetcher.mock.calls[0][1]).toBeUndefined();
     });
 
-    it('offers a file that is published', async () => {
-        answering(() => CSV);
-        renderAlarm('bls');
-
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
-
-        expect(offered()).toContain(`${THIS_YEAR}.csv`);
-    });
-
-    it('does not offer one that answers with the app shell', async () => {
-        //
-        // the case the old list got wrong thirty-one times over
-        //
-        answering((url) => (url.includes('2024') ? CSV : SHELL));
-        renderAlarm('bls');
-
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
-
-        expect(offered()).toEqual(['2024.csv']);
-    });
-
-    it('judges the content type rather than the status', async () => {
-        //
-        // every dead path answers 200, so a status check would pass all of them
-        // and change nothing at all.
-        //
-        answering(() => SHELL);
-        renderAlarm('bls');
-
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
-
-        expect(offered()).toEqual([]);
-        expect(screen.getByText('Nothing published yet')).toBeInTheDocument();
-    });
-
-    it('drops a candidate whose request fails outright', async () => {
-        global.fetch = jest.fn(() => Promise.reject(new Error('offline')));
-        renderAlarm('bls');
-
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
-
-        expect(offered()).toEqual([]);
-    });
-
-    it('breaks the year down by month for sec', async () => {
-        answering(() => CSV);
+    it('offers exactly the files the listing names for the stream, newest first', async () => {
+        answering();
         renderAlarm('sec');
 
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
+        await expand();
 
-        expect(offered()).toContain(`01/${THIS_YEAR}.csv`);
+        expect(offered()).toEqual(['09/2025.csv', '12/2024.csv']);
     });
 
-    it('offers a past year in full, not truncated at this month', async () => {
+    it('links each file where the listing says it is served', async () => {
         //
-        // the month bound is the CURRENT month and used to cap every year, so
-        // in September the archive hid October to December of 2024 and 2025 --
-        // real files, withheld because of the date on the reader's clock.
+        // the site's own origin, so `download` saves the file. A link to the
+        // api's redirect would be cross-origin, and a browser ignores
+        // `download` on one.
         //
-        answering(() => CSV);
+        answering();
         renderAlarm('sec');
 
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
+        await expand();
 
-        expect(offered()).toContain(`12/${THIS_YEAR - 1}.csv`);
-        expect(offered()).not.toContain(`12/${THIS_YEAR}.csv`);
+        expect([...document.querySelectorAll('.left-column a[download]')].map((a) => a.getAttribute('href')))
+            .toEqual([`${ORIGIN}/article/sec/2025/09.csv`, `${ORIGIN}/article/sec/2024/12.csv`]);
     });
 
     it.each([
@@ -611,80 +581,133 @@ describe('the archive list', () => {
         ['stockmarketstocksplit', 'stock-split'],
     ])('offers %s a file a year from 2023, filed under %s', async (stream, dataset) => {
         //
-        // both stock market streams said 'Nothing published yet', and this
-        // case said that was right. The files were there all along, under the
-        // dataset's name rather than the stream's -- the page had only ever
-        // asked for them under the stream's.
+        // both stock market streams once said 'Nothing published yet', because
+        // the page guessed their folder from their stream id. The listing names
+        // the stream by its id and the file by its real url.
         //
-        answering(() => CSV);
+        answering();
         renderAlarm(stream);
 
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
+        await expand();
 
-        const years = [];
-        for (let year = THIS_YEAR; year >= 2023; year -= 1) {
-            years.push(`${year}.csv`);
-        }
-
-        expect(offered()).toEqual(years);
-        expect(screen.queryByText('Nothing published yet')).not.toBeInTheDocument();
+        expect(offered()).toEqual(['2026.csv', '2025.csv', '2024.csv', '2023.csv']);
         [...document.querySelectorAll('.left-column a[download]')].forEach((anchor) => {
             expect(anchor.getAttribute('href')).toContain(`/ingest/${dataset}/`);
         });
     });
 
-    it('offers nothing for a stream the archive does not know', async () => {
+    it('offers the weather stream its files, from the id the stream page links', async () => {
         //
-        // the branch the stock market streams used to reach, and a real one
-        // still: a stream with no entry has nothing to ask about, so nothing
-        // is asked and the page says so rather than guessing at a path.
+        // the page renames this stream 'us-national-weather' for its own use,
+        // but the column is keyed on the id in the url -- 'USNationalWeather',
+        // lower-cased -- which is how the listing names it. A key taken from
+        // the page's own name would match nothing.
         //
-        const fetcher = answering(() => CSV);
-        renderAlarm('no-such-stream');
+        answering();
+        renderAlarm('USNationalWeather');
+
+        await expand();
+
+        expect(offered()).toEqual(['07/2025.csv', '06/2025.csv']);
+    });
+
+    it('says "Checking..." while the listing is on its way', async () => {
+        //
+        // an empty list used to stand for both "asked" and "nothing published",
+        // so for as long as the answer was in flight the row said the second.
+        //
+        let release;
+        global.fetch = jest.fn(() => new Promise((resolve) => {
+            release = resolve;
+        }));
+        renderAlarm('sec');
 
         await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
 
-        expect(fetcher).not.toHaveBeenCalled();
+        expect(screen.getByText('Checking...')).toBeInTheDocument();
+        expect(screen.queryByText('Nothing published yet')).not.toBeInTheDocument();
+
+        await act(async () => {
+            release({ ok: true, status: 200, json: () => Promise.resolve({ report: LISTING }) });
+        });
+
+        expect(offered()).toEqual(['09/2025.csv', '12/2024.csv']);
+    });
+
+    it('says "Nothing published yet" for a stream the listing names with no files', async () => {
+        answering();
+        renderAlarm('bls');
+
+        await expand();
+
+        expect(offered()).toEqual([]);
+        expect(screen.getByText('Nothing published yet')).toBeInTheDocument();
+    });
+
+    it.each([
+        ['the request fails outright', () => Promise.reject(new Error('offline'))],
+        ['the api answers with an error', () => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) })],
+    ])('says it could not ask when %s, rather than that nothing was published', async (_, answer) => {
+        global.fetch = jest.fn(answer);
+        renderAlarm('sec');
+
+        await expand();
+
+        expect(screen.getByText('Archive unavailable right now')).toBeInTheDocument();
+        expect(screen.queryByText('Nothing published yet')).not.toBeInTheDocument();
+    });
+
+    it('asks again on the next expansion after a failure', async () => {
+        global.fetch = jest.fn()
+            .mockImplementationOnce(() => Promise.reject(new Error('offline')))
+            .mockImplementation(() => Promise.resolve({
+                ok: true,
+                status: 200,
+                json: () => Promise.resolve({ report: LISTING }),
+            }));
+        renderAlarm('sec');
+
+        await expand();
+        expect(screen.getByText('Archive unavailable right now')).toBeInTheDocument();
+
+        await expand();
+        await expand();
+
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(offered()).toEqual(['09/2025.csv', '12/2024.csv']);
+    });
+
+    it('offers nothing for a stream the listing does not know', async () => {
+        answering();
+        renderAlarm('no-such-stream');
+
+        await expand();
+
+        expect(offered()).toEqual([]);
         expect(screen.getByText('Nothing published yet')).toBeInTheDocument();
     });
 
     it('collapses again on a second click', async () => {
-        answering(() => CSV);
-        renderAlarm('bls');
+        answering();
+        renderAlarm('sec');
 
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
+        await expand();
         expect(offered().length).toBeGreaterThan(0);
 
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
+        await expand();
 
         expect(offered()).toEqual([]);
     });
 
     it('asks once, not again on every expansion', async () => {
-        const fetcher = answering(() => CSV);
-        renderAlarm('bls');
+        const fetcher = answering();
+        renderAlarm('sec');
 
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
-        const first = fetcher.mock.calls.length;
+        await expand();
+        await expand();
+        await expand();
 
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
-
-        expect(fetcher.mock.calls.length).toBe(first);
+        expect(fetcher).toHaveBeenCalledTimes(1);
     });
 
     it.each([
@@ -698,19 +721,17 @@ describe('the archive list', () => {
         // stream-name.js exists to keep identifiers out of the page and carries
         // the reasoning for each of these. This column printed the raw id.
         //
-        answering(() => CSV);
+        answering();
         renderAlarm(stream);
 
         expect(screen.getByText(label)).toBeInTheDocument();
     });
 
     it('puts the react key on the anchor it repeats', async () => {
-        answering(() => CSV);
-        renderAlarm('bls');
+        answering();
+        renderAlarm('sec');
 
-        await userEvent.click(archiveToggle());
-        // the HEAD answers land after the click, so let them settle
-        await act(async () => {});
+        await expand();
 
         const anchors = [...document.querySelectorAll('.left-column a[download]')];
         expect(anchors.length).toBeGreaterThan(0);
