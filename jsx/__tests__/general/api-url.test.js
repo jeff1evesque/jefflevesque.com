@@ -18,6 +18,7 @@ const path = require('path');
 
 import {
     performanceUrl,
+    performanceArchiveUrl,
     datalakeUrl,
     knowledgeGraphUrl,
     knowledgeGraphTablesUrl,
@@ -106,6 +107,23 @@ describe('performanceUrl', () => {
     it('can be pointed elsewhere', () => {
         expect(String(performanceUrl('bls', 'day', 'UTC', 'https://example.com/p')))
             .toMatch(/^https:\/\/example\.com\/p\?Stream=bls/);
+    });
+});
+
+describe('performanceArchiveUrl', () => {
+    it('asks for the whole listing, with nothing on the query string', () => {
+        //
+        // one request for every stream, and the api refuses a query string on
+        // any archive route -- so nothing is sent to narrow it.
+        //
+        const url = performanceArchiveUrl();
+
+        expect(String(url)).toBe('https://api.jefflevesque.com/v1/public/performance/archive');
+        expect([...url.searchParams.keys()]).toEqual([]);
+    });
+
+    it('can be pointed elsewhere', () => {
+        expect(String(performanceArchiveUrl('https://example.com/a'))).toBe('https://example.com/a');
     });
 });
 
@@ -279,8 +297,43 @@ describe('the endpoints and the documentation', () => {
 });
 
 describe('what is sent is what is documented', () => {
-    it('performance: exactly the parameters its document declares', () => {
-        expect(sent(performanceUrl('bls', 'day', 'UTC'))).toEqual(declared(documentOf('performance')));
+    it('performance: exactly the parameters its report route declares', () => {
+        //
+        // per route, now that the document holds the archive's routes too. They
+        // take no query string, so a document-wide answer would still agree --
+        // but only by accident.
+        //
+        expect(sent(performanceUrl('bls', 'day', 'UTC')))
+            .toEqual(declaredFor(documentOf('performance'), '/performance'));
+    });
+
+    it('performance archive: sends no query parameter, because its routes declare none', () => {
+        const document = documentOf('performance');
+
+        expect(sent(performanceArchiveUrl())).toEqual([]);
+        expect(declaredFor(document, '/performance/archive')).toEqual([]);
+        expect(declaredFor(document, '/performance/archive/{stream}/{year}')).toEqual([]);
+        expect(declaredFor(document, '/performance/archive/{stream}/{year}/{month}')).toEqual([]);
+    });
+
+    it('performance: asks for the routes its document templates, save the archive\'s files', () => {
+        //
+        // the two file routes are documented and never built. The page links
+        // each file where the listing says it is served: the api would answer
+        // with a redirect to that same url, but a link to the api is
+        // cross-origin, and a browser ignores `download` on one.
+        //
+        const document = documentOf('performance');
+        const report = performanceUrl('bls', 'day', 'UTC');
+
+        expect(Object.keys(document.paths).sort()).toEqual([
+            '/performance',
+            '/performance/archive',
+            '/performance/archive/{stream}/{year}',
+            '/performance/archive/{stream}/{year}/{month}',
+        ]);
+        expect(routeSent(document, report.origin + report.pathname)).toBe('/performance');
+        expect(routeSent(document, performanceArchiveUrl())).toBe('/performance/archive');
     });
 
     it('datalake: exactly the parameters its document declares', () => {
@@ -351,6 +404,21 @@ describe('what is sent is what is documented', () => {
     it('every stream a page asks performance about is a documented Stream', () => {
         expect(Object.keys(DATASETS).sort())
             .toEqual([...parameterOf(documentOf('performance'), 'Stream').schema.enum].sort());
+    });
+
+    it('every stream a page looks up in the archive is one the listing documents', () => {
+        //
+        // the alarm page finds a stream's files by its stream id, so a listing
+        // that named its streams any other way would offer every stream nothing
+        // -- quietly, as 'Nothing published yet'.
+        //
+        const document = documentOf('performance');
+        const report = document.paths['/performance/archive'].get
+            .responses['200'].content['application/json'].schema.properties.report;
+
+        expect(Object.keys(DATASETS).sort()).toEqual([...report.properties.streams.items.enum].sort());
+        expect(Object.keys(DATASETS).sort())
+            .toEqual([...parameterOf(document, 'stream').schema.enum].sort());
     });
 
     it('every dataset a page asks the datalake about is a documented Data', () => {
