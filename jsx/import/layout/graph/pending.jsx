@@ -107,6 +107,28 @@ export function PendingPicker() {
 const DETAIL_WIDTHS = ['4.5rem', '5.5rem', '7rem', '9rem', '9rem', '6rem', '3.5rem'];
 
 /**
+ * one of the build panel's values that has not arrived, by its row.
+ *
+ * The whole panel's stand-in draws one of these in every row. The real panel
+ * draws one in its Sources row alone, which waits for the schema a round trip
+ * after the rest of the panel has filled in from the listing -- see graphSources
+ * in graph.jsx -- so the row keeps the bar it had rather than changing size
+ * twice.
+ */
+export function PendingDetail({ index }) {
+    return (
+        <PendingBar
+            width={DETAIL_WIDTHS[index % DETAIL_WIDTHS.length]}
+            delay={index * STAGGER}
+        />
+    );
+}
+
+PendingDetail.propTypes = {
+    index: PropTypes.number.isRequired,
+};
+
+/**
  * the build panel, before the listing names a build.
  *
  * The labels are handed in rather than written here, because graph.jsx holds
@@ -120,10 +142,7 @@ export function PendingDetails({ labels }) {
                 <div key={label} className='graph-details-row'>
                     <dt>{label}</dt>
                     <dd>
-                        <PendingBar
-                            width={DETAIL_WIDTHS[index % DETAIL_WIDTHS.length]}
-                            delay={index * STAGGER}
-                        />
+                        <PendingDetail index={index} />
                     </dd>
                 </div>
             ))}
