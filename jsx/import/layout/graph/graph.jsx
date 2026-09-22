@@ -45,8 +45,9 @@
  *       and their controls -- is on screen at its own size from the first
  *       paint, holding a placeholder, and the data fills those in. See
  *       pending.jsx, and note that the page arrives in two pieces: the listing
- *       answers the picker and the whole build panel, and only the legend, the
- *       canvas and the tables are waiting on the schema behind it.
+ *       answers the picker and all of the build panel but its Sources row, and
+ *       only that row, the legend, the canvas and the tables are waiting on the
+ *       schema behind it.
  */
 
 import React, { Component } from 'react';
@@ -69,6 +70,7 @@ import GraphTables from './tables.jsx';
 import {
     PendingCanvas,
     PendingCaption,
+    PendingDetail,
     PendingDetails,
     PendingLegend,
     PendingPicker,
@@ -227,8 +229,56 @@ function count(n) {
 }
 
 //
+// the first schema version that says which sources reached the graph, rather
+// than only which ones its run read. See graphSources.
+//
+const SOURCES_IN_GRAPH = [1, 4];
+
+//
+// whether a schema's `version` is at least [major, minor].
+//
+// Compared a part at a time, as numbers. As text or as one float, '1.10' would
+// come out below '1.4'.
+//
+// Note: a version that is missing or does not parse is below every version,
+//       so the page reads that build the way it read every build before 1.4.
+//
+function atLeast(version, [major, minor]) {
+    const [have, part] = String(version || '').split('.').map(Number);
+
+    return have > major || (have === major && part >= minor);
+}
+
+/**
+ * the sources the GRAPH holds, which need not be every source its run read.
+ *
+ * The listing's `sources` is what the run read. From schema 1.4 a build also
+ * says what reached the graph, in `build_metadata.sources_in_graph`, and the two
+ * can differ by a whole source: the daily run reads noaa and leaves every one of
+ * its node types out of the graph. Below 1.4 a build cannot say, and `sources`
+ * is the only account there is. It is what this row showed for every build
+ * before.
+ *
+ * Note: undefined while there is no schema, because until there is one it is
+ *       not known which of the two lists applies. The listing's list is not a
+ *       safe guess: on a 1.4 build it names a source the graph does not hold.
+ */
+function graphSources(build, schema) {
+    if (!schema) {
+        return undefined;
+    }
+
+    const sources = atLeast(schema.version, SOURCES_IN_GRAPH)
+        ? (schema.build_metadata || {}).sources_in_graph
+        : build.sources;
+
+    return (sources || []).join(', ');
+}
+
+//
 // the build panel's rows: what each is called, and how to read it off a listing
-// entry.
+// entry. `schema` marks the one row that is read off the build's schema as
+// well, and so has to wait for it. See details.
 //
 // A table rather than a list built inline, because the placeholder that stands
 // in for this panel while the listing is still on its way is laid out from the
@@ -236,16 +286,16 @@ function count(n) {
 // a row is added to one of them.
 //
 const DETAILS = [
-    ['Nodes', (build) => count(build.nodes)],
-    ['Edges', (build) => count(build.edges)],
-    ['Sources', (build) => (build.sources || []).join(', ')],
-    ['Run', (build) => when(build.run)],
-    ['Built', (build) => when(build.built)],
-    ['Dataset', (build) => build.dataset],
-    ['Variant', (build) => build.variant],
+    { label: 'Nodes', read: (build) => count(build.nodes) },
+    { label: 'Edges', read: (build) => count(build.edges) },
+    { label: 'Sources', read: graphSources, schema: true },
+    { label: 'Run', read: (build) => when(build.run) },
+    { label: 'Built', read: (build) => when(build.built) },
+    { label: 'Dataset', read: (build) => build.dataset },
+    { label: 'Variant', read: (build) => build.variant },
 ];
 
-const DETAIL_LABELS = DETAILS.map(([label]) => label);
+const DETAIL_LABELS = DETAILS.map((row) => row.label);
 
 //
 // what tells the builds in the picker apart, which is not what the listing
@@ -1243,17 +1293,27 @@ class GraphLayout extends Component {
     //       and fifty. The label said the second over the first, which made the
     //       canvas look like it was missing all but sixty of ten million.
     //
+    // Note: Sources waits for the schema as well -- see graphSources. It holds
+    //       its place with the bar the whole panel's stand-in draws in that
+    //       row, and reads 'n/a' once there is no schema coming.
+    //
     details(build) {
         if (!build) {
             return null;
         }
 
+        const whole = this.state.build;
+
         return (
             <dl className='graph-details'>
-                {DETAILS.map(([label, read]) => (
-                    <div key={label} className='graph-details-row'>
-                        <dt>{label}</dt>
-                        <dd>{read(build) || 'n/a'}</dd>
+                {DETAILS.map((row, index) => (
+                    <div key={row.label} className='graph-details-row'>
+                        <dt>{row.label}</dt>
+                        <dd>
+                            {row.schema && !whole && this.state.loading
+                                ? <PendingDetail index={index} />
+                                : row.read(build, whole) || 'n/a'}
+                        </dd>
                     </div>
                 ))}
             </dl>
@@ -1271,9 +1331,10 @@ class GraphLayout extends Component {
      * fallback of the content it stands in for.
      *
      * Note: which matters, because the two columns stop waiting a whole round
-     *       trip apart. The build panel is drawn entirely from the LISTING, so
-     *       it fills in at the first response, while the legend is waiting on
-     *       the schema behind it.
+     *       trip apart. The build panel is drawn from the LISTING, so it fills
+     *       in at the first response, while the legend is waiting on the schema
+     *       behind it. The panel's Sources row waits with the legend, and holds
+     *       its own place meanwhile -- see details.
      */
     pending(key) {
         if (!this.state.loading) {
@@ -1288,7 +1349,7 @@ class GraphLayout extends Component {
     //
     // Note: headed 'Namespaces', not 'Sources'. These are the namespaces the
     //       node types come from -- jolts, eci, laus -- which is not the same
-    //       list as the build's sources (bls, market, noaa, sec). The panel
+    //       list as the sources the graph holds (bls, market, sec). The panel
     //       beside it lists the sources under that name, and two different
     //       lists under one heading read as a contradiction.
     //
