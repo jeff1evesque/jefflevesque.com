@@ -35,7 +35,7 @@ import { useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName from '../../general/stream-name.js';
-import { archiveCandidates, published } from '../../general/archive-links.js';
+import { loadArchiveListing, archiveFiles } from '../../general/archive-links.js';
 import { datalakeUrl, DATASETS } from '../../general/api-url.js';
 
 class StreamAlarm extends Component {
@@ -54,7 +54,6 @@ class StreamAlarm extends Component {
             yyyy: yyyy,
             stream: stream,
             tool_tip_color: '#777',
-            performance_link: 'https://www.jefflevesque.com/artifact/performance',
             artifact_link: 'https://www.jefflevesque.com/artifact',
             current_accordion: false,
             total_tickers: 0,
@@ -68,9 +67,9 @@ class StreamAlarm extends Component {
             expand_archive_bls: false,
             expand_archive_sec: false,
             //
-            // per stream: absent until asked, then the files that really exist.
-            // See loadArchive -- this list used to be a date loop, and half of
-            // what it produced was not there.
+            // per stream: absent until asked, 'pending' while the listing is on
+            // its way, then the files it lists -- or 'failed' when it could not
+            // be had. See loadArchive.
             //
             archive: {}
         }
@@ -109,42 +108,39 @@ class StreamAlarm extends Component {
     }
 
     /**
-     * ask which of a stream's archive files are really published.
+     * ask the performance api which archive files the stream has published.
      *
      * On EXPANSION rather than on load, and once per stream. The sublinks sit
      * inside a Collapse with `unmountOnExit`, so they do not exist until a
-     * reader opens that stream -- which is what makes asking affordable: at
-     * most twenty-seven requests, on a click, for one stream, instead of a
-     * hundred on every page view.
+     * reader opens that stream. One request answers it: the listing holds every
+     * stream, and the api lets a browser keep it for five minutes.
      *
-     * Note: HEAD, so nothing is downloaded to find out whether it is there.
+     * Note: 'pending' is set before the answer lands, and is not an empty list.
+     *       An empty list read "Nothing published yet" for as long as the page
+     *       was still asking.
      *
-     * Note: a request that fails outright is treated as 'not published', the
-     *       same as one answering the app's shell. Either way there is nothing
-     *       to offer, and a link that might work is the thing being removed.
+     * Note: a listing that could not be had is 'failed', not an empty list, and
+     *       is asked again on the next expansion -- nothing was learned about
+     *       what the stream published.
      */
     loadArchive(stream) {
         const key = String(stream).toLowerCase();
+        const asked = this.state.archive[key];
 
-        if (this.state.archive[key]) {
+        if (asked && asked !== 'failed') {
             return;
         }
 
-        const candidates = archiveCandidates(key, this.state.performance_link);
+        this.setState((state) => ({ archive: { ...state.archive, [key]: 'pending' } }));
 
-        this.setState((state) => ({ archive: { ...state.archive, [key]: [] } }));
-
-        if (!candidates.length) {
-            return;
-        }
-
-        Promise.all(candidates.map((file) => fetch(file.href, { method: 'HEAD' })
-            .then((answer) => (published(answer.headers.get('content-type')) ? file : null))
-            .catch(() => null)))
-            .then((found) => {
+        loadArchiveListing()
+            .then((listing) => {
                 this.setState((state) => ({
-                    archive: { ...state.archive, [key]: found.filter(Boolean) },
+                    archive: { ...state.archive, [key]: archiveFiles(listing, key) },
                 }));
+            })
+            .catch(() => {
+                this.setState((state) => ({ archive: { ...state.archive, [key]: 'failed' } }));
             });
     }
 
@@ -395,12 +391,16 @@ class StreamAlarm extends Component {
         }
 
         //
-        // the archive column: the files this stream really published, which the
-        // page has asked about -- see loadArchive. Empty until it has, and
-        // empty for good on a stream that publishes nothing.
+        // the archive column: the files this stream published, as the listing
+        // names them -- see loadArchive. Keyed on the stream id from the url,
+        // lower-cased, which is how the listing names a stream.
         //
         const key = String(stream).toLowerCase();
         const found = this.state.archive[key];
+        const files = Array.isArray(found) ? found : [];
+        const status = found === 'failed'
+            ? 'Archive unavailable right now'
+            : Array.isArray(found) ? 'Nothing published yet' : 'Checking...';
         const links = [
             <div key={key}>
                 <ListItemButton onClick={() => {
@@ -415,8 +415,8 @@ class StreamAlarm extends Component {
                     unmountOnExit
                 >
                     <List component='div' disablePadding>
-                        {found && found.length
-                            ? found.map((file) => (
+                        {files.length
+                            ? files.map((file) => (
                                 <a href={file.href} download key={file.href}>
                                     <ListItemButton>
                                         <ListItemText primary={file.label} />
@@ -425,11 +425,7 @@ class StreamAlarm extends Component {
                             ))
                             : (
                                 <ListItemButton disabled>
-                                    <ListItemText
-                                        primary={found
-                                            ? 'Nothing published yet'
-                                            : 'Checking...'}
-                                    />
+                                    <ListItemText primary={status} />
                                 </ListItemButton>
                             )}
                     </List>
