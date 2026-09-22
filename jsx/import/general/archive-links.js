@@ -1,110 +1,65 @@
 /**
- * archive-links.js: which archived performance files a stream might have, and
- *                   which of them are really there.
+ * archive-links.js: the archived performance files a stream has published, as the
+ *                   performance api lists them.
  *
  * `/stream/<source>/alarm` offers the raw ingest performance metrics as csv, a
- * file per year or per month. The list used to be INVENTED: the page counted
- * from a start year to today and built a url per step, so every link was a
- * guess that an object sat at that path. Thirty-one of the sixty-five it
- * generated were guesses that were wrong.
+ * file per year or per month. That list used to be built here. The page counted
+ * from a start year to today, built a url per step, and sent each one a HEAD to
+ * learn whether it was really there: up to 33 requests per stream, still a guess
+ * at where each stream's files are filed, and judged by content type because the
+ * site answers a missing path with its own shell and a 200.
  *
- * Nothing catches that, because a path with no object behind it does not 404.
- * The site answers an unmatched path with the single-page app's shell -- HTTP
- * 200, `text/html`, about half a kilobyte -- and the anchors carry `download`,
- * so the browser saves that shell under the name it was asked for. A reader
- * clicking `2026.csv` got a file called `2026.csv` full of `<!DOCTYPE html>`.
- *
- * So this module does two things and the page does the asking between them:
- * name the candidates, and judge an answer. What it cannot do is publish a file
- * that was never published -- a candidate with nothing behind it is dropped
- * from the list, not repaired.
- *
- * Note: judged on the CONTENT TYPE rather than the status. Every dead path
- *       answers 200, so a status check passes all of them and changes nothing.
+ * The api lists them now. One request answers for every stream, and each entry
+ * carries the url its file is served from. Nothing here knows a folder name, and
+ * nothing listed can turn out to be the app's shell saved under a `.csv` name.
  */
 
-import { DATASETS } from './api-url.js';
-
-//
-// where each stream's archive lives, how far back it goes, and whether it is
-// filed by year or by month.
-//
-// Note: the two stock market streams are filed under their DATASET name, not
-//       their stream id -- 'ingest/stock-market/2024.csv', where the id would
-//       say 'ingest/stockmarket/'. Those are different strings for exactly
-//       these two streams, and DATASETS in api-url.js is where that is written
-//       down, so their paths are read from it rather than spelled out again.
-//
-//       Spelling them out again is how this list once came to leave both
-//       streams out: it looked for their files under the id, found nothing
-//       there, and recorded that as nothing being published. Both publish a
-//       file a year from 2023.
-//
-const ARCHIVES = {
-    bls: { path: 'ingest/article/bls', since: 2024, by: 'year' },
-    sec: { path: 'ingest/article/sec', since: 2024, by: 'month' },
-    stockmarket: { path: `ingest/${DATASETS.stockmarket}`, since: 2023, by: 'year' },
-    stockmarketstocksplit: {
-        path: `ingest/${DATASETS.stockmarketstocksplit}`,
-        since: 2023,
-        by: 'year',
-    },
-    usnationalweather: { path: 'ingest/article/weather', since: 2024, by: 'month' },
-};
+import { performanceArchiveUrl } from './api-url.js';
 
 /**
- * every file `stream` might have published, newest first.
+ * the listing: every stream the api carries, and each file each has published.
  *
- * Note: the month bound applies to the CURRENT year alone. It used to cap every
- *       year at the month it happens to be now, so in September the archive hid
- *       October, November and December of 2024 and 2025 -- six real files, on
- *       the day this was written, withheld because of the date on the reader's
- *       clock.
- *
- * Note: `today` is an argument so a test can state the date rather than work
- *       around it. The page passes nothing.
+ * Rejects when the api does not answer with one, so the page can tell "nothing
+ * published" apart from "could not ask".
  */
-export function archiveCandidates(stream, base, today = new Date()) {
-    const archive = ARCHIVES[String(stream).toLowerCase()];
+export function loadArchiveListing(url = performanceArchiveUrl()) {
+    return fetch(url)
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error(`the archive listing answered ${response.status}`);
+            }
 
-    if (!archive || !base) {
-        return [];
-    }
+            return response.json();
+        })
+        .then(({ report }) => report);
+}
 
-    const thisYear = today.getFullYear();
-    const thisMonth = today.getMonth() + 1;
-    const out = [];
+//
+// '2024' -> '2024.csv', '2025-09' -> '09/2025.csv': the labels this column has
+// always drawn
+//
+function labelOf(period) {
+    const [year, month] = String(period).split('-');
 
-    for (let year = thisYear; year >= archive.since; year--) {
-        if (archive.by === 'year') {
-            out.push({
-                href: `${base}/${archive.path}/${year}.csv`,
-                label: `${year}.csv`,
-            });
-            continue;
-        }
-
-        const last = year === thisYear ? thisMonth : 12;
-
-        for (let month = 1; month <= last; month++) {
-            const mm = String(month).padStart(2, '0');
-
-            out.push({
-                href: `${base}/${archive.path}/${year}/${mm}.csv`,
-                label: `${mm}/${year}.csv`,
-            });
-        }
-    }
-
-    return out;
+    return month ? `${month}/${year}.csv` : `${year}.csv`;
 }
 
 /**
- * whether an answer is the file that was asked for, or the app's shell wearing
- * its name.
+ * one stream's files from a listing, newest first, as the rows the page draws.
+ *
+ * Note: matched on the stream id, lower-cased, which is how the listing names a
+ *       stream -- 'usnationalweather', not the alarm page's own
+ *       'us-national-weather'.
+ *
+ * Note: a year's own file sorts after that year's months. Both are listed when
+ *       both were published, and they are different files.
  */
-export function published(contentType) {
-    return !!contentType && !/text\/html/i.test(contentType);
-}
+export function archiveFiles(listing, stream) {
+    const key = String(stream).toLowerCase();
+    const entries = listing && Array.isArray(listing.archives) ? listing.archives : [];
 
-export { ARCHIVES };
+    return entries
+        .filter((entry) => entry.stream === key)
+        .sort((a, b) => String(b.period).localeCompare(String(a.period)))
+        .map((entry) => ({ href: entry.url, label: labelOf(entry.period) }));
+}
