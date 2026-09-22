@@ -24,6 +24,8 @@ import { render, screen, act } from '@testing-library/react';
 import {
     PendingCanvas,
     PendingCaption,
+    PendingDetail,
+    PendingDetails,
     pendingGraph,
 } from '../../../import/layout/graph/pending.jsx';
 import { GRAPH_NODE_TYPES } from '../../../import/animation/filter-schema.js';
@@ -439,5 +441,27 @@ describe('PendingCaption', () => {
         render(<PendingCaption />);
 
         expect(screen.getByRole('status')).toHaveTextContent('Loading the graph');
+    });
+});
+
+describe('PendingDetail', () => {
+    //
+    // the build panel's Sources row waits for the schema a round trip after the
+    // rest of the panel has filled in from the listing, and holds its place with
+    // this meanwhile. A bar of another width would be a row that changed size
+    // once when the listing landed and again when the schema did.
+    //
+    it('draws the bar the whole panel\'s stand-in drew in the same row', () => {
+        const labels = ['Nodes', 'Edges', 'Sources'];
+        const { container } = render(<PendingDetails labels={labels} />);
+        const stood = [...container.querySelectorAll('.graph-pending-bar')]
+            .map((bar) => bar.getAttribute('style'));
+
+        labels.forEach((label, index) => {
+            const { container: row } = render(<PendingDetail index={index} />);
+
+            expect(row.querySelector('.graph-pending-bar').getAttribute('style'))
+                .toBe(stood[index]);
+        });
     });
 });
