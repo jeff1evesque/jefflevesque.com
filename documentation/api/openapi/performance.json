@@ -3,7 +3,7 @@
   "info": {
     "title": "Performance",
     "version": "v1",
-    "description": "How much one ingest stream took in, and how much of it succeeded, bucketed over a trailing window. Read by the /stream page.\n\n**The archive.** The same measurement is also published as static csv, one file per year or per month, under `https://www.jefflevesque.com/artifact/performance/ingest/`. The files are served by the website rather than by this api, which is why no operation below reaches them:\n\n- `bls`: `article/bls/<year>.csv`, by year, from 2024\n- `sec`: `article/sec/<year>/<month>.csv`, by month, from 2024\n- `usnationalweather`: `article/weather/<year>/<month>.csv`, by month, from 2024\n- `stockmarket`: `stock-market/<year>.csv`, by year, from 2023\n- `stockmarketstocksplit`: `stock-split/<year>.csv`, by year, from 2023\n\nThe two stock market streams are filed under their dataset's name, not their stream id. Not every file in a range exists, and a missing one does not answer 404: the website answers any path it does not hold with its own page, a `200` with `content-type: text/html`. Judge a download by its content type, not its status."
+    "description": "How much one ingest stream took in, and how much of it succeeded, bucketed over a trailing window. Read by the /stream page.\n\n**The archive.** The same measurement is also published as csv, one file per year or per month, served by the website. `/performance/archive` lists every file each stream has published, with the url it is served from, so where a stream's files are filed never has to be known or guessed. `/performance/archive/{stream}/{year}` and `/performance/archive/{stream}/{year}/{month}` redirect to one of them, and answer 404 for a file the listing does not name. The listing is what each stream's alarm page reads."
   },
   "servers": [
     {
@@ -136,6 +136,472 @@
                 },
                 "example": {
                   "report": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/performance/archive": {
+      "get": {
+        "operationId": "getPerformanceArchive",
+        "summary": "Every file each stream has published",
+        "description": "One request answers for every stream. `streams` names each stream this api carries, whether or not it has published anything, so one with no entries in `archives` has published nothing. Each entry carries the url its file is served from. Browsers may keep the answer for five minutes.",
+        "responses": {
+          "200": {
+            "description": "The listing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "streams",
+                        "archives"
+                      ],
+                      "properties": {
+                        "streams": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "bls",
+                              "sec",
+                              "stockmarket",
+                              "stockmarketstocksplit",
+                              "usnationalweather"
+                            ]
+                          },
+                          "description": "Every stream this api carries."
+                        },
+                        "archives": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "stream",
+                              "period",
+                              "id",
+                              "url",
+                              "bytes",
+                              "modified"
+                            ],
+                            "properties": {
+                              "stream": {
+                                "type": "string",
+                                "enum": [
+                                  "bls",
+                                  "sec",
+                                  "stockmarket",
+                                  "stockmarketstocksplit",
+                                  "usnationalweather"
+                                ],
+                                "description": "The stream, by the same id the report's Stream takes."
+                              },
+                              "period": {
+                                "type": "string",
+                                "pattern": "^[0-9]{4}(-[0-9]{2})?$",
+                                "description": "The period the file is for: yyyy for a year's file, yyyy-mm for a month's."
+                              },
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z]+/[0-9]{4}(/[0-9]{2})?$",
+                                "description": "stream/yyyy or stream/yyyy/mm: the path below /performance/archive that redirects to this file."
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "Where the file is served from: the website's own origin, so a page linking it can download it."
+                              },
+                              "bytes": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "The file's size."
+                              },
+                              "modified": {
+                                "type": "string",
+                                "description": "When the file was last written. A name says which period a file is for, not how much of it the file holds."
+                              }
+                            }
+                          },
+                          "description": "Every published file, grouped by stream, each stream's oldest first."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "streams": [
+                      "bls",
+                      "sec",
+                      "stockmarket",
+                      "stockmarketstocksplit",
+                      "usnationalweather"
+                    ],
+                    "archives": [
+                      {
+                        "stream": "bls",
+                        "period": "2024",
+                        "id": "bls/2024",
+                        "url": "https://www.jefflevesque.com/artifact/performance/ingest/article/bls/2024.csv",
+                        "bytes": 3242,
+                        "modified": "2024-03-15T20:35:25+00:00"
+                      },
+                      {
+                        "stream": "sec",
+                        "period": "2025-09",
+                        "id": "sec/2025/09",
+                        "url": "https://www.jefflevesque.com/artifact/performance/ingest/article/sec/2025/09.csv",
+                        "bytes": 2158564,
+                        "modified": "2025-09-27T02:01:33+00:00"
+                      },
+                      {
+                        "stream": "stockmarket",
+                        "period": "2025",
+                        "id": "stockmarket/2025",
+                        "url": "https://www.jefflevesque.com/artifact/performance/ingest/stock-market/2025.csv",
+                        "bytes": 13730477,
+                        "modified": "2025-12-31T21:04:53+00:00"
+                      },
+                      {
+                        "stream": "stockmarketstocksplit",
+                        "period": "2026",
+                        "id": "stockmarketstocksplit/2026",
+                        "url": "https://www.jefflevesque.com/artifact/performance/ingest/stock-split/2026.csv",
+                        "bytes": 74820,
+                        "modified": "2026-09-21T04:01:43+00:00"
+                      },
+                      {
+                        "stream": "usnationalweather",
+                        "period": "2025-07",
+                        "id": "usnationalweather/2025/07",
+                        "url": "https://www.jefflevesque.com/artifact/performance/ingest/article/weather/2025/07.csv",
+                        "bytes": 1102308,
+                        "modified": "2025-07-21T22:22:43+00:00"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A query string was sent. No archive route takes one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "query string NOT supported on archive paths"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The archive could not be listed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "archive NOT available"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/performance/archive/{stream}/{year}": {
+      "get": {
+        "operationId": "getPerformanceArchiveYear",
+        "summary": "One stream's file for a year",
+        "description": "Redirects to the file when the listing names it. The redirect is the answer rather than the file itself: a year of the stock market archive is about 14MB, more than one response of this api may carry. Browsers may keep a redirect for five minutes.\n\n**Try it out** reports a network error for a file that is listed. The browser follows the redirect to the website, and the website does not let this page read what it answers. The url is the one `Location` and `report` carry, and the one the listing gives. A file that is not listed answers 404 here as documented.",
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "path",
+            "required": true,
+            "description": "The stream, by the same id the report's Stream takes -- not the folder its files are filed under.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "bls",
+                "sec",
+                "stockmarket",
+                "stockmarketstocksplit",
+                "usnationalweather"
+              ]
+            },
+            "example": "stockmarket"
+          },
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "description": "The year, four digits.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}$"
+            },
+            "example": "2025"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "The file is published. `Location`, and `report`, give the url it is served from.",
+            "headers": {
+              "Location": {
+                "description": "The url the file is served from.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "https://www.jefflevesque.com/artifact/performance/ingest/stock-market/2025.csv"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A query string was sent. No archive route takes one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "query string NOT supported on archive paths"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The listing names no such file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "archive stockmarket/2027 NOT in the listing"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The archive could not be listed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "archive NOT available"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/performance/archive/{stream}/{year}/{month}": {
+      "get": {
+        "operationId": "getPerformanceArchiveMonth",
+        "summary": "One stream's file for a month",
+        "description": "Redirects to the file when the listing names it. The redirect is the answer rather than the file itself: a year of the stock market archive is about 14MB, more than one response of this api may carry. Browsers may keep a redirect for five minutes.\n\n**Try it out** reports a network error for a file that is listed. The browser follows the redirect to the website, and the website does not let this page read what it answers. The url is the one `Location` and `report` carry, and the one the listing gives. A file that is not listed answers 404 here as documented.",
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "path",
+            "required": true,
+            "description": "The stream, by the same id the report's Stream takes -- not the folder its files are filed under.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "bls",
+                "sec",
+                "stockmarket",
+                "stockmarketstocksplit",
+                "usnationalweather"
+              ]
+            },
+            "example": "sec"
+          },
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "description": "The year, four digits.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}$"
+            },
+            "example": "2025"
+          },
+          {
+            "name": "month",
+            "in": "path",
+            "required": true,
+            "description": "The month, two digits.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{2}$"
+            },
+            "example": "09"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "The file is published. `Location`, and `report`, give the url it is served from.",
+            "headers": {
+              "Location": {
+                "description": "The url the file is served from.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "https://www.jefflevesque.com/artifact/performance/ingest/article/sec/2025/09.csv"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A query string was sent. No archive route takes one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "query string NOT supported on archive paths"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The listing names no such file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "archive sec/2027/01 NOT in the listing"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The archive could not be listed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "report": "archive NOT available"
                 }
               }
             }

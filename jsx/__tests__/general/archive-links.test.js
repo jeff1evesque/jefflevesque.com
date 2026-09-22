@@ -1,192 +1,148 @@
 /**
- * archive-links.test.js: which archived performance files a stream might have.
+ * archive-links.test.js: the archived performance files a stream has published.
  *
- * The page used to count from a start year to today and build a url per step,
- * so every link was a guess. Thirty-one of the sixty-five it produced were
- * guesses that were wrong, and a wrong one did not 404 -- it downloaded the
+ * The page used to count from a start year to today, build a url per step, and
+ * ask each one with a HEAD whether it was really there. Thirty-one of the
+ * sixty-five it produced were wrong, and a wrong one did not 404 -- it saved the
  * app's shell under the name of the file it was asked for.
  *
- * So the two halves worth holding here are the shape of the candidates and the
- * judgement on an answer. What is deliberately NOT here is the asking: that
- * belongs to the page, and has its own cases in alarm.test.jsx.
+ * The performance api lists the files now, so what is held here is the reading
+ * of that listing: which rows a stream gets, in what order, labelled how, and
+ * linked where. What is deliberately NOT here is when the page asks: that has
+ * its own cases in alarm.test.jsx.
  *
- * Note: every case states the date rather than reading the clock. The old
- *       month bound was the current month applied to every year, which is a bug
- *       a suite running in September cannot see and one running in January
- *       cannot miss.
+ * Note: the listing below has the shape the api answers with, including what
+ *       made the guessing go wrong -- two streams filed under a folder that is
+ *       not their stream id, and a stream that has published nothing.
  */
 
-import { archiveCandidates, published, ARCHIVES } from '../../import/general/archive-links.js';
+import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
 
-const BASE = 'https://example.com/artifact/performance';
-const SEPTEMBER = new Date(2026, 8, 20);
-const JANUARY = new Date(2026, 0, 4);
+const ORIGIN = 'https://www.jefflevesque.com/artifact/performance/ingest';
 
-const labels = (...args) => archiveCandidates(...args).map((f) => f.label);
+const LISTING = {
+    streams: ['bls', 'sec', 'stockmarket', 'stockmarketstocksplit', 'usnationalweather'],
+    archives: [
+        { stream: 'sec', period: '2024', id: 'sec/2024', url: `${ORIGIN}/article/sec/2024.csv` },
+        { stream: 'sec', period: '2024-12', id: 'sec/2024/12', url: `${ORIGIN}/article/sec/2024/12.csv` },
+        { stream: 'sec', period: '2025-09', id: 'sec/2025/09', url: `${ORIGIN}/article/sec/2025/09.csv` },
+        { stream: 'stockmarket', period: '2023', id: 'stockmarket/2023', url: `${ORIGIN}/stock-market/2023.csv` },
+        { stream: 'stockmarket', period: '2026', id: 'stockmarket/2026', url: `${ORIGIN}/stock-market/2026.csv` },
+        {
+            stream: 'stockmarketstocksplit',
+            period: '2025',
+            id: 'stockmarketstocksplit/2025',
+            url: `${ORIGIN}/stock-split/2025.csv`,
+        },
+        {
+            stream: 'usnationalweather',
+            period: '2025-07',
+            id: 'usnationalweather/2025/07',
+            url: `${ORIGIN}/article/weather/2025/07.csv`,
+        },
+    ],
+};
 
-describe('which files a stream might have', () => {
-    it('offers a file per year for a stream filed by year', () => {
-        expect(labels('bls', BASE, SEPTEMBER)).toEqual(['2026.csv', '2025.csv', '2024.csv']);
+const labels = (stream, listing = LISTING) => archiveFiles(listing, stream).map((file) => file.label);
+
+describe('the files a stream has published', () => {
+    it('offers exactly the files the listing names for it, newest first', () => {
+        expect(labels('stockmarket')).toEqual(['2026.csv', '2023.csv']);
     });
 
-    it('offers a file per month for a stream filed by month', () => {
-        const sec = labels('sec', BASE, SEPTEMBER);
-
-        expect(sec[0]).toBe('01/2026.csv');
-        expect(sec).toContain('09/2026.csv');
+    it('labels a year by its year, and a month as month/year', () => {
+        expect(labels('usnationalweather')).toEqual(['07/2025.csv']);
+        expect(labels('stockmarketstocksplit')).toEqual(['2025.csv']);
     });
 
-    it('stops the CURRENT year at the current month', () => {
-        expect(labels('sec', BASE, SEPTEMBER)).not.toContain('10/2026.csv');
+    it('lists a year\'s own file after that year\'s months', () => {
+        //
+        // both are published for sec in 2024, and they are different files --
+        // the one for the year is not a summary of the months.
+        //
+        expect(labels('sec')).toEqual(['09/2025.csv', '12/2024.csv', '2024.csv']);
     });
 
-    it('runs a PAST year to december', () => {
+    it('links each file where the listing says it is served', () => {
         //
-        // the bug this replaces: the month bound was the current month applied
-        // to every year, so in September the archive hid October, November and
-        // December of every year before this one -- six real files on the day
-        // it was found, withheld because of the date on the reader's clock.
+        // the folder is the listing's business. A stream filed under a name
+        // other than its id -- as both stock market streams are -- is linked
+        // correctly without this module knowing either name.
         //
-        const sec = labels('sec', BASE, SEPTEMBER);
-
-        ['10/2025.csv', '11/2025.csv', '12/2025.csv'].forEach((file) => {
-            expect(sec).toContain(file);
-        });
+        expect(archiveFiles(LISTING, 'stockmarket').map((file) => file.href)).toEqual([
+            `${ORIGIN}/stock-market/2026.csv`,
+            `${ORIGIN}/stock-market/2023.csv`,
+        ]);
     });
 
-    it('does not read the clock for a year it is not in', () => {
+    it('matches the stream id in any casing', () => {
         //
-        // the same list, asked for in January, still has all of 2025
+        // the page holds 'StockMarket' from its url and 'stockmarket' once
+        // lower-cased; the listing names streams lower-cased.
         //
-        expect(labels('sec', BASE, JANUARY)).toContain('12/2025.csv');
-        expect(labels('sec', BASE, JANUARY)).not.toContain('02/2026.csv');
+        expect(labels('StockMarket')).toEqual(labels('stockmarket'));
     });
 
-    it('newest first', () => {
-        expect(labels('bls', BASE, SEPTEMBER)[0]).toBe('2026.csv');
-    });
-
-    it('builds an absolute href under the artifact base', () => {
-        //
-        // the yearly links used to be RELATIVE -- href={`${i}.csv`}, with no
-        // prefix at all -- so on /stream/bls/alarm they resolved to
-        // /stream/bls/2026.csv and never reached the artifact host. Every bls
-        // link on the page was pointing at the wrong origin.
-        //
-        expect(archiveCandidates('bls', BASE, SEPTEMBER)[0].href)
-            .toBe(`${BASE}/ingest/article/bls/2026.csv`);
-    });
-
-    it('pads a single-digit month in both the href and the label', () => {
-        const january = archiveCandidates('sec', BASE, SEPTEMBER)[0];
-
-        expect(january.href).toBe(`${BASE}/ingest/article/sec/2026/01.csv`);
-        expect(january.label).toBe('01/2026.csv');
-    });
-
-    it('reads a stream id in any casing', () => {
-        //
-        // the application links to this page with 'BLS', not 'bls'
-        //
-        expect(labels('BLS', BASE, SEPTEMBER)).toEqual(labels('bls', BASE, SEPTEMBER));
+    it('offers nothing for a stream the listing names with no files', () => {
+        expect(LISTING.streams).toContain('bls');
+        expect(archiveFiles(LISTING, 'bls')).toEqual([]);
     });
 
     it.each([
-        ['stockmarket'],
-        ['stockmarketstocksplit'],
-    ])('offers a file per year from 2023 for %s', (stream) => {
-        //
-        // these two used to offer nothing, and a test here said that was right:
-        // four paths had been tried for each and none resolved. All four were
-        // built from the stream id, and the files are filed under the dataset
-        // name -- a file a year from 2023, every one of them there.
-        //
-        expect(labels(stream, BASE, SEPTEMBER))
-            .toEqual(['2026.csv', '2025.csv', '2024.csv', '2023.csv']);
-    });
-
-    it.each([
-        ['stockmarket', 'stock-market'],
-        ['stockmarketstocksplit', 'stock-split'],
-    ])('files %s under its dataset name, %s, not its stream id', (stream, dataset) => {
-        //
-        // the whole bug, and the one assertion that would have caught it
-        //
-        const href = archiveCandidates(stream, BASE, SEPTEMBER)[0].href;
-
-        expect(href).toBe(`${BASE}/ingest/${dataset}/2026.csv`);
-        expect(href).not.toContain(`/${stream}/`);
-    });
-
-    it('reads the dataset name from api-url.js rather than keeping a copy', () => {
-        //
-        // a copy spelled the same today passes every assertion above, and
-        // drifts the first time one of the two is edited -- which is how the
-        // stream id ended up standing in for the dataset name. So the mapping
-        // is changed here, and the archive has to follow it.
-        //
-        jest.isolateModules(() => {
-            jest.doMock('../../import/general/api-url.js', () => ({
-                DATASETS: { stockmarket: 'renamed', stockmarketstocksplit: 'renamed-too' },
-            }));
-
-            const isolated = require('../../import/general/archive-links.js');
-
-            expect(isolated.archiveCandidates('stockmarket', BASE, SEPTEMBER)[0].href)
-                .toBe(`${BASE}/ingest/renamed/2026.csv`);
-            expect(isolated.archiveCandidates('stockmarketstocksplit', BASE, SEPTEMBER)[0].href)
-                .toBe(`${BASE}/ingest/renamed-too/2026.csv`);
-        });
-
-        jest.dontMock('../../import/general/api-url.js');
-    });
-
-    it('offers nothing for a stream it does not know', () => {
-        expect(archiveCandidates('no-such-stream', BASE, SEPTEMBER)).toEqual([]);
-    });
-
-    it('offers nothing without somewhere to look', () => {
-        expect(archiveCandidates('bls', '', SEPTEMBER)).toEqual([]);
-        expect(archiveCandidates('bls', undefined, SEPTEMBER)).toEqual([]);
-    });
-
-    it('survives a stream that is not a string', () => {
-        expect(archiveCandidates(undefined, BASE, SEPTEMBER)).toEqual([]);
-        expect(archiveCandidates(null, BASE, SEPTEMBER)).toEqual([]);
-    });
-
-    it('starts each stream at its own first year', () => {
-        Object.keys(ARCHIVES).forEach((stream) => {
-            const oldest = labels(stream, BASE, SEPTEMBER).pop();
-
-            expect(oldest).toContain(String(ARCHIVES[stream].since));
-        });
+        ['an unknown stream', 'no-such-stream', LISTING],
+        ['no listing', 'sec', undefined],
+        ['a listing without archives', 'sec', { streams: ['sec'] }],
+    ])('offers nothing for %s', (_, stream, listing) => {
+        expect(archiveFiles(listing, stream)).toEqual([]);
     });
 });
 
-describe('whether an answer is the file or the app wearing its name', () => {
-    it('accepts what the archive actually serves', () => {
-        expect(published('binary/octet-stream')).toBe(true);
+describe('asking for the listing', () => {
+    const realFetch = global.fetch;
+
+    afterEach(() => {
+        global.fetch = realFetch;
     });
 
-    it('accepts a csv served as one', () => {
-        expect(published('text/csv')).toBe(true);
-    });
+    function answering(response) {
+        global.fetch = jest.fn(() => Promise.resolve(response));
 
-    it('rejects the app shell', () => {
+        return global.fetch;
+    }
+
+    it('asks the performance api once, with a plain GET', async () => {
         //
-        // the whole point. A path with nothing behind it answers 200 and
-        // text/html, and `download` saves that under the name asked for -- so
-        // the judgement cannot be on the status, which is 200 either way.
+        // one request for every stream, where the HEAD probing sent one per
+        // candidate file.
         //
-        expect(published('text/html')).toBe(false);
-        expect(published('text/html; charset=utf-8')).toBe(false);
-        expect(published('TEXT/HTML')).toBe(false);
+        const fetcher = answering({ ok: true, status: 200, json: () => Promise.resolve({ report: LISTING }) });
+
+        await loadArchiveListing();
+
+        expect(fetcher).toHaveBeenCalledTimes(1);
+        expect(String(fetcher.mock.calls[0][0])).toBe('https://api.jefflevesque.com/v1/public/performance/archive');
+        expect(fetcher.mock.calls[0][1]).toBeUndefined();
     });
 
-    it('rejects an answer that carries no type at all', () => {
-        expect(published(null)).toBe(false);
-        expect(published(undefined)).toBe(false);
-        expect(published('')).toBe(false);
+    it('answers with the listing from the report', async () => {
+        answering({ ok: true, status: 200, json: () => Promise.resolve({ report: LISTING }) });
+
+        await expect(loadArchiveListing()).resolves.toEqual(LISTING);
+    });
+
+    it('refuses an answer that is not the listing', async () => {
+        //
+        // so the page can say it could not ask, rather than that nothing was
+        // published -- the two read the same and mean opposite things.
+        //
+        answering({ ok: false, status: 503, json: () => Promise.resolve({}) });
+
+        await expect(loadArchiveListing()).rejects.toThrow('503');
+    });
+
+    it('refuses when the request fails outright', async () => {
+        global.fetch = jest.fn(() => Promise.reject(new Error('offline')));
+
+        await expect(loadArchiveListing()).rejects.toThrow('offline');
     });
 });

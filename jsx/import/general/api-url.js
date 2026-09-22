@@ -3,6 +3,7 @@
  *             where each api is documented.
  *
  *     performance       read by /stream                        Stream, Interval, Timezone
+ *                       its archive, the published files       (none)
  *     datalake          read by /data, /stream/:stream/alarm   Data, Scale
  *     knowledge-graph   read by /graph and /                   Graph
  *                       its tables, one path per question      Text, Uri, Day, Limit
@@ -27,6 +28,7 @@ const API = 'https://api.jefflevesque.com/v1/public';
 
 const ENDPOINTS = {
     performance: `${API}/performance`,
+    performanceArchive: `${API}/performance/archive`,
     datalake: `${API}/datalake`,
     knowledgeGraph: `${API}/knowledge-graph`,
     knowledgeGraphTables: `${API}/knowledge-graph/tables`,
@@ -80,6 +82,19 @@ export function performanceUrl(stream, interval, timezone, base = ENDPOINTS.perf
         Interval: String(interval).toLowerCase(),
         Timezone: timezone,
     });
+}
+
+/**
+ * the listing of the csvs each stream has published: a file per year or per
+ * month, each with the url it is served from.
+ *
+ * Note: the page links each file's `url` rather than asking the api for it. The
+ *       api answers `archive/<stream>/<year>[/<month>]` with a redirect to that
+ *       same url, but a link to the api is cross-origin, and a browser ignores
+ *       `download` on one -- the file would open instead of saving.
+ */
+export function performanceArchiveUrl(base = ENDPOINTS.performanceArchive) {
+    return new URL(base);
 }
 
 /**

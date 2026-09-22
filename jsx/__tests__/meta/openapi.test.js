@@ -117,9 +117,34 @@ describe.each(DOCUMENTS)('%s.json', (name) => {
     });
 
     it('shows an example of every successful response', () => {
-        operationsOf(document).forEach(({ operation }) => {
-            const media = operation.responses['200'].content['application/json'];
-            expect(examplesOf(media).length).toBeGreaterThan(0);
+        //
+        // successful is a 200 or, where the answer is where to find something
+        // rather than the thing itself, a 302 -- the performance archive's
+        // files, which are served by the website.
+        //
+        operationsOf(document).forEach(({ route, operation }) => {
+            const success = operation.responses['200'] || operation.responses['302'];
+
+            expect({ route, success: Boolean(success) }).toEqual({ route, success: true });
+            expect(examplesOf(success.content['application/json']).length).toBeGreaterThan(0);
+        });
+    });
+
+    it('says where every redirect points', () => {
+        //
+        // a 302 is only an answer together with its Location, and Swagger UI
+        // renders the headers a response declares -- undeclared, the page would
+        // document a redirect to nowhere.
+        //
+        operationsOf(document).forEach(({ route, operation }) => {
+            Object.entries(operation.responses)
+                .filter(([status]) => status.startsWith('3'))
+                .forEach(([status, response]) => {
+                    const location = (response.headers || {}).Location || {};
+
+                    expect({ route, status, described: Boolean(location.description), schema: location.schema })
+                        .toEqual({ route, status, described: true, schema: { type: 'string' } });
+                });
         });
     });
 
@@ -187,6 +212,21 @@ describe('the guard itself', () => {
 
         expect(validate({ report: 42 })).toBe(false);
         expect(validate({})).toBe(false);
+    });
+
+    it('has a redirect to hold to its Location', () => {
+        //
+        // only the performance archive answers with one, so without this the
+        // redirect case above could pass by having nothing to check.
+        //
+        const redirects = operationsOf(documentOf('performance'))
+            .filter(({ operation }) => operation.responses['302'])
+            .map(({ route }) => route);
+
+        expect(redirects).toEqual([
+            '/performance/archive/{stream}/{year}',
+            '/performance/archive/{stream}/{year}/{month}',
+        ]);
     });
 
     it('finds both kinds of example', () => {

@@ -40,9 +40,9 @@ health and ingest coverage from the same rows. See
 
 ## The archive behind it
 
-The same measurement is also published as static csv, a file per year or per
-month, under `https://www.jefflevesque.com/artifact/performance/ingest/`. The
-alarm page for each stream links to them in its *Latest Archive* column.
+The same measurement is also published as csv, a file per year or per month,
+served by the website. The alarm page for each stream links to them in its
+*Latest Archive* column.
 
 The two are not copies of each other, and each holds what the other cannot:
 
@@ -55,25 +55,53 @@ The two are not copies of each other, and each holds what the other cannot:
 So this endpoint cannot answer for March 2024, and the archive cannot answer for
 this morning.
 
-| Stream | Where | Filed |
-|---|---|---|
-| `bls` | `ingest/article/bls/<year>.csv` | by year, from 2024 |
-| `sec` | `ingest/article/sec/<year>/<month>.csv` | by month, from 2024 |
-| `usnationalweather` | `ingest/article/weather/<year>/<month>.csv` | by month, from 2024 |
-| `stockmarket` | `ingest/stock-market/<year>.csv` | by year, from 2023 |
-| `stockmarketstocksplit` | `ingest/stock-split/<year>.csv` | by year, from 2023 |
+### Listing it
 
-The two stock market streams are filed under their dataset's name -- the one
-the datalake api takes as `Data` -- rather than under their stream id:
-`stock-market`, not `stockmarket`.
+`GET https://api.jefflevesque.com/v1/public/performance/archive`
 
-Not every file in that range exists. A path with nothing behind it does **not**
-answer 404: the site serves the single-page app's shell for any unmatched path,
-with a 200 and `content-type: text/html`. So a reader saving one of these
-programmatically should judge the **content type**, not the status -- a status
-check accepts every miss, and the file lands on disk as html under a `.csv`
-name. The alarm page checks each candidate this way before offering it, in
-[`jsx/import/general/archive-links.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/archive-links.js).
+Every file each stream has published, in one answer, each with the url it is
+served from:
+
+| Field | |
+|---|---|
+| `streams` | every stream, whether or not it has published anything |
+| `archives[].stream` | the stream, by the same id `Stream` takes above |
+| `archives[].period` | `2025` for a year's file, `2025-09` for a month's |
+| `archives[].id` | such as `stockmarket/2025` or `sec/2025/09`: the path below `archive/` that redirects to the file |
+| `archives[].url` | where the file is served from |
+| `archives[].bytes` | its size |
+| `archives[].modified` | when it was last written |
+
+A stream in `streams` with no entries in `archives` has published nothing. A
+file's name says which period it is for, not how much of that period it holds;
+`modified` says how recent it is.
+
+### Fetching one file
+
+`GET https://api.jefflevesque.com/v1/public/performance/archive/<stream>/<year>`
+
+`GET https://api.jefflevesque.com/v1/public/performance/archive/<stream>/<year>/<month>`
+
+A `302` to the file's `url` when the listing names it, and a `404` when it does
+not. The answer is a redirect rather than the file, because a year of the stock
+market archive is about 14MB.
+
+Take a file's url from the listing, or follow the redirect, rather than building
+one. Where a stream's files are filed is not part of either answer, and for both
+stock market streams it is not their stream id. A url built by hand with nothing
+behind it does **not** answer 404: the website answers any path it does not hold
+with its own page, a 200 in `text/html`.
+
+| Status | `report` |
+|---|---|
+| 302 | the file's url, which `Location` carries too |
+| 400 | a message saying a query string was sent; no archive path takes one |
+| 404 | a message naming the file the listing does not hold |
+| 500 | a message saying the archive could not be listed |
+
+*Try it* below reports a network error for a file that is listed: the browser
+follows the redirect to the website, which does not let the documentation read
+what it answers.
 
 ## Errors
 
@@ -92,6 +120,14 @@ name. The alarm page checks each candidate this way before offering it, in
   [`jsx/import/general/get-data.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/get-data.js).
 - Read in a web worker,
   [`jsx/import/worker/stream/performance.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/worker/stream/performance.js).
+- The archive listing is built by `performanceArchiveUrl`, in the same
+  `api-url.js`, and asked for and read by `loadArchiveListing` and
+  `archiveFiles`, in
+  [`jsx/import/general/archive-links.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/archive-links.js),
+  when a stream's *Latest Archive* column is opened in
+  [`jsx/import/layout/stream/alarm.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/stream/alarm.jsx).
+  The page links each file's `url` rather than the redirect: a link to the api
+  is cross-origin, and a browser ignores `download` on one.
 
 ## Try it
 

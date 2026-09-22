@@ -22,6 +22,7 @@ import getBlsDistribution from '../../import/general/get-data/distribution/bls.j
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import filterSchema from '../../import/animation/filter-schema.js';
 import { sourceNamespace } from '../../import/animation/encoding.js';
+import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
 import { performanceUrl, datalakeUrl } from '../../import/general/api-url.js';
 
 const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', 'openapi');
@@ -73,6 +74,37 @@ describe('performance, as the /stream page loads it', () => {
         await getData('bls-ingest', performanceUrl('bls', 'day', 'UTC'), callback, true, 'bls', 'bls');
 
         expect(callback).toHaveBeenCalledWith({ data: null, source: 'bls', stream: 'bls' });
+    });
+});
+
+describe('the performance archive, as each alarm page loads it', () => {
+    const media = successOf('performance', '/performance/archive');
+
+    it('offers every stream the documented file, linked where it is served', async () => {
+        //
+        // the example holds one file per stream, so each stream reads back
+        // exactly that one -- including the two filed under a folder that is
+        // not their stream id.
+        //
+        answering(media.example);
+
+        const listing = await loadArchiveListing();
+
+        listing.streams.forEach((stream) => {
+            const [entry] = listing.archives.filter((archive) => archive.stream === stream);
+
+            expect({ stream, files: archiveFiles(listing, stream).map((file) => file.href) })
+                .toEqual({ stream, files: [entry.url] });
+        });
+    });
+
+    it('labels the documented files as the page always has', async () => {
+        answering(media.example);
+
+        const listing = await loadArchiveListing();
+
+        expect(archiveFiles(listing, 'sec').map((file) => file.label)).toEqual(['09/2025.csv']);
+        expect(archiveFiles(listing, 'stockmarket').map((file) => file.label)).toEqual(['2025.csv']);
     });
 });
 
