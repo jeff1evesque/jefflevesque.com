@@ -82,7 +82,7 @@ export default () => {
                         returning both columns and now returns one row per
                         split_date with the tickers that split on it. the day is
                         already the x-axis value, so a single fixed series name
-                        keeps one colour per chart, and the tickers ride along on
+                        keeps one color per chart, and the tickers ride along on
                         the record for the tooltip to read
 
                     */}
