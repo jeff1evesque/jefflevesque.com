@@ -3,12 +3,12 @@
  *
  * Shared by five callers -- the stream alarm and the four trigger content pages -- so
  * every default here is what a signed-out visitor reads on all five. The component is
- * pure presentation, and all of its behaviour is in the constructor's defaults and the
+ * pure presentation, and all of its behavior is in the constructor's defaults and the
  * componentDidUpdate that keeps them current.
  *
  * That update method carried two copy-paste defects, both fixed and both pinned below:
  * the terms branch wrote the heading, and the icon_color branch compared the terms
- * against the old colour.
+ * against the old color.
  *
  * Note: renders a LoginLink, so everything is wrapped in a router.
  */
@@ -83,7 +83,7 @@ describe('the defaults', () => {
         expect(text()).toContain('you must accept the terms and conditions');
     });
 
-    it('colours the privacy icon green', () => {
+    it('colors the privacy icon green', () => {
         setup();
 
         expect(document.querySelector('h4 svg').getAttribute('style')).toContain('green');
@@ -138,7 +138,7 @@ describe('the overrides', () => {
             .toContain('to continue.');
     });
 
-    it('takes a custom icon colour', () => {
+    it('takes a custom icon color', () => {
         setup({ icon_color: 'red' });
 
         expect(document.querySelector('h4 svg').getAttribute('style')).toContain('red');
@@ -146,7 +146,7 @@ describe('the overrides', () => {
 
     it('accepts an empty footer suffix', () => {
         //
-        // the mobile default is the empty string, so an explicit '' must be honoured
+        // the mobile default is the empty string, so an explicit '' must be honored
         // rather than replaced by the desktop sentence.
         //
         setup({ footer_suffix: '' });
@@ -237,14 +237,14 @@ describe('keeping up with changed props', () => {
         expect(heading()).toBe(before);
     });
 
-    it('syncs a changed icon colour', () => {
+    it('syncs a changed icon color', () => {
         //
         // FIXED, in notice-terms.jsx. The guard compared two unrelated fields:
         //
         //     && this.props.terms !== prevProps.icon_color
         //
-        // A terms paragraph is never equal to a colour name, so the branch fired on
-        // essentially every update whether or not the colour had changed -- and would
+        // A terms paragraph is never equal to a color name, so the branch fired on
+        // essentially every update whether or not the color had changed -- and would
         // have failed to fire in the one case where they happened to match.
         //
         const { rerender } = setup({ icon_color: 'green' });
@@ -254,7 +254,7 @@ describe('keeping up with changed props', () => {
         expect(document.querySelector('h4 svg').getAttribute('style')).toContain('red');
     });
 
-    it('does not adopt an invalid changed colour', () => {
+    it('does not adopt an invalid changed color', () => {
         const quiet = jest.spyOn(console, 'error').mockImplementation(() => {});
         const { rerender } = setup({ icon_color: 'green' });
 
