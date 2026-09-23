@@ -81,7 +81,7 @@ export default () => {
                     wall-clock in the LOCAL zone's slot -- not the instant, and
                     three hours off it in california. the axis then rendered
                     eastern everywhere, because that shift and d3's local
-                    formatting cancelled out
+                    formatting canceled out
 
                 */}
 
