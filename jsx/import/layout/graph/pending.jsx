@@ -51,6 +51,7 @@ import {
     settleLayout,
     driftNodes,
 } from '../../animation/explorer-layout.js';
+import { breathDelay } from '../../animation/breath.js';
 
 //
 // how far apart, in milliseconds, two neighbouring bars breathe.
@@ -389,10 +390,8 @@ export class PendingCanvas extends Component {
             .join('line');
 
         //
-        // Note: each node's breathing is staggered by a NEGATIVE delay, which
-        //       starts it partway through its cycle rather than holding it still
-        //       until its turn comes. Sixty turns at STAGGER apart is over five
-        //       seconds, and a build usually lands well inside that.
+        // each node a beat behind the one before, in the rhythm the graph that
+        // replaces it keeps -- see breathDelay.
         //
         this.nodeSel = svg.append('g')
             .selectAll('circle')
@@ -400,7 +399,7 @@ export class PendingCanvas extends Component {
             .join('circle')
             .attr('class', 'graph-pending-node')
             .attr('r', (d) => d.r)
-            .style('animation-delay', (d, index) => `${-index * STAGGER}ms`);
+            .style('animation-delay', (d, index) => breathDelay(index));
 
         this.draw();
         this.stopDrift();
