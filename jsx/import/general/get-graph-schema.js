@@ -17,7 +17,7 @@
  *       helper would parse a graph schema as a spreadsheet.
  *
  * Note: no caching, retry or in-flight de-duplication here, deliberately. The
- *       service sends its own Cache-Control and the browser honours it across
+ *       service sends its own Cache-Control and the browser honors it across
  *       page loads, so a cache here would be a second, worse one.
  *
  * Note: failures are logged with console.log rather than console.error, matching
