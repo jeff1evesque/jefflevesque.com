@@ -65,8 +65,8 @@
  * Note: the cluster arrives already at rest, in the middle of the screen. It
  *       used to arrive at the top-left corner and sweep to the middle in full
  *       view, which was d3 placing new nodes around the svg's origin and the
- *       centring forces dragging them across -- warm-up, not data. The layout
- *       is now seeded at the centre and run to rest before the first frame
+ *       centering forces dragging them across -- warm-up, not data. The layout
+ *       is now seeded at the center and run to rest before the first frame
  *       (see layout.js), and the drift takes over from a settled cluster.
  */
 
@@ -99,11 +99,11 @@ import PropTypes from 'prop-types';
 // Nodes are colored by SOURCE NAMESPACE, and links styled by edge origin. Both
 // mappings live in encoding.js, because the explorer page draws the same
 // published graph and the two must not disagree -- a legend there describing a
-// colour this file assigns differently would be wrong with nothing failing.
+// color this file assigns differently would be wrong with nothing failing.
 //
 // The backdrop rolls every namespace past the palette into one neutral, which
 // is the 'roll-up' default: it is glanced at and carries no legend, so a shared
-// grey costs nothing here.
+// gray costs nothing here.
 
 // pointer repel: nodes in the annulus [INNER, OUTER] px from the cursor are
 // pushed away — gently, and NOT inside INNER, so the node you're inspecting can
@@ -228,7 +228,7 @@ const BG_DARK_RADIUS = 110;  // gray nodes within this radius of the cursor dark
 // build runs from 1 to nearly ten million, against a median in the hundreds --
 // and an unclamped sqrt put the largest edge 528px long next to a 62px median.
 // That is not a cluster with one long edge in it; it is one node tethered half a
-// screen away, dragging the layout off centre.
+// screen away, dragging the layout off center.
 //
 // Note: filtering node types does NOT solve this, and it is worth saying so here
 //       because it looks like it should. The heaviest edge belongs to the
@@ -244,8 +244,8 @@ const LINK_DISTANCE_BACKGROUND = 40;
 // guarantees on top of that.
 //
 // Raised when both surfaces went to 60 node types. At 24 the cluster settled
-// with a 52px median gap between nearest neighbours; at 60 on the same forces
-// that fell to 30px, with half the nodes carrying a neighbour inside 30px --
+// with a 52px median gap between nearest neighbors; at 60 on the same forces
+// that fell to 30px, with half the nodes carrying a neighbor inside 30px --
 // which is a crowd rather than a cluster, and the communities forceLink exists
 // to reveal stopped being separable by eye.
 //
@@ -268,9 +268,9 @@ const LINK_DISTANCE_BACKGROUND = 40;
 //
 //     n.vx += (dx / dist) * push;
 //
-// against a centring force of strength 0.04 at an ambient alpha of 0.05. So
+// against a centering force of strength 0.04 at an ambient alpha of 0.05. So
 // sweeping the cursor along the cluster's rim shoves nodes outward faster than
-// the centring recovers them, and the outermost svg clips at its own box, so
+// the centering recovers them, and the outermost svg clips at its own box, so
 // what a reader sees is the graph cut off rather than drawn over anything.
 //
 // It shows at the TOP first, because that is where the clearance is thinnest,
@@ -376,7 +376,7 @@ class GraphCluster extends Component {
             node_types: PropTypes.object,
             edge_types: PropTypes.object,
         }),
-        // namespace -> colour, ranked over the whole build by buildPalette
+        // namespace -> color, ranked over the whole build by buildPalette
         palette: PropTypes.instanceOf(Map),
     }
 
@@ -534,12 +534,12 @@ class GraphCluster extends Component {
 
         //
         // the palette comes from the whole build, via the mount site, so this
-        // backdrop and the explorer's legend agree about what a colour means.
+        // backdrop and the explorer's legend agree about what a color means.
         //
         // It used to be assigned here, from the namespaces in THIS schema --
         // which is the 24-type slice -- while the explorer assigned its own from
         // its 60. Same build, same rule, different input, and so a namespace was
-        // one colour on the front page and another on /graph. See buildPalette.
+        // one color on the front page and another on /graph. See buildPalette.
         //
         // Note: the fallback is for a caller that has only a slice in hand, which
         //       is every test in the suite and nothing that ships. It ranks what
@@ -570,15 +570,15 @@ class GraphCluster extends Component {
     }
 
     // Build the gray field: Poisson-disk home spots (organic spacing, minimum
-    // separation guaranteed) linked to their nearest few neighbours. Positions
+    // separation guaranteed) linked to their nearest few neighbors. Positions
     // are set directly, not by the force sim, so the field stays spread across
     // the viewport instead of collapsing into the cluster.
     //
     // Bridson's algorithm: keep an "active" list of accepted points, repeatedly
     // fling candidates into the annulus [d, 2d] around a random active point,
-    // and accept the first that is at least d from every neighbour. An
+    // and accept the first that is at least d from every neighbor. An
     // acceleration grid with cells of d/sqrt(2) holds at most one point each, so
-    // the neighbour check only ever looks at the surrounding cells.
+    // the neighbor check only ever looks at the surrounding cells.
     buildBackground(width, height) {
         const d = BG_MIN_DIST;
         // overhang the viewport so the field runs off every edge rather than
@@ -650,11 +650,11 @@ class GraphCluster extends Component {
                 placed = true;
                 break;
             }
-            // exhausted: this point can take no more neighbours
+            // exhausted: this point can take no more neighbors
             if (!placed) active.splice(a, 1);
         }
 
-        // Link each node to its nearest few neighbours within BG_LINK_MAX. The
+        // Link each node to its nearest few neighbors within BG_LINK_MAX. The
         // cap on both count and length is what keeps the mesh sparse and every
         // edge too short to straddle the cluster's corridor.
         const links = [];
@@ -941,7 +941,7 @@ class GraphCluster extends Component {
         //       compressing. It comes out 330x577 instead of 482x584 -- five
         //       node types that were off the canvas come back, the guaranteed
         //       daylight is unchanged at 16px, and the median gap between
-        //       neighbours goes UP, from 16px to 18px.
+        //       neighbors goes UP, from 16px to 18px.
         //
         const edgeForce = () => {
             const viewW = this.viewW || width;
