@@ -5,7 +5,7 @@
  * the datalake url with the selected scale, and wires the response back to
  * callbackGetData. data-callback.test.jsx covers what happens to the answer; this
  * covers the request -- which loader, which url, and what happens for a stream it does
- * not recognise.
+ * not recognize.
  *
  * Also covers the two module-level helpers the distribution tooltip is built from.
  * They are pure, they carry a fair amount of the file's branching, and they are only
@@ -387,10 +387,10 @@ describe('DistributionTooltip', () => {
         }).textContent).toBe('');
     });
 
-    it('renders the colour as a swatch rather than colouring the text', () => {
+    it('renders the color as a swatch rather than coloring the text', () => {
         //
-        // recharts colours each row's TEXT with the series colour, which on the
-        // many-series streams reads as unreadable rainbow text. The colour moves to a
+        // recharts colors each row's TEXT with the series color, which on the
+        // many-series streams reads as unreadable rainbow text. The color moves to a
         // small block and the label stays neutral.
         //
         const container = show({ active: true, payload: PAYLOAD, label: 'Reports' });
