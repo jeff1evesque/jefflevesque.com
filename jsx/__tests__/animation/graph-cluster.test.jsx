@@ -11,9 +11,9 @@
  *
  *   - the cursor repeller, the hover reveal and the edge mesh are all
  *     pointer-driven physics. Asserting on them would mean asserting on d3's
- *     internals rather than on behaviour.
+ *     internals rather than on behavior.
  *
- * What IS real and worth holding, and what this file is now organised around:
+ * What IS real and worth holding, and what this file is now organized around:
  *
  *   - with no data the component draws its gray field and NOTHING else. That is
  *     the cold-load state and the failed-fetch state, and it is a deliberate
@@ -455,7 +455,7 @@ describe('how far apart the simulation holds a linked pair', () => {
         //
         // a published build runs to nearly ten million on one edge against a median in
         // the hundreds, which unclamped put that link 528px long beside a 62px median
-        // -- one node tethered half a screen away, dragging the layout off centre.
+        // -- one node tethered half a screen away, dragging the layout off center.
         //
         const distance = distanceFn();
 
