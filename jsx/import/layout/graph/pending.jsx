@@ -9,7 +9,7 @@
  * did.
  *
  * On a desktop that is close to invisible, which is why it lasted. Both
- * responses carry a Cache-Control the browser honours -- the schema is
+ * responses carry a Cache-Control the browser honors -- the schema is
  * 'immutable', for a year -- so every visit after the first paints the finished
  * page at once. A phone on a cold cache is the same page over two serial round
  * trips and about half a megabyte of json, and what a reader sees for the
@@ -33,7 +33,7 @@
  *       measure, which is also what keeps the columns from resizing when they
  *       arrive.
  *
- * Note: the motion is the point of a placeholder -- a still grey block is
+ * Note: the motion is the point of a placeholder -- a still gray block is
  *       indistinguishable from a page that has given up -- and is also the
  *       first thing given up. Everything animated here stops under
  *       'prefers-reduced-motion' and leaves the same blocks standing still: the
@@ -54,7 +54,7 @@ import {
 import { breathDelay } from '../../animation/breath.js';
 
 //
-// how far apart, in milliseconds, two neighbouring bars breathe.
+// how far apart, in milliseconds, two neighboring bars breathe.
 //
 // Small enough that a block of them reads as one thing and large enough that it
 // travels: at 90ms across a dozen rows the wave crosses the table in about the
@@ -207,8 +207,8 @@ export function PendingLegend() {
 // HUB_POWER is what gives it hubs. A node joins an earlier one picked in
 // proportion to that one's links plus one, raised to this power. At 1 -- plain
 // preferential attachment -- the busiest of sixty nodes gathers about fifteen
-// neighbours and the rest spread evenly, which reads as a mesh. The build
-// published in September 2026 gives one type 48 neighbours and two others 25
+// neighbors and the rest spread evenly, which reads as a mesh. The build
+// published in September 2026 gives one type 48 neighbors and two others 25
 // while the median type has 4, and squaring is what gets most of the way there.
 //
 // LOOPS is the share of nodes that join a second one as well. With none, the
@@ -272,15 +272,15 @@ export function pendingGraph(count = GRAPH_NODE_TYPES, random = d3.randomLcg(PEN
  * canvas's graph in everything but its data: as many nodes as the canvas draws,
  * at the radius it draws them, laid out by its forces, fitted to the box the way
  * it fits them and set drifting by its motion -- all of it explorer-layout.js's
- * -- so what arrives takes on colour and settles into its own shape, rather than
+ * -- so what arrives takes on color and settles into its own shape, rather than
  * replacing one drawing with a differently sized one.
  *
  * It used to be nine hand-placed circles in a viewBox scaled into a 22rem box,
  * their radii varying 'the way the real ones do'. The real ones do not vary, and
  * the scale drew the nine at 7 to 15px ahead of a graph drawn at 7.
  *
- * What keeps it from reading as a real graph that came back colourless is what
- * always has: neutral greys, links on a MARCHING dash, and the sentence saying
+ * What keeps it from reading as a real graph that came back colorless is what
+ * always has: neutral grays, links on a MARCHING dash, and the sentence saying
  * what it is waiting for -- see PendingCaption, which holds the caption's place
  * above it.
  *
