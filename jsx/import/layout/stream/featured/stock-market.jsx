@@ -32,6 +32,7 @@ import GravestoneDoji from '../../../svg/stock_market/gravestone-doji.jsx';
 import MorningStar from '../../../svg/stock_market/morning-star.jsx';
 import EveningStar from '../../../svg/stock_market/evening-star.jsx';
 import { Link } from 'react-router-dom';
+import { STOCK_MARKET } from '../../../general/stream-id.js';
 
 class StockMarketFeatured extends Component {
     constructor() {
@@ -44,7 +45,7 @@ class StockMarketFeatured extends Component {
         };
 
         const card_height = '140';
-        const stream_stock_market = 'StockMarket';
+        const stream_stock_market = STOCK_MARKET;
 
         this.state = {
             card_height: card_height,
@@ -220,7 +221,7 @@ class StockMarketFeatured extends Component {
                         <CardActions>
                             <Button size='small'>
                                 <Link to={`/stream/${
-                                    this.state.stream_stock_market.toLowerCase()
+                                    this.state.stream_stock_market
                                 }/trigger?category=${category}&selected=${
                                     v.cardmedia_title.toLowerCase().replace(/\s+/g, '_')
                                 }`}>
