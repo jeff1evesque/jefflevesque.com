@@ -69,7 +69,7 @@ const browserGlobals = {
     WebSocket: 'readonly',
     Image: 'readonly',
     // The HTMLOptionElement constructor -- `new Option()` is used to resolve a
-    // CSS colour string via the DOM in import/general/colors.js.
+    // CSS color string via the DOM in import/general/colors.js.
     Option: 'readonly',
     atob: 'readonly',
     btoa: 'readonly',
