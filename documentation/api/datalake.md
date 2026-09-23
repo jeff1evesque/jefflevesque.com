@@ -4,7 +4,7 @@
 
 What one dataset holds for a month: how its records are distributed, and how many
 partitions they occupy. `/data` charts the distribution for the stream and month a
-reader chooses, and `/stream/stockmarket/alarm` reads the partition count.
+reader chooses, and `/stream/stock-market/alarm` reads the partition count.
 
 ## Parameters
 
@@ -13,16 +13,16 @@ reader chooses, and `/stream/stockmarket/alarm` reads the partition count.
 | `Data` | `stock-market`, `stock-split`, `bls`, `sec`, `us-weather-alert` | the dataset of the stream selected in the listing |
 | `Scale` | JSON: `year`, a number, and `month`, two digits as a string | the month selected in the date picker, such as `{"year":2026,"month":"08"}` |
 
-`Data` names a **dataset**, not a stream, and for three of the five the two differ. A
-stream id is answered with a 400:
+`Data` names a **dataset**, not a stream. The two are the same string for four of the
+five streams, and not for the weather stream, whose id is answered with a 400:
 
 | Stream | Dataset |
 |---|---|
-| `stockmarket` | `stock-market` |
-| `stockmarketstocksplit` | `stock-split` |
+| `stock-market` | `stock-market` |
+| `stock-split` | `stock-split` |
 | `bls` | `bls` |
 | `sec` | `sec` |
-| `usnationalweather` | `us-weather-alert` |
+| `us-national-weather` | `us-weather-alert` |
 
 `Scale`'s year defaults to the current one. Without a month, the year is described
 whole; the application always sends one.
