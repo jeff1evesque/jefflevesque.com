@@ -69,7 +69,7 @@ jobs:
 
     ##
     ## A second push while a deploy is in flight waits for it rather than
-    ## cancelling it: a deploy cut off half-way leaves the site serving a partial
+    ## canceling it: a deploy cut off half-way leaves the site serving a partial
     ## upload. Scoped to this job, so a pull request's build never queues behind a
     ## deploy.
     ##
