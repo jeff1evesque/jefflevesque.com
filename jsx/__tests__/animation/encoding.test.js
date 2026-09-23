@@ -1,15 +1,15 @@
 /**
- * encoding.test.js: how a published schema becomes colour and line style.
+ * encoding.test.js: how a published schema becomes color and line style.
  *
  * This module exists so the backdrop and the explorer cannot disagree about what
  * the graph looks like. The cases below are therefore about the MAPPING, not
  * about either surface -- what each one then does with the result (muting, a
  * legend, always-on labels) belongs to its own suite.
  *
- * Note: the assertions compare colours to each other rather than to hex
+ * Note: the assertions compare colors to each other rather than to hex
  *       literals. Pinning '#2a78d6' would make this suite fail the day the
  *       palette is retuned, which is a design decision rather than a defect --
- *       what must not change is that two namespaces get two colours.
+ *       what must not change is that two namespaces get two colors.
  */
 
 import {
@@ -45,11 +45,11 @@ const manyNamespaces = (n) => [...Array(n)].map((_, i) => `ns${String(i).padStar
 // contributes the most node types among the two dozen biggest, so a small slice
 // ranks it first, while `gamma` contributes far more across the whole build and
 // a larger slice ranks it first instead. Rank decides which categorical slot a
-// namespace gets, so the two slices disagree about what colour `alpha` is.
+// namespace gets, so the two slices disagree about what color `alpha` is.
 //
 // Note: no edge types, so filterSchema reduces to "the largest by count" -- the
 //       connector and swap passes need an adjacency to do anything. What is
-//       under test here is the colour, not the selection.
+//       under test here is the color, not the selection.
 //
 const namespaced = (namespace, n, from) => {
     const types = {};
@@ -92,7 +92,7 @@ describe('sourceNamespace', () => {
     // the builder nests vocabularies under their source, and publishes the
     // nested spelling. Reading the first segment after '/ontology/' answers
     // the SOURCE there, which pools ten vocabularies -- 118 of the current
-    // build's 151 node types -- into one namespace and one colour.
+    // build's 151 node types -- into one namespace and one color.
     //
     it('reads the vocabulary out of a nested uri, not the source', () => {
         expect(sourceNamespace(
@@ -209,7 +209,7 @@ describe('rankNamespaces', () => {
     });
 });
 
-describe('assigning colours to namespaces', () => {
+describe('assigning colors to namespaces', () => {
     it('gives the largest namespace the first categorical slot', () => {
         const assigned = assignNamespaceColors(nodesOf(['small', 'big', 'big']));
 
@@ -226,14 +226,14 @@ describe('assigning colours to namespaces', () => {
 
     it('never cycles the palette', () => {
         //
-        // two unrelated sources sharing a categorical colour reads as a relationship
+        // two unrelated sources sharing a categorical color reads as a relationship
         // that is not there, which is worse than a tail that reads as a tail.
         //
         const many = manyNamespaces(12);
         const assigned = assignNamespaceColors(nodesOf(many));
         const tail = many.slice(8).map(ns => assigned.get(ns));
 
-        tail.forEach(colour => expect(colors_categorical).not.toContain(colour));
+        tail.forEach(color => expect(colors_categorical).not.toContain(color));
     });
 
     it('answers an empty assignment for no nodes', () => {
@@ -283,7 +283,7 @@ describe('what happens past the eight palette slots', () => {
     it('shades a single overflow namespace without dividing by zero', () => {
         //
         // color_tail spreads lightness across the tail, and a tail of one has no
-        // spread -- the lone member still has to come back with a colour.
+        // spread -- the lone member still has to come back with a color.
         //
         const nine = manyNamespaces(9);
         const assigned = assignNamespaceColors(nodesOf(nine), 'shade');
@@ -303,7 +303,7 @@ describe('what happens past the eight palette slots', () => {
 describe('link styling by edge origin', () => {
     //
     // origin is the channel most likely to be lost without anyone noticing: a build
-    // that stopped carrying origins renders every link solid grey, which looks like a
+    // that stopped carrying origins renders every link solid gray, which looks like a
     // graph and has quietly dropped a dimension.
     //
     it('draws a raw edge solid', () => {
@@ -316,27 +316,27 @@ describe('link styling by edge origin', () => {
         expect(ORIGIN_DASH.enrichment).not.toBe(ORIGIN_DASH.unification);
     });
 
-    it('gives each origin its own colour', () => {
+    it('gives each origin its own color', () => {
         const assigned = [ORIGIN_COLOR.raw, ORIGIN_COLOR.enrichment, ORIGIN_COLOR.unification];
 
         expect(new Set(assigned).size).toBe(3);
     });
 
-    it('falls back to grey for an origin it does not know', () => {
+    it('falls back to gray for an origin it does not know', () => {
         //
         // the producer is free to add origins, and an unknown one has to render as a
         // plain link rather than as undefined.
         //
-        // Note: the fallback is the SAME grey 'raw' uses, deliberately. An unknown
+        // Note: the fallback is the SAME gray 'raw' uses, deliberately. An unknown
         //       origin should look like an ordinary edge, not like a new category --
-        //       inventing a colour for it would assert a distinction this codebase
+        //       inventing a color for it would assert a distinction this codebase
         //       cannot describe in the legend.
         //
         expect(originColor('something-new')).toBe(colors['gray-5']);
         expect(originColor('something-new')).toBe(ORIGIN_COLOR.raw);
     });
 
-    it('falls back to grey for a missing origin', () => {
+    it('falls back to gray for a missing origin', () => {
         expect(originColor(undefined)).toBe(originColor('something-new'));
     });
 
@@ -352,7 +352,7 @@ describe('link styling by edge origin', () => {
 // The mapping was already covered above and was never wrong. What went wrong was
 // its INPUT: the backdrop ranked its 24 node types, the explorer ranked its 60,
 // and the same build came out painted two different ways -- seven of the eight
-// namespaces the front page draws were a different colour on /graph, whose
+// namespaces the front page draws were a different color on /graph, whose
 // legend named the blue as a namespace the front page does not draw at all.
 // Nothing threw, because both surfaces still rendered.
 //
@@ -361,7 +361,7 @@ describe('buildPalette', () => {
         const schema = rerankingBuild();
 
         //
-        // the old behaviour, reproduced: ranking each slice on its own makes the
+        // the old behavior, reproduced: ranking each slice on its own makes the
         // two surfaces disagree about `alpha`. If this ever stops being true the
         // fixture has lost the property the rest of these cases depend on.
         //
@@ -380,11 +380,11 @@ describe('buildPalette', () => {
         expect(palette.get('gamma')).toBe(buildPalette(schema).get('gamma'));
     });
 
-    it('colours every namespace the surfaces draw, so no legend row is blank', () => {
+    it('colors every namespace the surfaces draw, so no legend row is blank', () => {
         //
         // both draw the same slice now, so this is one case rather than two. A
-        // namespace on screen that the palette left out has no colour, and the
-        // cluster falls back to a neutral grey for it.
+        // namespace on screen that the palette left out has no color, and the
+        // cluster falls back to a neutral gray for it.
         //
         const schema = rerankingBuild();
         const palette = buildPalette(schema);
@@ -394,7 +394,7 @@ describe('buildPalette', () => {
         });
     });
 
-    it('colours every namespace a SMALLER slice would draw', () => {
+    it('colors every namespace a SMALLER slice would draw', () => {
         //
         // the direction that can actually fail, kept as its own case now that
         // neither surface is the smaller one: the palette ranks over the shared
