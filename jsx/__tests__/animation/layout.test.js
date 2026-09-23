@@ -6,7 +6,7 @@
  * top-left corner, which is where d3 puts nodes it has to place itself.
  *
  * Note: d3-force is used for real here, not stubbed, wherever the claim is about
- *       d3's behaviour -- that the seeded spiral is d3's own, and that the tick
+ *       d3's behavior -- that the seeded spiral is d3's own, and that the tick
  *       count really does bring a real simulation to rest. A stub would only
  *       confirm the arithmetic agrees with itself.
  */
@@ -18,7 +18,7 @@ import { seedAround, settleTicks, fitLayout, SEED_RADIUS } from '../../import/an
 const bare = (n) => [...Array(n)].map((_, i) => ({ id: `n${i}` }));
 
 describe('seedAround', () => {
-    it('lays out the spiral d3 would have used, moved to the given centre', () => {
+    it('lays out the spiral d3 would have used, moved to the given center', () => {
         //
         // same shape, different place: the only thing seeding changes is WHERE the
         // simulation starts, not how it starts.
@@ -34,7 +34,7 @@ describe('seedAround', () => {
         });
     });
 
-    it('starts the first node right beside the centre', () => {
+    it('starts the first node right beside the center', () => {
         const [first] = seedAround(bare(1), 400, 300);
 
         expect(Math.hypot(first.x - 400, first.y - 300)).toBeLessThanOrEqual(SEED_RADIUS);
@@ -155,7 +155,7 @@ describe('fitLayout', () => {
         y1: Math.max(...nodes.map((n) => n.y)),
     });
 
-    it('centres the layout on the canvas', () => {
+    it('centers the layout on the canvas', () => {
         const nodes = layout();
 
         fitLayout(nodes, 800, 600, 20, 10);
