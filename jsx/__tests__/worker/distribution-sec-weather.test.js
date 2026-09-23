@@ -454,7 +454,7 @@ describe('two rows sharing an aggregate key', () => {
 
     it('sec drops the first category instead of merging', () => {
         //
-        // NOT the intended behaviour, and inert only because the chart rarely
+        // NOT the intended behavior, and inert only because the chart rarely
         // sees two categories for one form. The merge arm tests
         // 'trim(v.form) in data_reformat', but the insert below it stores under
         // `Form ${trim(v.form)}` -- the prefix the axis needs. The two keys never
