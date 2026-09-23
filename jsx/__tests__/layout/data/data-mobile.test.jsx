@@ -82,7 +82,7 @@ describe('the listing on mobile', () => {
 
     it('keeps the chart header in sync with the selected stream', () => {
         /*
-         * the mobile header was stuck on the default 'StockMarket' until the
+         * the mobile header was stuck on the default, the S&P 500, until the
          * click handler started setting listing_graphic_title.
          */
         setup();
