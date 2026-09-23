@@ -51,6 +51,14 @@ import { default as workerSec } from '../../worker/data/distribution/sec.js';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName, { streamCoverage } from '../../general/stream-name.js';
+import {
+    STOCK_MARKET,
+    STOCK_SPLIT,
+    BLS,
+    SEC,
+    US_NATIONAL_WEATHER,
+    STREAMS,
+} from '../../general/stream-id.js';
 import { toRGB, colors, colors_categorical, color_tail } from '../../general/colors.js';
 import chartHeight, {
     CHART_X_AXIS_HEIGHT,
@@ -96,11 +104,11 @@ import chartHeight, {
 
 */}
 const RDF_ENABLED = {
-    StockMarket: true,
-    StockMarketStockSplit: false,
-    BLS: true,
-    SEC: true,
-    USNationalWeather: true
+    [STOCK_MARKET]: true,
+    [STOCK_SPLIT]: false,
+    [BLS]: true,
+    [SEC]: true,
+    [US_NATIONAL_WEATHER]: true
 };
 
 function rdf_enabled(stream) {
@@ -161,7 +169,7 @@ export const BLS_PUBLICATION_LAG_LABEL = '1-2 months';
 
 */}
 const STREAM_LAG = {
-    BLS: BLS_PUBLICATION_LAG_LABEL
+    [BLS]: BLS_PUBLICATION_LAG_LABEL
 };
 
 function stream_lag(stream) {
@@ -505,27 +513,22 @@ class DataLayout extends Component {
         const dd = String(selected.getDate()).padStart(2, '0');
         const mm = String(selected.getMonth() + 1).padStart(2, '0'); // january is 0
         const yyyy = selected.getFullYear();
-        const stream_stockmarket = 'StockMarket';
-        const stream_stocksplit = `${stream_stockmarket}StockSplit`;
-        const stream_bls = 'BLS';
-        const stream_sec = 'SEC';
-        const stream_usnationalweather = 'USNationalWeather';
+        {/*
 
-        const streams = [
-            stream_stockmarket,
-            stream_stocksplit,
-            stream_bls,
-            stream_sec,
-            stream_usnationalweather
-        ];
+            each stream by its id, which is also its name everywhere on this
+            page: the listing's names and links, and the per-stream state keys.
+            See stream-id.js. The page used to name each stream twice -- a
+            capitalised name for the listing, lower-cased for everything else.
+
+        */}
+        const streams = STREAMS;
 
         let list_article = [];
-        streams.forEach((v, i) => {
-            const stream = v.toLowerCase();
+        streams.forEach((stream) => {
             const loader = <PuffLoader color='#228B22' size={isMobile ? 2 : 3} speedMultiplier='0.5' />;
 
             list_article.push({
-                'name': v,
+                'name': stream,
                 'link': `?item=${stream}`,
                 'detail': {
                     'Type': 'Hive',
@@ -537,7 +540,7 @@ class DataLayout extends Component {
                         imply the splits are index members. they are not
 
                     */
-                    ...(streamCoverage(v) ? { 'Coverage': streamCoverage(v) } : {}),
+                    ...(streamCoverage(stream) ? { 'Coverage': streamCoverage(stream) } : {}),
                     /*
 
                         before 'Records' rather than after: bls carries no row
@@ -547,14 +550,14 @@ class DataLayout extends Component {
                         stream
 
                     */
-                    ...(stream_lag(v) ? { 'Lag': stream_lag(v) } : {}),
+                    ...(stream_lag(stream) ? { 'Lag': stream_lag(stream) } : {}),
                     'Records': 'n/a',
                     'Partitions': 'n/a',
-                    'RDF': rdf_enabled(v) ? 'Available' : 'None'
+                    'RDF': rdf_enabled(stream) ? 'Available' : 'None'
                 },
                 'loader': loader,
                 'callback': this.toggleSetOpen,
-                'control_tray': this.getControlTray(v)
+                'control_tray': this.getControlTray(stream)
             });
         });
 
@@ -579,11 +582,11 @@ class DataLayout extends Component {
             distribution_detail_rows: [],
             distribution_detail_snap: DETAIL_INITIAL_SNAP,
             promise_data_distribution: false,
-            promise_get_data_stockmarket: false,
-            promise_get_data_stockmarketstocksplit: false,
+            'promise_get_data_stock-market': false,
+            'promise_get_data_stock-split': false,
             promise_get_data_bls: false,
             promise_get_data_sec: false,
-            promise_get_data_usnationalweather: false,
+            'promise_get_data_us-national-weather': false,
             promise_list_ticker_complete: false,
             display_data_distribution: true,
             display_filter_button: true,
@@ -601,50 +604,43 @@ class DataLayout extends Component {
             now: today,
             min_date: new Date(new Date(yyyy - 3, 0, 1).toLocaleString('en-US', {timeZone: 'America/New_York'})),
             selected_date: today,
-            stream_stockmarket: stream_stockmarket.toLowerCase(),
-            stream_stockmarketstocksplit: stream_stocksplit.toLowerCase(),
-            stream_bls: stream_bls.toLowerCase(),
-            stream_sec: stream_sec.toLowerCase(),
-            stream_usnationalweather: stream_usnationalweather.toLowerCase(),
             streams: streams,
-            selected_stream: stream_stockmarket.toLowerCase(),
+            selected_stream: STOCK_MARKET,
             list_article: list_article,
-            data_map: {
-                [`${stream_stockmarket.toLowerCase()}`]: [DATASETS[stream_stockmarket.toLowerCase()]],
-                [`${stream_stocksplit.toLowerCase()}`]: [DATASETS[stream_stocksplit.toLowerCase()]],
-                [`${stream_bls.toLowerCase()}`]: [DATASETS[stream_bls.toLowerCase()]],
-                [`${stream_sec.toLowerCase()}`]: [DATASETS[stream_sec.toLowerCase()]],
-                [`${stream_usnationalweather.toLowerCase()}`]: [DATASETS[stream_usnationalweather.toLowerCase()]]
-            },
-            records_stockmarket: 'n/a',
-            records_stockmarketstocksplit: 'n/a',
+            //
+            // each stream's datalake dataset, which is its own name for the data
+            // -- see DATASETS
+            //
+            data_map: Object.fromEntries(STREAMS.map((stream) => [stream, [DATASETS[stream]]])),
+            'records_stock-market': 'n/a',
+            'records_stock-split': 'n/a',
             records_bls: 'n/a',
             records_sec: 'n/a',
-            records_usnationalweather: 'n/a',
-            partitions_stockmarket: 'n/a',
-            partitions_stockmarketstocksplit: 'n/a',
+            'records_us-national-weather': 'n/a',
+            'partitions_stock-market': 'n/a',
+            'partitions_stock-split': 'n/a',
             partitions_bls: 'n/a',
             partitions_sec: 'n/a',
-            partitions_usnationalweather: 'n/a',
-            data_distribution_stockmarket: [],
-            data_distribution_stockmarketstocksplit: [],
+            'partitions_us-national-weather': 'n/a',
+            'data_distribution_stock-market': [],
+            'data_distribution_stock-split': [],
             data_distribution_bls: [],
             data_distribution_sec: [],
-            data_distribution_usnationalweather: [],
-            data_distribution_stockmarket_bar: [],
-            data_distribution_stockmarketstocksplit_bar: [],
+            'data_distribution_us-national-weather': [],
+            'data_distribution_stock-market_bar': [],
+            'data_distribution_stock-split_bar': [],
             data_distribution_bls_bar: [],
             data_distribution_sec_bar: [],
-            data_distribution_usnationalweather_bar: [],
-            listing_graphic_title: 'StockMarket',
+            'data_distribution_us-national-weather_bar': [],
+            listing_graphic_title: STOCK_MARKET,
             artifact_link: 'https://www.jefflevesque.com/artifact',
             chart_height: chartHeight()
         }
     }
 
     componentDidMount() {
-        this.state.streams.forEach((v, i) => {
-            this.downloadData(v.toLowerCase());
+        this.state.streams.forEach((stream) => {
+            this.downloadData(stream);
         });
 
         window.addEventListener('resize', this.updateChartHeight);
@@ -668,9 +664,7 @@ class DataLayout extends Component {
     }
 
     reset_stream(selected_stream=null) {
-        const stream = selected_stream
-            ? selected_stream.toLowerCase()
-            : this.state.selected_stream;
+        const stream = selected_stream || this.state.selected_stream;
 
         this.setState({
             [`chart_data_${stream}`]: [],
@@ -683,39 +677,37 @@ class DataLayout extends Component {
         const streams = s ? s : this.state.streams;
         let list_article = [];
 
-        streams.forEach((v, i) => {
-            const stream = v.toLowerCase();
+        streams.forEach((stream) => {
             const loader = ! this.state[`promise_get_data_${stream}`]
                 ? <PuffLoader color='#228B22' size={isMobile ? 2 : 3} speedMultiplier='0.5' />
                 : null;
 
             list_article.push({
-                'name': v,
+                'name': stream,
                 'link': `?item=${stream}`,
                 'detail': {
                     'Type': 'Hive',
-                    ...(streamCoverage(v) ? { 'Coverage': streamCoverage(v) } : {}),
-                    ...(stream_lag(v) ? { 'Lag': stream_lag(v) } : {}),
+                    ...(streamCoverage(stream) ? { 'Coverage': streamCoverage(stream) } : {}),
+                    ...(stream_lag(stream) ? { 'Lag': stream_lag(stream) } : {}),
                     'Records': recordsLabel(
-                        v,
+                        stream,
                         this.state[`records_${stream}`],
                         this.state.selected_date,
                         this.state.now
                     ),
                     'Partitions': format_count(this.state[`partitions_${stream}`]),
-                    'RDF': rdf_enabled(v) ? 'Available' : 'None'
+                    'RDF': rdf_enabled(stream) ? 'Available' : 'None'
                 },
                 'loader': loader,
                 'callback': this.toggleSetOpen,
-                'control_tray': this.getControlTray(v)
+                'control_tray': this.getControlTray(stream)
             });
         });
 
         this.setState({ list_article: list_article });
     }
 
-    getControlTray(stream_name) {
-        const stream = stream_name.toLowerCase();
+    getControlTray(stream) {
         const font_size = isMobile ? 'medium' : 'large';
 
         return(
@@ -746,15 +738,15 @@ class DataLayout extends Component {
                             the landing point, it does not override the filter
 
                         */}
-                        const shifted = stream === this.state.stream_bls
+                        const shifted = stream === BLS
                             ? blsLandingDate(this.state.selected_date, this.state.now)
                             : null;
 
                         this.setState({
                             selected_stream: stream,
                             // keep the mobile chart header in sync with the selected
-                            // stream (was stuck on the default 'StockMarket')
-                            listing_graphic_title: stream_name,
+                            // stream (was stuck on the default, the S&P 500)
+                            listing_graphic_title: stream,
                             [`promise_get_data_${stream}`]: false,
                             ...(shifted ? {
                                 selected_date: shifted,
@@ -779,58 +771,50 @@ class DataLayout extends Component {
     }
 
     downloadData(type) {
-        type = type.toLowerCase();
         this.setState({ [`promise_get_data_${type}`]: false} );
 
-        this.state.data_map[type].forEach((v, i) => {
-            const stream = v.toLowerCase();
-            if ([
-                this.state.stream_stockmarket.toLowerCase(),
-                this.state.stream_stockmarketstocksplit.toLowerCase(),
-                this.state.stream_usnationalweather.toLowerCase(),
-                this.state.stream_bls.toLowerCase(),
-                this.state.stream_sec.toLowerCase()
-            ].includes(type)) {
+        this.state.data_map[type].forEach((dataset) => {
+            if (STREAMS.includes(type)) {
                 //
                 // built by api-url.js, which also builds the 'This request' link
                 // under the chart, so the link names this exact request
                 //
-                const url = datalakeUrl(stream, this.state.yyyy, this.state.mm);
+                const url = datalakeUrl(dataset, this.state.yyyy, this.state.mm);
 
-                if ([this.state.stream_stockmarket, this.state.stream_stockmarketstocksplit].includes(type)) {
+                if ([STOCK_MARKET, STOCK_SPLIT].includes(type)) {
                     getStockMarketDistribution(
                         'data-distribution',
                         this.state.local ? null : url,
                         (item) => this.callbackGetData(item),
                         true,
-                        this.state[`stream_${stream}`],
+                        type,
                         type
                     );
-                } else if (type === this.state.stream_usnationalweather) {
+                } else if (type === US_NATIONAL_WEATHER) {
                     getUsWeatherAlertDistribution(
                         'data-distribution',
                         this.state.local ? null : url,
                         (item) => this.callbackGetData(item),
                         true,
-                        this.state[`stream_${stream}`],
+                        type,
                         type
                     );
-                } else if (type === this.state.stream_bls) {
+                } else if (type === BLS) {
                     getBlsDistribution(
                         'data-distribution',
                         this.state.local ? null : url,
                         (item) => this.callbackGetData(item),
                         true,
-                        this.state[`stream_${stream}`],
+                        type,
                         type
                     );
-                } else if (type === this.state.stream_sec) {
+                } else if (type === SEC) {
                     getSecDistribution(
                         'data-distribution',
                         this.state.local ? null : url,
                         (item) => this.callbackGetData(item),
                         true,
-                        this.state[`stream_${stream}`],
+                        type,
                         type
                     );
                 } else {
@@ -842,13 +826,13 @@ class DataLayout extends Component {
 
     callbackGetData(item) {
         if (item && checkValidObject('stream', item)) {
-            if ([this.state.stream_stockmarket, this.state.stream_stockmarketstocksplit].includes(item.stream)) {
+            if ([STOCK_MARKET, STOCK_SPLIT].includes(item.stream)) {
                 var worker = new WorkerBuilder(workerStockMarket);
-            } else if (item.stream === this.state.stream_usnationalweather) {
+            } else if (item.stream === US_NATIONAL_WEATHER) {
                 var worker = new WorkerBuilder(workerUSWeatherAlert);
-            } else if (item.stream === this.state.stream_bls) {
+            } else if (item.stream === BLS) {
                 var worker = new WorkerBuilder(workerBls);
-            } else if (item.stream === this.state.stream_sec) {
+            } else if (item.stream === SEC) {
                 var worker = new WorkerBuilder(workerSec);
             } else {
                 var worker = null;
@@ -873,7 +857,7 @@ class DataLayout extends Component {
                     && 'selected_stream' in event.data
                     && event.data.selected_stream
                 ) {
-                    const selected_stream = event.data.selected_stream.toLowerCase();
+                    const selected_stream = event.data.selected_stream;
                     this.setState({
                         [`partitions_${selected_stream}`]: event.data.count
                     }, () => {
@@ -891,7 +875,7 @@ class DataLayout extends Component {
                     && 'aggregate_key' in event.data
                     && event.data.aggregate_key
                 ) {
-                    const selected_stream = event.data.selected_stream.toLowerCase();
+                    const selected_stream = event.data.selected_stream;
                     const aggregate_key = event.data.aggregate_key;
 
                     {/*
@@ -1212,7 +1196,7 @@ class DataLayout extends Component {
 
     */
     openDistributionDetail(payload) {
-        const stream = this.state.selected_stream.toLowerCase();
+        const stream = this.state.selected_stream;
         const aggregate_key = this.state[`aggregate_key_${stream}`];
 
         {/* validate the clicked row is an object carrying the x-axis key */}
@@ -1393,8 +1377,8 @@ class DataLayout extends Component {
                                         mm: v.getMonth() + 1,
                                         yyyy: v.getFullYear()
                                     }, () => {
-                                        this.state.streams.forEach((v, i) => {
-                                            this.downloadData(v.toLowerCase());
+                                        this.state.streams.forEach((stream) => {
+                                            this.downloadData(stream);
                                         });
                                     });
                                 }}
@@ -1464,7 +1448,7 @@ class DataLayout extends Component {
     }
 
     render() {
-        const stream = this.state.selected_stream.toLowerCase();
+        const stream = this.state.selected_stream;
         const filter_column = this.filterColumn('expanded', true);
         const left_column = ! this.state.hide_all
             ? this.filterColumn()
