@@ -68,7 +68,7 @@ describe('reshaping a response row', () => {
         expect(data_filtered_detected[0].hammer).toBe(3);
     });
 
-    it('lowercases the pattern name, since the api capitalises it', () => {
+    it('lowercases the pattern name, since the api capitalizes it', () => {
         const { data_filtered_detected } = reshape([
             row({ group_by: 'Morning Doji Star'.replace(/\s+/g, '_') }),
         ]);
