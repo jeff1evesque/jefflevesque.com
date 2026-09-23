@@ -425,14 +425,14 @@ describe('toggleChartScale, the callback the left column drives', () => {
             .toEqual(['hammer', 'shooting_star']);
     });
 
-    it('generates one colour per series in the data', async () => {
+    it('generates one color per series in the data', async () => {
         await loaded();
 
         toggle('Monthly', ['hammer', 'shooting_star']);
 
         expect(mockSeen['chart'].color.length).toBeGreaterThan(0);
-        mockSeen['chart'].color.forEach(colour => {
-            expect(colour).toEqual({
+        mockSeen['chart'].color.forEach(color => {
+            expect(color).toEqual({
                 r: expect.any(Number),
                 g: expect.any(Number),
                 b: expect.any(Number),
