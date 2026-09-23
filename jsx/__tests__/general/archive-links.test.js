@@ -12,8 +12,10 @@
  * its own cases in alarm.test.jsx.
  *
  * Note: the listing below has the shape the api answers with, including what
- *       made the guessing go wrong -- two streams filed under a folder that is
- *       not their stream id, and a stream that has published nothing.
+ *       made the guessing go wrong -- streams filed under a folder that is not
+ *       their name, and a stream that has published nothing. It names streams
+ *       the way the api did before it moved to the ids ('stockmarket'), and
+ *       RENAMED is the same listing once it has.
  */
 
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
@@ -43,16 +45,30 @@ const LISTING = {
     ],
 };
 
+//
+// the same files, with each stream named by its id
+//
+const IDS = {
+    stockmarket: 'stock-market',
+    stockmarketstocksplit: 'stock-split',
+    usnationalweather: 'us-national-weather',
+};
+
+const RENAMED = {
+    streams: ['bls', 'sec', 'stock-market', 'stock-split', 'us-national-weather'],
+    archives: LISTING.archives.map((entry) => ({ ...entry, stream: IDS[entry.stream] || entry.stream })),
+};
+
 const labels = (stream, listing = LISTING) => archiveFiles(listing, stream).map((file) => file.label);
 
 describe('the files a stream has published', () => {
     it('offers exactly the files the listing names for it, newest first', () => {
-        expect(labels('stockmarket')).toEqual(['2026.csv', '2023.csv']);
+        expect(labels('stock-market')).toEqual(['2026.csv', '2023.csv']);
     });
 
     it('labels a year by its year, and a month as month/year', () => {
-        expect(labels('usnationalweather')).toEqual(['07/2025.csv']);
-        expect(labels('stockmarketstocksplit')).toEqual(['2025.csv']);
+        expect(labels('us-national-weather')).toEqual(['07/2025.csv']);
+        expect(labels('stock-split')).toEqual(['2025.csv']);
     });
 
     it('lists a year\'s own file after that year\'s months', () => {
@@ -65,22 +81,36 @@ describe('the files a stream has published', () => {
 
     it('links each file where the listing says it is served', () => {
         //
-        // the folder is the listing's business. A stream filed under a name
-        // other than its id -- as both stock market streams are -- is linked
-        // correctly without this module knowing either name.
+        // the folder is the listing's business, and need not be the stream's
+        // id -- the weather stream's files are filed under 'article/weather'.
+        // Each is linked correctly without this module knowing either name.
         //
-        expect(archiveFiles(LISTING, 'stockmarket').map((file) => file.href)).toEqual([
+        expect(archiveFiles(LISTING, 'stock-market').map((file) => file.href)).toEqual([
             `${ORIGIN}/stock-market/2026.csv`,
             `${ORIGIN}/stock-market/2023.csv`,
         ]);
+        expect(archiveFiles(LISTING, 'us-national-weather').map((file) => file.href)).toEqual([
+            `${ORIGIN}/article/weather/2025/07.csv`,
+        ]);
     });
 
-    it('matches the stream id in any casing', () => {
+    it.each([
+        ['stock-market', ['2026.csv', '2023.csv']],
+        ['stock-split', ['2025.csv']],
+        ['us-national-weather', ['07/2025.csv']],
+        ['sec', ['09/2025.csv', '12/2024.csv', '2024.csv']],
+    ])('offers %s the same files whichever name the listing gives it', (stream, files) => {
         //
-        // the page holds 'StockMarket' from its url and 'stockmarket' once
-        // lower-cased; the listing names streams lower-cased.
+        // matched by the stream's id on both sides. The page moved to the ids
+        // before the api did, and the two did not have to move together.
         //
-        expect(labels('StockMarket')).toEqual(labels('stockmarket'));
+        expect(labels(stream, LISTING)).toEqual(files);
+        expect(labels(stream, RENAMED)).toEqual(files);
+    });
+
+    it('finds a stream under any name it has gone by', () => {
+        expect(labels('StockMarket')).toEqual(labels('stock-market'));
+        expect(labels('USNationalWeather', RENAMED)).toEqual(['07/2025.csv']);
     });
 
     it('offers nothing for a stream the listing names with no files', () => {
