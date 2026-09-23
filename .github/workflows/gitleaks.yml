@@ -28,7 +28,7 @@ jobs:
 
       # The released binary rather than a marketplace action: this repo's CI
       # convention is jobs that cannot break when somebody else's pin moves,
-      # and gitleaks-action additionally wants a licence key for organisation
+      # and gitleaks-action additionally wants a license key for organization
       # accounts. One pinned download has neither problem.
       - name: Install gitleaks
         env:
