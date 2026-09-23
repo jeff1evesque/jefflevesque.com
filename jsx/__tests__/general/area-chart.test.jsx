@@ -1,7 +1,7 @@
 /**
  * area-chart.test.jsx: the stacked area chart behind the stream performance view.
  *
- * The same shape as line-chart.jsx -- ~150 lines of constructor prop normalisation,
+ * The same shape as line-chart.jsx -- ~150 lines of constructor prop normalization,
  * ~120 of componentDidUpdate, and a render that picks one of three y-axis variants --
  * so it is tested the same way, and the notes in line-chart.test.jsx apply here too.
  *
@@ -135,7 +135,7 @@ describe('the palette', () => {
         expect(fills()).toEqual(colors_categorical.slice(0, 2));
     });
 
-    it('takes an explicit colour array in order', () => {
+    it('takes an explicit color array in order', () => {
         render(
             <StackedAreaChart data={DATA} data_keys={KEYS} color={['#ff0000', '#00ff00']} />
         );
@@ -153,7 +153,7 @@ describe('the palette', () => {
         areas().forEach(a => expect(a.getAttribute('fill-opacity')).toBe('1'));
     });
 
-    it('uses the same colour for stroke and fill', () => {
+    it('uses the same color for stroke and fill', () => {
         render(<StackedAreaChart data={DATA} data_keys={KEYS} />);
 
         expect(strokes()).toEqual(fills());
@@ -164,7 +164,7 @@ describe('the palette', () => {
         // DOCUMENTS THE FIX FOR A REAL DEFECT. Indexing straight into the palette
         // returned undefined for the ninth series onward, and recharts renders an
         // undefined fill as solid BLACK -- so a stream with more series than hues grew
-        // black bands. Past the palette the colour now comes from color_tail: one
+        // black bands. Past the palette the color now comes from color_tail: one
         // desaturated hue separated by lightness.
         //
         const many = Array.from({ length: 11 }, (ignored, i) => `k${i}`);
@@ -213,7 +213,7 @@ describe('sizing', () => {
         // the reason this chart differs from line-chart: a container-relative aspect
         // cannot be made to agree with the distribution barchart, which is sized off
         // the viewport. Given a height, the aspect must not also be passed -- recharts
-        // honours aspect over height and the two charts would drift apart.
+        // honors aspect over height and the two charts would drift apart.
         //
         render(<StackedAreaChart data={DATA} data_keys={KEYS} height={320} />);
 
@@ -251,7 +251,7 @@ describe('the x axis', () => {
         expect(ticks(container, 'x')).toContain('10:00AM');
     });
 
-    it('honours a custom tick format', () => {
+    it('honors a custom tick format', () => {
         const { container } = render(
             <StackedAreaChart data={DATA} data_keys={KEYS} x_ticker_format='%Y-%m-%d' />
         );
@@ -360,7 +360,7 @@ describe('the y axis', () => {
         expect(container.querySelector('.recharts-yAxis')).toBeTruthy();
     });
 
-    it('honours a custom gutter width', () => {
+    it('honors a custom gutter width', () => {
         const wide = render(
             <StackedAreaChart data={DATA} data_keys={KEYS} y_axis_width={120} />
         );
@@ -432,7 +432,7 @@ describe('re-rendering with new props', () => {
         expect(areas()).toHaveLength(2);
     });
 
-    it('recolours when the palette is replaced', () => {
+    it('recolors when the palette is replaced', () => {
         const { rerender } = render(
             <StackedAreaChart data={DATA} data_keys={['a']} color={['#111111']} />
         );
@@ -489,7 +489,7 @@ describe('re-rendering with new props', () => {
 
     it('keeps drawing when an inert prop changes', () => {
         //
-        // DOCUMENTS A DEFECT (harmless): 'title' and 'y_label' are normalised in the
+        // DOCUMENTS A DEFECT (harmless): 'title' and 'y_label' are normalized in the
         // constructor, synced by componentDidUpdate and then never read by render -- see
         // 'title and y_label' below, which pins that neither reaches the DOM. The two
         // clauses at area-chart.jsx:231 and :241 therefore maintain state nothing
