@@ -9,7 +9,7 @@
  *   - renderDetail and reformatDate, which build the per-row detail line
  *
  * All four layouts (model, stream, data, home-page) share this component, so each of
- * these behaviours is felt in four places at once.
+ * these behaviors is felt in four places at once.
  *
  * Note: driven through a ref. handleSelect is a change handler bound to a dropdown
  *       whose options differ per caller -- 'Ratio' only exists on the home page,
@@ -322,7 +322,7 @@ describe('handleSelect, by the keys that share the ratio rebuild', () => {
     // Note: 'health' and 'coverage' are one branch in the source, not two -- both read
     //       as a percentage string and are stripped to a number the same way. They are
     //       listed separately here because the key each picks out is chosen inside that
-    //       branch, and picking the wrong one would sort a row by its neighbour's
+    //       branch, and picking the wrong one would sort a row by its neighbor's
     //       figure.
     //
     const REBUILDS = [
@@ -344,7 +344,7 @@ describe('handleSelect, by the keys that share the ratio rebuild', () => {
 
     it.each(REBUILDS)('%s accepts the key in any casing', (label, key, values) => {
         //
-        // the branch compares 'e.toLowerCase()', so the dropdown's own capitalisation
+        // the branch compares 'e.toLowerCase()', so the dropdown's own capitalization
         // is not load-bearing -- a caller listing 'HEALTH' gets the same sort.
         //
         const page = setup({ list_article: listing(key, values) });

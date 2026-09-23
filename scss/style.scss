@@ -245,7 +245,7 @@ html {
   //
   // Note: mui draws the two pieces of text as <p> and gives them no margin of
   //       its own, so bootstrap's unscoped 'p { margin-bottom: 1rem }' gives
-  //       them one. The pager centres each item's MARGIN box, so 14px under the
+  //       them one. The pager centers each item's MARGIN box, so 14px under the
   //       text lifts it 7px above the dropdown and the arrows. Here rather than
   //       in a page's partial because every pager inherits the same reboot:
   //       /graph's tables and /stream's trigger tables both sat 7px out.

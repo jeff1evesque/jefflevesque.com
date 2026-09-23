@@ -30,7 +30,7 @@ import React from 'react';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 
 //
-// Note: the probe records what the legend asked the canvas to emphasise, and
+// Note: the probe records what the legend asked the canvas to emphasize, and
 //       calls back on a click the way the real canvas does. What the explorer
 //       DOES with an emphasis is its own suite's business; what matters here is
 //       that the legend and the canvas agree on one at a time.
@@ -189,7 +189,7 @@ const toggle = (name) => screen.getByRole('button', { name: new RegExp(name) });
 //
 // Note: chosen by `data-value`, which is the build id mui puts on each item, so
 //       these read the same as the change events they replace -- by id, not by
-//       whatever the option happens to be labelled.
+//       whatever the option happens to be labeled.
 //
 async function openPicker() {
     await act(async () => {
@@ -534,9 +534,9 @@ describe('the tables below the graph', () => {
         expect(tables().getAttribute('data-drawn')).toBe(String(GRAPH_NODE_TYPES));
     });
 
-    it('are handed the canvas\'s own colour assignment', async () => {
+    it('are handed the canvas\'s own color assignment', async () => {
         //
-        // so a swatch in a row is the colour that namespace is in the graph above
+        // so a swatch in a row is the color that namespace is in the graph above
         // it. Recomputed over all 200 types it would rank them differently and
         // paint something else.
         //
@@ -835,7 +835,7 @@ describe('the build details', () => {
 
     it('calls the build total Nodes, because that is what it counts', async () => {
         //
-        // the listing's figure is every node in the build. It was labelled 'Node
+        // the listing's figure is every node in the build. It was labeled 'Node
         // types' -- what each circle on the canvas is -- which made ten million of
         // them look like they were missing from a sixty-circle canvas.
         //
@@ -918,7 +918,7 @@ describe('the panels', () => {
         }
     });
 
-    it('fold away without being unmounted, so the graph keeps its colours', async () => {
+    it('fold away without being unmounted, so the graph keeps its colors', async () => {
         //
         // the explorer beside them reads its palette from the same render, so a
         // panel is hidden by the stylesheet rather than removed by react.
@@ -977,7 +977,7 @@ describe('the panels', () => {
         expect(body.querySelector('.graph-legend')).not.toBeNull();
     });
 
-    it('summarise the build on its closed toggle', async () => {
+    it('summarize the build on its closed toggle', async () => {
         await setup();
 
         expect(toggle('Build details').textContent).toContain('9.88M nodes');
@@ -1398,7 +1398,7 @@ describe('remembering how the page was arranged', () => {
 
     it('drops a stored width this screen cannot give', async () => {
         //
-        // dragged on a wider monitor. Honouring it would make the column wider
+        // dragged on a wider monitor. Honoring it would make the column wider
         // than the layout ever intended.
         //
         writeLayout('graph', 'wide', { fold: {}, size: { build: 900 } });
@@ -1994,10 +1994,10 @@ describe('the legend', () => {
         await setup();
 
         const swatches = [...document.querySelectorAll('.graph-legend-swatch')];
-        const colours = new Set(swatches.map(s => s.style.backgroundColor));
+        const colors = new Set(swatches.map(s => s.style.backgroundColor));
 
         expect(swatches).toHaveLength(2);
-        expect(colours.size).toBe(2);
+        expect(colors.size).toBe(2);
     });
 
     it('is absent when there is no graph', async () => {

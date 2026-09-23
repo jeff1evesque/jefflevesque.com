@@ -213,7 +213,7 @@ describe('the partition count', () => {
         //
         // the worker echoes the stream the page asked about, and the page asks by
         // id, so the id is what comes back. It used to be lower-cased on the way
-        // in, against a capitalised name the page no longer holds.
+        // in, against a capitalized name the page no longer holds.
         //
         const page = setup();
         page.callbackGetData({ stream: 'bls' });
@@ -339,7 +339,7 @@ describe('the distribution payload', () => {
 describe('capping the stacked series', () => {
     //
     // past eight series the code stops naming them and switches to per-bar ranking:
-    // slot_1 is the largest part of THAT bar, slot_2 the next, and so on. A colour
+    // slot_1 is the largest part of THAT bar, slot_2 the next, and so on. A color
     // then means a rank rather than a series, which is only acceptable because every
     // segment is named on hover and in the sheet.
     //

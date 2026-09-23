@@ -180,12 +180,12 @@ describe('the rows it builds', () => {
         //     .map((key) => ({ name: key, value: ..., color: color_map[key] }))
         //
         // so the lookup is color_map['slot_1'] against a map keyed 'semiconductors'.
-        // The swatch comes back undefined -- the exact grey-sheet failure the comment
-        // above color_map says it is there to prevent -- and the row is labelled
+        // The swatch comes back undefined -- the exact gray-sheet failure the comment
+        // above color_map says it is there to prevent -- and the row is labeled
         // 'slot_1' rather than the category.
         //
         // The intended fix is to resolve the name for the ROW too, reusing the same
-        // `${key}_name` lookup, and to key the colour off that one value.
+        // `${key}_name` lookup, and to key the color off that one value.
         //
         const page = primed(setup(), {
             'data_distribution_stock-market_bar': [

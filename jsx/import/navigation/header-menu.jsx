@@ -45,7 +45,7 @@ class HeaderMenu extends Component {
 
                                             ordered the way the data moves:
                                             ingested, then stored, then built
-                                            into a graph, then modelled.
+                                            into a graph, then modeled.
 
                                         */}
                                         <span className='border-oval-radius'>

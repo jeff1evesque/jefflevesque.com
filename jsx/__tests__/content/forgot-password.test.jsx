@@ -9,7 +9,7 @@
  * The flow reaches Cognito four different ways -- forgotPassword,
  * forgotPasswordSubmit, confirmSignUp and resendSignUp -- and almost all of the
  * branching is in what it does with the errors those return. That error handling
- * is what is covered here, since it is where the behaviour actually lives.
+ * is what is covered here, since it is where the behavior actually lives.
  *
  * Note: '@aws-amplify/auth' is mocked. It is the network boundary.
  *
@@ -84,7 +84,7 @@ async function reachResetForm(utils) {
 }
 
 //
-// reject with a shape the component recognises: it reads 'code' and 'message' off
+// reject with a shape the component recognizes: it reads 'code' and 'message' off
 // the error with the 'in' operator, so a plain Error will not do.
 //
 function cognitoError(code, message = '') {

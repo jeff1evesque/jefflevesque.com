@@ -16,7 +16,7 @@
  *
  * matched a string ref that the component does not use. So the intent is
  * preserved here -- the fields and the submit control exist -- but the
- * assertions are made real, and behaviour is covered rather than only shape.
+ * assertions are made real, and behavior is covered rather than only shape.
  *
  * Note: '@aws-amplify/auth' is mocked. It is the network boundary; the point of
  *       these tests is what the component does with what Auth returns.

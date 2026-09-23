@@ -10,7 +10,7 @@
  *
  * So what makes a graph look like THIS page's graph lives here once, and both
  * import it: the radius, the forces, the fit and the drift. What is drawn with
- * them -- colour, the legend's emphasis, the card -- stays with each.
+ * them -- color, the legend's emphasis, the card -- stays with each.
  *
  * Note: a module rather than exports from graph-explorer.jsx. The page's suite
  *       replaces that component with a probe, and a placeholder importing its
@@ -26,12 +26,12 @@ const NODE_RADIUS = 7;
 const NODE_RADIUS_SMALL = 6;
 
 // daylight kept between two nodes. Labels used to need room of their own here;
-// without them this only has to keep neighbours far enough apart to point at.
+// without them this only has to keep neighbors far enough apart to point at.
 const COLLIDE_GAP = 8;
 
 // link length from edge count, clamped. Edge counts span seven orders of
 // magnitude, and without the ceiling one edge stretches half the viewport and
-// drags the layout off centre with it.
+// drags the layout off center with it.
 const LINK_BASE = 50;
 const LINK_SCALE = 0.12;
 const LINK_MAX = 140;
@@ -43,7 +43,7 @@ const CHARGE_SMALL = -70;
 // the pull toward the middle, before it is split between the two axes by the
 // canvas's shape -- see settleLayout. ASPECT_MOST bounds how lopsided that split
 // may get, so a very long, thin canvas still gets a graph rather than a line.
-const CENTRE = 0.06;
+const CENTER = 0.06;
 const ASPECT_MOST = 2.5;
 
 // how the settled layout is fitted to its canvas: the space kept clear inside
@@ -69,7 +69,7 @@ const FIT_STRETCH = 1.35;
 // already been settled AND fitted to its canvas, and a force still running would
 // pull it off the fit it was handed. An offset from a remembered home cannot.
 //
-// The circle STARTS at the node rather than being centred on it -- see
+// The circle STARTS at the node rather than being centered on it -- see
 // driftNodes -- so each axis strays at most twice this, and the distance from
 // home at most 2 * sqrt(2) * DRIFT, which stays inside the node's own radius.
 //
@@ -88,7 +88,7 @@ const DRIFT = 2;
 const DRIFT_SPEED = 0.03;
 
 // the turn between two nodes' phases -- the golden angle, as in layout.js's
-// seed spiral. Neighbouring nodes land on opposite sides of their circles, so
+// seed spiral. Neighboring nodes land on opposite sides of their circles, so
 // the field shimmers rather than pulsing in unison, and it is a fixed sequence
 // rather than Math.random so two renders of one build move alike.
 const DRIFT_TURN = Math.PI * (3 - Math.sqrt(5));
@@ -146,7 +146,7 @@ export function nodeRadius(width) {
  * whole graph sweeping in from the top-left corner. The simulation comes back
  * STOPPED, for the caller's hit test to ask it where things are.
  *
- * The centring pull is stronger across the canvas's short side than along its
+ * The centering pull is stronger across the canvas's short side than along its
  * long one, so the graph settles into the canvas's shape. With one strength for
  * both, it settles round whatever it is drawn into, and the fit can only scale a
  * round graph until it touches the SHORT side -- on a phone held upright that
@@ -166,8 +166,8 @@ export function settleLayout(nodes, links, width, height) {
                 : LINK_PLAIN)))
         .force('charge', d3.forceManyBody().strength(small ? CHARGE_SMALL : CHARGE))
         .force('collide', d3.forceCollide().radius((d) => d.r + COLLIDE_GAP))
-        .force('x', d3.forceX(width / 2).strength(CENTRE * Math.sqrt(aspect)))
-        .force('y', d3.forceY(height / 2).strength(CENTRE / Math.sqrt(aspect)))
+        .force('x', d3.forceX(width / 2).strength(CENTER * Math.sqrt(aspect)))
+        .force('y', d3.forceY(height / 2).strength(CENTER / Math.sqrt(aspect)))
         .stop();
 
     simulation.tick(settleTicks(simulation));
@@ -181,10 +181,10 @@ export function settleLayout(nodes, links, width, height) {
  * there is nothing to move or the reader has asked for stillness.
  *
  * Each node remembers where it settled, and is then drawn however far around
- * a small circle it has travelled SINCE -- which is why each term subtracts
+ * a small circle it has traveled SINCE -- which is why each term subtracts
  * its own value at rest. Written the obvious way, every node would be a
  * couple of pixels off its home on the first frame, because its phase is
- * what makes it differ from its neighbours; the whole graph would pop the
+ * what makes it differ from its neighbors; the whole graph would pop the
  * moment the animation started, and the layout the page computed so
  * carefully would not be the one anybody saw.
  *

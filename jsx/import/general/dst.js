@@ -78,7 +78,7 @@ function dstDateAdjusted(datetime, adjust=true, est=true) {
     } else {
         // Was `1 ? adjust : 0` -- a constant condition, so the `: 0` branch
         // could never be taken. Simplified to the value it always evaluated
-        // to, leaving behaviour unchanged.
+        // to, leaving behavior unchanged.
         const adjustment = adjust;
         const datetime_adjusted = new Date(new Date(datetime.getTime() - (adjustment * 60) * 60 * 1000).toLocaleString('en-US', {timeZone: 'America/New_York'}));
         return datetime_adjusted

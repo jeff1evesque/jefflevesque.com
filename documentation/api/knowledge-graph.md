@@ -23,7 +23,7 @@ some text, and what is held about one of them.
 |---|---|---|
 | `/knowledge-graph` | the listing of builds | on every page load, to find out which builds exist |
 | `/knowledge-graph/<id>` | that build's schema | the build selected in the picker, or named in the address |
-| `/knowledge-graph/tables/edge-types` | the relation catalogue | a `Limit` |
+| `/knowledge-graph/tables/edge-types` | the relation catalog | a `Limit` |
 | `/knowledge-graph/tables/find` | entities matching some text | a `Text`, and a `Limit` |
 | `/knowledge-graph/tables/facts` | the values held about one entity | a `Uri`, optionally a `Day` |
 | `/knowledge-graph/tables/neighborhood` | the edges touching one entity | a `Uri` and a `Day` |
@@ -83,7 +83,7 @@ Each build in `graphs` carries:
 holds millions of nodes across well over a hundred node types, and the graph draws one
 circle per node **type** -- a slice of them, since not all fit legibly. See
 [#46](https://github.com/jeff1evesque/jefflevesque.com/issues/46), where the page
-labelled the first figure as the second.
+labeled the first figure as the second.
 
 The types the canvas leaves out are not lost: `/graph` lists every `node_types` and
 `edge_types` entry in tables below the graph, read from this same response. No further
@@ -124,7 +124,7 @@ answer — it was asked and nothing matched.
 
 | Path | Takes | Answers |
 |---|---|---|
-| `tables/edge-types` | — | the relation catalogue: which links exist between which node types, and how many of each |
+| `tables/edge-types` | — | the relation catalog: which links exist between which node types, and how many of each |
 | `tables/find` | `Text` | entities whose text matches, as a case-insensitive substring |
 | `tables/facts` | `Uri`, optionally `Day` | the values held about one entity |
 | `tables/neighborhood` | `Uri`, `Day` | the edges touching one entity, within that day |
@@ -178,7 +178,7 @@ Execute sends what the form shows and nothing else.
 **Every published build** takes no parameter; Execute answers the listing, newest
 first. Take an id from that answer and give it to **One build's schema**.
 
-**The relation catalogue** likewise takes nothing, so Execute answers it outright.
+**The relation catalog** likewise takes nothing, so Execute answers it outright.
 From there the tables follow one another: **Entities matching some text** to get a
 `Uri`, that `Uri` to **The values held about one entity**, and the same `Uri` with a
 `Day` to **The edges touching one entity**.

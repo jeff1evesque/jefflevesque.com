@@ -243,7 +243,7 @@ describe('the spinner', () => {
 describe('the error boundary', () => {
     it('shows the fallback instead of a blank page when the tree throws', () => {
         //
-        // the whole layout is wrapped, so this is the app's last line of defence: a
+        // the whole layout is wrapped, so this is the app's last line of defense: a
         // render error anywhere below becomes the fallback rather than an empty
         // document. React reports the caught error through console.error, which
         // setup.js would otherwise treat as a failure, so it is silenced here.

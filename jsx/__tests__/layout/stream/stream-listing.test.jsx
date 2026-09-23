@@ -400,7 +400,7 @@ describe('the listing figures as they are rendered', () => {
         expect(detailFor(page, 'bls')['Total Records']).toBeNull();
     });
 
-    it('capitalises the rate the row reports', () => {
+    it('capitalizes the rate the row reports', () => {
         const page = setup();
 
         act(() => {

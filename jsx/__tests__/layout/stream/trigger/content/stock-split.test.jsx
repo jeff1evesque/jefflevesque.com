@@ -2,7 +2,7 @@
  * stock-split.test.jsx: the stock-split trigger's explanatory content.
  *
  * The simplest of the four contents: no table, no breadcrumbs, and a tumbling window
- * rather than a sliding one. Its whole behaviour is the four prop fallbacks in its
+ * rather than a sliding one. Its whole behavior is the four prop fallbacks in its
  * constructor and the graphic it configures from them, so that is what is covered
  * here.
  *
@@ -46,7 +46,7 @@ describe('the defaults trigger.jsx relies on', () => {
     it('titles itself StockSplit', () => {
         //
         // trigger.jsx renders '<StockSplit />' bare, so every default in the
-        // constructor is production behaviour rather than a safety net.
+        // constructor is production behavior rather than a safety net.
         //
         setup();
 

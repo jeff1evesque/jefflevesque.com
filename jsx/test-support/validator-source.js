@@ -16,7 +16,7 @@
  * and outside import/ (so they are never instrumented). Their .toString() is
  * therefore clean, which is what a production bundle would hand the worker.
  *
- * Each is behaviourally identical to its counterpart in import/validator/, and the
+ * Each is behaviorally identical to its counterpart in import/validator/, and the
  * worker suites assert that equivalence directly -- so a change to a real validator
  * that these did not follow is caught rather than silently diverging.
  */

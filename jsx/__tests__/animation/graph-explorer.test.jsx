@@ -9,10 +9,10 @@
  * DIFFERENTLY from the backdrop, because that difference is the only reason it
  * exists as a separate component:
  *
- *   - colour at rest rather than on hover
+ *   - color at rest rather than on hover
  *   - no decorative gray field
  *   - a layout already at rest, inside its canvas, before anything is painted
- *   - focusing a node lifts its neighbourhood and names it in a card, instead
+ *   - focusing a node lifts its neighborhood and names it in a card, instead
  *     of shoving nodes away from the pointer
  *   - a drift that moves each node a little around where it settled, rather than
  *     a simulation left running that moves the layout itself
@@ -70,7 +70,7 @@ const svg = () => document.querySelector('svg');
 const node = (page, id) => page.nodes.find(n => n.id === id);
 
 //
-// the pointer at a node's centre, or `offset` px to its right. d3.pointer falls back
+// the pointer at a node's center, or `offset` px to its right. d3.pointer falls back
 // to client coordinates under jsdom, where nothing has a layout.
 //
 function pointAt(page, id, offset = 0) {
@@ -173,7 +173,7 @@ describe('the layout before the first paint', () => {
         });
     });
 
-    it('centres the graph on the canvas rather than its corner', () => {
+    it('centers the graph on the canvas rather than its corner', () => {
         const { page } = setup();
 
         const xs = page.nodes.map(n => n.x);
@@ -230,10 +230,10 @@ describe('with no data', () => {
     });
 });
 
-describe('colour at rest', () => {
+describe('color at rest', () => {
     it('paints every node from the start', () => {
         //
-        // the backdrop washes nodes toward white until hovered. Here the colour IS
+        // the backdrop washes nodes toward white until hovered. Here the color IS
         // the content, so nothing is muted.
         //
         setup();
@@ -241,7 +241,7 @@ describe('colour at rest', () => {
         circles().forEach(c => expect(c.getAttribute('fill')).toBeTruthy());
     });
 
-    it('gives two namespaces two colours', () => {
+    it('gives two namespaces two colors', () => {
         setup();
 
         const fills = new Map(circles().map((c, i) => [TYPES[i], c.getAttribute('fill')]));
@@ -261,7 +261,7 @@ describe('colour at rest', () => {
 });
 
 describe('focusing a node', () => {
-    it('dims everything outside the neighbourhood', () => {
+    it('dims everything outside the neighborhood', () => {
         const { page } = setup();
 
         page.highlight('sec_C');
@@ -270,7 +270,7 @@ describe('focusing a node', () => {
         expect(dimmed.length).toBeGreaterThan(0);
     });
 
-    it('keeps the focused node and its neighbours at full strength', () => {
+    it('keeps the focused node and its neighbors at full strength', () => {
         //
         // bls_B touches both others, so focusing it leaves nothing dimmed.
         //
@@ -284,7 +284,7 @@ describe('focusing a node', () => {
 
     it('rings the focused node, and only that one', () => {
         //
-        // its neighbours light up alongside it, so without a mark of its own the node
+        // its neighbors light up alongside it, so without a mark of its own the node
         // the card describes is one of several equally lit circles.
         //
         const { page } = setup();
@@ -402,7 +402,7 @@ describe('emphasis asked for by the legend', () => {
 
         pointAt(page, 'bls_A');
 
-        // bls_A and its neighbour bls_B are lit; sec_C, which the legend asked
+        // bls_A and its neighbor bls_B are lit; sec_C, which the legend asked
         // for, is not
         expect(opacities('circle')).toEqual([1, 1, DIM_OPACITY]);
     });
@@ -619,13 +619,13 @@ describe('the card', () => {
         expect(card().querySelector('.graph-card-name').textContent).toBe('A');
     });
 
-    it('gives the namespace the colour its nodes are painted', () => {
+    it('gives the namespace the color its nodes are painted', () => {
         const { page } = setup();
 
         pointAt(page, 'bls_A');
 
         //
-        // compared through a style declaration, which normalises both to the same
+        // compared through a style declaration, which normalizes both to the same
         // notation -- the fill is written as hex and the swatch reads back as rgb().
         //
         const swatch = card().querySelector('.graph-legend-swatch');
@@ -654,7 +654,7 @@ describe('the card', () => {
         expect(card().textContent).not.toContain('1 types');
     });
 
-    it('counts a neighbour once however many edges join them, and not itself', () => {
+    it('counts a neighbor once however many edges join them, and not itself', () => {
         //
         // a pair of types commonly has several relations between them, and a type can
         // relate to itself. Neither makes it connected to more types.
@@ -866,7 +866,7 @@ describe('an edge to a type the schema does not carry', () => {
         //
         // the page only hands this a filtered schema, which drops such edges. Should
         // one arrive anyway, the error that surfaces is d3's -- which names the
-        // missing type -- rather than a TypeError from the neighbour count.
+        // missing type -- rather than a TypeError from the neighbor count.
         //
         const broken = {
             node_types: { bls_A: { count: 1 } },
@@ -954,7 +954,7 @@ describe('placeCard', () => {
         expect(placeCard(200, 550, W, H).className).toContain('graph-card-above');
     });
 
-    it('centres it on a node in the middle band', () => {
+    it('centers it on a node in the middle band', () => {
         expect(placeCard(200, 300, W, H).className).toContain('graph-card-middle');
     });
 
@@ -1247,7 +1247,7 @@ describe('the drift', () => {
     //
     let pending;
     let asked;
-    let cancelled;
+    let canceled;
 
     beforeEach(() => {
         pending = null;
@@ -1255,14 +1255,14 @@ describe('the drift', () => {
             pending = fn;
             return 1;
         });
-        cancelled = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
+        canceled = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
             pending = null;
         });
     });
 
     afterEach(() => {
         asked.mockRestore();
-        cancelled.mockRestore();
+        canceled.mockRestore();
     });
 
     function frames(n = 1) {
@@ -1311,7 +1311,7 @@ describe('the drift', () => {
         // whole path rather than the start of it.
         //
         // The bound is twice DRIFT PER AXIS -- the circle starts at the node
-        // instead of being centred on it, so each term ranges over [-2, 2] rather
+        // instead of being centered on it, so each term ranges over [-2, 2] rather
         // than [-1, 1] -- which makes the bound on the DISTANCE the diagonal of
         // that square. Asserting 2 * DRIFT here passed only because the previous
         // speed never swept far enough to put a node near a corner.
@@ -1375,7 +1375,7 @@ describe('the drift', () => {
 
         unmount();
 
-        expect(cancelled).toHaveBeenCalled();
+        expect(canceled).toHaveBeenCalled();
         expect(pending).toBeNull();
     });
 
@@ -1423,11 +1423,16 @@ describe('the drift', () => {
 
 describe('the glint', () => {
     //
-    // each node rests at its colour and brightens now and then, in the time the
+    // each node rests at its color and brightens now and then, in the time the
     // placeholder breathed in. The stylesheet runs it; what the canvas owes it is
-    // a class on every node and a delay that sets each a beat behind the last.
+    // a class on every node, a delay that sets each a beat behind the last, and a
+    // second class on whatever the pointer is lighting, which holds it still.
     //
     const delays = () => circles().map((c) => c.style.animationDelay);
+    const held = () => circles()
+        .map((c, index) => [TYPES[index], c])
+        .filter(([, c]) => c.classList.contains('graph-explorer-node-lit'))
+        .map(([id]) => id);
 
     it('marks every node for the stylesheet to glint', () => {
         setup();
@@ -1441,11 +1446,64 @@ describe('the glint', () => {
         expect(delays()).toEqual(TYPES.map((id, index) => breathDelay(index)));
     });
 
-    it('restarts no node when the emphasis changes', () => {
+    it('holds nothing still at rest', () => {
+        setup();
+
+        expect(held()).toEqual([]);
+    });
+
+    it('holds the node under the pointer, and its neighbors, still at full strength', () => {
         //
-        // a node that lost its class or its delay, or was drawn afresh, would
-        // start its glint again -- so every hover would set the whole canvas
-        // pulsing in step.
+        // sec_C's one neighbor is bls_B. bls_A is dropped back, and glints on.
+        //
+        const { page } = setup();
+
+        pointAt(page, 'sec_C');
+
+        expect(held()).toEqual(['bls_B', 'sec_C']);
+        circles()
+            .filter((c) => c.classList.contains('graph-explorer-node-lit'))
+            .forEach((c) => expect(c.getAttribute('opacity')).toBe('1'));
+    });
+
+    it('lets them glint again once the pointer leaves', () => {
+        const { page } = setup();
+
+        pointAt(page, 'sec_C');
+        fireEvent.mouseLeave(svg());
+
+        expect(held()).toEqual([]);
+    });
+
+    it('holds a pinned node still only while the pointer is on it', () => {
+        //
+        // only a hover holds. A pin is a state the canvas rests in, and it rests
+        // glinting -- until the pointer comes back to the node.
+        //
+        const { page } = setup();
+
+        clickAt(page, 'sec_C');
+        fireEvent.mouseLeave(svg());
+
+        expect(page.pinnedId).toBe('sec_C');
+        expect(held()).toEqual([]);
+
+        pointAt(page, 'sec_C');
+
+        expect(held()).toEqual(['bls_B', 'sec_C']);
+    });
+
+    it('holds nothing still for the namespaces the legend lights', () => {
+        setup({ emphasis: [{ kind: 'namespace', value: 'bls' }] });
+
+        expect(held()).toEqual([]);
+    });
+
+    it('keeps every node\'s own class and delay through a change of emphasis', () => {
+        //
+        // the hold comes and goes as a class of its own, on top of these. A node
+        // that lost its own class or delay, or was drawn afresh, would restart
+        // its glint -- so every hover would set the whole canvas pulsing in step.
         //
         const { page, rerender } = setup();
         const drawn = circles();

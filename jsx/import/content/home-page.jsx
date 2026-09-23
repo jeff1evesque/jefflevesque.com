@@ -8,7 +8,7 @@
  *
  * It used to be two pages behind a pair of checkboxes in the bottom right corner,
  * 'StockMarket' and 'Summary', which were not a choice anybody had a reason to
- * make: they were mutually exclusive, neither was labelled with what it would do,
+ * make: they were mutually exclusive, neither was labeled with what it would do,
  * and 'Summary' replaced the graph with a filterable listing of the day's stock
  * splits and one stream. That listing is what /data and /stream are, done
  * properly and reachable from the menu, so the front page carried a worse copy of
@@ -52,7 +52,7 @@ class HomePage extends Component {
 
         this.state = {
             graph_schema: null,
-            // namespace -> colour for the WHOLE build, not for the slice drawn
+            // namespace -> color for the WHOLE build, not for the slice drawn
             // below it. See buildPalette, and the note in componentDidMount.
             graph_palette: null
         }
@@ -92,10 +92,10 @@ class HomePage extends Component {
                   slice that gets drawn. Ranking it over the 24 types below --
                   which is what happened for as long as the backdrop existed --
                   ranks a different set from the one /graph ranks, so the same
-                  namespace came out a different colour on the two pages and
+                  namespace came out a different color on the two pages and
                   /graph's legend described this cluster incorrectly. Both are
                   set in ONE setState so the cluster never redraws holding one
-                  build's nodes and another's colours.
+                  build's nodes and another's colors.
 
         */}
 

@@ -540,7 +540,7 @@
     "/knowledge-graph/tables/edge-types": {
       "get": {
         "operationId": "listKnowledgeGraphEdgeTypes",
-        "summary": "The relation catalogue",
+        "summary": "The relation catalog",
         "description": "Which links exist between which node types, and how many of each. Takes no value beyond a Limit.",
         "parameters": [
           {

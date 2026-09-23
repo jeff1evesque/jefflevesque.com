@@ -250,7 +250,7 @@ describe('the monthly scale', () => {
     it('stamps the bucket with the first of the month it holds', () => {
         //
         // FIXED. The monthly branch built '`${year}-${month}`' with getMonth() + 2,
-        // where every other branch uses + 1. Two faults that cancelled: the
+        // where every other branch uses + 1. Two faults that canceled: the
         // hyphenated form is an ISO date and parses as UTC, which in eastern time
         // lands an hour before midnight in the PREVIOUS month, and the + 2 pushed the
         // label a month forward to compensate. The axis looked right by accident.

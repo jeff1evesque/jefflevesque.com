@@ -246,7 +246,7 @@ describe('the stock-split stream', () => {
     it('carries the ticker list along for the tooltip when present', () => {
         //
         // the tickers ride on the record so the tooltip can name them; the bar itself
-        // is coloured by a single series.
+        // is colored by a single series.
         //
         send({
             'data-distribution': [{ split_date: '03', total_tickers: '2', tickers: 'nvdl 3:1, mull 25:1' }],

@@ -8,7 +8,7 @@
  *     tables exist to fix
  *   - sorting a count column as text, which puts 9 above 10,000,000 and reads as
  *     a broken table rather than a wrong sort
- *   - painting a namespace a different colour from the graph above it, which
+ *   - painting a namespace a different color from the graph above it, which
  *     invents a relationship between two unrelated sources
  *   - leaving the reader on a page that no longer exists after a filter
  *
@@ -425,10 +425,10 @@ describe('filtering', () => {
 });
 
 describe('agreeing with the graph above it', () => {
-    it('paints a namespace the colour the canvas gave it', () => {
+    it('paints a namespace the color the canvas gave it', () => {
         //
         // assignNamespaceColors deals out eight slots by rank, so the same
-        // namespace gets a different colour depending on the set it was ranked
+        // namespace gets a different color depending on the set it was ranked
         // against. Recomputing here over all 151 types would paint swatches that
         // disagree with the graph the reader is looking at.
         //
@@ -439,7 +439,7 @@ describe('agreeing with the graph above it', () => {
         expect(swatch.getAttribute('style')).toContain('rgb(17, 17, 17)');
     });
 
-    it('leaves a namespace the canvas never painted without a colour', () => {
+    it('leaves a namespace the canvas never painted without a color', () => {
         setup({ painted: new Map([['sec', '#222222']]) });
 
         fireEvent.change(filter(), { target: { value: 'bls_T0 ' } });
@@ -470,7 +470,7 @@ describe('nodeRows', () => {
         );
 
         expect(rows[0].namespace).toBe('bls');
-        expect(rows[0].colour).toBe('#111111');
+        expect(rows[0].color).toBe('#111111');
     });
 
     it('falls back to the id prefix where there is no uri', () => {

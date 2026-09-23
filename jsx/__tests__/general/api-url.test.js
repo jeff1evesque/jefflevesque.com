@@ -115,7 +115,7 @@ describe('performanceUrl', () => {
         expect(performanceUrl('Nope', 'day', 'UTC').searchParams.get('Stream')).toBe('nope');
     });
 
-    it('lower-cases the interval, which the page holds capitalised', () => {
+    it('lower-cases the interval, which the page holds capitalized', () => {
         expect(performanceUrl('bls', 'Month', 'UTC').searchParams.get('Interval')).toBe('month');
     });
 
@@ -163,7 +163,7 @@ describe('datalakeUrl', () => {
         expect(JSON.parse(datalakeUrl('bls', 2026, 7).searchParams.get('Scale')).month).toBe('07');
     });
 
-    it('serialises the scale as the pages always have', () => {
+    it('serializes the scale as the pages always have', () => {
         expect(datalakeUrl('bls', 2026, 9).searchParams.get('Scale')).toBe('{"year":2026,"month":"09"}');
     });
 

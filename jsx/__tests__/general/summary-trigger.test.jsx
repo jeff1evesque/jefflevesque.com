@@ -142,7 +142,7 @@ describe('the hover anchor', () => {
         //
         // the two headings track hover in separate state keys, so both need checking --
         // and only 'hover_hash_summary' is declared in the constructor. The integration
-        // one works because undefined is falsy, not because it was initialised.
+        // one works because undefined is falsy, not because it was initialized.
         //
         setup();
 

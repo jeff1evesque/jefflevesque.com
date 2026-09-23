@@ -94,7 +94,7 @@ class StreamAlarm extends Component {
     //       naming a stream by a name it used to go by with the url naming it
     //       by its id before this page mounts -- see route/canonical-stream.jsx
     //       -- so this page converts nothing. It used to rename three streams
-    //       for itself, into names streamName did not know, and was labelled
+    //       for itself, into names streamName did not know, and was labeled
     //       'stock-market' and 'us-national-weather' as a result.
     //
     selectedStream() {
@@ -176,7 +176,7 @@ class StreamAlarm extends Component {
     //
     // Note: the dataset is the one /data sends, read from DATASETS. This asked
     //       for 'stockmarket' -- the stream's name at the time, not its dataset --
-    //       which the api does not recognise and answers with a 400, so the count
+    //       which the api does not recognize and answers with a 400, so the count
     //       never arrived even after the three faults above were fixed. Both pages
     //       now build the url with api-url.js, which is what the api's documented
     //       'Data' values are checked against.

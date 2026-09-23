@@ -26,7 +26,7 @@ assignees: ''
 ## Reproduction
 
 <!--
-  How this project parameterises a view. Fill in what applies and delete the
+  How this project parameterizes a view. Fill in what applies and delete the
   rest; a bug that only appears on one combination is the common case here.
 -->
 

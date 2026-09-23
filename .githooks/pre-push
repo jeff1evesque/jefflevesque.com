@@ -24,7 +24,7 @@
 # Note: advisory, not a control. 'git push --no-verify' skips it, and it cannot
 #       see a push made from anywhere but this working copy. That is the reason
 #       the server-side rule is the one that matters, and this only fails faster
-#       -- the same division of labour the pre-commit hook describes.
+#       -- the same division of labor the pre-commit hook describes.
 #
 set -e
 

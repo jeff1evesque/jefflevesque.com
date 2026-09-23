@@ -175,7 +175,7 @@ describe('what the front page no longer shows', () => {
         //
         // both are read on the way into GraphCluster: the slice it draws, and the
         // palette it draws it in. The palette is built from the UNFILTERED schema
-        // so this page and /graph paint a namespace the same colour -- see
+        // so this page and /graph paint a namespace the same color -- see
         // buildPalette -- which is why it is kept here rather than derived from
         // 'graph_schema' below.
         //

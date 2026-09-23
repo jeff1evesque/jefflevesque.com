@@ -146,7 +146,7 @@ beforeEach(() => {
     Object.keys(mockSeen).forEach(key => delete mockSeen[key]);
 });
 
-describe('the username normalisation shared by six containers', () => {
+describe('the username normalization shared by six containers', () => {
     const containers = [
         ['data', DataLayoutState, 'data'],
         ['model', ModelLayoutState, 'model'],
@@ -353,7 +353,7 @@ describe('the header-menu container', () => {
 describe('the stream-trigger container', () => {
     it('defaults hide.all to false but leaves hide.graph undefined', () => {
         //
-        // DEFECT: hide_all is initialised (`var hide_all = false`) before the
+        // DEFECT: hide_all is initialized (`var hide_all = false`) before the
         // guards, hide_graph is not -- it is only declared inside the nested
         // `if`, so a store without it yields undefined. StreamTriggerLayout then
         // gets `hide.graph === undefined` where it expects a boolean.

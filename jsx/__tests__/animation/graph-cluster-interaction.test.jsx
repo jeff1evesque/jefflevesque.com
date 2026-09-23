@@ -15,7 +15,7 @@
  *     simulation.tick() advances the physics but does NOT dispatch the event
  *
  * Note: the assertions read the real svg d3 produced. The component builds actual
- *       circles, lines and text, so hover colour and per-tick geometry are observable
+ *       circles, lines and text, so hover color and per-tick geometry are observable
  *       even though the animation never runs.
  */
 
@@ -61,7 +61,7 @@ const circles = (container) => [...container.querySelectorAll('circle')];
 const labels = (container) => [...container.querySelectorAll('text')];
 
 //
-// the coloured nodes carry data; the grey background field is a separate selection.
+// the colored nodes carry data; the gray background field is a separate selection.
 // Reading the bound data is how a test names a node to hover.
 //
 function nodeIds(page) {
@@ -138,7 +138,7 @@ describe('segClosest', () => {
 
     it('reuses one scratch object rather than allocating', () => {
         //
-        // deliberate: this runs (gray nodes x coloured edges x relax passes) times per
+        // deliberate: this runs (gray nodes x colored edges x relax passes) times per
         // tick, so it writes into a shared object. A caller that keeps the result across
         // calls gets the LAST answer, which is worth knowing before using it.
         //
@@ -164,8 +164,8 @@ describe('highlight', () => {
 
     it('brings the hovered node to full opacity and dims the rest', () => {
         //
-        // the resting field is deliberately pale; hovering is what brings colour in, so
-        // the unlit nodes have to sit back for the neighbourhood to read.
+        // the resting field is deliberately pale; hovering is what brings color in, so
+        // the unlit nodes have to sit back for the neighborhood to read.
         //
         const { page } = setup();
         const [id] = nodeIds(page);
@@ -177,10 +177,10 @@ describe('highlight', () => {
         expect(dimmed.length).toBeGreaterThan(0);
     });
 
-    it('darkens the hovered node further than its neighbours', () => {
+    it('darkens the hovered node further than its neighbors', () => {
         //
-        // both come up to full colour, so the hovered one is darkened more or it becomes
-        // indistinguishable from the neighbours lighting up beside it.
+        // both come up to full color, so the hovered one is darkened more or it becomes
+        // indistinguishable from the neighbors lighting up beside it.
         //
         const { page } = setup();
         const link = page.links[0];
@@ -191,8 +191,8 @@ describe('highlight', () => {
         const fills = new Map(
             page.nodeSel.nodes().map((n, i) => [page.nodes[i].id, n.getAttribute('fill')])
         );
-        const neighbour = link.target.id ? link.target.id : link.target;
-        expect(fills.get(self)).not.toBe(fills.get(neighbour));
+        const neighbor = link.target.id ? link.target.id : link.target;
+        expect(fills.get(self)).not.toBe(fills.get(neighbor));
     });
 
     it('lights the edges touching the hovered node and hides the others', () => {
@@ -209,7 +209,7 @@ describe('highlight', () => {
 
     it('lights the types pointing AT the hovered node, not only the ones it points at', () => {
         //
-        // edges are directed, and a neighbourhood is both ends of them. Hovering the
+        // edges are directed, and a neighborhood is both ends of them. Hovering the
         // target of an edge has to light its source too.
         //
         const { page } = setup();
@@ -236,7 +236,7 @@ describe('highlight', () => {
 
     it('shows only the hovered node\'s own label', () => {
         //
-        // showing every neighbour's label too was unreadable, so exactly one is visible.
+        // showing every neighbor's label too was unreadable, so exactly one is visible.
         //
         const { page } = setup();
         const [id] = nodeIds(page);
@@ -297,9 +297,9 @@ describe('the glint', () => {
         expect(lit(page)).toHaveLength(0);
     });
 
-    it('holds the lit neighbourhood still, and only that', () => {
+    it('holds the lit neighborhood still, and only that', () => {
         //
-        // hover brings those nodes up to full colour, which the glint -- tuned
+        // hover brings those nodes up to full color, which the glint -- tuned
         // for the pale tints -- would swing far harder. The rest, dimmed, go on.
         //
         const { page } = setup();
@@ -329,7 +329,7 @@ describe('the glint', () => {
 describe('nodeColor', () => {
     it('falls back to a neutral gray before any graph has been drawn', () => {
         //
-        // no schema means no colour assignment at all, which is the cold-load state
+        // no schema means no color assignment at all, which is the cold-load state
         // rather than a mistake.
         //
         const held = React.createRef();
@@ -344,7 +344,7 @@ describe('nodeColor', () => {
         expect(page.nodeColor('no-such-namespace')).toBe(colors['gray-5']);
     });
 
-    it('gives a namespace the build does carry its assigned colour', () => {
+    it('gives a namespace the build does carry its assigned color', () => {
         const { page } = setup();
         const { namespace } = page.nodes[0];
 
@@ -648,9 +648,9 @@ describe('applyResize', () => {
         }
     });
 
-    it('re-centres the simulation forces on the new middle', () => {
+    it('re-centers the simulation forces on the new middle', () => {
         //
-        // without this the cluster keeps drifting toward where the centre used to be, and
+        // without this the cluster keeps drifting toward where the center used to be, and
         // expanding the window pushes the animation off screen.
         //
         const { page } = setup();
@@ -662,7 +662,7 @@ describe('applyResize', () => {
         expect(page.simulation.force('x').x()()).toBeCloseTo(700);
     });
 
-    it('rebuilds the grey field when the viewport changes shape', () => {
+    it('rebuilds the gray field when the viewport changes shape', () => {
         const { page } = setup();
         const before = page.background.nodes.length;
         window.innerWidth = window.innerWidth + 600;
@@ -676,7 +676,7 @@ describe('applyResize', () => {
     it('does NOT rebuild for a small height nudge', () => {
         //
         // a pure height change within the slop is a mobile URL bar animating away, not a
-        // new layout. Regenerating there would teleport every grey node for nothing, so
+        // new layout. Regenerating there would teleport every gray node for nothing, so
         // the live viewport is tracked instead.
         //
         const { page } = setup();
@@ -786,7 +786,7 @@ describe('the per-tick work', () => {
         page.simulation.on('tick').call(page.simulation);
     }
 
-    it('writes every coloured node position onto its circle', () => {
+    it('writes every colored node position onto its circle', () => {
         const { page } = setup();
         page.nodes.forEach((n, i) => { n.x = 100 + i; n.y = 200 + i; });
 
@@ -798,7 +798,7 @@ describe('the per-tick work', () => {
         });
     });
 
-    it('writes both endpoints of every coloured edge', () => {
+    it('writes both endpoints of every colored edge', () => {
         const { page } = setup();
 
         tick(page);
@@ -828,7 +828,7 @@ describe('the per-tick work', () => {
         expect(Number(label.getAttribute('y'))).toBeCloseTo(400 - node.r - 6);
     });
 
-    it('writes the grey field positions too', () => {
+    it('writes the gray field positions too', () => {
         const { page } = setup();
 
         tick(page);
@@ -838,7 +838,7 @@ describe('the per-tick work', () => {
         });
     });
 
-    it('darkens the grey nodes near the cursor', () => {
+    it('darkens the gray nodes near the cursor', () => {
         //
         // the field responds to the cursor without lighting up: nodes within
         // BG_DARK_RADIUS fade up toward the hover opacity, in proportion to distance, so
@@ -854,7 +854,7 @@ describe('the per-tick work', () => {
         expect(near.dark).toBeLessThanOrEqual(1);
     });
 
-    it('leaves the distant grey nodes alone', () => {
+    it('leaves the distant gray nodes alone', () => {
         const { page } = setup();
         const far = page.background.nodes[0];
         page.pointer = { x: far.x + BG_DARK_RADIUS + 50, y: far.y };
@@ -1132,7 +1132,7 @@ describe('the touch handlers', () => {
         expect(page.pointer).toBeNull();
     });
 
-    it('drops the pointer when the touch is cancelled', () => {
+    it('drops the pointer when the touch is canceled', () => {
         const { page } = setup();
         fireEvent.touchMove(svgOf(page), touchAt(140, 100));
 
@@ -1298,7 +1298,7 @@ describe('the canvas edge', () => {
         // layout. Measured, it does not: the cluster only fills 577 of a
         // phone's 764 usable pixels vertically, so a bound layout spreads into
         // that slack instead. Five node types come back on screen and the
-        // median gap between neighbours goes up rather than down.
+        // median gap between neighbors goes up rather than down.
         //
         const { page } = setup();
         const node = strayed(page, 'left', 120, { w: 390, h: 760 });

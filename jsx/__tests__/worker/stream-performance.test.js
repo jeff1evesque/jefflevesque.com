@@ -185,7 +185,7 @@ describe('reshaping a row', () => {
         // a bucket does not read as a gap in the chart.
         //
         // Note: rows from the report do not carry 'source' today -- the message
-        //       does, not the row -- so this pins the loop's behaviour for the
+        //       does, not the row -- so this pins the loop's behavior for the
         //       shape that reaches it rather than describing current traffic.
         //
         send({ data: [row({ source: { price: true, volume: true } })] });
@@ -224,7 +224,7 @@ describe('reshaping a row', () => {
         expect(posted[0].chart_data_original[0][`price${THROUGHPUT_KEY}`]).toBe(1000);
     });
 
-    it('parses the timestamp to the instant it names, honouring its offset', () => {
+    it('parses the timestamp to the instant it names, honoring its offset', () => {
         //
         // the row carries -04:00, so this is 18:00 UTC. A re-read through a New York
         // toLocaleString would land three hours out for a californian reader.

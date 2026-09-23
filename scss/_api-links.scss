@@ -6,7 +6,7 @@
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
 //
-// Note: the icons take the refresh icon's colour and sit in its row, so the
+// Note: the icons take the refresh icon's color and sit in its row, so the
 //       chart's corner reads as one set of controls. `_area_chart.scss` places
 //       the refresh icon; nothing here moves it.
 
@@ -17,9 +17,9 @@
 }
 
 //
-// scoped under '#bootstrap-override' because the global link colour is, and an id
+// scoped under '#bootstrap-override' because the global link color is, and an id
 // outranks any number of classes: unscoped, every icon painted in the hyperlink
-// blue beside a grey refresh icon.
+// blue beside a gray refresh icon.
 //
 #bootstrap-override .api-links a.api-link {
   color: #555;

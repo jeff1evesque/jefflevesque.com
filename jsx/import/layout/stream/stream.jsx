@@ -206,7 +206,7 @@ class StreamLayout extends Component {
             each stream by its id, which is also its name everywhere on this
             page: the per-stream state keys, the listing's links and the
             requests. See stream-id.js. The page used to hold a second,
-            capitalised name for each ('StockMarket'), linked by one and keyed
+            capitalized name for each ('StockMarket'), linked by one and keyed
             by the other, and lower-cased between the two.
 
         */}
@@ -1194,7 +1194,7 @@ class StreamLayout extends Component {
         //
         // same treatment as the /data page: kept mounted and faded with opacity
         // rather than unmounted (removing the node cannot be transitioned, which
-        // is what made it vanish abruptly), and centred over the whole chart area
+        // is what made it vanish abruptly), and centered over the whole chart area
         // rather than wherever a bare 'margin: auto' happens to land inside the
         // positioned chart wrapper. 'pointerEvents: none' keeps the invisible
         // layer from eating chart hovers
@@ -1244,7 +1244,7 @@ class StreamLayout extends Component {
                     <BeatLoader
                         //
                         // the app's ui accent -- the same green as the selected
-                        // row's left border -- rather than a series colour, so
+                        // row's left border -- rather than a series color, so
                         // chrome and data do not share one value
                         //
                         color={colors['green-6']}

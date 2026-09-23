@@ -2,7 +2,7 @@
  * line-chart.test.jsx: the multi-series line chart behind the stream triggers.
  *
  * MultiLineChart is a recharts wrapper, and the interesting part is not recharts
- * -- it is the ~110 lines of prop normalisation in the constructor and the ~110
+ * -- it is the ~110 lines of prop normalization in the constructor and the ~110
  * lines of componentDidUpdate that decide what recharts is handed. Every default
  * lives in the constructor, and every prop is copied into state, so a prop that
  * fails its validator silently becomes a default rather than an error.
@@ -12,7 +12,7 @@
  *       zero-sized container -- so with the real one the suite could asserts
  *       nothing but "a container appeared". Cloning the child with a fixed
  *       600x400 makes the REAL recharts draw real geometry, so these tests read
- *       stroke colours and tick text off actual svg nodes rather than trusting
+ *       stroke colors and tick text off actual svg nodes rather than trusting
  *       the props going in.
  *
  * Note: the mock also records ResponsiveContainer's own props, which is the only
@@ -20,7 +20,7 @@
  *       reaches the svg.
  *
  * Note: Line's animation is switched off, via defaultProps on the REAL class so
- *       recharts still recognises the child by type. It defaults on, and it made
+ *       recharts still recognizes the child by type. It defaults on, and it made
  *       the geometry assertions lie: immediately after a re-render the 'd'
  *       attribute still holds the OLD path, because the new one is animated in
  *       over 1.5s. A first attempt at 'redraws when the data is replaced' passed
@@ -152,7 +152,7 @@ describe('the series', () => {
     });
 });
 
-describe('stroke colour', () => {
+describe('stroke color', () => {
     it('uses the documented default palette, in order', () => {
         const { container } = render(<MultiLineChart data={DATA} data_keys={['a', 'b']} />);
 
@@ -169,7 +169,7 @@ describe('stroke colour', () => {
 
     it('converts an {r,g,b} entry to an rgb() string', () => {
         //
-        // the branch exists because the colour picker upstream stores channels as
+        // the branch exists because the color picker upstream stores channels as
         // an object. It reads as suspicious -- checkValidArray is called with ONE
         // argument here where every other call site passes (key, object) -- but
         // valid-array.js has a second clause that accepts a bare non-empty array,
@@ -206,7 +206,7 @@ describe('stroke colour', () => {
         //
         // all three of r, g and b must be present. A partial object fails the test
         // and is handed to recharts as-is, which stringifies it -- so the line is
-        // drawn with a nonsense stroke rather than a fallback colour.
+        // drawn with a nonsense stroke rather than a fallback color.
         //
         const { container } = render(
             <MultiLineChart data={DATA} data_keys={['a']} color={[{ r: 1, g: 2 }]} />
@@ -227,7 +227,7 @@ describe('the x axis', () => {
         expect(ticks(container, 'x')).toContain('10:00AM');
     });
 
-    it('honours a custom x_ticker_format', () => {
+    it('honors a custom x_ticker_format', () => {
         const { container } = render(
             <MultiLineChart data={DATA} data_keys={KEYS} x_ticker_format='%Y-%m-%d' />
         );
@@ -263,7 +263,7 @@ describe('the y axis', () => {
     it.each([['exponential'], ['exp']])('formats exponentially for %s', (format) => {
         //
         // both spellings are accepted, which matters because the mobile branch in
-        // trigger.jsx passes the long one and nothing normalises it.
+        // trigger.jsx passes the long one and nothing normalizes it.
         //
         const { container } = render(
             <MultiLineChart data={DATA} data_keys={KEYS} y_tick_format={format} />
@@ -341,7 +341,7 @@ describe('the y axis', () => {
         //
         // the margin compensates for the hidden labels: -10 normally, -55 when
         // blank. Easy to transpose, and the only symptom is a chart that does not
-        // line up with its neighbours.
+        // line up with its neighbors.
         //
         // Measured from where the series actually starts rather than from the grid,
         // which carries no x attribute in this version of recharts.
@@ -463,7 +463,7 @@ describe('re-rendering with new props', () => {
         expect(curves(container)).toHaveLength(2);
     });
 
-    it('recolours when the color array is replaced', () => {
+    it('recolors when the color array is replaced', () => {
         const { container, rerender } = render(
             <MultiLineChart data={DATA} data_keys={['a']} color={['#111111']} />
         );

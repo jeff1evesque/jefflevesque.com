@@ -109,7 +109,7 @@ describe('parseCsv argument forwarding', () => {
     });
 
     //
-    // DOCUMENTS A DEFECT, not intended behaviour.
+    // DOCUMENTS A DEFECT, not intended behavior.
     //
     // 'parseCsv' accepts 'download' and 'header' and then throws them away:
     //
@@ -120,7 +120,7 @@ describe('parseCsv argument forwarding', () => {
     // parseCsv(csv, true, false) is indistinguishable from parseCsv(csv).
     //
     // The fix is 'return parse(csv, download, header)'. When that lands, these
-    // two tests should assert the caller's values are honoured.
+    // two tests should assert the caller's values are honored.
     //
     it('ignores an explicit header argument', async () => {
         await parseCsv(CSV, false, false);

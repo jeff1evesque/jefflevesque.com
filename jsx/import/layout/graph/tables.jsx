@@ -24,12 +24,12 @@
  *       pending() below, and pending.jsx for the rest of the page doing the
  *       same thing.
  *
- * Note: colours come from the assignment the CANVAS made, handed down rather
+ * Note: colors come from the assignment the CANVAS made, handed down rather
  *       than recomputed. assignNamespaceColors ranks namespaces and deals out
- *       eight categorical slots, so the same namespace gets a different colour
+ *       eight categorical slots, so the same namespace gets a different color
  *       depending on which set it was ranked against -- recomputing here over
  *       all 151 types would paint swatches that disagree with the graph above
- *       them. A namespace that is not on the canvas therefore has no colour,
+ *       them. A namespace that is not on the canvas therefore has no color,
  *       and the swatch column says so by being empty.
  */
 
@@ -56,7 +56,7 @@ const ROWS_PER_PAGE = [25, 50, 100];
 //
 // Note: 'category' is deliberately absent. It reads 'entity' for every node type
 //       in a published build -- encoding.js says the same thing about it as a
-//       colour channel -- while the committed mock fixture carries five values.
+//       color channel -- while the committed mock fixture carries five values.
 //       A column sourced from it looks informative in a test and empty in a
 //       browser.
 //
@@ -133,7 +133,7 @@ function number(n) {
 /**
  * the origin's own line, as the legend draws it.
  *
- * Note: the same colour and dash the canvas uses for that origin, from
+ * Note: the same color and dash the canvas uses for that origin, from
  *       encoding.js. A second opinion about what 'enrichment' looks like is
  *       exactly what that module exists to prevent.
  */
@@ -169,7 +169,7 @@ export function nodeRows(schema, drawn, painted) {
             key: id,
             id: id,
             namespace: namespace,
-            colour: painted ? painted.get(namespace) : undefined,
+            color: painted ? painted.get(namespace) : undefined,
             count: meta.count,
             uri: meta.source_type_uri || '',
             drawn: !!(drawn && drawn.has(id)),
@@ -367,7 +367,7 @@ class GraphTables extends Component {
                             <TableCell>
                                 <span
                                     className='graph-legend-swatch'
-                                    style={row.colour ? { backgroundColor: row.colour } : undefined}
+                                    style={row.color ? { backgroundColor: row.color } : undefined}
                                     title={row.namespace}
                                 />
                                 {wrapped(row.id)}

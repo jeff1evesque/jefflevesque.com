@@ -6,7 +6,7 @@
  * see what is in it, and read the thing properly.
  *
  * Laid out in three columns on a wide screen -- what the build is, the graph,
- * and how to read its colours -- so all three are in view together. On a narrow
+ * and how to read its colors -- so all three are in view together. On a narrow
  * one they stack, and the title leads.
  *
  * Both reference columns FOLD, at either width, and what they give up goes to
@@ -381,7 +381,7 @@ class GraphLayout extends Component {
             //
             columns: 0,
             //
-            // what the LEGEND is asking the canvas to emphasise: the entry
+            // what the LEGEND is asking the canvas to emphasize: the entry
             // under the pointer, and the entry a click pinned. Hovering wins
             // while it lasts, so pointing at one entry previews it and moving
             // off returns to the pinned one -- the same rule the canvas follows
@@ -517,7 +517,7 @@ class GraphLayout extends Component {
      * mui renders the menu into a portal positioned against the viewport, and
      * relies on the modal behind it locking body scroll to keep the page still
      * while it is open. That lock is `overflow: hidden` on the body, which iOS
-     * Safari does not honour for touch scrolling -- so on a phone the page slid
+     * Safari does not honor for touch scrolling -- so on a phone the page slid
      * away underneath a menu that stayed nailed to the screen, leaving the
      * options floating with no visible relationship to the control they came
      * from.
@@ -648,7 +648,7 @@ class GraphLayout extends Component {
         //
         // memoised on the schema OBJECT, which only changes when a build is
         // selected. Recomputed per render it would hand the tables below a fresh
-        // colour Map every time, and a table that caches its rows against that
+        // color Map every time, and a table that caches its rows against that
         // Map would rebuild all 976 of them on every keystroke in its filter box.
         //
         if (this.screenFor === schema) {
@@ -662,7 +662,7 @@ class GraphLayout extends Component {
 
         //
         // the namespaces LISTED are the ones on screen, from the slice; the
-        // colours they are listed in come from the whole build, so this legend
+        // colors they are listed in come from the whole build, so this legend
         // describes the front page's backdrop as well as this page's canvas.
         // See buildPalette -- the two used to rank separately and disagree.
         //
@@ -729,7 +729,7 @@ class GraphLayout extends Component {
      * place a vertical rule's controls down the side of a column and a
      * horizontal one's across the top of the tables without either knowing
      * about the other. Everything else -- what the arrow means, what the strip
-     * does, what each is called to assistive technology -- is one behaviour.
+     * does, what each is called to assistive technology -- is one behavior.
      */
     divider(key, label, Arrow, scope) {
         return (
@@ -913,8 +913,8 @@ class GraphLayout extends Component {
      * a stored size, against what this screen can actually give the box.
      *
      * Returns null -- meaning 'whatever the stylesheet says' -- rather than a
-     * number, wherever the stored one cannot be honoured: it is bigger than the
-     * box's own default, so honouring it would make a column wider than the
+     * number, wherever the stored one cannot be honored: it is bigger than the
+     * box's own default, so honoring it would make a column wider than the
      * layout ever intended; or it is below the floor a drag would have stopped
      * at, in which case it came from a screen this is not.
      *
@@ -1091,7 +1091,7 @@ class GraphLayout extends Component {
     }
 
     /**
-     * what the canvas is being asked to emphasise: everything held, plus the
+     * what the canvas is being asked to emphasize: everything held, plus the
      * entry under the pointer.
      *
      * Pointing at an entry that is NOT held previews what clicking it would
@@ -1176,7 +1176,7 @@ class GraphLayout extends Component {
      * Note: the closed body stays in the document and is hidden by the
      *       stylesheet, not by React. Unmounting it would throw away the
      *       measured legend every time it was folded away, and the explorer
-     *       beside it reads its colours from the same render.
+     *       beside it reads its colors from the same render.
      */
     panel(key, title, summary, content) {
         if (!content) {
@@ -1593,8 +1593,8 @@ class GraphLayout extends Component {
 
                         everything the canvas could not draw, at full width below
                         the three columns. It reads the UNFILTERED build and is
-                        handed the canvas's own colour assignment, so a swatch in
-                        a row is the colour that namespace is above it.
+                        handed the canvas's own color assignment, so a swatch in
+                        a row is the color that namespace is above it.
 
                         The rule above it is the third divider: the same strip
                         and the same arrow as the two beside the graph, turned

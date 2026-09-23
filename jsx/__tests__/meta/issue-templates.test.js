@@ -53,7 +53,7 @@ const CHOOSER_KEYS = ['name', 'about'];
 //
 // Optional to GitHub, conventional here. Checked for presence rather than content:
 // `labels: ''` on change.md is a deliberate value, not an oversight -- no existing
-// label means "a behaviour or feature change", and defining a label set was put out
+// label means "a behavior or feature change", and defining a label set was put out
 // of scope by #39.
 //
 const CONVENTION_KEYS = ['title', 'labels', 'assignees'];

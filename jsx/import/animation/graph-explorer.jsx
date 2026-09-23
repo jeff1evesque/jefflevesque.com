@@ -2,12 +2,12 @@
  * graph-explorer.jsx: the knowledge graph at full attention.
  *
  * Same data and the same visual language as the front page backdrop -- both read
- * their colours and link styling from encoding.js, so a legend here describes
+ * their colors and link styling from encoding.js, so a legend here describes
  * that cluster correctly too -- but none of its presentation.
  *
  * What the backdrop does that this deliberately does not:
  *
- *   - mutes every node toward white at rest. Colour there arrives on hover,
+ *   - mutes every node toward white at rest. Color there arrives on hover,
  *     because the cluster is meant to sit behind hero text. Here it is the
  *     content, so it is painted at full strength from the start.
  *   - draws a decorative gray field and parts it around the cluster. There is
@@ -27,8 +27,9 @@
  * named nothing. A node names itself when it is pointed at (or tapped: a phone
  * cannot hover), in a card that has room for the whole name.
  *
- * They also share the glint: each node rests at its colour and brightens now
- * and then, in the time the placeholder here breathed in. See breath.js.
+ * They also share the glint: each node rests at its color and brightens now
+ * and then, in the time the placeholder here breathed in, and holds still at
+ * full strength while the pointer is on it or its neighbor. See breath.js.
  *
  * Note: a separate component rather than a prop on GraphCluster. The two share
  *       the parts that must not disagree and nothing else -- threading "am I a
@@ -70,7 +71,7 @@ const TAIL = 'shade';
 // one it looked like.
 //
 
-// how near the pointer must come to a node's centre to point at it. Both are well
+// how near the pointer must come to a node's center to point at it. Both are well
 // past the drawn radius, because a 7px circle is a hard target for a mouse and
 // an impossible one for a finger. A tap is allowed further than a hover: a hover
 // can be corrected by moving, and a tap that misses has to be made again.
@@ -83,7 +84,7 @@ const TAP_REACH = 28;
 // twice that has room on neither side for a node near the middle.
 const CARD_DOCK_WIDTH = 560;
 
-// how far a node's neighbourhood is lifted when focused, and how far everything
+// how far a node's neighborhood is lifted when focused, and how far everything
 // else drops back. Both stay visible -- this is emphasis, not filtering.
 const DIM_OPACITY = 0.15;
 const LINK_REST = 0.35;
@@ -91,7 +92,7 @@ const LINK_LIT = 0.95;
 const LINK_DIM = 0.06;
 
 // the ring around the node being pointed at, so it reads as the one the card is
-// about rather than as one more lit neighbour
+// about rather than as one more lit neighbor
 const RING = colors['gray-8'];
 const RING_WIDTH = 2;
 
@@ -170,10 +171,10 @@ class GraphExplorer extends Component {
             edge_types: PropTypes.object,
         }),
         height: PropTypes.number,
-        // namespace -> colour, ranked over the whole build by buildPalette
+        // namespace -> color, ranked over the whole build by buildPalette
         palette: PropTypes.instanceOf(Map),
         //
-        // the classes of the graph to emphasise, asked for from outside the
+        // the classes of the graph to emphasize, asked for from outside the
         // canvas: namespaces, whose nodes are lit, and origins, whose edges
         // are. The legend beside the canvas is what sets them -- see highlight,
         // where they are the state the canvas rests at rather than a fourth
@@ -389,10 +390,10 @@ class GraphExplorer extends Component {
     }
 
     /**
-     * what the canvas is emphasising.
+     * what the canvas is emphasizing.
      *
      * Focusing a node lifts it and everything it touches; the rest drops back
-     * but stays on screen, so the neighbourhood reads against the whole rather
+     * but stays on screen, so the neighborhood reads against the whole rather
      * than against an empty canvas.
      *
      * With no node focused the canvas is not necessarily at rest: the legend
@@ -421,6 +422,12 @@ class GraphExplorer extends Component {
      * Note: link ends are read as node objects. forceLink swaps the ids for the
      *       nodes themselves as soon as the simulation is built, and nothing can
      *       be focused before that.
+     *
+     * Note: a node under the POINTER stops glinting, and so do its neighbors,
+     *       for as long as the pointer is there -- see '.graph-explorer-node-lit'
+     *       -- so what the reader is pointing at is lit fully and steadily. Only
+     *       a hover: a pinned node and the legend's marks are states the canvas
+     *       rests in, and it rests glinting.
      */
     highlight(nodeId) {
         if (!this.nodeSel) {
@@ -428,7 +435,8 @@ class GraphExplorer extends Component {
         }
 
         const active = nodeId != null;
-        const near = new Set(active ? [nodeId, ...(this.neighbours.get(nodeId) || [])] : []);
+        const hovering = active && nodeId === this.hoveredId;
+        const near = new Set(active ? [nodeId, ...(this.neighbors.get(nodeId) || [])] : []);
         const marks = active ? [] : (this.props.emphasis || []);
         const namespaces = new Set(
             marks.filter((m) => m.kind === 'namespace').map((m) => m.value)
@@ -447,7 +455,8 @@ class GraphExplorer extends Component {
                 return 1;
             })
             .attr('stroke', (d) => (d.id === nodeId ? RING : '#ffffff'))
-            .attr('stroke-width', (d) => (d.id === nodeId ? RING_WIDTH : 1));
+            .attr('stroke-width', (d) => (d.id === nodeId ? RING_WIDTH : 1))
+            .classed('graph-explorer-node-lit', (d) => hovering && near.has(d.id));
 
         this.linkSel.attr('opacity', (d) => {
             if (active) {
@@ -473,9 +482,9 @@ class GraphExplorer extends Component {
             id: node.id,
             name: shortName(node.id, node.namespace),
             namespace: node.namespace,
-            colour: this.namespaceColors.get(node.namespace),
+            color: this.namespaceColors.get(node.namespace),
             count: node.count,
-            linked: this.neighbours.get(node.id).size,
+            linked: this.neighbors.get(node.id).size,
             x: node.x,
             y: node.y,
         };
@@ -530,7 +539,7 @@ class GraphExplorer extends Component {
         this.links = links;
 
         //
-        // neighbours by id, excluding self-loops: a type that relates to itself
+        // neighbors by id, excluding self-loops: a type that relates to itself
         // is not thereby connected to anything, and the card's count would
         // otherwise say it was.
         //
@@ -538,9 +547,9 @@ class GraphExplorer extends Component {
         //       left for forceLink, which rejects it by name below. The page
         //       only ever hands this a filtered schema, which drops such edges.
         //
-        this.neighbours = new Map(nodes.map((n) => [n.id, new Set()]));
+        this.neighbors = new Map(nodes.map((n) => [n.id, new Set()]));
         links.forEach((l) => {
-            const ends = [this.neighbours.get(l.source), this.neighbours.get(l.target)];
+            const ends = [this.neighbors.get(l.source), this.neighbors.get(l.target)];
 
             if (l.source !== l.target && ends[0] && ends[1]) {
                 ends[0].add(l.target);
@@ -552,7 +561,7 @@ class GraphExplorer extends Component {
         // handed down rather than assigned here, so the canvas, the legend
         // beside it, the tables below it and the front page backdrop are all
         // reading one map. See buildPalette -- ranking per surface is what made
-        // the same namespace two different colours on the two pages.
+        // the same namespace two different colors on the two pages.
         //
         // Note: the fallback ranks what it was given, which is what this line
         //       always did. It covers a caller holding only a slice -- the suite,
@@ -591,7 +600,8 @@ class GraphExplorer extends Component {
         //
         // the class is what the stylesheet glints, and each node's delay puts it
         // a beat behind the one before -- see breathDelay. Nothing else touches
-        // either, so a change of emphasis repaints a node without restarting it.
+        // either: highlight holds a hovered neighborhood still with a class of
+        // its own, so a change of emphasis restarts no node it did not hold.
         //
         this.nodeSel = gNodes.selectAll('circle')
             .data(nodes)
@@ -674,7 +684,7 @@ class GraphExplorer extends Component {
                 <div className='graph-card-namespace'>
                     <span
                         className='graph-legend-swatch'
-                        style={{ backgroundColor: focus.colour }}
+                        style={{ backgroundColor: focus.color }}
                     />
                     {focus.namespace}
                 </div>
@@ -711,7 +721,7 @@ class GraphExplorer extends Component {
 export default GraphExplorer;
 
 // exported so the legend on the page paints from the same assignment this
-// component does -- a legend computed with a different tail would name colours
+// component does -- a legend computed with a different tail would name colors
 // that are not on screen.
 export {
     TAIL,

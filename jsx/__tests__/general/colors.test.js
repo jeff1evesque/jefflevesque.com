@@ -1,5 +1,5 @@
 /**
- * colors.test.js: the shared colour scheme.
+ * colors.test.js: the shared color scheme.
  *
  * Two claims in this module are checkable rather than decorative, and both are
  * checked here instead of trusted:
@@ -13,7 +13,7 @@
  *   2. the categorical palette is documented as separating by "dE 9.1 under
  *      simulated colorblindness and 19.6 under normal vision (OKLab x100; the
  *      gates are 8 and 15)". OKLab and a deuteranopia simulation are implemented
- *      below so adding, removing or reordering a colour cannot quietly break
+ *      below so adding, removing or reordering a color cannot quietly break
  *      that.
  *
  * Note on the deutan figure: this file uses the Vienot 1999 simulation, which
@@ -21,7 +21,7 @@
  *       9.1 -- the comment was produced with a different (more forgiving) model.
  *       The assertion below is therefore against the documented GATE of 8, not
  *       against 9.1, and the true margin under this model is essentially zero.
- *       That is worth knowing before adding a ninth colour.
+ *       That is worth knowing before adding a ninth color.
  */
 
 import fs from 'fs';
@@ -100,10 +100,10 @@ describe('colors, against _variables.scss', () => {
         expect(scss.length).toBeGreaterThan(0);
     });
 
-    it('every colour matches its scss variable', () => {
+    it('every color matches its scss variable', () => {
         //
         // the guard against the drift the module already suffered. A name present
-        // here and absent there is reported rather than skipped, since a colour
+        // here and absent there is reported rather than skipped, since a color
         // with no stylesheet counterpart is the other half of the same problem.
         //
         const mismatched = [];
@@ -127,7 +127,7 @@ describe('colors, against _variables.scss', () => {
 });
 
 describe('colors_categorical', () => {
-    it('holds eight colours', () => {
+    it('holds eight colors', () => {
         expect(colors_categorical).toHaveLength(8);
     });
 
@@ -135,14 +135,14 @@ describe('colors_categorical', () => {
         expect(new Set(colors_categorical).size).toBe(colors_categorical.length);
     });
 
-    it('is all six-digit hex, which the OKLab maths assumes', () => {
+    it('is all six-digit hex, which the OKLab math assumes', () => {
         colors_categorical.forEach(c => expect(c).toMatch(/^#[0-9a-f]{6}$/i));
     });
 
     it('separates adjacent pairs by at least the normal-vision gate of 15', () => {
         //
         // adjacent pairs specifically: series are assigned in this fixed order, so
-        // neighbours are the ones a reader compares side by side in a legend.
+        // neighbors are the ones a reader compares side by side in a legend.
         //
         expect(worstAdjacent(colors_categorical)).toBeGreaterThanOrEqual(15);
     });
@@ -159,9 +159,9 @@ describe('colors_categorical', () => {
 
     it('keeps red and green apart, the pair the previous set got wrong', () => {
         //
-        // the module records the old five-colour set putting '#dc3545' red next to
-        // '#198754' green at dE 7.4 deutan. Neither colour survives, and the two
-        // that replaced them are not neighbours.
+        // the module records the old five-color set putting '#dc3545' red next to
+        // '#198754' green at dE 7.4 deutan. Neither color survives, and the two
+        // that replaced them are not neighbors.
         //
         expect(colors_categorical).not.toContain('#dc3545');
         expect(colors_categorical).not.toContain('#198754');
@@ -179,7 +179,7 @@ describe('color_other', () => {
 
     it('is light and desaturated, so it recedes rather than competing', () => {
         //
-        // it stands for an absence of identity, not another category. A mid grey
+        // it stands for an absence of identity, not another category. A mid gray
         // read as the loudest segment whenever the tail was large.
         //
         const [r, g, b] = hexToLinear(color_other);
@@ -190,7 +190,7 @@ describe('color_other', () => {
         expect(chroma).toBeLessThan(0.03);
     });
 
-    it('is not one of the categorical colours', () => {
+    it('is not one of the categorical colors', () => {
         expect(colors_categorical).not.toContain(color_other);
     });
 });
@@ -212,7 +212,7 @@ describe('color_tail', () => {
         expect(color_tail(4, 5)).toContain('87.0%');
     });
 
-    it('centres a single member rather than pinning it to the dark end', () => {
+    it('centers a single member rather than pinning it to the dark end', () => {
         //
         // count of 1 would divide by zero in the interpolation, so it is special
         // cased to the midpoint -- a lone tail member should not read as the
@@ -240,12 +240,12 @@ describe('toRGB', () => {
         expect(toRGB('#000000')).toBe('rgb(0, 0, 0)');
     });
 
-    it('accepts a named colour, though jsdom does not normalise it', () => {
+    it('accepts a named color, though jsdom does not normalize it', () => {
         //
         // ENVIRONMENT DIFFERENCE, not a defect. A real browser resolves
         // style.color = 'red' to 'rgb(255, 0, 0)'; jsdom's css parser accepts the
         // keyword and hands it back unchanged. Hex converts identically in both,
-        // which is what every caller here passes -- the colours map and the
+        // which is what every caller here passes -- the colors map and the
         // categorical palette are hex throughout.
         //
         // So this asserts only that a keyword survives, not what it becomes. A
@@ -255,18 +255,18 @@ describe('toRGB', () => {
         expect(toRGB('red')).toBeTruthy();
     });
 
-    it('converts every categorical colour without failing', () => {
+    it('converts every categorical color without failing', () => {
         colors_categorical.forEach(c => {
             expect(toRGB(c)).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
         });
     });
 
-    it('returns empty for something that is not a colour', () => {
+    it('returns empty for something that is not a color', () => {
         //
         // it works by assigning to a detached element's style, and the css parser
         // simply refuses an invalid value -- so the result is '' rather than a
         // throw.
         //
-        expect(toRGB('not-a-colour')).toBe('');
+        expect(toRGB('not-a-color')).toBe('');
     });
 });

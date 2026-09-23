@@ -65,7 +65,7 @@ $graph-tables-peek: 10rem;
 //
 // 'you turned this on, and can turn it off again'.
 //
-// The one non-neutral on this page that is not a namespace's own colour, and it
+// The one non-neutral on this page that is not a namespace's own color, and it
 // says the same thing in three places: a column folded away into its rail, a
 // legend entry the reader has pinned onto the canvas, and whichever of the two
 // tables is showing. Gray said 'this one' in the tab strip while gray also said
@@ -126,7 +126,7 @@ $graph-held-edge: $green-4;
 //
 // Note: '.graph-header' is carried for the specificity, the same lesson as the
 //       uri column further down. Every property below is one mui also sets on
-//       this element -- its own font, its own colour -- from a stylesheet
+//       this element -- its own font, its own color -- from a stylesheet
 //       emotion injects after this one at the same one-class weight. A bare
 //       '.graph-picker' loses all of them and silently keeps mui's.
 //
@@ -229,7 +229,7 @@ $graph-held-edge: $green-4;
 // Note: a label at rest, and green only under the pointer. It reads the way
 //       every other control on this page reads -- the legend entries carry
 //       nothing until they are pointed at, and green when they are held -- so
-//       the page has one behaviour for 'this is pressable' rather than one for
+//       the page has one behavior for 'this is pressable' rather than one for
 //       the legend and a filled button for this.
 //
 //       It was briefly the site's primary button, white on a green gradient.
@@ -238,10 +238,10 @@ $graph-held-edge: $green-4;
 //       on it, and dark gray is about 17:1 on white and 14:1 on the hover
 //       green -- neither of which needed a filled button to achieve.
 //
-// Note: the hover green is '$graph-held', which is the colour a HELD legend
+// Note: the hover green is '$graph-held', which is the color a HELD legend
 //       entry wears rather than the gray a pointed-at one does. Pressing this
 //       is not a preview of anything -- it brings the graph back -- so it is
-//       the committing colour of the two.
+//       the committing color of the two.
 //
 .graph-row-bar {
   align-items: center;
@@ -537,7 +537,7 @@ $graph-held-edge: $green-4;
 
 //
 // sized to read as a key rather than as a chart element, and given a border so a
-// pale colour -- the shaded tail past the eight palette slots is deliberately
+// pale color -- the shaded tail past the eight palette slots is deliberately
 // light -- still reads as a swatch against white.
 //
 .graph-legend-swatch {
@@ -646,21 +646,37 @@ $graph-held-edge: $green-4;
 }
 
 //
-// the graph's own nodes, once it has arrived: at their own colours, glinting
+// the graph's own nodes, once it has arrived: at their own colors, glinting
 // brighter in the time the placeholder kept -- see graph-node-glint in
 // '_animation.scss'.
 //
-// Note: 0.85, where the placeholder's grey breathes down to 0.55. The same dip
-//       is a far bigger change on a colour than on #bebebe, since a darker fill
-//       has further to go before it is white, and at 0.55 the arriving graph
-//       would pulse harder than the placeholder it replaced. Measured in OKLab
-//       over the sixty nodes of the September 2026 build: the placeholder swings
-//       9.1, and at 0.85 the average node here swings 5.1 and the deepest, the
-//       violet, 8.9 -- about half as far, and none of them further.
+// Note: 0.8, where the placeholder's gray breathes down to 0.55. The same dip
+//       is a far bigger change on a color than on #bebebe, since a darker fill
+//       has further to go before it is white: measured in OKLab over the sixty
+//       nodes of the September 2026 build, the placeholder swings 9.1, and at
+//       0.55 the arriving graph would swing 16.2 on average.
+//
+//       It shipped at 0.85, where the average node swings 5.1 and none swings
+//       further than the placeholder, and was asked for a little stronger along
+//       with the front page. At 0.8 the average is 6.9, a third stronger, as the
+//       front page's step was. The four violet nodes swing 12.0, the only ones
+//       past the placeholder; at 0.78 eighteen nodes would be.
 //
 .graph-explorer-node {
-  --graph-node-glint: 0.85;
+  --graph-node-glint: 0.8;
   animation: graph-node-glint $graph-node-breath ease-in-out infinite;
+}
+
+//
+// the node under the pointer, and its neighbors, lit fully and steadily for as
+// long as the pointer is there -- see highlight in graph-explorer.jsx, which sets
+// this. Only a hover: a pinned node and the legend's marks go on glinting.
+//
+// Note: after the rule above, which it has to beat at the same weight. The
+//       front page's lit rule in '_animation.scss' is placed the same way.
+//
+.graph-explorer-node-lit {
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -681,7 +697,7 @@ $graph-held-edge: $green-4;
 //
 // what a node is, shown beside it when it is pointed at or tapped. Placement is
 // chosen by the explorer (see placeCard) and expressed here as the offset from
-// the node's centre: beside it horizontally, and centred, above or below it
+// the node's center: beside it horizontally, and centered, above or below it
 // depending on how near the top or bottom edge it sits.
 //
 // Note: pointer-events are off. The card sits over the canvas, and one that
@@ -921,8 +937,8 @@ $graph-held-edge: $green-4;
 // placeholder is laid out by the same rules its content will be and nothing has
 // to be kept in step by hand. See pending.jsx.
 //
-// Note: grey, and only grey. This page spends green on one thing -- a state the
-//       reader turned on -- and a namespace's own colour on another, and a
+// Note: gray, and only gray. This page spends green on one thing -- a state the
+//       reader turned on -- and a namespace's own color on another, and a
 //       placeholder is neither. It is also why the pending tab strip overrides
 //       the green a pressed tab wears: nobody pressed it.
 //
@@ -980,7 +996,7 @@ $graph-held-edge: $green-4;
 //
 // a legend row that is not a control yet, at the size of the one it stands in
 // for. It is deliberately NOT '.graph-legend-entry': that is a button, and it
-// answers the pointer with a highlight -- an offer this cannot honour.
+// answers the pointer with a highlight -- an offer this cannot honor.
 //
 .graph-pending-entry {
   align-items: center;
@@ -1007,7 +1023,7 @@ $graph-held-edge: $green-4;
 }
 
 //
-// the canvas, before there is a graph in it: a made-up graph in greys, drawn
+// the canvas, before there is a graph in it: a made-up graph in grays, drawn
 // into the frame the real one will fill. It wears the canvas's own classes, so
 // its box needs no rules of its own -- see PendingCanvas.
 //
@@ -1044,7 +1060,7 @@ $graph-held-edge: $green-4;
 //
 // the tables' controls, present but not yet usable.
 //
-// Disabled is a real state with a real look, and the browser's own -- a greyed
+// Disabled is a real state with a real look, and the browser's own -- a grayed
 // label at whatever contrast the platform likes -- is not the one the rest of
 // this page uses. The tab that will be showing says so in the gray a pointed-at
 // tab wears rather than in the green a chosen one does, because nobody has
@@ -1081,7 +1097,7 @@ $graph-held-edge: $green-4;
   }
 
   //
-  // the pager, in the grey the disabled tabs above it wear. mui greys its own
+  // the pager, in the gray the disabled tabs above it wear. mui grays its own
   // disabled dropdown and arrows, and would leave 'Rows per page' in black
   // beside them.
   //
@@ -1091,7 +1107,7 @@ $graph-held-edge: $green-4;
 }
 
 //
-// Note: 0.55 rather than something nearer zero. These are pale greys on white
+// Note: 0.55 rather than something nearer zero. These are pale grays on white
 //       to begin with, and a keyframe that takes them most of the way out is a
 //       placeholder that blinks rather than one that breathes -- which reads as
 //       something going wrong rather than as something on its way.
@@ -1280,7 +1296,7 @@ $graph-held-edge: $green-4;
   }
 
   //
-  // the strip a vertical divider is dragged by: centred on the rule, and wide
+  // the strip a vertical divider is dragged by: centered on the rule, and wide
   // enough to be caught by a pointer that is not aimed exactly at a 1px line.
   //
   .graph-panel-grip {
@@ -1339,7 +1355,7 @@ $graph-held-edge: $green-4;
   }
 
   //
-  // pointing UP, the way the row travels as it closes, and centred on the rule
+  // pointing UP, the way the row travels as it closes, and centered on the rule
   // rather than at one end: this boundary spans the page, and an arrow in a
   // corner of it would read as belonging to whatever it sat over.
   //
@@ -1388,7 +1404,7 @@ $graph-held-edge: $green-4;
   // page, turned on their side. That said what the column WAS and nothing about
   // the state it was in: the reader who had just collapsed it knew, and a reader
   // arriving afterwards saw a narrow margin with some writing in it. The tint is
-  // the only colour on this page that is not a neutral or a namespace, which is
+  // the only color on this page that is not a neutral or a namespace, which is
   // what makes it read as a control rather than as a label, and the whole rail is
   // the target that opens it.
   //
@@ -1434,7 +1450,7 @@ $graph-held-edge: $green-4;
       //
       // the chevron's margins are horizontal, which is the gap between it and
       // the label until the label turns on its side -- after which they are the
-      // reason it sits off the rail's centre line. The toggle's own 'gap' is
+      // reason it sits off the rail's center line. The toggle's own 'gap' is
       // what spaces the two either way.
       //
       &::before {
@@ -1445,7 +1461,7 @@ $graph-held-edge: $green-4;
     }
 
     //
-    // the title carries its own colour at both widths -- see
+    // the title carries its own color at both widths -- see
     // '.graph-panel-title' -- so the rail's green has to reach it directly
     // rather than being inherited from the toggle.
     //
@@ -1456,7 +1472,7 @@ $graph-held-edge: $green-4;
     //
     // beside the title rather than at the far end of the rail: 'margin-left'
     // pushes it right along a horizontal row, and along a vertical one it is a
-    // cross-axis margin that shoves it off the centre line instead.
+    // cross-axis margin that shoves it off the center line instead.
     //
     .graph-panel-summary {
       margin-left: 0;
@@ -1482,7 +1498,7 @@ $graph-held-edge: $green-4;
   //
   // Drawn down the canvas it ran the full height of the graph, which is a couple
   // of hundred pixels taller than the text beside it -- so each rule overhung its
-  // neighbour's last line and read as a line with nothing next to it. On the
+  // neighbor's last line and read as a line with nothing next to it. On the
   // panel it ends where that panel's own content ends, and nothing needs its
   // height matched to anything.
   //

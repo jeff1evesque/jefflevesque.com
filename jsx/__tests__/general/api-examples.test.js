@@ -178,16 +178,16 @@ describe('knowledge graph, as the /graph page loads it', () => {
         expect(Object.keys(drawn.edge_types)).toHaveLength(1);
     });
 
-    it('resolves the documented uris to the vocabulary that colours them', async () => {
+    it('resolves the documented uris to the vocabulary that colors them', async () => {
         //
         // the example is what a reader copies, and its uris are what the graph
-        // reads a namespace out of -- which is the colour channel for both the
+        // reads a namespace out of -- which is the color channel for both the
         // front page and /graph. A documented uri the namespace rule disagrees
         // with is a documented api this site would draw wrong.
         //
         // 'bls-cpi' rather than 'bls': the builder nests a vocabulary under the
         // source that publishes it, and one source publishes ten of them. The
-        // first segment alone would pool them into one colour.
+        // first segment alone would pool them into one color.
         //
         answering(schemaMedia.example);
 

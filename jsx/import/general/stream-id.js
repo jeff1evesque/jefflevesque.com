@@ -6,7 +6,7 @@
  * to the performance api, 'stock-market' in the alarm page's own state and in
  * file names. Two of those conversions were wrong. The /stream page linked
  * '/stream/StockMarketStockSplit/trigger', which the trigger page matched
- * against 'stocksplit' and so drew nothing; and two alarm pages were labelled
+ * against 'stocksplit' and so drew nothing; and two alarm pages were labeled
  * with an id, 'stock-market' and 'us-national-weather', that the label lookup
  * did not know.
  *

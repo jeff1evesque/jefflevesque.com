@@ -46,7 +46,7 @@ describe('dstDate', () => {
         // the deliberate weakness of this module: the value is eastern wall-clock
         // stamped with the local offset, so it is only equal to 'now' for a viewer
         // already in eastern time. All that can be asserted portably is that it is
-        // in the right neighbourhood.
+        // in the right neighborhood.
         //
         const drift = Math.abs(dstDate().getTime() - Date.now());
 
@@ -108,7 +108,7 @@ describe('dstOffset', () => {
 
     it('is dead code: nothing imports it', () => {
         //
-        // recorded rather than asserted about behaviour. Only 'dstDate' appears in
+        // recorded rather than asserted about behavior. Only 'dstDate' appears in
         // any import of this module. Kept covered so a future caller finds a test
         // rather than nothing.
         //

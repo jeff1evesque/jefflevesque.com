@@ -12,8 +12,8 @@
  *     'opacity' outranks an attribute: every dimmed node would come back to full
  *     strength, and nothing would fail.
  *   - the placeholder on /graph and the two drawn graphs keep one period.
- *   - the front page's lit neighbourhood holds still, which only works if its
- *     rule comes after the one it overrides.
+ *   - on both pages the neighborhood under the pointer holds still, which only
+ *     works if each hold comes after the rule it overrides.
  *   - a reader who asked for less motion gets none.
  */
 
@@ -110,7 +110,7 @@ describe('the pulse, as the stylesheet runs it', () => {
             expect(keyframes.body).not.toMatch(/(^|[^-])opacity\s*:/m);
         });
 
-        it('rests at the node\'s own colour at both ends of the pulse', () => {
+        it('rests at the node\'s own color at both ends of the pulse', () => {
             const ends = keyframes.body.match(/0%\s*,[^{]*100%\s*\{([^}]*)\}/);
 
             expect(ends).not.toBeNull();
@@ -149,23 +149,23 @@ describe('the pulse, as the stylesheet runs it', () => {
 
             expect(still).toHaveLength(1);
         });
+
+        it('holds the hovered neighborhood still, after the rule it overrides', () => {
+            //
+            // the two selectors weigh the same, so source order decides. Before
+            // the glint, the hold would lose, and the nodes under the pointer
+            // would go on glinting.
+            //
+            const lit = rule(source, `${selector}-lit`, 'animation:');
+
+            expect(lit.body).toMatch(/animation:\s*none\s*;/);
+            expect(lit.at).toBeGreaterThan(nodes.at);
+        });
     });
 
     it('breathes the placeholder on the period the graph replacing it glints on', () => {
         const placeholder = rule(graph, '.graph-pending-node', 'animation:');
 
         expect(placeholder.body).toMatch(/animation:\s*graph-pending-breathe\s+\$graph-node-breath\s/);
-    });
-
-    it('holds the front page\'s lit neighbourhood still, after the rule it overrides', () => {
-        //
-        // the two selectors weigh the same, so source order decides. Before the
-        // glint, it would lose, and the lit nodes would go on glinting.
-        //
-        const glint = rule(animation, '.graph-cluster-node', 'animation: graph-node-glint');
-        const lit = rule(animation, '.graph-cluster-node-lit', 'animation:');
-
-        expect(lit.body).toMatch(/animation:\s*none\s*;/);
-        expect(lit.at).toBeGreaterThan(glint.at);
     });
 });

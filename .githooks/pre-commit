@@ -58,7 +58,7 @@ if [ -n "${staged_python}" ]; then
         exit 1
     fi
 
-    # --force-exclude makes ruff honour the exclusions in .ruff.toml even
+    # --force-exclude makes ruff honor the exclusions in .ruff.toml even
     # though the paths are being named explicitly here.
     echo "${staged_python}" | xargs "${ruff_bin}" check --force-exclude --
 fi

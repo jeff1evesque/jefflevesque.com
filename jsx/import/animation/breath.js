@@ -2,8 +2,8 @@
  * breath.js: when each node of a graph pulses.
  *
  * Three graphs on this site pulse their nodes: /graph's placeholder, breathing
- * grey while a build is on its way; the build it stands in for, whose nodes
- * glint brighter in their own colours once it is drawn; and the front page's
+ * gray while a build is on its way; the build it stands in for, whose nodes
+ * glint brighter in their own colors once it is drawn; and the front page's
  * cluster, which does the same behind the hero. The pulse itself is the
  * stylesheet's -- '$graph-node-breath' and 'graph-node-glint' in
  * '_animation.scss' -- and what lives here is the one part of it that has to
@@ -15,7 +15,7 @@
  */
 
 //
-// how far apart, in milliseconds, two neighbouring nodes pulse. A 1.8s breath
+// how far apart, in milliseconds, two neighboring nodes pulse. A 1.8s breath
 // takes twenty nodes to go round once at this spacing, so a graph of sixty reads
 // as a ripple running through it rather than as every node pulsing in unison.
 //

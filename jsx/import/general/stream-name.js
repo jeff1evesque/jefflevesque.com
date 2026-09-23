@@ -11,10 +11,10 @@
  * 'stock-market' names the whole market but carries only the S&P 500, which the
  * label says.
  *
- * 'stock-split' is labelled for what it is rather than given the index name:
+ * 'stock-split' is labeled for what it is rather than given the index name:
  * split detection runs against the entire market, not the index (a July sample
  * is 27 tickers -- abtc, snal, srxh, hkit -- with no index member among them).
- * Labelled after the stream next to it, it would read as 'the split feed for the
+ * Labeled after the stream next to it, it would read as 'the split feed for the
  * S&P 500', and imply a scope the data does not have. The listing carries a
  * 'Coverage' detail so the two streams state their universe side by side rather
  * than leaving it to the title.

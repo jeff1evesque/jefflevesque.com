@@ -331,7 +331,7 @@ describe('the left column', () => {
 });
 
 describe('the filter box', () => {
-    it('is labelled with the column it searches', () => {
+    it('is labeled with the column it searches', () => {
         setup({ list_article: [splitRow()] });
 
         expect(document.querySelector('input.form-control').getAttribute('placeholder'))

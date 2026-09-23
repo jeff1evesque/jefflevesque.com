@@ -61,7 +61,7 @@ const colors_categorical = [
  *
  * deliberately neutral and light: it is an absence of identity rather than
  * another category, so it should recede behind the named series instead of
- * competing with them. a mid grey read as the loudest segment whenever the
+ * competing with them. a mid gray read as the loudest segment whenever the
  * tail was large.
  */
 const color_other = '#d3d3ce';

@@ -116,7 +116,7 @@
       //
       // which is only a circle where 2 * margin - 0.5rem == 1rem -- that is,
       // at exactly the base margin of 0.75rem. shrinking it renders a tall
-      // ellipse, and making it asymmetric slides the icon off-centre inside
+      // ellipse, and making it asymmetric slides the icon off-center inside
       // the ring. note this holds for any icon size, so it is stable across
       // the 'medium'/'large' fontSize split in getControlTray()
       //

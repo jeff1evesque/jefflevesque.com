@@ -127,7 +127,7 @@ describe('intervalStart', () => {
     //
     // the truncation windowStart performs before it shifts, exported on its own so a
     // caller can name the bucket an instant falls in. 'ingest-gaps.js' uses it to
-    // recognise the interval that is still filling, which must not be drawn as a zero.
+    // recognize the interval that is still filling, which must not be drawn as a zero.
     //
     it.each([
         ['minute', [2026, 3, 15], [14, 20, 0, 0]],

@@ -146,8 +146,8 @@ class NoticeTerms extends Component {
             //
             // compares icon_color with icon_color. This read
             // 'this.props.terms !== prevProps.icon_color', comparing two unrelated
-            // fields: a terms paragraph is never equal to a colour name, so the branch
-            // fired on essentially every update regardless of whether the colour had
+            // fields: a terms paragraph is never equal to a color name, so the branch
+            // fired on essentially every update regardless of whether the color had
             // changed.
             //
             && this.props.icon_color !== prevProps.icon_color

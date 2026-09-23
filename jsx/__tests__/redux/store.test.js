@@ -3,7 +3,7 @@
  *
  * The initial state is read before any action has been dispatched -- the header
  * decides between the anonymous and the signed-in menu from it on first render --
- * so what the store starts with is behaviour, not setup.
+ * so what the store starts with is behavior, not setup.
  *
  * Note: the store reads sessionStorage when its module is EVALUATED, so each case
  *       loads a fresh copy with jest.isolateModules rather than sharing the one

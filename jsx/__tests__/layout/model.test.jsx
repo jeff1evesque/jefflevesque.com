@@ -161,7 +161,7 @@ describe('the unreachable mobile filter', () => {
         // hide_all is only assigned inside the unreachable branch, so this is
         // what the page WOULD do: render() drops both the filter and the listing
         // and leaves an empty container. Pinned because a future change that
-        // makes the branch reachable inherits this behaviour.
+        // makes the branch reachable inherits this behavior.
         //
         const ref = renderModel();
 
@@ -177,7 +177,7 @@ describe('the unreachable mobile filter', () => {
         // half of the component. Walked end to end here to record what the dead
         // code was built to do, so that deleting it -- or wiring it up to the
         // mobile breakpoint the way header-menu.jsx does -- is a decision made
-        // with the behaviour in front of you.
+        // with the behavior in front of you.
         //
         // The cycle is: Category hides the page and swaps the sidebar for an
         // expanded filter; Apply Filter puts the page back.

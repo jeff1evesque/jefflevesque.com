@@ -3,7 +3,7 @@
  *
  * The page is reached by a stream's id -- 'stock-market', 'stock-split', 'bls',
  * 'sec', 'us-national-weather' -- and compares it as it is. It used to rename
- * three streams for itself, and labelled two of its pages with the new name:
+ * three streams for itself, and labeled two of its pages with the new name:
  * 'Download raw stock-market ingest performance metrics'. A url naming a stream
  * by a name it used to go by is replaced before this page mounts, so the cases
  * that go through the route do so the way main-route.jsx wires it.
@@ -132,14 +132,14 @@ describe('every stream id the application links to', () => {
     // sixth stream; this is the complete set of links to this page.
     //
     // These once CRASHED. The archive column read a `download_prefix` that no
-    // branch assigned for a capitalised id, `.split()` threw inside the same
+    // branch assigned for a capitalized id, `.split()` threw inside the same
     // render() that would have created this page's ErrorBoundary -- so the
     // boundary never mounted, the error escaped to the one in layout/page.jsx,
     // and the whole site went down, navigation included.
     //
     // The column no longer reads a prefix at all: it asks what the stream
     // publishes, and offers nothing when the answer is nothing. A stream it does
-    // not recognise is the same case as one that publishes nothing, which is why
+    // not recognize is the same case as one that publishes nothing, which is why
     // an unknown id renders too.
     //
     it.each(STREAMS)('/stream/%s/alarm renders', (stream) => {
@@ -842,7 +842,7 @@ describe('the archive help tooltip', () => {
         expect(document.querySelector('.help-icon')).toHaveStyle({ color: '#333' });
     });
 
-    it('returns to its resting colour when the pointer leaves', async () => {
+    it('returns to its resting color when the pointer leaves', async () => {
         renderAlarm('bls');
 
         await userEvent.hover(document.querySelector('.help-icon'));

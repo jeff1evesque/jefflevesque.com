@@ -5,7 +5,7 @@
  * cheapest thing in the codebase to hold still -- and the easiest place for a
  * wrong default to go unnoticed, because a reducer never throws.
  *
- * Three behaviours below are labelled as defects or quirks rather than contracts.
+ * Three behaviors below are labeled as defects or quirks rather than contracts.
  * The most consequential is 'article', which ignores action.type entirely: it
  * rebuilds its whole slice on EVERY dispatched action, so an unrelated action
  * resets it. The others concern the string initial states, which produce
@@ -118,7 +118,7 @@ describe('page', () => {
     it('sets the spinner without discarding other effects', () => {
         //
         // effects is nested, so a shallow spread would drop its siblings. The
-        // spinner is toggled constantly, so losing a neighbour here would be
+        // spinner is toggled constantly, so losing a neighbor here would be
         // frequent and hard to trace.
         //
         expect(page({ effects: { modal: true } }, { type: 'SET-SPINNER', spinner: true }))
@@ -230,7 +230,7 @@ describe('article', () => {
     // DOCUMENTS A DEFECT.
     //
     // Every other reducer here switches on action.type and returns state untouched
-    // for anything it does not recognise. This one has no switch at all: it
+    // for anything it does not recognize. This one has no switch at all: it
     // rebuilds its entire slice on EVERY action that reaches the store, defaulting
     // any field the action does not carry.
     //
