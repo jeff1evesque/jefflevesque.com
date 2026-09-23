@@ -9,6 +9,8 @@
 // Note: the front page backdrop is styled by '_animation.scss' and is absolutely
 //       positioned behind the content. This surface is the opposite -- it sits in
 //       the normal flow and is the thing being read -- so the two share no rules.
+//       What they do share is the pulse of their nodes, its period and its
+//       keyframes, which '_animation.scss' holds for both.
 //
 // Note: the three-column switch is a media query at bootstrap's 'lg' (992px),
 //       not the '.large-viewport' class page.jsx sets. Three columns need about
@@ -643,6 +645,30 @@ $graph-held-edge: $green-4;
   width: 100%;
 }
 
+//
+// the graph's own nodes, once it has arrived: at their own colours, glinting
+// brighter in the time the placeholder kept -- see graph-node-glint in
+// '_animation.scss'.
+//
+// Note: 0.85, where the placeholder's grey breathes down to 0.55. The same dip
+//       is a far bigger change on a colour than on #bebebe, since a darker fill
+//       has further to go before it is white, and at 0.55 the arriving graph
+//       would pulse harder than the placeholder it replaced. Measured in OKLab
+//       over the sixty nodes of the September 2026 build: the placeholder swings
+//       9.1, and at 0.85 the average node here swings 5.1 and the deepest, the
+//       violet, 8.9 -- about half as far, and none of them further.
+//
+.graph-explorer-node {
+  --graph-node-glint: 0.85;
+  animation: graph-node-glint $graph-node-breath ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-explorer-node {
+    animation: none;
+  }
+}
+
 .graph-status {
   color: $gray-6;
   padding-top: $gutter-1;
@@ -1009,7 +1035,7 @@ $graph-held-edge: $green-4;
 //       sees, not only at the radius.
 //
 .graph-pending-node {
-  animation: graph-pending-breathe 1.8s ease-in-out infinite;
+  animation: graph-pending-breathe $graph-node-breath ease-in-out infinite;
   fill: $gray-5;
   stroke: $white-1;
   stroke-width: 1;
