@@ -1,6 +1,6 @@
 ---
 name: Change
-about: A behaviour or feature change, with the tests and docs it drags along
+about: A behavior or feature change, with the tests and docs it drags along
 title: ''
 labels: ''
 assignees: ''
@@ -83,9 +83,9 @@ assignees: ''
   uncommitted test file is still collected, so a local run can report a figure
   CI cannot reach. `jsx/jest.config.js` documents the throwaway-worktree check.
 
-  If the change deliberately preserves behaviour that is wrong, label the test
+  If the change deliberately preserves behavior that is wrong, label the test
   `DOCUMENTS A DEFECT` and say what it should do instead. That is what makes a
-  later fix break the test loudly rather than change behaviour quietly.
+  later fix break the test loudly rather than change behavior quietly.
 -->
 
 ## Documentation
