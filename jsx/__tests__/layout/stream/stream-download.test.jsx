@@ -106,7 +106,7 @@ describe('downloadData, per stream', () => {
         expect(page.state.promise_get_data_bls).toBe(false);
     });
 
-    it('lower-cases the rate, which the page holds capitalised', () => {
+    it('lower-cases the rate, which the page holds capitalized', () => {
         const page = setup();
 
         act(() => {
