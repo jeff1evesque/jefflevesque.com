@@ -3,7 +3,7 @@
  *
  * The listing defaults the date to today, which is right for stock-market --
  * that data exists today. BLS is the opposite: a reading is published the
- * period AFTER the one it measures, so no bls row is ever labelled with the
+ * period AFTER the one it measures, so no bls row is ever labeled with the
  * current month. The 12 Aug 2026 CPI release carries JULY numbers; the 4 Aug
  * JOLTS release carries JUNE. Landing on today therefore lands on the one
  * month guaranteed to be empty, and /data read 'Records 0' against a table
