@@ -4,11 +4,11 @@
  * These run on every form submission and on values arriving from the query
  * string, so what they accept is the boundary between a visitor and the rest of
  * the app. They are also pure functions with no react involved, which makes them
- * the cheapest place in this codebase to hold behaviour still.
+ * the cheapest place in this codebase to hold behavior still.
  *
- * Several tests below are labelled DEFECT or QUIRK. Those assert what the code
+ * Several tests below are labeled DEFECT or QUIRK. Those assert what the code
  * does today rather than what it should do -- the intent is that a fix breaks the
- * test loudly and the assertion is then inverted, rather than the behaviour
+ * test loudly and the assertion is then inverted, rather than the behavior
  * changing unnoticed.
  */
 
@@ -220,7 +220,7 @@ describe('checkValidUrl', () => {
         // Guards an html-escaping artifact: the pattern source contains the
         // literal text '&amp;' where a bare '&' was meant. Inside a character
         // class that still admits '&' -- along with 'a', 'm', 'p' and ';', which
-        // were never intended -- so the behaviour survives by accident. If the
+        // were never intended -- so the behavior survives by accident. If the
         // pattern is ever cleaned up to a bare '&', this must keep passing.
         //
         expect(checkValidUrl('https://example.com/a?b=c&d=e')).toBe(true);
