@@ -6,7 +6,7 @@
  * in the September 2026 all-sources build, against the 24 and 26 the front page
  * was designed around. GraphCluster draws one circle per node TYPE, so this is a
  * readability limit rather than a payload one: a few hundred KB of json arrives
- * fine, and then 152 labelled circles sit behind the hero text and the backdrop
+ * fine, and then 152 labeled circles sit behind the hero text and the backdrop
  * stops reading as a backdrop.
  *
  * This runs in the client rather than at build or publish time. The published
@@ -34,7 +34,7 @@
  *       tie a graph together are frequently small: the live build's
  *       market_enrichment_EquitySector has a count of 11 and links market data
  *       to everything else, while the heaviest type in the graph by three orders
- *       of magnitude sits in a corner with two neighbours. Ranking by count
+ *       of magnitude sits in a corner with two neighbors. Ranking by count
  *       keeps the mass and discards the connective tissue.
  */
 
@@ -50,7 +50,7 @@
 // What the split cost was visible on the page people land on first. At 24 the
 // front page drew 62 of the build's edges against the explorer's 290, and eight
 // of the twelve namespaces the shared palette assigns -- so a third of the
-// graph's colours never appeared there at all.
+// graph's colors never appeared there at all.
 //
 // Space was not the constraint either. The backdrop takes the whole viewport
 // while the explorer's canvas is what is left between two reference columns, so
@@ -62,7 +62,7 @@
 //       note on the old backdrop budget asked for.
 //
 // Note: it lives HERE rather than in the pages that spend it, because it is no
-//       longer only a drawing budget -- encoding.js ranks the shared colour
+//       longer only a drawing budget -- encoding.js ranks the shared color
 //       palette over this same slice, so both surfaces depend on it. Copies of
 //       60 in two files is exactly the drift the palette was consolidated to
 //       end.
@@ -79,7 +79,7 @@ const SEED_FRACTION = 2 / 3;
 
 //
 // how many already-kept types a candidate must touch to be pulled in as a
-// connector. Two, not one: a type with a single kept neighbour is a leaf and
+// connector. Two, not one: a type with a single kept neighbor is a leaf and
 // adds a dangling twig, while a type with two JOINS things that were previously
 // apart, which is the entire point of spending budget on it.
 //
@@ -93,7 +93,7 @@ const CONNECTOR_MIN_LINKS = 2;
 //       so there is no knob to guess at.
 
 /**
- * neighbours per node type, from the edges between them.
+ * neighbors per node type, from the edges between them.
  *
  * Note: self-loops are excluded. src === dst is meaningful data -- it reads as a
  *       recurring relation and is kept in the output -- but it connects a type
@@ -153,7 +153,7 @@ export function rank(node_types, limit) {
  *
  * Note: pass 3 can re-introduce a disconnected node, and deliberately is not
  *       guarded against. Budget left over means the graph ran out of connectors
- *       to buy, and at that point a large type the reader recognises is worth
+ *       to buy, and at that point a large type the reader recognizes is worth
  *       more than a small one that happens to touch something. On the live build
  *       it does not arise -- the connectors exhaust the budget first.
  */
