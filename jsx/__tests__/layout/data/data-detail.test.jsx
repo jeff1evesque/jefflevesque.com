@@ -42,9 +42,9 @@ function setup() {
 function primed(page, extra = {}) {
     act(() => {
         page.setState({
-            selected_stream: 'stockmarket',
-            aggregate_key_stockmarket: 'sector',
-            data_distribution_stockmarket_bar: [
+            selected_stream: 'stock-market',
+            'aggregate_key_stock-market': 'sector',
+            'data_distribution_stock-market_bar': [
                 { data_key: 'biotechnology', color: '#111' },
                 { data_key: 'semiconductors', color: '#222' },
             ],
@@ -188,7 +188,7 @@ describe('the rows it builds', () => {
         // `${key}_name` lookup, and to key the colour off that one value.
         //
         const page = primed(setup(), {
-            data_distribution_stockmarket_bar: [
+            'data_distribution_stock-market_bar': [
                 { data_key: 'slot_1', color: '#abc' },
             ],
         });
@@ -213,7 +213,7 @@ describe('the folded long tail', () => {
             { name: 'utilities', value: 9, color: '#333' },
             { name: 'materials', value: 4, color: '#444' },
         ];
-        const page = primed(setup(), { data_distribution_stockmarket_other: rolled });
+        const page = primed(setup(), { 'data_distribution_stock-market_other': rolled });
 
         open(page, { sector: 'Other', biotechnology: 13 });
 
@@ -243,7 +243,7 @@ describe('the folded long tail', () => {
         // reads the row as it was BEFORE folding when one was kept.
         //
         const page = primed(setup(), {
-            data_distribution_stockmarket_series: {
+            'data_distribution_stock-market_series': {
                 technology: { sector: 'technology', semiconductors: 30, software: 25 },
             },
         });
@@ -263,9 +263,9 @@ describe('the stock-split breakdown', () => {
         // exactly this.
         //
         const page = primed(setup(), {
-            selected_stream: 'stockmarketstocksplit',
-            aggregate_key_stockmarketstocksplit: 'sector',
-            data_distribution_stockmarketstocksplit_bar: [
+            selected_stream: 'stock-split',
+            'aggregate_key_stock-split': 'sector',
+            'data_distribution_stock-split_bar': [
                 { data_key: 'splits', color: '#0f0' },
             ],
         });
@@ -309,9 +309,9 @@ describe('the stock-split breakdown', () => {
 
     it('falls back to the stacked breakdown when no tickers are carried', () => {
         const page = primed(setup(), {
-            selected_stream: 'stockmarketstocksplit',
-            aggregate_key_stockmarketstocksplit: 'sector',
-            data_distribution_stockmarketstocksplit_bar: [
+            selected_stream: 'stock-split',
+            'aggregate_key_stock-split': 'sector',
+            'data_distribution_stock-split_bar': [
                 { data_key: 'splits', color: '#0f0' },
             ],
         });

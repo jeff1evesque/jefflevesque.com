@@ -50,10 +50,21 @@ afterEach(() => {
 
 describe('performance, as the /stream page loads it', () => {
     it('parses into rows carrying the columns the chart reads', async () => {
+        //
+        // the documented request is the S&P 500's, by its id, so this loads it
+        // the way the page loads that stream.
+        //
         answering(successOf('performance').example);
         const callback = jest.fn();
 
-        await getData('bls-ingest', performanceUrl('bls', 'day', 'America/New_York'), callback, true, 'bls', 'bls');
+        await getData(
+            'stock-market-ingest',
+            performanceUrl('stock-market', 'day', 'America/New_York'),
+            callback,
+            true,
+            'stock-market',
+            'stock-market'
+        );
 
         const { data } = callback.mock.calls[0][0];
         const rows = data.filter(row => row.group_by);
@@ -64,7 +75,7 @@ describe('performance, as the /stream page loads it', () => {
                 expect(row[column]).toBeTruthy();
             });
         });
-        expect(rows[0]).toMatchObject({ group_by: 'bls', total_success: '6941', total_fail: '0' });
+        expect(rows[0]).toMatchObject({ group_by: 'price', total_success: '9481', total_fail: '0' });
     });
 
     it('hands the page nothing, rather than a failure, when the window holds no rows', async () => {
@@ -83,7 +94,7 @@ describe('the performance archive, as each alarm page loads it', () => {
     it('offers every stream the documented file, linked where it is served', async () => {
         //
         // the example holds one file per stream, so each stream reads back
-        // exactly that one -- including the two filed under a folder that is
+        // exactly that one -- including the three filed under a folder that is
         // not their stream id.
         //
         answering(media.example);
@@ -104,7 +115,7 @@ describe('the performance archive, as each alarm page loads it', () => {
         const listing = await loadArchiveListing();
 
         expect(archiveFiles(listing, 'sec').map((file) => file.label)).toEqual(['09/2025.csv']);
-        expect(archiveFiles(listing, 'stockmarket').map((file) => file.label)).toEqual(['2025.csv']);
+        expect(archiveFiles(listing, 'stock-market').map((file) => file.label)).toEqual(['2025.csv']);
     });
 });
 

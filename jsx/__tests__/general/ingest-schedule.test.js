@@ -21,6 +21,7 @@ import {
     intervalExpected,
     runsContinuously
 } from '../../import/general/ingest-schedule.js';
+import { STREAMS } from '../../import/general/stream-id.js';
 
 //
 // verified against Intl before being written down.
@@ -39,9 +40,10 @@ const MON_1500_EST = new Date('2026-01-19T20:00:00Z');   // Mon 15:00, winter
 
 describe('INGEST_SCHEDULE', () => {
     it('describes all five streams', () => {
-        expect(Object.keys(INGEST_SCHEDULE).sort()).toEqual([
-            'bls', 'sec', 'stockmarket', 'stockmarketstocksplit', 'usnationalweather',
-        ]);
+        //
+        // keyed by the streams' ids, the same five every other table uses
+        //
+        expect(Object.keys(INGEST_SCHEDULE).sort()).toEqual([...STREAMS].sort());
     });
 
     it('gives every stream all five fields', () => {
@@ -56,7 +58,7 @@ describe('INGEST_SCHEDULE', () => {
 
     it('names its minutes only where a cron states them', () => {
         //
-        // the distinction 'coverageBucket' turns on. 'stockmarket' is a cron listing
+        // the distinction 'coverageBucket' turns on. 'stock-market' is a cron listing
         // '0,20,40', so the instant is promised; the rest are 'rate(N)' or
         // have no spacing at all, and promise at most how often.
         //
@@ -64,7 +66,7 @@ describe('INGEST_SCHEDULE', () => {
             .filter(([, s]) => s.minutes_named)
             .map(([name]) => name);
 
-        expect(named).toEqual(['stockmarket']);
+        expect(named).toEqual(['stock-market']);
     });
 
     it('partitions by day or year and nothing else', () => {
@@ -75,7 +77,7 @@ describe('INGEST_SCHEDULE', () => {
 
     it('names a minute spacing for the three streams that have one', () => {
         //
-        // stockmarket schedules its minutes outright ('0,20,40'), so its
+        // stock-market schedules its minutes outright ('0,20,40'), so its
         // spacing comes off the cron. weather and sec are both 'rate(5 minutes)',
         // whose offset the expression does not fix -- theirs is read off the live
         // report instead, where every bucket of a trailing hour sits on a multiple
@@ -87,9 +89,9 @@ describe('INGEST_SCHEDULE', () => {
             .map(([name]) => name)
             .sort();
 
-        expect(withSpacing).toEqual(['sec', 'stockmarket', 'usnationalweather']);
-        expect(INGEST_SCHEDULE.stockmarket.every).toBe(20);
-        expect(INGEST_SCHEDULE.usnationalweather.every).toBe(5);
+        expect(withSpacing).toEqual(['sec', 'stock-market', 'us-national-weather']);
+        expect(INGEST_SCHEDULE['stock-market'].every).toBe(20);
+        expect(INGEST_SCHEDULE['us-national-weather'].every).toBe(5);
         expect(INGEST_SCHEDULE.sec.every).toBe(5);
     });
 });
@@ -107,14 +109,14 @@ describe('intervalExpected', () => {
             // gate is not applied -- and this returns before that check.
             //
             expect(intervalExpected('sec', 'month', SAT_1000_EDT)).toBe(true);
-            expect(intervalExpected('stockmarket', 'month', SAT_1000_EDT)).toBe(true);
+            expect(intervalExpected('stock-market', 'month', SAT_1000_EDT)).toBe(true);
         });
     });
 
     describe('the weekday gate', () => {
         it('excludes saturday for a weekday-only stream', () => {
             expect(intervalExpected('sec', 'day', SAT_1000_EDT)).toBe(false);
-            expect(intervalExpected('stockmarket', 'day', SAT_1000_EDT)).toBe(false);
+            expect(intervalExpected('stock-market', 'day', SAT_1000_EDT)).toBe(false);
         });
 
         it('does not exclude a weekend for a stream that runs every day', () => {
@@ -122,7 +124,7 @@ describe('intervalExpected', () => {
             // weather and bls both report at weekends -- bls because eight of
             // its ten feeds report daily, the other two only on tuesdays.
             //
-            expect(intervalExpected('usnationalweather', 'day', SAT_1000_EDT)).toBe(true);
+            expect(intervalExpected('us-national-weather', 'day', SAT_1000_EDT)).toBe(true);
             expect(intervalExpected('bls', 'day', SAT_1000_EDT)).toBe(true);
         });
 
@@ -141,8 +143,8 @@ describe('intervalExpected', () => {
             // the hours narrow an hourly or finer chart only: a daily interval is
             // expected if the scraper runs at any point that day.
             //
-            expect(intervalExpected('stockmarket', 'day', MON_0800_EDT)).toBe(true);
-            expect(intervalExpected('stockmarket', 'day', MON_1700_EDT)).toBe(true);
+            expect(intervalExpected('stock-market', 'day', MON_0800_EDT)).toBe(true);
+            expect(intervalExpected('stock-market', 'day', MON_1700_EDT)).toBe(true);
         });
     });
 
@@ -153,12 +155,12 @@ describe('intervalExpected', () => {
         });
 
         it('rejects an hour outside the range', () => {
-            // stockmarket: hours [9, 15], so 17:00 is past the close
-            expect(intervalExpected('stockmarket', 'hour', MON_1700_EDT)).toBe(false);
+            // stock-market: hours [9, 15], so 17:00 is past the close
+            expect(intervalExpected('stock-market', 'hour', MON_1700_EDT)).toBe(false);
         });
 
         it('accepts the first hour of the range', () => {
-            expect(intervalExpected('stockmarket', 'hour', MON_0900_EST)).toBe(true);
+            expect(intervalExpected('stock-market', 'hour', MON_0900_EST)).toBe(true);
         });
     });
 
@@ -193,47 +195,47 @@ describe('intervalExpected', () => {
 
     describe('an unrestricted stream', () => {
         it('expects every hour', () => {
-            // usnationalweather: hours null
+            // us-national-weather: hours null
             [MON_0800_EDT, MON_1000_EDT, MON_1700_EDT, SUN_2200_EST].forEach(d => {
-                expect(intervalExpected('usnationalweather', 'hour', d)).toBe(true);
+                expect(intervalExpected('us-national-weather', 'hour', d)).toBe(true);
             });
         });
     });
 
     describe('the minute rate', () => {
         it('accepts a minute on the spacing', () => {
-            expect(intervalExpected('stockmarket', 'minute', MON_1000_EDT)).toBe(true);
-            expect(intervalExpected('stockmarket', 'minute', MON_1020_EDT)).toBe(true);
+            expect(intervalExpected('stock-market', 'minute', MON_1000_EDT)).toBe(true);
+            expect(intervalExpected('stock-market', 'minute', MON_1020_EDT)).toBe(true);
         });
 
         it('rejects a minute off the spacing', () => {
-            expect(intervalExpected('stockmarket', 'minute', MON_1005_EDT)).toBe(false);
+            expect(intervalExpected('stock-market', 'minute', MON_1005_EDT)).toBe(false);
 
             //
             // 10:10 sat ON the spacing while this entry said ten minutes. the
             // spacing is twenty, so :10 is now a miss -- the case is kept to pin
             // the cadence the table actually claims
             //
-            expect(intervalExpected('stockmarket', 'minute', MON_1010_EDT)).toBe(false);
+            expect(intervalExpected('stock-market', 'minute', MON_1010_EDT)).toBe(false);
         });
 
         it('accepts a five minute spacing on the five', () => {
             //
-            // 10:05 is off stockmarket's twenty minute spacing and on the five minute
+            // 10:05 is off stock-market's twenty minute spacing and on the five minute
             // one the other two run, so the same instant answers differently per
             // stream -- which is the whole point of reading 'every' rather than
             // assuming one cadence.
             //
-            expect(intervalExpected('usnationalweather', 'minute', MON_1005_EDT)).toBe(true);
+            expect(intervalExpected('us-national-weather', 'minute', MON_1005_EDT)).toBe(true);
             expect(intervalExpected('sec', 'minute', MON_1005_EDT)).toBe(true);
-            expect(intervalExpected('usnationalweather', 'minute', MON_1010_EDT)).toBe(true);
+            expect(intervalExpected('us-national-weather', 'minute', MON_1010_EDT)).toBe(true);
         });
 
         it('rejects a minute off the five', () => {
             // 10:07 is on no spacing this table names
             const MON_1007_EDT = new Date('2026-03-16T14:07:00Z');
 
-            expect(intervalExpected('usnationalweather', 'minute', MON_1007_EDT)).toBe(false);
+            expect(intervalExpected('us-national-weather', 'minute', MON_1007_EDT)).toBe(false);
             expect(intervalExpected('sec', 'minute', MON_1007_EDT)).toBe(false);
         });
 
@@ -248,7 +250,7 @@ describe('intervalExpected', () => {
 
             expect(intervalExpected('sec', 'minute', MON_1705_EDT)).toBe(true);
             expect(intervalExpected('sec', 'minute', MON_2305_EDT)).toBe(false);
-            expect(intervalExpected('usnationalweather', 'minute', MON_2305_EDT)).toBe(true);
+            expect(intervalExpected('us-national-weather', 'minute', MON_2305_EDT)).toBe(true);
         });
 
         it('rejects every minute for a stream with no spacing', () => {
@@ -260,11 +262,15 @@ describe('intervalExpected', () => {
             //
             expect(intervalExpected('bls', 'minute', MON_0800_EDT)).toBe(false);
             expect(intervalExpected('bls', 'minute', MON_1500_EDT)).toBe(false);
-            expect(intervalExpected('stockmarketstocksplit', 'minute', MON_1000_EDT)).toBe(false);
+            expect(intervalExpected('stock-split', 'minute', MON_1000_EDT)).toBe(false);
         });
     });
 
-    it('is case insensitive about both stream and rate', () => {
+    it('finds a stream by any name it has gone by, and a rate in any casing', () => {
+        //
+        // the table is keyed by id, and looked up through canonicalStream -- so
+        // 'StockMarket' is the stock-market stream here as it is everywhere else.
+        //
         expect(intervalExpected('StockMarket', 'DAY', MON_1000_EDT)).toBe(true);
         expect(intervalExpected('SEC', 'Hour', MON_1000_EDT)).toBe(true);
     });
@@ -284,7 +290,7 @@ describe('coverageBucket', () => {
     const MON_1007_EDT = new Date('2026-03-16T14:07:00Z');   // Mon 10:07
 
     it('files a five minute run under the window it lands in', () => {
-        expect(coverageBucket('usnationalweather', 'minute', MON_1002_EDT)).toEqual(MON_1000_EDT);
+        expect(coverageBucket('us-national-weather', 'minute', MON_1002_EDT)).toEqual(MON_1000_EDT);
         expect(coverageBucket('sec', 'minute', MON_1007_EDT)).toEqual(MON_1005_EDT);
     });
 
@@ -294,11 +300,11 @@ describe('coverageBucket', () => {
 
     it('holds a named-minute stream to the exact instant', () => {
         //
-        // the point of keeping stockmarket exact: its cron promises :00, :10, :20, so
+        // the point of keeping stock-market exact: its cron promises :00, :10, :20, so
         // a run at :02 IS off schedule and has to count as one. Windowing it would
         // hide a real fault.
         //
-        expect(coverageBucket('stockmarket', 'minute', MON_1002_EDT)).toEqual(MON_1002_EDT);
+        expect(coverageBucket('stock-market', 'minute', MON_1002_EDT)).toEqual(MON_1002_EDT);
     });
 
     it('changes nothing at the coarser rates', () => {
@@ -314,7 +320,7 @@ describe('coverageBucket', () => {
 
     it('changes nothing for a stream with no spacing at all', () => {
         expect(coverageBucket('bls', 'minute', MON_1002_EDT)).toEqual(MON_1002_EDT);
-        expect(coverageBucket('stockmarketstocksplit', 'minute', MON_1002_EDT)).toEqual(MON_1002_EDT);
+        expect(coverageBucket('stock-split', 'minute', MON_1002_EDT)).toEqual(MON_1002_EDT);
     });
 
     it('passes an unknown stream and an unusable date straight through', () => {
@@ -359,8 +365,8 @@ describe('coverageSupported', () => {
         // does not carry -- is refused here too rather than being graded against
         // a window that does not exist.
         //
-        expect(coverageSupported('stockmarket', 'second')).toBe(false);
-        expect(coverageSupported('stockmarket', 'week')).toBe(false);
+        expect(coverageSupported('stock-market', 'second')).toBe(false);
+        expect(coverageSupported('stock-market', 'week')).toBe(false);
     });
 
     it('supports the monthly rate for every stream, however it is partitioned', () => {
@@ -375,18 +381,18 @@ describe('coverageSupported', () => {
         // nothing left for the gate to protect against.
         //
         expect(coverageSupported('bls', 'month')).toBe(true);                    // year
-        expect(coverageSupported('stockmarketstocksplit', 'month')).toBe(true);  // year
+        expect(coverageSupported('stock-split', 'month')).toBe(true);  // year
         expect(coverageSupported('sec', 'month')).toBe(true);                    // day
-        expect(coverageSupported('stockmarket', 'month')).toBe(true);            // day
-        expect(coverageSupported('usnationalweather', 'month')).toBe(true);      // day
+        expect(coverageSupported('stock-market', 'month')).toBe(true);            // day
+        expect(coverageSupported('us-national-weather', 'month')).toBe(true);      // day
     });
 
     it('supports the minute rate only where a spacing is known', () => {
-        expect(coverageSupported('stockmarket', 'minute')).toBe(true);
-        expect(coverageSupported('usnationalweather', 'minute')).toBe(true);
+        expect(coverageSupported('stock-market', 'minute')).toBe(true);
+        expect(coverageSupported('us-national-weather', 'minute')).toBe(true);
         expect(coverageSupported('sec', 'minute')).toBe(true);
         expect(coverageSupported('bls', 'minute')).toBe(false);
-        expect(coverageSupported('stockmarketstocksplit', 'minute')).toBe(false);
+        expect(coverageSupported('stock-split', 'minute')).toBe(false);
     });
 
     it('supports the hourly and daily rates for every stream', () => {
@@ -406,14 +412,14 @@ describe('runsContinuously', () => {
         // would draw a zero across every weekend and show an outage that never
         // happened.
         //
-        expect(runsContinuously('usnationalweather')).toBe(true);
+        expect(runsContinuously('us-national-weather')).toBe(true);
     });
 
     it('is false for an hour-restricted stream', () => {
         expect(runsContinuously('sec')).toBe(false);
-        expect(runsContinuously('stockmarket')).toBe(false);
+        expect(runsContinuously('stock-market')).toBe(false);
         expect(runsContinuously('bls')).toBe(false);
-        expect(runsContinuously('stockmarketstocksplit')).toBe(false);
+        expect(runsContinuously('stock-split')).toBe(false);
     });
 
     it('is false for an unknown stream', () => {
@@ -431,7 +437,7 @@ describe('expectedIntervals', () => {
         // stream could not fetch that window. It is graded now -- see the
         // coverageSupported case above.
         //
-        expect(expectedIntervals('stockmarketstocksplit', 'minute', NOW)).toEqual([]);
+        expect(expectedIntervals('stock-split', 'minute', NOW)).toEqual([]);
         expect(expectedIntervals('bls', 'minute', NOW)).toEqual([]);
         expect(expectedIntervals('nosuchstream', 'day', NOW)).toEqual([]);
     });
@@ -442,7 +448,7 @@ describe('expectedIntervals', () => {
         // one of them a multiple of five. weather is unrestricted, so this reaches
         // the spacing alone with no hour or weekday gate in front of it.
         //
-        const intervals = expectedIntervals('usnationalweather', 'minute', NOW);
+        const intervals = expectedIntervals('us-national-weather', 'minute', NOW);
 
         expect(intervals).toHaveLength(12);
         intervals.forEach(v => expect(v.getMinutes() % 5).toBe(0));
@@ -454,12 +460,12 @@ describe('expectedIntervals', () => {
         // these streams, so it can be counted against.
         //
         expect(expectedIntervals('sec', 'month', NOW).length).toBeGreaterThan(1);
-        expect(expectedIntervals('stockmarket', 'month', NOW).length).toBeGreaterThan(1);
-        expect(expectedIntervals('usnationalweather', 'month', NOW).length).toBeGreaterThan(1);
+        expect(expectedIntervals('stock-market', 'month', NOW).length).toBeGreaterThan(1);
+        expect(expectedIntervals('us-national-weather', 'month', NOW).length).toBeGreaterThan(1);
     });
 
     it('returns nothing for a rate with no window', () => {
-        expect(expectedIntervals('stockmarket', 'second', NOW)).toEqual([]);
+        expect(expectedIntervals('stock-market', 'second', NOW)).toEqual([]);
     });
 
     it('generates intervals rather than reading them off a report', () => {
@@ -467,14 +473,14 @@ describe('expectedIntervals', () => {
         // the whole point: the report only carries an interval something landed
         // in, and the missing ones are exactly what is being counted.
         //
-        const intervals = expectedIntervals('usnationalweather', 'day', NOW);
+        const intervals = expectedIntervals('us-national-weather', 'day', NOW);
 
         expect(intervals.length).toBeGreaterThan(0);
         intervals.forEach(d => expect(d).toBeInstanceOf(Date));
     });
 
     it('runs oldest first', () => {
-        const intervals = expectedIntervals('usnationalweather', 'day', NOW);
+        const intervals = expectedIntervals('us-national-weather', 'day', NOW);
 
         for (let i = 1; i < intervals.length; i++) {
             expect(intervals[i].getTime()).toBeGreaterThan(intervals[i - 1].getTime());
@@ -496,7 +502,7 @@ describe('expectedIntervals', () => {
     });
 
     it('includes weekends for a stream that runs every day', () => {
-        const intervals = expectedIntervals('usnationalweather', 'day', NOW);
+        const intervals = expectedIntervals('us-national-weather', 'day', NOW);
         const weekdays = new Set(intervals.map(d => new Intl.DateTimeFormat('en-US', {
             timeZone: 'America/New_York', weekday: 'short',
         }).format(d)));
@@ -516,7 +522,7 @@ describe('expectedIntervals', () => {
     });
 
     it('keeps every minute interval on the spacing', () => {
-        const intervals = expectedIntervals('stockmarket', 'minute', NOW);
+        const intervals = expectedIntervals('stock-market', 'minute', NOW);
 
         intervals.forEach(d => {
             const minute = Number(new Intl.DateTimeFormat('en-US', {
@@ -528,7 +534,7 @@ describe('expectedIntervals', () => {
     });
 
     it('keeps every hourly interval inside the stream\'s hours', () => {
-        const intervals = expectedIntervals('stockmarket', 'hour', NOW);
+        const intervals = expectedIntervals('stock-market', 'hour', NOW);
 
         intervals.forEach(d => {
             const hour = Number(new Intl.DateTimeFormat('en-US', {
@@ -541,7 +547,7 @@ describe('expectedIntervals', () => {
     });
 
     it('never returns an interval later than now', () => {
-        const intervals = expectedIntervals('usnationalweather', 'hour', NOW);
+        const intervals = expectedIntervals('us-national-weather', 'hour', NOW);
 
         intervals.forEach(d => expect(d.getTime()).toBeLessThanOrEqual(NOW.getTime()));
     });
@@ -550,7 +556,7 @@ describe('expectedIntervals', () => {
         const now = new Date('2026-03-16T14:00:00Z');
         const before = now.getTime();
 
-        expectedIntervals('usnationalweather', 'day', now);
+        expectedIntervals('us-national-weather', 'day', now);
 
         expect(now.getTime()).toBe(before);
     });

@@ -41,6 +41,7 @@ import viewerTimeZone from '../../general/viewer-timezone.js';
 import { performanceUrl, API_DOCS } from '../../general/api-url.js';
 import ApiLinks from '../../general/api-links.jsx';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
+import { STOCK_MARKET, STOCK_SPLIT, STREAMS } from '../../general/stream-id.js';
 {/*
 
     'runsContinuously' left with the weather branch. It answered whether a silent
@@ -198,30 +199,18 @@ class StreamLayout extends Component {
         */}
 
         const today = new Date();
-        const stream_stockmarket = 'StockMarket';
-        const stream_stocksplit = `${stream_stockmarket}StockSplit`;
-        const stream_bls = 'BLS';
-        const stream_sec = 'SEC';
-        const stream_usnationalweather = 'USNationalWeather';
-        const stream_stockmarket_total = 'n/a';
-        const stream_stockmarket_health = 'n/a';
-        const stream_stocksplit_total = 'n/a';
-        const stream_stocksplit_health = 'n/a';
-        const stream_bls_total = 'n/a';
-        const stream_bls_health = 'n/a';
-        const stream_sec_total = 'n/a';
-        const stream_sec_health = 'n/a';
-        const stream_usnationalweather_total = 'n/a';
-        const stream_usnationalweather_health = 'n/a';
         const stream_coverage = 'n/a';
 
-        const streams = [
-            stream_stockmarket,
-            stream_stocksplit,
-            stream_bls,
-            stream_sec,
-            stream_usnationalweather
-        ];
+        {/*
+
+            each stream by its id, which is also its name everywhere on this
+            page: the per-stream state keys, the listing's links and the
+            requests. See stream-id.js. The page used to hold a second,
+            capitalised name for each ('StockMarket'), linked by one and keyed
+            by the other, and lower-cased between the two.
+
+        */}
+        const streams = STREAMS;
 
         {/*
 
@@ -275,22 +264,22 @@ class StreamLayout extends Component {
 
         this.state = {
             local: is_local,
-            chart_data_stockmarket: [],
-            chart_data_stockmarketstocksplit: [],
+            'chart_data_stock-market': [],
+            'chart_data_stock-split': [],
             chart_data_bls: [],
             chart_data_bls_bls: [],
             chart_data_sec: [],
             chart_data_sec_sec: [],
-            chart_data_usnationalweather: [],
+            'chart_data_us-national-weather': [],
             chart_data_placeholder_bls: [],
             chart_data_placeholder_sec: [],
             bottom_sheet_open: false,
             field_datetime: 'window_start',
-            promise_get_data_stockmarket: false,
-            promise_get_data_stockmarketstocksplit: false,
+            'promise_get_data_stock-market': false,
+            'promise_get_data_stock-split': false,
             promise_get_data_bls: false,
             promise_get_data_sec: false,
-            promise_get_data_usnationalweather: false,
+            'promise_get_data_us-national-weather': false,
             display_area_chart: true,
             display_filter_button: true,
             display_apply_filter_button: false,
@@ -302,42 +291,37 @@ class StreamLayout extends Component {
             hide_all: false,
             x_ticker_format: x_ticker_format_stockmarket,
             label_format: label_format_stockmarket,
-            selected_stream: stream_stockmarket.toLowerCase(),
+            selected_stream: STOCK_MARKET,
             selected_stream_rate: stream_rate_stockmarket,
-            stream_source_stockmarket: ['options', 'price'],
-            stream_source_stockmarketstocksplit: ['alpha', 'beta', 'gamma'],
+            'stream_source_stock-market': ['options', 'price'],
+            'stream_source_stock-split': ['alpha', 'beta', 'gamma'],
             stream_source_bls: ['bls'],
             stream_source_sec: ['sec'],
-            stream_source_usnationalweather: ['weather'],
-            stream_stockmarket: stream_stockmarket,
-            stream_stockmarketstocksplit: stream_stocksplit,
-            stream_bls: stream_bls,
-            stream_sec: stream_sec,
-            stream_usnationalweather: stream_usnationalweather,
+            'stream_source_us-national-weather': ['weather'],
             streams: streams,
-            stream_rate_stockmarket: stream_rate_stockmarket,
-            stream_rate_stockmarketstocksplit: stream_rate,
+            'stream_rate_stock-market': stream_rate_stockmarket,
+            'stream_rate_stock-split': stream_rate,
             stream_rate_bls: stream_rate,
             stream_rate_sec: stream_rate,
-            stream_rate_usnationalweather: stream_rate,
+            'stream_rate_us-national-weather': stream_rate,
             stream_throughput: 0,
             stream_throughput_bls_bls: 0,
             stream_throughput_sec_sec: 0,
-            stream_stockmarket_total: stream_stockmarket_total,
-            stream_stockmarket_health: stream_stockmarket_health,
-            stream_stockmarketstocksplit_total: stream_stocksplit_total,
-            stream_stockmarketstocksplit_health: stream_stocksplit_health,
-            stream_bls_total: stream_bls_total,
-            stream_bls_health: stream_bls_health,
-            stream_sec_total: stream_sec_total,
-            stream_sec_health: stream_sec_health,
-            stream_usnationalweather_total: stream_usnationalweather_total,
-            stream_usnationalweather_health: stream_usnationalweather_health,
-            stream_stockmarket_coverage: stream_coverage,
-            stream_stockmarketstocksplit_coverage: stream_coverage,
+            'stream_stock-market_total': 'n/a',
+            'stream_stock-market_health': 'n/a',
+            'stream_stock-split_total': 'n/a',
+            'stream_stock-split_health': 'n/a',
+            stream_bls_total: 'n/a',
+            stream_bls_health: 'n/a',
+            stream_sec_total: 'n/a',
+            stream_sec_health: 'n/a',
+            'stream_us-national-weather_total': 'n/a',
+            'stream_us-national-weather_health': 'n/a',
+            'stream_stock-market_coverage': stream_coverage,
+            'stream_stock-split_coverage': stream_coverage,
             stream_bls_coverage: stream_coverage,
             stream_sec_coverage: stream_coverage,
-            stream_usnationalweather_coverage: stream_coverage,
+            'stream_us-national-weather_coverage': stream_coverage,
             today: today,
             ingest_performance_data: null,
             sheet_snap_points: [1, 0.75, 0.55, 0.25],
@@ -363,8 +347,7 @@ class StreamLayout extends Component {
     }
 
     componentDidMount() {
-        this.state.streams.forEach((v, i) => {
-            const stream = v.toLowerCase();
+        this.state.streams.forEach((stream) => {
             this.downloadData(stream, this.state[`stream_rate_${stream}`]);
         });
 
@@ -389,22 +372,17 @@ class StreamLayout extends Component {
     }
 
     reset_stream(selected_stream=null) {
-        const stream = selected_stream
-            ? selected_stream.toLowerCase()
-            : this.state.selected_stream;
+        const stream = selected_stream || this.state.selected_stream;
 
         this.setState({ [`chart_data_${stream}`]: [], stream_throughput: 'n/a' });
 
         //
-        // Note: stockmarket and stocksplit performance reports not partitioned by source,
+        // Note: stock-market and stock-split performance reports not partitioned by source,
         //       these streams treat the report csv column 'group_by' as the source, while
         //       other sources generally only have one value under the same csv column, thus
         //       the partition is instead treated as the source
         //
-        if (
-            stream !== this.state.stream_stockmarket.toLowerCase()
-            && stream !== this.state.stream_stockmarketstocksplit.toLowerCase()
-        ) {
+        if (stream !== STOCK_MARKET && stream !== STOCK_SPLIT) {
             this.state[`stream_source_${stream}`].forEach((source, i) => {
                 this.setState({
                     [`chart_data_${stream}_${source.toLowerCase()}`]: [],
@@ -412,7 +390,7 @@ class StreamLayout extends Component {
                 });
             });
         } else {
-            this.setState({ [`stream_throughput_${selected_stream}_${selected_stream}`]: 0 });
+            this.setState({ [`stream_throughput_${stream}_${stream}`]: 0 });
         }
     }
 
@@ -420,15 +398,14 @@ class StreamLayout extends Component {
         const streams = s ? s : this.state.streams;
         let list_article = [];
 
-        streams.forEach((v, i) => {
-            const stream = v.toLowerCase();
+        streams.forEach((stream) => {
             const loader = ! this.state[`promise_get_data_${stream}`]
                 ? <PuffLoader color='#228B22' size={isMobile ? 2 : 3} speedMultiplier='0.5' />
                 : null;
 
             list_article.push({
-                'name': this.state[`stream_${stream}`],
-                'link': `?item=${this.state[`stream_${stream}`]}&rate=${this.state[`stream_rate_${stream}`]}`,
+                'name': stream,
+                'link': `?item=${stream}&rate=${this.state[`stream_rate_${stream}`]}`,
                 'detail': {
                     'Health': format_percent(this.state[`stream_${stream}_health`]),
                     'Coverage': format_percent(this.state[`stream_${stream}_coverage`]),
@@ -436,15 +413,14 @@ class StreamLayout extends Component {
                     'Total Records': format_count(this.state[`stream_${stream}_total`])
                 },
                 'loader': loader,
-                'control_tray': this.getControlTray(this.state[`stream_${stream}`])
+                'control_tray': this.getControlTray(stream)
             });
         });
 
         this.setState({ list_article: list_article });
     }
 
-    getControlTray(stream_name, url_trigger=false) {
-        const stream = stream_name.toLowerCase();
+    getControlTray(stream, url_trigger=false) {
         const font_size = isMobile ? 'medium' : 'large';
         {/*
 
@@ -454,10 +430,10 @@ class StreamLayout extends Component {
 
         */}
         //
-        // Note: the query stats control is only offered for the stockmarket
+        // Note: the query stats control is only offered for the stock-market
         //       stream; every other stream renders the tray without it
         //
-        const trigger_button = stream !== 'stockmarket'
+        const trigger_button = stream !== STOCK_MARKET
             ? null
             : url_trigger
             ? (
@@ -539,17 +515,18 @@ class StreamLayout extends Component {
     // Note: 'source' is what the ingest worker keys its series by, and it is NOT
     //       uniformly the stream id -- the local fixtures answer under a single
     //       series name while the live report answers under the stream's own.
-    //       Both are preserved exactly as they were.
+    //       For the two stock streams it is the id, which is what reset_stream
+    //       clears their throughput under.
     //
     STREAM_REQUEST = {
-        stockmarket: {
+        [STOCK_MARKET]: {
             get_data: 'stock-market-ingest',
-            source: 'stockmarket',
+            source: STOCK_MARKET,
             source_local: 'options'
         },
-        stockmarketstocksplit: {
+        [STOCK_SPLIT]: {
             get_data: 'stock-split-ingest',
-            source: 'stockmarketstocksplit',
+            source: STOCK_SPLIT,
             source_local: 'beta'
         },
         bls: {
@@ -562,7 +539,7 @@ class StreamLayout extends Component {
             source: 'sec',
             source_local: 'sec'
         },
-        usnationalweather: {
+        'us-national-weather': {
             get_data: 'us-national-weather-ingest',
             source: 'weather',
             source_local: 'weather'
@@ -570,7 +547,6 @@ class StreamLayout extends Component {
     };
 
     downloadData(type, stream_rate) {
-        type = type.toLowerCase();
         stream_rate = stream_rate.toLowerCase();
         this.setState({
             [`stream_rate_${type}`]: stream_rate,
@@ -637,7 +613,7 @@ class StreamLayout extends Component {
             ) {
                 var chart_data = event.data.chart_data_original;
                 var selected_source = event.data.selected_source;
-                var selected_stream = event.data.selected_stream.toLowerCase();
+                var selected_stream = event.data.selected_stream;
 
                 {/*
 
@@ -665,7 +641,7 @@ class StreamLayout extends Component {
                 }
 
                 //
-                // Note: stockmarket and stocksplit performance reports not partitioned by source,
+                // Note: stock-market and stock-split performance reports not partitioned by source,
                 //       these streams treat the report csv column 'group_by' as the source, while
                 //       other sources generally only have one value under the same csv column, thus
                 //       the partition is instead treated as the source
@@ -696,7 +672,7 @@ class StreamLayout extends Component {
                     };
                 });
             } else {
-                var selected_stream = this.state.selected_stream.toLowerCase();
+                var selected_stream = this.state.selected_stream;
                 if (selected_stream) {
                     var chart_data = event.data.chart_data_original;
                     this.setState((state) => ({
@@ -713,9 +689,18 @@ class StreamLayout extends Component {
                 }
             }
 
+            {/*
+
+                the stream the address names, when it names one. The route has
+                already replaced a name the stream used to go by with its id --
+                see route/canonical-stream.jsx -- so anything else here names no
+                stream at all, and is left alone rather than selected: there is
+                no chart to draw for it, and its per-stream state does not exist.
+
+            */}
             const params = new URLSearchParams(document.location.search);
-            if (params && params.toString().length > 0) {
-                var selected_stream = params.get('item').toLowerCase();
+            if (STREAMS.includes(params.get('item'))) {
+                var selected_stream = params.get('item');
                 this.setState({ selected_stream: selected_stream });
             }
 
@@ -815,7 +800,7 @@ class StreamLayout extends Component {
     //
     // Note: throughput rides on the rows rather than arriving as one figure per
     //       report, which is what lets it be windowed at all. this also drops
-    //       the old stockmarket/stocksplit special case: those reports are not
+    //       the old stock-market/stock-split special case: those reports are not
     //       partitioned by source, but their 'group_by' values are the series
     //       names, so the per-series keys line up like every other stream
     //
@@ -845,14 +830,13 @@ class StreamLayout extends Component {
         const stream_coverage = streamCoverage(
             chart_data,
             selected_stream,
-            this.state[`stream_rate_${selected_stream.toLowerCase()}`],
+            this.state[`stream_rate_${selected_stream}`],
             this.state.field_datetime,
             stream_source
         );
 
-        this.state.streams.forEach((v, i) => {
-            const stream = v.toLowerCase();
-            if (selected_stream.toLowerCase() === stream) {
+        this.state.streams.forEach((stream) => {
+            if (selected_stream === stream) {
                 this.setState({
                     [`stream_${stream}_total`]: stream_success ? stream_success : 'n/a',
                     [`stream_${stream}_health`]: checkValidFloat(stream_health) && stream_health > 100
@@ -877,7 +861,6 @@ class StreamLayout extends Component {
 
         const arr_date = [];
         const arr_result = [];
-        selected_stream = selected_stream.toLowerCase();
         const stream_source = this.state[`stream_source_${selected_stream}`];
         v = v ? v.toLowerCase() : this.state[`stream_rate_${selected_stream}`].toLowerCase();
 
@@ -991,7 +974,7 @@ class StreamLayout extends Component {
                 describe what the api sent. a stream the api treats as
                 continuous is asked to zero its empty buckets, which at the
                 minute rate zeroes the four minutes in five that
-                'usnationalweather' is idle by design -- the area dropped to the
+                'us-national-weather' is idle by design -- the area dropped to the
                 axis between every run and read as a comb of separate humps.
 
                 Note: before the fill below rather than after, because the fill
@@ -1040,7 +1023,7 @@ class StreamLayout extends Component {
     }
 
     filterColumn(style='default', btn=false) {
-        const selected_stream = this.state.selected_stream.toLowerCase();
+        const selected_stream = this.state.selected_stream;
         if (btn && this.state.display_filter_button) {
             //
             // the range the chart is actually drawing. it used to name the
@@ -1054,7 +1037,7 @@ class StreamLayout extends Component {
             const header = isMobile && selected_stream
                 ? (
                     <div className='listing-graphic-title'>
-                        <h5>{streamName(this.state[`stream_${this.state.selected_stream}`])}</h5>
+                        <h5>{streamName(selected_stream)}</h5>
                         <span className='title-count'> ({title_count})</span>
                     </div>
                 ) : '';
@@ -1309,8 +1292,8 @@ class StreamLayout extends Component {
                             }}
                         />
                         <StackedAreaChart
-                            data={this.state[`chart_data_${this.state.selected_stream.toLowerCase()}`]}
-                            data_keys={this.state[`stream_source_${this.state.selected_stream.toLowerCase()}`]}
+                            data={this.state[`chart_data_${this.state.selected_stream}`]}
+                            data_keys={this.state[`stream_source_${this.state.selected_stream}`]}
                             color={colors_categorical}
                             title={streamName(this.state.selected_stream)}
                             y_label='Total Ingest'

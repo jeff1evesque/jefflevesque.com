@@ -76,29 +76,29 @@ beforeEach(() => {
 
 describe('choosing a worker', () => {
     it.each([
-        ['stream_stockmarket'],
-        ['stream_stockmarketstocksplit'],
-        ['stream_usnationalweather'],
-        ['stream_bls'],
-        ['stream_sec'],
-    ])('builds a worker for %s', (key) => {
+        ['stock-market'],
+        ['stock-split'],
+        ['us-national-weather'],
+        ['bls'],
+        ['sec'],
+    ])('builds a worker for %s', (stream) => {
         const page = setup();
 
-        page.callbackGetData({ stream: page.state[key] });
+        page.callbackGetData({ stream: stream });
 
         expect(global.__workers).toHaveLength(1);
     });
 
     it('gives the two stock streams the same worker script', () => {
         //
-        // stockmarket and stock-split share one worker; the other three each have
+        // stock-market and stock-split share one worker; the other three each have
         // their own. Worth pinning because the shared branch is an array membership
         // test, easy to break by adding a stream to the wrong list.
         //
         const page = setup();
 
-        page.callbackGetData({ stream: page.state.stream_stockmarket });
-        page.callbackGetData({ stream: page.state.stream_stockmarketstocksplit });
+        page.callbackGetData({ stream: 'stock-market' });
+        page.callbackGetData({ stream: 'stock-split' });
 
         expect(global.__workers[0].script).toBe(global.__workers[1].script);
     });
@@ -106,8 +106,8 @@ describe('choosing a worker', () => {
     it('gives a different stream a different worker script', () => {
         const page = setup();
 
-        page.callbackGetData({ stream: page.state.stream_bls });
-        page.callbackGetData({ stream: page.state.stream_sec });
+        page.callbackGetData({ stream: 'bls' });
+        page.callbackGetData({ stream: 'sec' });
 
         expect(global.__workers[0].script).not.toBe(global.__workers[1].script);
     });
@@ -118,7 +118,7 @@ describe('choosing a worker', () => {
         // cannot be structured-cloned. The worker rebuilds them with new Function().
         //
         const page = setup();
-        const item = { stream: page.state.stream_bls, 'data-distribution': [] };
+        const item = { stream: 'bls', 'data-distribution': [] };
 
         page.callbackGetData(item);
 
@@ -161,7 +161,7 @@ describe('choosing a worker', () => {
         const page = setup();
         const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
 
-        page.callbackGetData({ stream: page.state.stream_bls });
+        page.callbackGetData({ stream: 'bls' });
         global.__workers[0].onerror(new Error('worker died'));
 
         expect(quiet.mock.calls.flat().join(' ')).toContain('could not process data-distribution');
@@ -172,7 +172,7 @@ describe('choosing a worker', () => {
 
 describe('the partition count', () => {
     function partitionsFor(page, data) {
-        page.callbackGetData({ stream: page.state.stream_bls });
+        page.callbackGetData({ stream: 'bls' });
         deliver(global.__workers[0], data);
         return page.state.partitions_bls;
     }
@@ -180,7 +180,7 @@ describe('the partition count', () => {
     it('is recorded against the stream it belongs to', () => {
         const page = setup();
 
-        expect(partitionsFor(page, { count: 7, selected_stream: 'Bls' })).toBe(7);
+        expect(partitionsFor(page, { count: 7, selected_stream: 'bls' })).toBe(7);
     });
 
     it('accepts zero, which is a real answer', () => {
@@ -190,12 +190,12 @@ describe('the partition count', () => {
         //
         const page = setup();
 
-        expect(partitionsFor(page, { count: 0, selected_stream: 'Bls' })).toBe(0);
+        expect(partitionsFor(page, { count: 0, selected_stream: 'bls' })).toBe(0);
     });
 
     it.each([
-        ['a fractional count', { count: 1.5, selected_stream: 'Bls' }],
-        ['a numeric string', { count: '7', selected_stream: 'Bls' }],
+        ['a fractional count', { count: 1.5, selected_stream: 'bls' }],
+        ['a numeric string', { count: '7', selected_stream: 'bls' }],
         ['no selected_stream', { count: 7 }],
         ['an empty selected_stream', { count: 7, selected_stream: '' }],
     ])('ignores %s', (name, data) => {
@@ -209,15 +209,16 @@ describe('the partition count', () => {
         expect(partitionsFor(page, data)).toBe('n/a');
     });
 
-    it('lower-cases the stream name before using it as a key', () => {
+    it('keys the count by the stream the worker names, which is the id it was handed', () => {
         //
-        // the worker posts 'Bls'; every piece of state is keyed lower-case. A mismatch
-        // would write partitions_Bls, which nothing reads.
+        // the worker echoes the stream the page asked about, and the page asks by
+        // id, so the id is what comes back. It used to be lower-cased on the way
+        // in, against a capitalised name the page no longer holds.
         //
         const page = setup();
-        page.callbackGetData({ stream: page.state.stream_bls });
+        page.callbackGetData({ stream: 'bls' });
 
-        deliver(global.__workers[0], { count: 3, selected_stream: 'BLS' });
+        deliver(global.__workers[0], { count: 3, selected_stream: 'bls' });
 
         expect(page.state.partitions_bls).toBe(3);
     });
@@ -225,7 +226,7 @@ describe('the partition count', () => {
 
 describe('the distribution payload', () => {
     const PAYLOAD = {
-        selected_stream: 'Bls',
+        selected_stream: 'bls',
         aggregate_key: 'category',
         records: 42,
         data_distribution: [
@@ -235,7 +236,7 @@ describe('the distribution payload', () => {
     };
 
     function load(page, overrides = {}) {
-        page.callbackGetData({ stream: page.state.stream_bls });
+        page.callbackGetData({ stream: 'bls' });
         deliver(global.__workers[0], { ...PAYLOAD, ...overrides });
         return page.state;
     }
@@ -343,9 +344,9 @@ describe('capping the stacked series', () => {
     // segment is named on hover and in the sheet.
     //
     function loadWide(page, series, bars = 1) {
-        page.callbackGetData({ stream: page.state.stream_bls });
+        page.callbackGetData({ stream: 'bls' });
         deliver(global.__workers[0], {
-            selected_stream: 'Bls',
+            selected_stream: 'bls',
             aggregate_key: 'category',
             records: 1,
             data_distribution: wideRows(series, bars),
@@ -425,9 +426,9 @@ describe('capping the bars', () => {
             total: count - i,
         }));
 
-        page.callbackGetData({ stream: page.state.stream_bls });
+        page.callbackGetData({ stream: 'bls' });
         deliver(global.__workers[0], {
-            selected_stream: 'Bls',
+            selected_stream: 'bls',
             aggregate_key: 'category',
             records: count,
             data_distribution: rows,
@@ -490,9 +491,9 @@ describe('capping the bars', () => {
 
 describe('bar ordering', () => {
     function loadLabels(page, labels) {
-        page.callbackGetData({ stream: page.state.stream_bls });
+        page.callbackGetData({ stream: 'bls' });
         deliver(global.__workers[0], {
-            selected_stream: 'Bls',
+            selected_stream: 'bls',
             aggregate_key: 'category',
             records: labels.length,
             data_distribution: labels.map((category, i) => ({ category, total: i + 1 })),
@@ -554,9 +555,9 @@ describe('the month label', () => {
             page.setState({ mm: mm, yyyy: yyyy });
         });
 
-        page.callbackGetData({ stream: page.state.stream_bls });
+        page.callbackGetData({ stream: 'bls' });
         deliver(global.__workers[0], {
-            selected_stream: 'Bls',
+            selected_stream: 'bls',
             aggregate_key: 'category',
             records: 1,
             data_distribution: [{ category: 'A', total: 1 }],

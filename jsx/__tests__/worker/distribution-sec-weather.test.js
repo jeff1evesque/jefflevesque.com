@@ -56,7 +56,7 @@ import weatherWorker from '../../import/worker/data/distribution/us-weather-aler
 //
 const WORKERS = [
     ['sec', secWorker, 'sec', 'form', 'category', 'total_records', 'Form '],
-    ['us-weather-alert', weatherWorker, 'usnationalweather', 'severity', 'event', 'total_events', ''],
+    ['us-weather-alert', weatherWorker, 'us-national-weather', 'severity', 'event', 'total_events', ''],
 ];
 
 function payload(item) {
@@ -205,7 +205,7 @@ describe('the distribution transformation', () => {
 
         self.onmessage(payload({
             'data-distribution': [{ severity: 'Severe', event: 'Flood', total_events: '4' }],
-            stream: 'usnationalweather',
+            stream: 'us-national-weather',
         }));
 
         expect(posted[0].data_distribution[0].severity).toBe('Severe');
@@ -219,7 +219,7 @@ describe('the distribution transformation', () => {
                 { severity: 'Severe', event: 'Flood', total_events: '5' },
                 { severity: 'Severe', event: 'Wind', total_events: '2' },
             ],
-            stream: 'usnationalweather',
+            stream: 'us-national-weather',
         }));
 
         expect(posted[0].data_distribution).toHaveLength(1);
@@ -443,7 +443,7 @@ describe('two rows sharing an aggregate key', () => {
                 row('severity', 'event', 'total_events', 'Severe', 'Flood', 3),
                 row('severity', 'event', 'total_events', 'Severe', 'Wind', 4),
             ],
-            stream: 'usnationalweather',
+            stream: 'us-national-weather',
         }));
 
         expect(posted[0].data_distribution).toEqual([

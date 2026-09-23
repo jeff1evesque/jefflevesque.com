@@ -229,11 +229,27 @@ describe('a reply while the address names a stream', () => {
 
     it('selects the stream the address names', () => {
         const { page } = setup();
-        window.history.pushState({}, '', '/stream?item=BLS&rate=day');
+        window.history.pushState({}, '', '/stream?item=bls&rate=day');
 
         reply(page, {}, answer('bls', 'bls', [1]));
 
         expect(page.state.selected_stream).toBe('bls');
+    });
+
+    it('leaves the selection alone when the address names no stream', () => {
+        //
+        // a name a stream used to go by never reaches the page -- the route
+        // replaces it with the id first -- so anything else names nothing. It
+        // used to be selected anyway, and the page threw reading the per-stream
+        // state that did not exist for it.
+        //
+        const { page } = setup();
+        const before = page.state.selected_stream;
+        window.history.pushState({}, '', '/stream?item=no-such-stream&rate=day');
+
+        reply(page, {}, answer('bls', 'bls', [1]));
+
+        expect(page.state.selected_stream).toBe(before);
     });
 });
 

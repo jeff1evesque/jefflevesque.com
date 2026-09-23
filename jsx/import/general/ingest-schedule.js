@@ -17,9 +17,9 @@
  *
  * Note: the hours are eastern for every stream. the cron expressions mostly
  *       name no timezone, and eventbridge reads a bare one as utc, so the
- *       intent was verified against the data: stockmarket lands in 9-15
+ *       intent was verified against the data: stock-market lands in 9-15
  *       eastern, sec in 6-22 eastern, bls at 15 eastern. a utc reading would
- *       have put stockmarket at 4-10 eastern, which is not what the report
+ *       have put stock-market at 4-10 eastern, which is not what the report
  *       shows
  *
  * Note: bls is the one entry whose collection schedule states its zone outright
@@ -29,6 +29,14 @@
  */
 
 import { ROLLING_WINDOW, windowStart, stepInterval } from './rolling-window.js';
+import {
+    STOCK_MARKET,
+    STOCK_SPLIT,
+    BLS,
+    SEC,
+    US_NATIONAL_WEATHER,
+    canonicalStream,
+} from './stream-id.js';
 
 
 {/*
@@ -43,7 +51,7 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
 
 {/*
 
-    one entry per stream, keyed the way the page keys its state.
+    one entry per stream, keyed by the stream's id -- see stream-id.js.
 
       - 'hours'    the eastern hours a run falls in, or null for every hour
       - 'weekdays' true when the scraper only runs monday to friday
@@ -57,12 +65,12 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
 
     Note: 'every' is what decides whether the minute rate can be graded at all,
           and it is null where a stream runs only a couple of times a day at
-          fixed minutes ('bls', 'stockmarketstocksplit'). all but a handful of
+          fixed minutes ('bls', 'stock-split'). all but a handful of
           minute intervals are legitimately empty for those two, and a ratio
           over them would report an outage that never happened.
 
     Note: the two schedule kinds differ in what they promise, and that is what
-          'minutes_named' records. 'stockmarket' is a cron naming its minutes
+          'minutes_named' records. 'stock-market' is a cron naming its minutes
           outright ('0,20,40'), so a run is due AT :00, :20, :40 and landing
           anywhere else is a real fault. 'weather' and 'sec' are
           'rate(5 minutes)', which promises only the spacing: eventbridge counts
@@ -77,7 +85,7 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
           used to do: measured against :00, :05, :10, a rule firing on :02
           matched nothing at all and reported 0%.
 
-    Note: 'stockmarket' fires every TWENTY minutes, not ten. this entry said ten
+    Note: 'stock-market' fires every TWENTY minutes, not ten. this entry said ten
           until 2026-08-20, which put 42 runs a day in the denominator against
           the 19 the stream actually makes, and reported ~45% for a scraper that
           had missed nothing. the collection schedule ran every five minutes
@@ -123,11 +131,11 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
 
 */}
 export const INGEST_SCHEDULE = {
-    usnationalweather: { hours: null, weekdays: false, every: 5, minutes_named: false, partition: 'day' },
-    sec: { hours: [6, 22], weekdays: true, every: 5, minutes_named: false, partition: 'day' },
-    stockmarket: { hours: [9, 15], weekdays: true, every: 20, minutes_named: true, partition: 'day' },
-    stockmarketstocksplit: { hours: [0, 0], weekdays: true, every: null, minutes_named: false, partition: 'year' },
-    bls: { hours: [15], weekdays: false, every: null, minutes_named: false, partition: 'year' }
+    [US_NATIONAL_WEATHER]: { hours: null, weekdays: false, every: 5, minutes_named: false, partition: 'day' },
+    [SEC]: { hours: [6, 22], weekdays: true, every: 5, minutes_named: false, partition: 'day' },
+    [STOCK_MARKET]: { hours: [9, 15], weekdays: true, every: 20, minutes_named: true, partition: 'day' },
+    [STOCK_SPLIT]: { hours: [0, 0], weekdays: true, every: null, minutes_named: false, partition: 'year' },
+    [BLS]: { hours: [15], weekdays: false, every: null, minutes_named: false, partition: 'year' }
 };
 
 
@@ -180,7 +188,7 @@ function easternParts(date) {
 
 */}
 export function coverageBucket(stream, rate, date) {
-    const schedule = INGEST_SCHEDULE[String(stream).toLowerCase()];
+    const schedule = INGEST_SCHEDULE[canonicalStream(stream)];
 
     if (
         !schedule
@@ -245,7 +253,7 @@ function hourExpected(schedule, hour) {
 
 */}
 export function intervalExpected(stream, rate, date) {
-    const schedule = INGEST_SCHEDULE[String(stream).toLowerCase()];
+    const schedule = INGEST_SCHEDULE[canonicalStream(stream)];
 
     if (!schedule) {
         return false;
@@ -292,7 +300,7 @@ export function intervalExpected(stream, rate, date) {
 
 */}
 export function coverageSupported(stream, rate) {
-    const schedule = INGEST_SCHEDULE[String(stream).toLowerCase()];
+    const schedule = INGEST_SCHEDULE[canonicalStream(stream)];
     const r = String(rate).toLowerCase();
 
     if (!schedule || !(r in ROLLING_WINDOW)) {
@@ -318,7 +326,7 @@ export function coverageSupported(stream, rate) {
 
 */}
 export function runsContinuously(stream) {
-    const schedule = INGEST_SCHEDULE[String(stream).toLowerCase()];
+    const schedule = INGEST_SCHEDULE[canonicalStream(stream)];
 
     return Boolean(schedule) && !schedule.hours && !schedule.weekdays;
 }

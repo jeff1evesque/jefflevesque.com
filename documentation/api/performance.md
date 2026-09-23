@@ -9,9 +9,15 @@ trailing window. `/stream` charts it for the stream and the rate a reader choose
 
 | Parameter | Values | The application sends |
 |---|---|---|
-| `Stream` | `bls`, `sec`, `stockmarket`, `stockmarketstocksplit`, `usnationalweather` | the stream selected in the listing |
+| `Stream` | `bls`, `sec`, `stock-market`, `stock-split`, `us-national-weather` | the stream selected in the listing |
 | `Interval` | `minute`, `hour`, `day`, `month`; `minute` when omitted | the rate selected beside the chart |
 | `Timezone` | an IANA time zone, such as `America/New_York`; `UTC` when omitted | the reader's own, from the browser |
+
+`Stream` takes a stream's id, the same id the website names the stream by in its own
+urls. Three streams went by other names before -- `stockmarket`, `stockmarketstocksplit`
+and `usnationalweather` -- and the api still accepts those for now. It may also still
+name streams by them in its answers, such as the archive listing below; the application
+matches a stream by its id either way.
 
 The window trails from now, and its buckets are laid out on a calendar, so the time
 zone travels with the request rather than being applied to the answer: a trailing 20
@@ -67,7 +73,7 @@ served from:
 | `streams` | every stream, whether or not it has published anything |
 | `archives[].stream` | the stream, by the same id `Stream` takes above |
 | `archives[].period` | `2025` for a year's file, `2025-09` for a month's |
-| `archives[].id` | such as `stockmarket/2025` or `sec/2025/09`: the path below `archive/` that redirects to the file |
+| `archives[].id` | such as `stock-market/2025` or `sec/2025/09`: the path below `archive/` that redirects to the file |
 | `archives[].url` | where the file is served from |
 | `archives[].bytes` | its size |
 | `archives[].modified` | when it was last written |
@@ -87,8 +93,8 @@ not. The answer is a redirect rather than the file, because a year of the stock
 market archive is about 14MB.
 
 Take a file's url from the listing, or follow the redirect, rather than building
-one. Where a stream's files are filed is not part of either answer, and for both
-stock market streams it is not their stream id. A url built by hand with nothing
+one. Where a stream's files are filed is not part of either answer, and it need not
+be the stream's id. A url built by hand with nothing
 behind it does **not** answer 404: the website answers any path it does not hold
 with its own page, a 200 in `text/html`.
 

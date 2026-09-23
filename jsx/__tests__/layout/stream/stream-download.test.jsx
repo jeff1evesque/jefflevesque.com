@@ -27,6 +27,7 @@ jest.mock('../../../import/general/get-data.js', () => ({
 import getData from '../../../import/general/get-data.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
 import { API_DOCS } from '../../../import/general/api-url.js';
+import { STREAMS } from '../../../import/general/stream-id.js';
 
 function setup() {
     const held = React.createRef();
@@ -70,11 +71,11 @@ beforeEach(() => {
 
 describe('downloadData, per stream', () => {
     it.each([
-        ['stockmarket', 'stock-market-ingest'],
-        ['stockmarketstocksplit', 'stock-split-ingest'],
+        ['stock-market', 'stock-market-ingest'],
+        ['stock-split', 'stock-split-ingest'],
         ['bls', 'bls-ingest'],
         ['sec', 'sec-ingest'],
-        ['usnationalweather', 'us-national-weather-ingest'],
+        ['us-national-weather', 'us-national-weather-ingest'],
     ])('%s requests the %s report', (type, expected) => {
         //
         // five branches, each naming its own report type. A wrong name here would query
@@ -105,14 +106,28 @@ describe('downloadData, per stream', () => {
         expect(page.state.promise_get_data_bls).toBe(false);
     });
 
-    it('lower-cases both arguments', () => {
+    it('lower-cases the rate, which the page holds capitalised', () => {
         const page = setup();
 
         act(() => {
-            page.downloadData('BLS', 'HOUR');
+            page.downloadData('bls', 'HOUR');
         });
 
         expect(page.state.stream_rate_bls).toBe('hour');
+    });
+
+    it.each(STREAMS)('asks the performance api for %s by its id', (stream) => {
+        //
+        // the page used to hold 'StockMarket' for its links and lower-case it for
+        // its requests, which sent 'stockmarket'. The id is what it holds, what
+        // it links and what it sends.
+        //
+        const page = setup();
+        getData.mockClear();
+
+        download(page, stream, 'hour');
+
+        expect(paramsOf(lastRequest().url).get('Stream')).toBe(stream);
     });
 
     it('routes every answer back into callbackGetData', () => {
@@ -144,17 +159,17 @@ describe('the performance query', () => {
         const page = setup();
         getData.mockClear();
 
-        download(page, 'stockmarket', 'hour');
+        download(page, 'stock-market', 'hour');
 
         expect(String(lastRequest().url)).toContain('api.jefflevesque.com/v1/public/performance');
     });
 
     it.each([
-        ['stockmarket'],
-        ['stockmarketstocksplit'],
+        ['stock-market'],
+        ['stock-split'],
         ['bls'],
         ['sec'],
-        ['usnationalweather'],
+        ['us-national-weather'],
     ])('names %s as the stream, and nothing about where it is stored', (type) => {
         //
         // the whole point of the change: a stream id rather than an artifact path. The
@@ -173,7 +188,7 @@ describe('the performance query', () => {
         const page = setup();
         getData.mockClear();
 
-        download(page, 'stockmarket', 'minute');
+        download(page, 'stock-market', 'minute');
 
         expect(paramsOf(lastRequest().url).get('Interval')).toBe('minute');
     });
@@ -187,7 +202,7 @@ describe('the performance query', () => {
         const page = setup();
         getData.mockClear();
 
-        download(page, 'stockmarket', 'hour');
+        download(page, 'stock-market', 'hour');
 
         expect(paramsOf(lastRequest().url).get('Timezone')).toBeTruthy();
     });
@@ -201,7 +216,7 @@ describe('the performance query', () => {
         const page = setup();
         getData.mockClear();
 
-        download(page, 'stockmarket', 'hour');
+        download(page, 'stock-market', 'hour');
 
         const params = paramsOf(lastRequest().url);
         expect(params.get('Data')).toBeNull();
@@ -224,7 +239,7 @@ describe('the performance query', () => {
         const page = setup();
         getData.mockClear();
 
-        download(page, 'stockmarket', 'hour');
+        download(page, 'stock-market', 'hour');
 
         expect(paramsOf(lastRequest().url).get(param)).toBeNull();
     });
@@ -241,7 +256,7 @@ describe('the performance query', () => {
         //
         const page = setup();
 
-        ['stockmarket', 'stockmarketstocksplit', 'bls', 'sec', 'usnationalweather']
+        ['stock-market', 'stock-split', 'bls', 'sec', 'us-national-weather']
             .forEach((type) => {
                 getData.mockClear();
                 download(page, type, 'hour');
@@ -260,12 +275,12 @@ describe('the performance query', () => {
         const page = setup();
         getData.mockClear();
 
-        download(page, 'stockmarket', 'hour');
+        download(page, 'stock-market', 'hour');
 
         const url = new URL(String(lastRequest().url));
 
         expect(url.pathname).toBe('/v1/public/performance');
-        expect(url.searchParams.get('Stream')).toBe('stockmarket');
+        expect(url.searchParams.get('Stream')).toBe('stock-market');
         expect(String(url)).not.toContain('/year=');
         expect(String(url)).not.toContain('.csv');
     });
@@ -293,7 +308,7 @@ describe('the performance query', () => {
 
         ['minute', 'hour', 'day', 'month'].forEach((rate) => {
             getData.mockClear();
-            download(page, 'stockmarket', rate);
+            download(page, 'stock-market', rate);
 
             expect(paramsOf(lastRequest().url).get('Interval')).toBe(rate);
             expect(String(lastRequest().url).length).toBeLessThan(300);
@@ -302,11 +317,11 @@ describe('the performance query', () => {
 });
 describe('running locally', () => {
     it.each([
-        ['stockmarket', 'stock-market-ingest'],
-        ['stockmarketstocksplit', 'stock-split-ingest'],
+        ['stock-market', 'stock-market-ingest'],
+        ['stock-split', 'stock-split-ingest'],
         ['bls', 'bls-ingest'],
         ['sec', 'sec-ingest'],
-        ['usnationalweather', 'us-national-weather-ingest'],
+        ['us-national-weather', 'us-national-weather-ingest'],
     ])('%s answers from the sample rather than the api', (type, report) => {
         //
         // every branch has its own local arm, and each has to send NO url -- a request
@@ -340,7 +355,7 @@ describe('running locally', () => {
         });
         getData.mockClear();
 
-        download(page, 'usnationalweather', 'month');
+        download(page, 'us-national-weather', 'month');
 
         expect(getData.mock.calls).toHaveLength(1);
     });
@@ -356,7 +371,7 @@ describe('running locally', () => {
         });
         getData.mockClear();
 
-        download(page, 'stockmarket', 'hour');
+        download(page, 'stock-market', 'hour');
 
         expect(lastRequest().url).toBeNull();
     });
@@ -368,7 +383,7 @@ describe('running locally', () => {
         });
         getData.mockClear();
 
-        download(page, 'stockmarket', 'hour');
+        download(page, 'stock-market', 'hour');
 
         expect(lastRequest().type).toBe('stock-market-ingest');
     });

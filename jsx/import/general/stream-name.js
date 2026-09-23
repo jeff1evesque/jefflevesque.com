@@ -1,39 +1,49 @@
 /**
- * stream-name.js: map a stream identifier to the label shown to a visitor.
+ * stream-name.js: map a stream id to the label shown to a visitor.
  *
- * The stream id is load-bearing well beyond the label: it is the 'Data' param
- * sent to api-datalake ('stock-market'), the suffix of every per-stream state
- * key ('records_stockmarket', 'data_distribution_stockmarket_bar', ...), the
- * '?item=' deep link, and the css class on the active listing row. So the id
- * stays as it is and only the rendered label is swapped here.
+ * The id is load-bearing well beyond the label: it is the path of the alarm and
+ * trigger pages, the '?item=' deep link, the 'Stream' sent to the performance
+ * api, the suffix of every per-stream state key ('records_stock-market',
+ * 'data_distribution_stock-market_bar', ...), and the name of the active listing
+ * row. So the id stays as it is and only the rendered label is swapped here. The
+ * ids themselves are stream-id.js's.
  *
- * 'StockMarket' names the whole market but carries only the S&P 500, which the
- * label now says.
+ * 'stock-market' names the whole market but carries only the S&P 500, which the
+ * label says.
  *
- * 'StockMarketStockSplit' is renamed rather than given the index name: split
- * detection runs against the entire market, not the index (a July sample is 27
- * tickers -- abtc, snal, srxh, hkit -- with no index member among them). Left
- * as-is it would read as 'the split feed for the stream next to it', which is
- * now labelled SP500, and imply a scope the data does not have. The listing
- * carries a 'Coverage' detail so the two streams state their universe side by
- * side rather than leaving it to the title.
+ * 'stock-split' is labelled for what it is rather than given the index name:
+ * split detection runs against the entire market, not the index (a July sample
+ * is 27 tickers -- abtc, snal, srxh, hkit -- with no index member among them).
+ * Labelled after the stream next to it, it would read as 'the split feed for the
+ * S&P 500', and imply a scope the data does not have. The listing carries a
+ * 'Coverage' detail so the two streams state their universe side by side rather
+ * than leaving it to the title.
  */
 
+import {
+    STOCK_MARKET,
+    STOCK_SPLIT,
+    BLS,
+    SEC,
+    US_NATIONAL_WEATHER,
+    canonicalStream,
+} from './stream-id.js';
+
 const STREAM_LABELS = {
-    'stockmarket': 'S&P 500',
-    'stockmarketstocksplit': 'Stock Splits',
-    'usnationalweather': 'US Weather Alerts',
-    'bls': 'Bureau of Labor Statistics',
-    'sec': 'SEC Filings'
+    [STOCK_MARKET]: 'S&P 500',
+    [STOCK_SPLIT]: 'Stock Splits',
+    [US_NATIONAL_WEATHER]: 'US Weather Alerts',
+    [BLS]: 'Bureau of Labor Statistics',
+    [SEC]: 'SEC Filings'
 };
 
 {/*
 
-    the lookup is case-insensitive because the id reaches a label in both
-    casings: the listing rows carry 'StockMarket' while the stream chart title
-    is handed the lower-cased 'selected_stream'. matching is on the WHOLE id
-    rather than a prefix, so the two stock streams stay independently named --
-    'stockmarketstocksplit' is not a 'stockmarket' that picked up a suffix
+    looked up by the stream's id, so any name the stream has gone by finds its
+    label -- a bookmark's 'StockMarket' as well as 'stock-market'. matching is
+    on the WHOLE name rather than a prefix, so the two stock streams stay
+    independently named: 'stock-split' used to be 'stockmarketstocksplit', which
+    is not a 'stockmarket' that picked up a suffix
 
 */}
 export default function streamName(name) {
@@ -41,7 +51,7 @@ export default function streamName(name) {
         return name;
     }
 
-    return STREAM_LABELS[name.toLowerCase()] || name;
+    return STREAM_LABELS[canonicalStream(name)] || name;
 }
 
 {/*
@@ -53,8 +63,8 @@ export default function streamName(name) {
 
 */}
 const STREAM_COVERAGE = {
-    'stockmarket': 'S&P 500',
-    'stockmarketstocksplit': 'Market-wide'
+    [STOCK_MARKET]: 'S&P 500',
+    [STOCK_SPLIT]: 'Market-wide'
 };
 
 export function streamCoverage(name) {
@@ -62,5 +72,5 @@ export function streamCoverage(name) {
         return null;
     }
 
-    return STREAM_COVERAGE[name.toLowerCase()] || null;
+    return STREAM_COVERAGE[canonicalStream(name)] || null;
 }

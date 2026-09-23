@@ -1,28 +1,12 @@
 /**
  * alarm.test.jsx: the per-stream ingest alarm page ('/stream/:stream/alarm').
  *
- * THE HEADLINE FINDING IS IN THE FIRST DESCRIBE BLOCK. This page throws for
- * every stream id the application actually links to. render() derives the
- * archive download prefix from a chain of comparisons against LOWER-CASE
- * literals:
- *
- *     if (stream === 'usnationalweather') { ... }
- *     else if (['stockmarket', 'stockmarketstocksplit'].includes(stream)) { ... }
- *     else if (stream === 'bls') { ... }
- *     else if (stream === 'sec') { ... }
- *     // no else
- *
- * but 'stream' at that point is the RAW url segment. The line above it,
- * 'stream.toLowerCase() === ...', shows the intent; these four do not lower-case
- * anything. layout/stream/stream.jsx builds every bell link from the stream id
- * verbatim -- 'StockMarket', 'StockMarketStockSplit', 'USNationalWeather', 'BLS',
- * 'SEC' -- so none of them match, download_prefix stays undefined, and
- * 'download_prefix.split('/')' throws a TypeError during render.
- *
- * The tests are therefore split in two: the ids the app produces (all of which
- * crash) and their lower-cased equivalents (which render, and are the only way
- * to exercise the rest of the file). If the comparisons are ever lower-cased,
- * the first block fails and should be deleted -- that is the point of it.
+ * The page is reached by a stream's id -- 'stock-market', 'stock-split', 'bls',
+ * 'sec', 'us-national-weather' -- and compares it as it is. It used to rename
+ * three streams for itself, and labelled two of its pages with the new name:
+ * 'Download raw stock-market ingest performance metrics'. A url naming a stream
+ * by a name it used to go by is replaced before this page mounts, so the cases
+ * that go through the route do so the way main-route.jsx wires it.
  *
  * Note: 'general/get-data.js' is mocked. It is the network boundary, and mocking
  *       it also makes 'which streams download anything' directly observable.
@@ -35,7 +19,7 @@
 import React from 'react';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 const mockWorkers = [];
 
@@ -61,6 +45,8 @@ jest.mock('../../../import/worker/web-worker.js', () => ({
 
 import getData from '../../../import/general/get-data/distribution/stock-market.js';
 import StreamAlarm from '../../../import/layout/stream/alarm.jsx';
+import CanonicalStream from '../../../import/route/canonical-stream.jsx';
+import { STREAMS } from '../../../import/general/stream-id.js';
 
 //
 // alarm.jsx builds the archive list as an array of <a> elements carrying no key
@@ -145,43 +131,25 @@ describe('every stream id the application links to', () => {
     // exactly the ids layout/stream/stream.jsx puts in the url. There is no
     // sixth stream; this is the complete set of links to this page.
     //
-    // These used to CRASH. The archive column read a `download_prefix` that no
+    // These once CRASHED. The archive column read a `download_prefix` that no
     // branch assigned for a capitalised id, `.split()` threw inside the same
     // render() that would have created this page's ErrorBoundary -- so the
     // boundary never mounted, the error escaped to the one in layout/page.jsx,
-    // and the whole site went down, navigation included. Every link from
-    // /stream to an alarm page did this.
+    // and the whole site went down, navigation included.
     //
-    // The column no longer reads a prefix at all: it lower-cases the id, asks
-    // what that stream publishes, and offers nothing when the answer is
-    // nothing. A stream it does not recognise is the same case as one that
-    // publishes nothing, which is why an unknown id renders too.
+    // The column no longer reads a prefix at all: it asks what the stream
+    // publishes, and offers nothing when the answer is nothing. A stream it does
+    // not recognise is the same case as one that publishes nothing, which is why
+    // an unknown id renders too.
     //
-    const LINKED = [
-        'StockMarket',
-        'StockMarketStockSplit',
-        'USNationalWeather',
-        'BLS',
-        'SEC',
-    ];
-
-    it.each(LINKED)('/stream/%s/alarm renders', (stream) => {
+    it.each(STREAMS)('/stream/%s/alarm renders', (stream) => {
         expect(crashFrom(stream)).toBeNull();
-    });
-
-    it('renders the same page whatever the casing', () => {
-        //
-        // the crux of the old defect: same page, same route, same stream, and
-        // the only difference was the case of the url segment.
-        //
-        expect(crashFrom('StockMarket')).toBeNull();
-        expect(crashFrom('stockmarket')).toBeNull();
     });
 
     it('renders for a stream that does not exist', () => {
         //
-        // indistinguishable from a mis-cased known one, and it should be: a
-        // stream with no archive is a stream with no archive.
+        // indistinguishable from a stream that has published nothing, and it
+        // should be: a stream with no archive is a stream with no archive.
         //
         expect(crashFrom('no-such-stream')).toBeNull();
     });
@@ -191,20 +159,57 @@ describe('every stream id the application links to', () => {
         // the old failure replaced the ENTIRE page. This asserts the opposite
         // of what it used to: the page is here.
         //
-        renderAlarm('StockMarket');
+        renderAlarm('stock-market');
 
         expect(screen.getByText('Latest Archive')).toBeInTheDocument();
     });
 });
 
-describe('the page body, reached with a lower-cased id', () => {
+describe('a url naming its stream by a name it used to go by', () => {
+    //
+    // the /stream page linked 'StockMarket', 'StockMarketStockSplit' and
+    // 'USNationalWeather', and those urls are in bookmarks. Each still loads,
+    // at the url naming the stream by its id, and is the same page.
+    //
+    function renderRoute(path) {
+        let location;
+
+        const Where = () => {
+            location = useLocation();
+            return null;
+        };
+
+        render(
+            <MemoryRouter initialEntries={[path]}>
+                <Routes>
+                    <Route
+                        path='/stream/:stream/alarm'
+                        element={<CanonicalStream><StreamAlarm /><Where /></CanonicalStream>}
+                    />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        return () => location.pathname;
+    }
+
     it.each([
-        ['stockmarket'],
-        ['stockmarketstocksplit'],
-        ['usnationalweather'],
-        ['bls'],
-        ['sec'],
-    ])('%s renders the alarm header', (stream) => {
+        ['StockMarket', 'stock-market', 'S&P 500'],
+        ['stockmarket', 'stock-market', 'S&P 500'],
+        ['StockMarketStockSplit', 'stock-split', 'Stock Splits'],
+        ['USNationalWeather', 'us-national-weather', 'US Weather Alerts'],
+        ['BLS', 'bls', 'Bureau of Labor Statistics'],
+    ])('/stream/%s/alarm ends on /stream/%s/alarm, and is that page', (name, id, label) => {
+        const pathname = renderRoute(`/stream/${name}/alarm`);
+
+        expect(pathname()).toBe(`/stream/${id}/alarm`);
+        expect(screen.getByText(new RegExp(`To subscribe to ${label} ingest alarms`)))
+            .toBeInTheDocument();
+    });
+});
+
+describe('the page body', () => {
+    it.each(STREAMS)('%s renders the alarm header', (stream) => {
         renderAlarm(stream);
 
         expect(screen.getByRole('heading', { name: 'Ingest Alarms' })).toBeInTheDocument();
@@ -234,9 +239,9 @@ describe('the page body, reached with a lower-cased id', () => {
     });
 
     it.each([
-        ['stockmarket', /between 9:30am through 4:30pm EDT/],
-        ['stockmarketstocksplit', /daily at 12am EDT/],
-        ['usnationalweather', /every 5 minutes \(everyday\)/],
+        ['stock-market', /between 9:30am through 4:30pm EDT/],
+        ['stock-split', /daily at 12am EDT/],
+        ['us-national-weather', /every 5 minutes \(everyday\)/],
         ['bls', /every 1 hour \(everyday\)/],
         ['sec', /every 1 hour \(everyday\)/],
     ])('%s states its own ingest interval', (stream, interval) => {
@@ -253,13 +258,59 @@ describe('the page body, reached with a lower-cased id', () => {
     });
 });
 
+describe('naming the stream', () => {
+    //
+    // by its label, in every sentence the page says it in. The page renamed
+    // three streams for itself and looked the new name up in stream-name.js,
+    // which knew two of them by another name -- so the S&P 500 page offered to
+    // 'Download raw stock-market ingest performance metrics', and the weather
+    // page said 'us-national-weather' where it meant 'US Weather Alerts'.
+    //
+    const LABELS = [
+        ['stock-market', 'S&P 500'],
+        ['stock-split', 'Stock Splits'],
+        ['bls', 'Bureau of Labor Statistics'],
+        ['sec', 'SEC Filings'],
+        ['us-national-weather', 'US Weather Alerts'],
+    ];
+
+    it.each(LABELS)('%s is %s in the terms notice and the summary', (stream, label) => {
+        renderAlarm(stream);
+
+        expect(screen.getByText(new RegExp(`To subscribe to ${label} ingest alarms`))).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`The ${label} ingest stream runs`))).toBeInTheDocument();
+    });
+
+    it.each(LABELS)('%s is %s in the archive\'s download tooltip', async (stream, label) => {
+        renderAlarm(stream);
+
+        await userEvent.hover(document.querySelector('.help-icon'));
+
+        expect(await screen.findByRole('tooltip'))
+            .toHaveTextContent(`Download raw ${label} ingest performance metrics`);
+    });
+
+    it.each(['stock-market', 'us-national-weather'])('never says %s, outside the url trail', (stream) => {
+        //
+        // the trail prints the url, so it is the one place the id belongs. It
+        // is taken out before looking.
+        //
+        renderAlarm(stream);
+
+        const trail = screen.getByRole('navigation', { name: 'breadcrumb' }).textContent;
+
+        expect(trail).toContain(stream);
+        expect(document.body.textContent.replace(trail, '')).not.toContain(stream);
+    });
+});
+
 describe('the alarm count', () => {
     function count() {
         return document.querySelector('.title-count').textContent;
     }
 
     it('is one per source before any ticker count has arrived', () => {
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
 
         expect(count()).toBe('1');
     });
@@ -269,12 +320,16 @@ describe('the alarm count', () => {
         // WORTH KNOWING: every other stream derives its count, this one is the
         // literal 3. Nothing recomputes it if the split stream gains a modality.
         //
-        renderAlarm('stockmarketstocksplit');
+        // It used to be three only at the url '/stream/StockMarketStockSplit', and
+        // one at '/stream/stocksplit', because the page compared its own renamed
+        // copy of the id on one line and the url's on the next.
+        //
+        renderAlarm('stock-split');
 
         expect(count()).toBe('3');
     });
 
-    it.each([['usnationalweather'], ['bls'], ['sec']])(
+    it.each([['us-national-weather'], ['bls'], ['sec']])(
         '%s counts its single source',
         (stream) => {
             renderAlarm(stream);
@@ -293,18 +348,18 @@ describe('downloading the distribution', () => {
         // made and the alarm count sat at its initial 0. It now goes through the
         // same distribution loader the /data page uses, whose type IS handled.
         //
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
 
         expect(getData).toHaveBeenCalledTimes(1);
         expect(getData.mock.calls[0][0]).toBe('data-distribution');
     });
 
-    it.each([['stockmarketstocksplit'], ['usnationalweather'], ['bls'], ['sec']])(
+    it.each([['stock-split'], ['us-national-weather'], ['bls'], ['sec']])(
         '%s never downloads anything, so its ticker count can never change',
         (stream) => {
             //
             // downloadData() returns without doing anything unless the stream is
-            // 'stockmarket'. For the other four the alarm count is therefore
+            // 'stock-market'. For the other four the alarm count is therefore
             // fixed at render time.
             //
             renderAlarm(stream);
@@ -320,7 +375,7 @@ describe('downloading the distribution', () => {
         // exist. api-datalake takes a 1-indexed month, the same value the /data
         // page sends, so there is no arithmetic left to get wrong.
         //
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
 
         const scale = JSON.parse(
             new URL(String(getData.mock.calls[0][1])).searchParams.get('Scale')
@@ -333,7 +388,7 @@ describe('downloading the distribution', () => {
         //
         // the regression guard for the january underflow specifically.
         //
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
 
         const scale = JSON.parse(
             new URL(String(getData.mock.calls[0][1])).searchParams.get('Scale')
@@ -349,7 +404,7 @@ describe('downloading the distribution', () => {
         // nothing -- the distribution moved to api-datalake, which computes it
         // from the glue table. The old url could only ever have 404'd.
         //
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
 
         const url = String(getData.mock.calls[0][1]);
 
@@ -368,7 +423,7 @@ describe('downloading the distribution', () => {
         // the api answers the stream id 'stockmarket' with a 400 -- so the ticker
         // count this page waits for could never arrive.
         //
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
 
         const url = new URL(String(getData.mock.calls[0][1]));
 
@@ -387,7 +442,7 @@ describe('the ticker count arriving from the worker', () => {
         // up a worker and adds whatever it reports to the source count, so the
         // header goes from '1' to '1 + partitions'.
         //
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
 
         const callback = getData.mock.calls[0][2];
         //
@@ -402,7 +457,7 @@ describe('the ticker count arriving from the worker', () => {
 
         await userEvent.click(document.body);
         act(() => {
-            mockWorkers[0].onmessage({ data: { count: 41, selected_stream: 'stockmarket' } });
+            mockWorkers[0].onmessage({ data: { count: 41, selected_stream: 'stock-market' } });
         });
 
         expect(await screen.findByText('42')).toBeInTheDocument();
@@ -416,7 +471,7 @@ describe('the ticker count arriving from the worker', () => {
         // resolved to undefined -- the fault that would have survived fixing the
         // loader type and the month.
         //
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
         getData.mock.calls[0][2]({ data: [] });
 
         act(() => {
@@ -432,7 +487,7 @@ describe('the ticker count arriving from the worker', () => {
         // stringified and re-evaluated on the other side. Pinned because a
         // rename or a change of shape here fails silently inside the worker.
         //
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
 
         getData.mock.calls[0][2]({ data: [] });
 
@@ -449,7 +504,7 @@ describe('the ticker count arriving from the worker', () => {
     });
 
     it('survives a worker that fails', () => {
-        renderAlarm('stockmarket');
+        renderAlarm('stock-market');
 
         getData.mock.calls[0][2]({ data: [] });
 
@@ -485,7 +540,11 @@ describe('the archive list', () => {
 
     //
     // the api's shape, and the three things the guessing got wrong: two streams
-    // filed under a folder that is not their id, and 'bls', named but empty
+    // filed under a folder that is not their name, and 'bls', named but empty.
+    //
+    // Note: named the way the api names streams today -- 'stockmarket',
+    //       'usnationalweather' -- which is not the id this page is reached by.
+    //       RENAMED below is the same listing once the api names them by id.
     //
     const LISTING = {
         streams: ['bls', 'sec', 'stockmarket', 'stockmarketstocksplit', 'usnationalweather'],
@@ -494,6 +553,16 @@ describe('the archive list', () => {
             ...yearly('stockmarket', 'stock-market', [2023, 2024, 2025, 2026]),
             ...yearly('stockmarketstocksplit', 'stock-split', [2023, 2024, 2025, 2026]),
             ...monthly('usnationalweather', 'article/weather', ['2025-06', '2025-07']),
+        ],
+    };
+
+    const RENAMED = {
+        streams: STREAMS,
+        archives: [
+            ...monthly('sec', 'article/sec', ['2024-12', '2025-09']),
+            ...yearly('stock-market', 'stock-market', [2023, 2024, 2025, 2026]),
+            ...yearly('stock-split', 'stock-split', [2023, 2024, 2025, 2026]),
+            ...monthly('us-national-weather', 'article/weather', ['2025-06', '2025-07']),
         ],
     };
 
@@ -577,8 +646,8 @@ describe('the archive list', () => {
     });
 
     it.each([
-        ['stockmarket', 'stock-market'],
-        ['stockmarketstocksplit', 'stock-split'],
+        ['stock-market', 'stock-market'],
+        ['stock-split', 'stock-split'],
     ])('offers %s a file a year from 2023, filed under %s', async (stream, dataset) => {
         //
         // both stock market streams once said 'Nothing published yet', because
@@ -596,19 +665,29 @@ describe('the archive list', () => {
         });
     });
 
-    it('offers the weather stream its files, from the id the stream page links', async () => {
+    it.each([
+        ['stock-market', ['2026.csv', '2025.csv', '2024.csv', '2023.csv']],
+        ['stock-split', ['2026.csv', '2025.csv', '2024.csv', '2023.csv']],
+        ['us-national-weather', ['07/2025.csv', '06/2025.csv']],
+    ])('offers %s the same files whichever name the listing gives it', async (stream, files) => {
         //
-        // the page renames this stream 'us-national-weather' for its own use,
-        // but the column is keyed on the id in the url -- 'USNationalWeather',
-        // lower-cased -- which is how the listing names it. A key taken from
-        // the page's own name would match nothing.
+        // the page and the api did not have to rename their streams together.
+        // The listing named this stream 'usnationalweather' while the page moved
+        // to 'us-national-weather', and it names it by the id once the api
+        // moves too; the column matches both by the stream's id.
         //
-        answering();
-        renderAlarm('USNationalWeather');
+        answering(LISTING);
+        const before = renderAlarm(stream);
 
         await expand();
+        expect(offered()).toEqual(files);
 
-        expect(offered()).toEqual(['07/2025.csv', '06/2025.csv']);
+        before.unmount();
+        answering(RENAMED);
+        renderAlarm(stream);
+
+        await expand();
+        expect(offered()).toEqual(files);
     });
 
     it('says "Checking..." while the listing is on its way', async () => {
@@ -713,9 +792,9 @@ describe('the archive list', () => {
     it.each([
         ['bls', 'Bureau of Labor Statistics'],
         ['sec', 'SEC Filings'],
-        ['stockmarket', 'S&P 500'],
-        ['stockmarketstocksplit', 'Stock Splits'],
-        ['usnationalweather', 'US Weather Alerts'],
+        ['stock-market', 'S&P 500'],
+        ['stock-split', 'Stock Splits'],
+        ['us-national-weather', 'US Weather Alerts'],
     ])('labels the %s row with its name, not its id', (stream, label) => {
         //
         // stream-name.js exists to keep identifiers out of the page and carries

@@ -383,6 +383,16 @@ regexes = [
   '''(?i)^jefflevesque\.com$''',
   # a quoted filename, not a bucket: the extensions this tree actually holds
   '''(?i)\.(jsx?|mjs|json|md|ya?ml|py|toml|s?css|html?|txt|png|svg|patch|replace|lock|sh|cfg|ipynb)$''',
+  # this site's own stream ids, the three with a hyphen in them -- see
+  # jsx/import/general/stream-id.js. They are the public vocabulary of every
+  # /stream url, and they sit right after the time-vocabulary 'bucket':
+  #
+  #     coverageBucket('us-national-weather', 'minute', date)
+  #
+  # names the interval a run counts toward, not a place anything is stored.
+  # Anchored at both ends, so only the id itself passes, never a longer name
+  # that merely contains one.
+  '''^(?:stock-market|stock-split|us-national-weather)$''',
 ]
 
 # Shapes that cannot be a secret, whatever rule matched them. Kept as SHAPES

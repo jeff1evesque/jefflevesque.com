@@ -153,11 +153,15 @@ describe('each card', () => {
 });
 
 describe('the subscribe links', () => {
-    it('points at the stock market trigger page', () => {
+    it('points at the stock market trigger page, by its id', () => {
+        //
+        // it linked '/stream/stockmarket/trigger', the stream's name lower-cased.
+        // The route still takes that url, and replaces it with this one.
+        //
         setup();
 
         links().forEach((href) => {
-            expect(href.startsWith('/stream/stockmarket/trigger?')).toBe(true);
+            expect(href.startsWith('/stream/stock-market/trigger?')).toBe(true);
         });
     });
 

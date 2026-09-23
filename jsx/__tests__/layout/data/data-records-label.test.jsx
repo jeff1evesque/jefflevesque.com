@@ -32,13 +32,13 @@ describe('the records label', () => {
         // feeds is unpublished here, so the count is 0 no matter how full the
         // table is.
         //
-        expect(recordsLabel('BLS', 0, AUGUST_2026, AUGUST_2026)).toBe('0 (unpublished)');
+        expect(recordsLabel('bls', 0, AUGUST_2026, AUGUST_2026)).toBe('0 (unpublished)');
     });
 
     it('qualifies a zero inside the lag window', () => {
         const july = new Date(2026, 6, 15);
 
-        expect(recordsLabel('BLS', 0, july, AUGUST_2026)).toBe('0 (unpublished)');
+        expect(recordsLabel('bls', 0, july, AUGUST_2026)).toBe('0 (unpublished)');
     });
 
     it('leaves a zero outside the lag window unqualified', () => {
@@ -49,7 +49,7 @@ describe('the records label', () => {
         //
         const march_2024 = new Date(2024, 2, 15);
 
-        expect(recordsLabel('BLS', 0, march_2024, AUGUST_2026)).toBe('0');
+        expect(recordsLabel('bls', 0, march_2024, AUGUST_2026)).toBe('0');
     });
 
     it('measures the window across a year boundary', () => {
@@ -62,14 +62,14 @@ describe('the records label', () => {
         const january_2027 = new Date(2027, 0, 15);
 
         expect(BLS_PUBLICATION_LAG_MONTHS).toBe(2);
-        expect(recordsLabel('BLS', 0, november_2026, january_2027)).toBe('0 (unpublished)');
+        expect(recordsLabel('bls', 0, november_2026, january_2027)).toBe('0 (unpublished)');
 
         //
         // one month further back is outside the window, and would read as inside
         // it if the year term were dropped.
         //
         const october_2026 = new Date(2026, 9, 15);
-        expect(recordsLabel('BLS', 0, october_2026, january_2027)).toBe('0');
+        expect(recordsLabel('bls', 0, october_2026, january_2027)).toBe('0');
     });
 
     it('leaves a stream that declares no lag alone', () => {
@@ -77,12 +77,12 @@ describe('the records label', () => {
         // stock-market produces a file every trading day, so a zero there is a
         // fact about the stream and not about a release calendar.
         //
-        expect(recordsLabel('StockMarket', 0, AUGUST_2026, AUGUST_2026)).toBe('0');
-        expect(recordsLabel('SEC', 0, AUGUST_2026, AUGUST_2026)).toBe('0');
+        expect(recordsLabel('stock-market', 0, AUGUST_2026, AUGUST_2026)).toBe('0');
+        expect(recordsLabel('sec', 0, AUGUST_2026, AUGUST_2026)).toBe('0');
     });
 
     it('formats a real count the way it always has', () => {
-        expect(recordsLabel('BLS', 345467, AUGUST_2026, AUGUST_2026)).toBe('345,467');
+        expect(recordsLabel('bls', 345467, AUGUST_2026, AUGUST_2026)).toBe('345,467');
     });
 
     it('passes n/a through rather than qualifying it', () => {
@@ -90,7 +90,7 @@ describe('the records label', () => {
         // the counts sit at 'n/a' until a query resolves. that is not zero, and a
         // pending query must not be reported as an unpublished month.
         //
-        expect(recordsLabel('BLS', 'n/a', AUGUST_2026, AUGUST_2026)).toBe('n/a');
+        expect(recordsLabel('bls', 'n/a', AUGUST_2026, AUGUST_2026)).toBe('n/a');
     });
 
     it('passes an empty count through rather than qualifying it', () => {
@@ -99,15 +99,15 @@ describe('the records label', () => {
         // ahead of the numeric path. A stream that reported nothing must not
         // claim it measured an unpublished month.
         //
-        expect(recordsLabel('BLS', '', AUGUST_2026, AUGUST_2026)).toBe('');
-        expect(recordsLabel('BLS', null, AUGUST_2026, AUGUST_2026)).toBe(null);
-        expect(recordsLabel('BLS', undefined, AUGUST_2026, AUGUST_2026)).toBe(undefined);
+        expect(recordsLabel('bls', '', AUGUST_2026, AUGUST_2026)).toBe('');
+        expect(recordsLabel('bls', null, AUGUST_2026, AUGUST_2026)).toBe(null);
+        expect(recordsLabel('bls', undefined, AUGUST_2026, AUGUST_2026)).toBe(undefined);
     });
 
     it('declines anything that is not a pair of dates', () => {
-        expect(recordsLabel('BLS', 0, null, AUGUST_2026)).toBe('0');
-        expect(recordsLabel('BLS', 0, AUGUST_2026, null)).toBe('0');
-        expect(recordsLabel('BLS', 0, '2026-08-15', AUGUST_2026)).toBe('0');
+        expect(recordsLabel('bls', 0, null, AUGUST_2026)).toBe('0');
+        expect(recordsLabel('bls', 0, AUGUST_2026, null)).toBe('0');
+        expect(recordsLabel('bls', 0, '2026-08-15', AUGUST_2026)).toBe('0');
     });
 });
 
@@ -141,8 +141,8 @@ describe('the listing that renders it', () => {
         });
 
         const rows = page.state.list_article;
-        expect(rows.find((row) => row.name === 'BLS').detail.Records).toBe('0 (unpublished)');
-        expect(rows.find((row) => row.name === 'SEC').detail.Records).toBe('0');
+        expect(rows.find((row) => row.name === 'bls').detail.Records).toBe('0 (unpublished)');
+        expect(rows.find((row) => row.name === 'sec').detail.Records).toBe('0');
     });
 
     it('leaves Partitions unqualified, so the row states it once', () => {
@@ -159,7 +159,7 @@ describe('the listing that renders it', () => {
             page.updateStreamListing();
         });
 
-        const bls = page.state.list_article.find((row) => row.name === 'BLS');
+        const bls = page.state.list_article.find((row) => row.name === 'bls');
         expect(bls.detail.Records).toBe('0 (unpublished)');
         expect(bls.detail.Partitions).toBe('0');
     });

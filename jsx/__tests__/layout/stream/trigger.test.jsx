@@ -9,10 +9,16 @@
  * rather than by clicking through the left column's own controls, which have
  * their own test file.
  *
- * Unlike alarm.jsx next door, this page lower-cases the url segment before
- * comparing it, so the real capitalised stream ids work. Both casings are pinned
- * below, because the two pages are reached from the same listing row and only
- * one of them survives it.
+ * The page is reached by a stream's id -- 'stock-market', 'stock-split', 'bls',
+ * 'sec', 'us-national-weather' -- and compares it as it is. A url naming a stream
+ * by a name it used to go by is replaced before this page mounts (see
+ * route/canonical-stream.jsx), and those urls are pinned below through the route
+ * the way main-route.jsx wires it.
+ *
+ * The split content is what that fixed. The page matched 'stocksplit', which no
+ * stream was called anywhere else on the site, so every url naming the split
+ * stream drew an empty page -- and its test passed by routing to
+ * '/stream/StockSplit/trigger', which nothing linked.
  *
  * Two findings worth reading before the tests:
  *
@@ -34,7 +40,7 @@
 
 import React from 'react';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 const mockSeen = {};
 
@@ -68,6 +74,7 @@ jest.mock('../../../import/layout/stream/trigger/content/article-ingest.jsx', ()
 import getData from '../../../import/general/get-data.js';
 import getFilteredCandlestickData from '../../../import/layout/stream/trigger/get_filtered_data/candlestick.js';
 import StreamTriggerLayout from '../../../import/layout/stream/trigger.jsx';
+import CanonicalStream from '../../../import/route/canonical-stream.jsx';
 
 //
 // a Wednesday at 10:30 eastern -- a weekday inside the 09:30-16:00 window, so
@@ -175,22 +182,22 @@ afterEach(() => {
 
 describe('choosing the content for the stream', () => {
     it('gives the stock market a filter column and the candlestick content', async () => {
-        await renderTrigger('StockMarket');
+        await renderTrigger('stock-market');
 
         expect(screen.getAllByTestId ? true : true).toBe(true);
         expect(document.querySelector('[data-probe="candlestick"]')).toBeInTheDocument();
         expect(document.querySelectorAll('[data-probe="left-column"]')).toHaveLength(2);
     });
 
-    it('renders the split content for StockSplit', async () => {
-        await renderTrigger('StockSplit');
+    it('renders the split content at the split stream\'s id', async () => {
+        await renderTrigger('stock-split');
 
         expect(document.querySelector('[data-probe="stock-split"]')).toBeInTheDocument();
         expect(document.querySelector('[data-probe="left-column"]')).not.toBeInTheDocument();
     });
 
-    it('renders the weather content for USNationalWeather', async () => {
-        await renderTrigger('USNationalWeather');
+    it('renders the weather content at the weather stream\'s id', async () => {
+        await renderTrigger('us-national-weather');
 
         expect(document.querySelector('[data-probe="weather"]')).toBeInTheDocument();
     });
@@ -208,8 +215,8 @@ describe('choosing the content for the stream', () => {
 
     it('renders no content at all for an unknown stream', async () => {
         //
-        // unlike alarm.jsx, the unmatched case has an else branch, so an unknown
-        // stream renders an empty shell instead of throwing.
+        // the unmatched case has an else branch, so an unknown stream renders an
+        // empty shell instead of throwing.
         //
         await renderTrigger('no-such-stream');
 
@@ -219,23 +226,49 @@ describe('choosing the content for the stream', () => {
     });
 
     it.each([
-        ['StockMarket'],
-        ['stockmarket'],
-        ['STOCKMARKET'],
-    ])('matches %s regardless of casing', async (stream) => {
+        ['StockMarket', 'stock-market', 'candlestick'],
+        ['stockmarket', 'stock-market', 'candlestick'],
+        ['StockMarketStockSplit', 'stock-split', 'stock-split'],
+        ['stockmarketstocksplit', 'stock-split', 'stock-split'],
+        ['StockSplit', 'stock-split', 'stock-split'],
+        ['USNationalWeather', 'us-national-weather', 'weather'],
+    ])('/stream/%s/trigger ends on /stream/%s/trigger, and draws its content', async (name, id, probe) => {
         //
-        // this page lower-cases before comparing. alarm.jsx, reached from the
-        // same listing row, does not -- see alarm.test.jsx.
+        // every name the site has linked a stream by is in someone's bookmarks.
+        // Each is replaced with the url naming the stream by its id, and the
+        // query string rides along -- the featured cards carry the category and
+        // the patterns in it.
         //
-        await renderTrigger(stream);
+        getData.mockReturnValue(Promise.resolve(rows()));
 
-        expect(document.querySelector('[data-probe="candlestick"]')).toBeInTheDocument();
+        let location;
+        const Where = () => {
+            location = useLocation();
+            return null;
+        };
+
+        await act(async () => {
+            render(
+                <MemoryRouter initialEntries={[`/stream/${name}/trigger?selected=hammer`]}>
+                    <Routes>
+                        <Route
+                            path='/stream/:stream/trigger'
+                            element={<CanonicalStream><StreamTriggerLayout /><Where /></CanonicalStream>}
+                        />
+                    </Routes>
+                </MemoryRouter>
+            );
+        });
+
+        expect(location.pathname).toBe(`/stream/${id}/trigger`);
+        expect(location.search).toBe('?selected=hammer');
+        expect(document.querySelector(`[data-probe="${probe}"]`)).toBeInTheDocument();
     });
 });
 
 describe('the breadcrumb header', () => {
     it('is suppressed for the stock market, which shows the filter column instead', async () => {
-        await renderTrigger('StockMarket');
+        await renderTrigger('stock-market');
 
         expect(screen.queryByRole('heading', { name: 'Triggers' })).not.toBeInTheDocument();
     });
@@ -262,13 +295,13 @@ describe('the breadcrumb header', () => {
 
 describe('loading the candlestick dataset', () => {
     it('is requested only for the stock market', async () => {
-        await renderTrigger('StockMarket');
+        await renderTrigger('stock-market');
 
         expect(getData).toHaveBeenCalledTimes(1);
         expect(getData.mock.calls[0][0]).toBe('stock-market-candlestick-triggers');
     });
 
-    it.each([['StockSplit'], ['USNationalWeather'], ['bls'], ['sec']])(
+    it.each([['stock-split'], ['us-national-weather'], ['bls'], ['sec']])(
         '%s loads nothing',
         async (stream) => {
             await renderTrigger(stream);
@@ -284,13 +317,13 @@ describe('loading the candlestick dataset', () => {
         // hard-coded sample CSV, so this chart shows fabricated data in
         // production exactly as it does locally.
         //
-        await renderTrigger('StockMarket');
+        await renderTrigger('stock-market');
 
         expect(getData.mock.calls[0][1]).toBeNull();
     });
 
     it('hands the parsed rows to the left column as selectable keys', async () => {
-        await renderTrigger('StockMarket');
+        await renderTrigger('stock-market');
         await waitForLoad();
 
         expect(mockSeen['left-column'].chart_data_keys).toEqual(
@@ -299,7 +332,7 @@ describe('loading the candlestick dataset', () => {
     });
 
     it('reads the selected patterns out of the query string', async () => {
-        await renderTrigger('StockMarket', { query: '?selected=hammer' });
+        await renderTrigger('stock-market', { query: '?selected=hammer' });
         await waitForLoad();
 
         expect(mockSeen['left-column'].selected_candlestick).toEqual(['hammer']);
@@ -309,7 +342,7 @@ describe('loading the candlestick dataset', () => {
         //
         // the url carries human-typed names; the dataset keys are underscored.
         //
-        await renderTrigger('StockMarket', { query: '?selected=shooting star' });
+        await renderTrigger('stock-market', { query: '?selected=shooting star' });
         await waitForLoad();
 
         expect(mockSeen['left-column'].selected_candlestick).toEqual(['shooting_star']);
@@ -318,7 +351,7 @@ describe('loading the candlestick dataset', () => {
 
 describe('the initial aggregation rate', () => {
     it('opens on Minutes during market hours', async () => {
-        await renderTrigger('StockMarket', { query: '?selected=hammer' });
+        await renderTrigger('stock-market', { query: '?selected=hammer' });
         await waitForLoad();
 
         expect(mockSeen['left-column'].trigger_rate).toBe('Minutes');
@@ -331,7 +364,7 @@ describe('the initial aggregation rate', () => {
         //
         jest.setSystemTime(WEEKEND);
 
-        await renderTrigger('StockMarket', { query: '?selected=hammer' });
+        await renderTrigger('stock-market', { query: '?selected=hammer' });
         await waitForLoad();
 
         expect(mockSeen['left-column'].trigger_rate).toBe('Daily');
@@ -340,7 +373,7 @@ describe('the initial aggregation rate', () => {
 
 describe('toggleChartScale, the callback the left column drives', () => {
     async function loaded(query = '?selected=hammer') {
-        const utils = await renderTrigger('StockMarket', { query });
+        const utils = await renderTrigger('stock-market', { query });
         await waitForLoad();
         return utils;
     }
@@ -437,7 +470,7 @@ describe('toggleChartScale, the callback the left column drives', () => {
 
 describe('the chart itself', () => {
     it('appears once the data has loaded and a pattern is selected', async () => {
-        await renderTrigger('StockMarket', { query: '?selected=hammer' });
+        await renderTrigger('stock-market', { query: '?selected=hammer' });
         await waitForLoad();
 
         await waitFor(() =>
@@ -445,7 +478,7 @@ describe('the chart itself', () => {
     });
 
     it('is titled with the stream label rather than its id', async () => {
-        await renderTrigger('StockMarket', { query: '?selected=hammer' });
+        await renderTrigger('stock-market', { query: '?selected=hammer' });
         await waitForLoad();
 
         await waitFor(() => expect(mockSeen['chart']).toBeDefined());
@@ -459,14 +492,14 @@ describe('the chart itself', () => {
         // scale keeps only rows from the current hour, so there is nothing to
         // plot and the chart element is simply absent.
         //
-        await renderTrigger('StockMarket', { query: '?selected=hammer', data: yesterdayRows() });
+        await renderTrigger('stock-market', { query: '?selected=hammer', data: yesterdayRows() });
         await waitForLoad();
 
         expect(document.querySelector('[data-probe="chart"]')).not.toBeInTheDocument();
     });
 
     it('reappears when the scale is widened to include those rows', async () => {
-        await renderTrigger('StockMarket', { query: '?selected=hammer', data: yesterdayRows() });
+        await renderTrigger('stock-market', { query: '?selected=hammer', data: yesterdayRows() });
         await waitForLoad();
 
         act(() => mockSeen['left-column'].toggleChartScale('Monthly', ['hammer']));
@@ -497,7 +530,7 @@ describe('the chart itself', () => {
 
 describe('responding to the hide flags from redux', () => {
     it('hides the content and the filter column when hide.all flips on', async () => {
-        const { setHide } = await renderTrigger('StockMarket', {
+        const { setHide } = await renderTrigger('stock-market', {
             query: '?selected=hammer',
             hide: { all: false, graph: false },
         });
@@ -517,7 +550,7 @@ describe('responding to the hide flags from redux', () => {
         // unconditionally -- only the second, expanded={false} one is gated on
         // hide_all -- so hiding 'all' still leaves the filter bar on screen.
         //
-        const { setHide } = await renderTrigger('StockMarket', {
+        const { setHide } = await renderTrigger('stock-market', {
             query: '?selected=hammer',
             hide: { all: false, graph: false },
         });
@@ -529,7 +562,7 @@ describe('responding to the hide flags from redux', () => {
     });
 
     it('hides only the chart when hide.graph flips on', async () => {
-        const { setHide } = await renderTrigger('StockMarket', {
+        const { setHide } = await renderTrigger('stock-market', {
             query: '?selected=hammer',
             hide: { all: false, graph: false },
         });
@@ -544,7 +577,7 @@ describe('responding to the hide flags from redux', () => {
     });
 
     it('ignores a non-boolean hide flag', async () => {
-        const { setHide } = await renderTrigger('StockMarket', {
+        const { setHide } = await renderTrigger('stock-market', {
             query: '?selected=hammer',
             hide: { all: false, graph: false },
         });
@@ -604,7 +637,7 @@ describe('responding to the hide flags from redux', () => {
         // where it means 'graph'. A hide slice that reports only the graph flag
         // therefore never reaches the branch that would act on it.
         //
-        const { setHide } = await renderTrigger('StockMarket', {
+        const { setHide } = await renderTrigger('stock-market', {
             query: '?selected=hammer',
             hide: { graph: false },
         });

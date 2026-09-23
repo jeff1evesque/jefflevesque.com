@@ -48,7 +48,7 @@ describe('the count formatter', () => {
             page.updateStreamListing();
         });
 
-        const bls = page.state.list_article.find((row) => row.name === 'BLS');
+        const bls = page.state.list_article.find((row) => row.name === 'bls');
         expect(bls.detail.Records).toBe('345,467');
     });
 
@@ -59,7 +59,7 @@ describe('the count formatter', () => {
         //
         const page = setup();
 
-        const bls = page.state.list_article.find((row) => row.name === 'BLS');
+        const bls = page.state.list_article.find((row) => row.name === 'bls');
         expect(bls.detail.Records).toBe('n/a');
     });
 
@@ -78,7 +78,7 @@ describe('the count formatter', () => {
             page.updateStreamListing();
         });
 
-        const bls = page.state.list_article.find((row) => row.name === 'BLS');
+        const bls = page.state.list_article.find((row) => row.name === 'bls');
         expect(bls.detail.Records).toBe('');
         expect(bls.detail.Partitions).toBe(null);
     });
@@ -93,7 +93,7 @@ describe('resetting a stream', () => {
         });
 
         act(() => {
-            page.reset_stream('SEC');
+            page.reset_stream('sec');
         });
 
         expect(page.state.records_sec).toBe('n/a');
@@ -110,8 +110,8 @@ describe('resetting a stream', () => {
 
         act(() => {
             page.setState({
-                selected_stream: 'usnationalweather',
-                records_usnationalweather: 99,
+                selected_stream: 'us-national-weather',
+                'records_us-national-weather': 99,
             });
         });
 
@@ -119,7 +119,7 @@ describe('resetting a stream', () => {
             page.reset_stream();
         });
 
-        expect(page.state.records_usnationalweather).toBe('n/a');
+        expect(page.state['records_us-national-weather']).toBe('n/a');
     });
 
     it('leaves the other streams alone', () => {
@@ -130,7 +130,7 @@ describe('resetting a stream', () => {
         });
 
         act(() => {
-            page.reset_stream('SEC');
+            page.reset_stream('sec');
         });
 
         expect(page.state.records_sec).toBe('n/a');

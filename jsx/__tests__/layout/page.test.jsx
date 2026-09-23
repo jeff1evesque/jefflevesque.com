@@ -25,7 +25,7 @@
 
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { createStore, combineReducers } from 'redux';
 
@@ -144,5 +144,46 @@ describe('unmatched routes', () => {
         renderAt('/register');
 
         expect(screen.queryByText('404 - Not found')).not.toBeInTheDocument();
+    });
+});
+
+describe('a url naming a stream by a name it used to go by', () => {
+    //
+    // the site linked these, and they are in bookmarks. Each still loads through
+    // the route table, and ends on the url naming the stream by its id -- see
+    // route/canonical-stream.jsx, which main-route.jsx wraps every route naming
+    // a stream in. The query string a url carried rides along.
+    //
+    function locationAfter(path) {
+        let location;
+
+        const Where = () => {
+            location = useLocation();
+            return null;
+        };
+
+        render(
+            <Provider store={buildStore()}>
+                <MemoryRouter initialEntries={[path]}>
+                    <MainRoute />
+                    <Where />
+                </MemoryRouter>
+            </Provider>
+        );
+
+        return `${location.pathname}${location.search}`;
+    }
+
+    it.each([
+        ['/stream/StockMarket/alarm', '/stream/stock-market/alarm'],
+        ['/stream/StockMarketStockSplit/trigger', '/stream/stock-split/trigger'],
+        ['/stream?item=USNationalWeather&rate=Day', '/stream?item=us-national-weather&rate=Day'],
+        ['/data?item=StockMarket', '/data?item=stock-market'],
+    ])('%s ends on %s', (from, to) => {
+        expect(locationAfter(from)).toBe(to);
+    });
+
+    it('leaves a url that already names its stream by id', () => {
+        expect(locationAfter('/stream/stock-split/trigger')).toBe('/stream/stock-split/trigger');
     });
 });

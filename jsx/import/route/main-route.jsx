@@ -23,7 +23,14 @@ import GraphLayout from '../layout/graph/graph.jsx';
 import HomePageState from '../redux/container/home-page.jsx';
 import ForgotPasswordState from '../redux/container/forgot-password.jsx';
 import ErrorPage from '../content/error-page.jsx';
+import CanonicalStream from './canonical-stream.jsx';
 
+//
+// Note: every route that names a stream -- by its path, or by the '?item=' a
+//       listing links to -- is wrapped in CanonicalStream, which replaces a url
+//       naming the stream by a name it used to go by with the url naming it by
+//       its id. A bookmark keeps working, and the page is only handed the id.
+//
 class MainRoute extends Component {
     render() {
         return (
@@ -33,12 +40,18 @@ class MainRoute extends Component {
                 <Route path='/logout' element={<LoginLayout />} />
                 <Route path='/register' element={<RegisterLayout />} />
                 <Route path='/login/reset' element={<ForgotPasswordState />} />
-                <Route path='/data' element={<DataLayoutState />} />
+                <Route path='/data' element={<CanonicalStream><DataLayoutState /></CanonicalStream>} />
                 <Route path='/:user' element={<AccountLayout />} />
                 <Route path='/:user/settings' element={<AccountSettingsLayout />} />
-                <Route path='/stream' element={<StreamLayoutState />} />
-                <Route path='/stream/:stream/trigger' element={<StreamTriggerLayoutState />} />
-                <Route path='/stream/:stream/alarm' element={<StreamAlarm />} />
+                <Route path='/stream' element={<CanonicalStream><StreamLayoutState /></CanonicalStream>} />
+                <Route
+                    path='/stream/:stream/trigger'
+                    element={<CanonicalStream><StreamTriggerLayoutState /></CanonicalStream>}
+                />
+                <Route
+                    path='/stream/:stream/alarm'
+                    element={<CanonicalStream><StreamAlarm /></CanonicalStream>}
+                />
                 <Route path='/model' element={<ModelLayout />}/>
                 <Route path='/graph' element={<GraphLayout />}/>
                 <Route path='/graph/:graph' element={<GraphLayout />}/>

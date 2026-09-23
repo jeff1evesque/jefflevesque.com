@@ -93,11 +93,30 @@ describe('performanceUrl', () => {
         );
     });
 
-    it('lower-cases the stream and the interval, which the pages hold capitalised', () => {
-        const params = performanceUrl('StockMarket', 'Month', 'UTC').searchParams;
+    it.each([
+        ['stock-market', 'stock-market'],
+        ['StockMarket', 'stock-market'],
+        ['stockmarketstocksplit', 'stock-split'],
+        ['USNationalWeather', 'us-national-weather'],
+        ['BLS', 'bls'],
+    ])('sends %s as the stream id %s', (name, id) => {
+        //
+        // the api answers to the ids, and to the old names only for now. Whatever
+        // a caller hands this, the request names the stream by its id.
+        //
+        expect(performanceUrl(name, 'day', 'UTC').searchParams.get('Stream')).toBe(id);
+    });
 
-        expect(params.get('Stream')).toBe('stockmarket');
-        expect(params.get('Interval')).toBe('month');
+    it('sends a name that is no stream\'s as it was given, lower-cased', () => {
+        //
+        // there is no id to send, and the api's 400 names the ones it accepts --
+        // which says more than a request that was quietly never made.
+        //
+        expect(performanceUrl('Nope', 'day', 'UTC').searchParams.get('Stream')).toBe('nope');
+    });
+
+    it('lower-cases the interval, which the page holds capitalised', () => {
+        expect(performanceUrl('bls', 'Month', 'UTC').searchParams.get('Interval')).toBe('month');
     });
 
     it('sends the time zone as given', () => {

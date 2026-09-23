@@ -696,7 +696,7 @@ describe('title and y_label', () => {
         //
         // trigger.jsx passes both:
         //
-        //     title={streamName('StockMarket')}
+        //     title={streamName(STOCK_MARKET)}
         //     y_label='Total Alerts'
         //
         // so the chart a user sees has no title and an unlabelled y axis, and the

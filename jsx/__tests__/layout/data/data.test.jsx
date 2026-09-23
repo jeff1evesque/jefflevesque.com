@@ -6,7 +6,7 @@
  * this layout shares with modules tested elsewhere:
  *
  *   - stream-name.js supplies every display label. The component holds ids like
- *     'StockMarketStockSplit', so a test that no raw id reaches the screen is what
+ *     'stock-split', so a test that no raw id reaches the screen is what
  *     ties the unit-tested module to its consumer.
  *
  *   - streamCoverage() returns a note for the two stock streams and null for the
@@ -54,7 +54,7 @@ describe('the listing', () => {
     it('renders each stream under its display label', () => {
         //
         // 'S&P 500' is queried with getAllByText because it legitimately appears
-        // twice -- once as the stockmarket label, once as its coverage note. The
+        // twice -- once as the stock-market label, once as its coverage note. The
         // two come from different maps in stream-name.js and happen to read the
         // same, which getByText would reject as ambiguous.
         //
@@ -71,8 +71,8 @@ describe('the listing', () => {
         setup();
 
         const text = bodyText();
-        expect(text).not.toContain('StockMarketStockSplit');
-        expect(text).not.toContain('USNationalWeather');
+        expect(text).not.toContain('stock-market');
+        expect(text).not.toContain('us-national-weather');
     });
 });
 

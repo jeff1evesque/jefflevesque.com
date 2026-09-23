@@ -4,8 +4,8 @@
  * The only one of the four that serves TWO streams from one module, with a
  * different shape for each:
  *
- *     stockmarket            sector / industry / total_records
- *     stockmarketstocksplit  split_date -> 'Day N', counting total_tickers
+ *     stock-market           sector / industry / total_records
+ *     stock-split            split_date -> 'Day N', counting total_tickers
  *
  * Both report 'sector' as the aggregate key, even though the split branch puts a
  * date in that field -- the chart reads one key name regardless of stream.
@@ -117,16 +117,16 @@ describe('the rebuilt validators', () => {
     it('reconstruct and run without throwing', () => {
         expect(() => send({
             'data-distribution': [{ sector: 'Tech', industry: 'Software', total_records: '5' }],
-            stream: 'stockmarket',
+            stream: 'stock-market',
         })).not.toThrow();
     });
 });
 
-describe('the stockmarket stream', () => {
+describe('the stock-market stream', () => {
     it('keys on sector and stacks by industry', () => {
         send({
             'data-distribution': [{ sector: 'Tech', industry: 'Software', total_records: '5' }],
-            stream: 'stockmarket',
+            stream: 'stock-market',
         });
 
         expect(posted[0].aggregate_key).toBe('sector');
@@ -145,7 +145,7 @@ describe('the stockmarket stream', () => {
                 { sector: 'Tech', industry: 'Software', total_records: '5' },
                 { sector: 'Tech', industry: 'Hardware', total_records: '3' },
             ],
-            stream: 'stockmarket',
+            stream: 'stock-market',
         });
 
         expect(posted[0].data_distribution).toHaveLength(1);
@@ -162,7 +162,7 @@ describe('the stockmarket stream', () => {
                 { sector: 'Tech', industry: 'Software', total_records: '5' },
                 { sector: 'Energy', industry: 'Oil', total_records: '3' },
             ],
-            stream: 'stockmarket',
+            stream: 'stock-market',
         });
 
         expect(posted[0].data_distribution).toHaveLength(2);
@@ -174,7 +174,7 @@ describe('the stockmarket stream', () => {
                 { sector: 'Tech', industry: 'Software', total_records: '5' },
                 { sector: 'Energy', industry: 'Oil', total_records: '3' },
             ],
-            stream: 'stockmarket',
+            stream: 'stock-market',
         });
 
         expect(posted[0].records).toBe(8);
@@ -183,7 +183,7 @@ describe('the stockmarket stream', () => {
     it('trims whitespace from sector and industry', () => {
         send({
             'data-distribution': [{ sector: '  Tech  ', industry: '  Software  ', total_records: '5' }],
-            stream: 'stockmarket',
+            stream: 'stock-market',
         });
 
         expect(posted[0].data_distribution[0]).toEqual({ sector: 'Tech', Software: 5 });
@@ -195,7 +195,7 @@ describe('the stockmarket stream', () => {
                 { sector: 'Tech', industry: 'Software', total_records: '5' },
                 { sector: 'Energy', total_records: '3' },
             ],
-            stream: 'stockmarket',
+            stream: 'stock-market',
         });
 
         expect(posted[0].data_distribution).toHaveLength(1);
@@ -203,7 +203,7 @@ describe('the stockmarket stream', () => {
     });
 });
 
-describe('the stockmarketstocksplit stream', () => {
+describe('the stock-split stream', () => {
     it('labels each bar by split date rather than sector', () => {
         //
         // the field is still called 'sector' because the chart reads one key name for
@@ -211,7 +211,7 @@ describe('the stockmarketstocksplit stream', () => {
         //
         send({
             'data-distribution': [{ split_date: '03', total_tickers: '4' }],
-            stream: 'stockmarketstocksplit',
+            stream: 'stock-split',
         });
 
         expect(posted[0].aggregate_key).toBe('sector');
@@ -225,7 +225,7 @@ describe('the stockmarketstocksplit stream', () => {
         //
         send({
             'data-distribution': [{ split_date: '03', total_tickers: '4' }],
-            stream: 'stockmarketstocksplit',
+            stream: 'stock-split',
         });
 
         expect(posted[0].data_distribution[0].splits).toBe(4);
@@ -237,7 +237,7 @@ describe('the stockmarketstocksplit stream', () => {
                 { split_date: '03', total_tickers: '4' },
                 { split_date: '04', total_tickers: '6' },
             ],
-            stream: 'stockmarketstocksplit',
+            stream: 'stock-split',
         });
 
         expect(posted[0].records).toBe(10);
@@ -250,7 +250,7 @@ describe('the stockmarketstocksplit stream', () => {
         //
         send({
             'data-distribution': [{ split_date: '03', total_tickers: '2', tickers: 'nvdl 3:1, mull 25:1' }],
-            stream: 'stockmarketstocksplit',
+            stream: 'stock-split',
         });
 
         expect(posted[0].data_distribution[0].tickers).toBe('nvdl 3:1, mull 25:1');
@@ -262,7 +262,7 @@ describe('the stockmarketstocksplit stream', () => {
         //
         send({
             'data-distribution': [{ split_date: '03', total_tickers: '2' }],
-            stream: 'stockmarketstocksplit',
+            stream: 'stock-split',
         });
 
         expect(posted[0].data_distribution[0]).not.toHaveProperty('tickers');
@@ -274,7 +274,7 @@ describe('the stockmarketstocksplit stream', () => {
                 { split_date: '03', total_tickers: '2' },
                 { split_date: '04', total_tickers: '5' },
             ],
-            stream: 'stockmarketstocksplit',
+            stream: 'stock-split',
         });
 
         expect(posted[0].data_distribution).toHaveLength(2);
@@ -291,7 +291,7 @@ describe('the stockmarketstocksplit stream', () => {
                 { split_date: '10', total_tickers: '1' },
                 { split_date: '03', total_tickers: '1' },
             ],
-            stream: 'stockmarketstocksplit',
+            stream: 'stock-split',
         });
 
         const labels = posted[0].data_distribution.map(r => r.sector);
@@ -318,7 +318,7 @@ describe('stream dispatch', () => {
         //
         send({
             'data-distribution': [{ split_date: '03', total_tickers: '4' }],
-            stream: 'stockmarket',
+            stream: 'stock-market',
         });
 
         expect(posted[0].data_distribution).toHaveLength(0);
@@ -328,24 +328,24 @@ describe('stream dispatch', () => {
     it('carries source and stream through', () => {
         send({
             'data-distribution': [{ sector: 'Tech', industry: 'Software', total_records: '5' }],
-            stream: 'stockmarket',
+            stream: 'stock-market',
             source: 'market-source',
         });
 
-        expect(posted[0].selected_stream).toBe('stockmarket');
+        expect(posted[0].selected_stream).toBe('stock-market');
         expect(posted[0].selected_source).toBe('market-source');
     });
 });
 
 describe('the partition count', () => {
     it('sums the counts and posts them separately', () => {
-        send({ partition: [{ count: '3' }, { count: '4' }], stream: 'stockmarket' });
+        send({ partition: [{ count: '3' }, { count: '4' }], stream: 'stock-market' });
 
-        expect(posted).toEqual([{ count: 7, selected_stream: 'stockmarket' }]);
+        expect(posted).toEqual([{ count: 7, selected_stream: 'stock-market' }]);
     });
 
     it('treats a non-numeric count as zero', () => {
-        send({ partition: [{ count: '3' }, { count: 'x' }], stream: 'stockmarket' });
+        send({ partition: [{ count: '3' }, { count: 'x' }], stream: 'stock-market' });
 
         expect(posted[0].count).toBe(3);
     });
@@ -354,7 +354,7 @@ describe('the partition count', () => {
         send({
             'data-distribution': [{ sector: 'Tech', industry: 'Software', total_records: '5' }],
             partition: [{ count: '2' }],
-            stream: 'stockmarket',
+            stream: 'stock-market',
         });
 
         expect(posted).toHaveLength(2);

@@ -37,7 +37,11 @@ export default () => {
             const selected_stream = 'stream' in item && item.stream ? item.stream : null;
             const selected_source = 'source' in item && item.source ? item.source : null;
 
-            if (selected_stream === 'usnationalweather') {
+            //
+            // the stream by its id, written out rather than imported: this function
+            // reaches the worker as source text (see web-worker.js)
+            //
+            if (selected_stream === 'us-national-weather') {
                 // Result intentionally discarded: the callback below populates
                 // data_reformat by side effect, so the call must still run.
                 item['data-distribution'].map(v => {

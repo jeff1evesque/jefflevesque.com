@@ -24,6 +24,15 @@
  *       a parameter cannot be added here without being documented there.
  */
 
+import {
+    STOCK_MARKET,
+    STOCK_SPLIT,
+    BLS,
+    SEC,
+    US_NATIONAL_WEATHER,
+    canonicalStream,
+} from './stream-id.js';
+
 const API = 'https://api.jefflevesque.com/v1/public';
 
 const ENDPOINTS = {
@@ -47,17 +56,21 @@ const API_DOCS = {
 };
 
 //
-// the datalake's name for each stream's dataset, keyed by stream id. They are not
-// the same strings -- three of the five differ -- and a page that sent the stream
-// id instead ('stockmarket') was answered with a 400. Both pages that ask the
-// datalake read their dataset from here.
+// the datalake's name for each stream's dataset, keyed by stream id. Both pages
+// that ask the datalake read their dataset from here.
+//
+// The two are different names for different things, even where they are the same
+// string. They used to differ for three of the five, and a page that sent the
+// stream id ('stockmarket') was answered with a 400. They differ for one now --
+// the weather stream's dataset is 'us-weather-alert' -- and the datalake's names
+// are its own, so they are not assumed to stay alike.
 //
 const DATASETS = {
-    stockmarket: 'stock-market',
-    stockmarketstocksplit: 'stock-split',
-    bls: 'bls',
-    sec: 'sec',
-    usnationalweather: 'us-weather-alert',
+    [STOCK_MARKET]: 'stock-market',
+    [STOCK_SPLIT]: 'stock-split',
+    [BLS]: 'bls',
+    [SEC]: 'sec',
+    [US_NATIONAL_WEATHER]: 'us-weather-alert',
 };
 
 function withParams(base, params) {
@@ -75,10 +88,14 @@ function withParams(base, params) {
  * Note: the zone travels with the request rather than being applied to the answer.
  *       A trailing 20 days ending at 22:00 in Tokyo is not the same 20 dates as one
  *       ending at 09:00 in New York.
+ *
+ * Note: the stream is sent by its id, whatever name it was handed by -- see
+ *       canonicalStream. A name that is no stream's is sent lower-cased, as
+ *       given, and the api answers it with a 400 that names what it accepts.
  */
 export function performanceUrl(stream, interval, timezone, base = ENDPOINTS.performance) {
     return withParams(base, {
-        Stream: String(stream).toLowerCase(),
+        Stream: canonicalStream(stream) || String(stream).toLowerCase(),
         Interval: String(interval).toLowerCase(),
         Timezone: timezone,
     });
@@ -101,8 +118,9 @@ export function performanceArchiveUrl(base = ENDPOINTS.performanceArchive) {
  * one dataset's record distribution, and its partition count, for a month.
  *
  * Note: `data` is a DATASET name -- 'stock-market', 'stock-split', 'bls', 'sec',
- *       'us-weather-alert' -- not a stream id. The two differ for three of the
- *       five, and the api answers a stream id such as 'stockmarket' with a 400.
+ *       'us-weather-alert' -- not a stream id. Read it from DATASETS: the two
+ *       differ for the weather stream, and the api answers a name it does not
+ *       know with a 400.
  */
 export function datalakeUrl(data, year, month, base = ENDPOINTS.datalake) {
     return withParams(base, {

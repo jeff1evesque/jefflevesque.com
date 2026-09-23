@@ -12,7 +12,7 @@
  *       zeroes EVERY empty interval, and most streams are legitimately idle in
  *       most of them -- asking for it on a weekday-only stream draws a zero
  *       across every weekend, an outage the stream never had. only
- *       'usnationalweather' can use it (see 'runsContinuously'). the intervals
+ *       'us-national-weather' can use it (see 'runsContinuously'). the intervals
  *       below come from the scraper's own schedule instead, so an interval is
  *       filled only when a run was actually due in it
  *
@@ -169,7 +169,7 @@ export function fillMissingIntervals(
     the api asks its report to fill empty buckets for a stream that never stops
     (see 'runsContinuously'), and at a coarse rate that is right -- every hour
     of a continuous stream really did carry runs. at the MINUTE rate it stops
-    being right: 'usnationalweather' is scheduled 'rate(5 minutes)', so four
+    being right: 'us-national-weather' is scheduled 'rate(5 minutes)', so four
     minutes in five are legitimately idle, and the fill states each of them as a
     zero. those zeros are true and useless -- the stacked area drops to the axis
     between every run and reads as twelve separate humps rather than one curve.
@@ -207,7 +207,7 @@ function reportIsPadded(rows, rate, field_datetime) {
 
     the two used to be mutually exclusive -- the fill needs a graded rate, and
     the api padded exactly the streams whose cadence the schedule could not
-    state. that no longer holds: 'usnationalweather' is padded AND graded at the
+    state. that no longer holds: 'us-national-weather' is padded AND graded at the
     minute rate, so both run on one chart. the order they run in is what keeps
     them from fighting, and it is the order the caller uses: the padding comes
     off first, so the fill is asked its question about the runs the stream

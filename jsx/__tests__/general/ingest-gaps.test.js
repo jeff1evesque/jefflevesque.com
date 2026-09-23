@@ -58,7 +58,7 @@ function dates(intervals) {
 
 //
 // the 20 day window ending 2026-03-18 opens on 2026-02-27. These are the
-// weekdays inside it, which is what 'stockmarket' is expected to run on.
+// weekdays inside it, which is what 'stock-market' is expected to run on.
 //
 const WEEKDAYS = [
     day(2026, 2, 27),
@@ -78,14 +78,14 @@ describe('missingIntervals', () => {
             .filter(d => d.getTime() !== day(2026, 3, 9).getTime())
             .map(d => row(d));
 
-        expect(dates(missingIntervals(rows, 'stockmarket', 'day', FIELD, NOW)))
+        expect(dates(missingIntervals(rows, 'stock-market', 'day', FIELD, NOW)))
             .toEqual([[2026, 3, 9]]);
     });
 
     it('names nothing when every expected interval reported', () => {
         const rows = WEEKDAYS.map(d => row(d));
 
-        expect(missingIntervals(rows, 'stockmarket', 'day', FIELD, NOW)).toEqual([]);
+        expect(missingIntervals(rows, 'stock-market', 'day', FIELD, NOW)).toEqual([]);
     });
 
     it('leaves weekends alone for a weekday-only stream', () => {
@@ -95,7 +95,7 @@ describe('missingIntervals', () => {
         // across every saturday and sunday.
         //
         const rows = [row(day(2026, 3, 6)), row(day(2026, 3, 16))];
-        const missing = missingIntervals(rows, 'stockmarket', 'day', FIELD, NOW);
+        const missing = missingIntervals(rows, 'stock-market', 'day', FIELD, NOW);
         const weekdays = missing.map(d => d.getDay());
 
         expect(missing.length).toBeGreaterThan(0);
@@ -105,12 +105,12 @@ describe('missingIntervals', () => {
 
     it('fills a weekend for a stream that does run on one', () => {
         //
-        // the same schedule table, read the other way: 'usnationalweather' never stops,
+        // the same schedule table, read the other way: 'us-national-weather' never stops,
         // so a silent saturday IS a gap.
         //
         const rows = [day(2026, 3, 13), day(2026, 3, 16), day(2026, 3, 17)].map(d => row(d));
 
-        expect(dates(missingIntervals(rows, 'usnationalweather', 'day', FIELD, NOW)))
+        expect(dates(missingIntervals(rows, 'us-national-weather', 'day', FIELD, NOW)))
             .toEqual([[2026, 3, 14], [2026, 3, 15]]);
     });
 
@@ -122,7 +122,7 @@ describe('missingIntervals', () => {
         //
         const rows = [row(day(2026, 3, 16)), row(day(2026, 3, 17))];
 
-        expect(missingIntervals(rows, 'stockmarket', 'day', FIELD, NOW)).toEqual([]);
+        expect(missingIntervals(rows, 'stock-market', 'day', FIELD, NOW)).toEqual([]);
     });
 
     it('does not zero the interval that is still filling', () => {
@@ -135,7 +135,7 @@ describe('missingIntervals', () => {
             .filter(d => d.getTime() !== day(2026, 3, 18).getTime())
             .map(d => row(d));
 
-        expect(missingIntervals(rows, 'stockmarket', 'day', FIELD, NOW)).toEqual([]);
+        expect(missingIntervals(rows, 'stock-market', 'day', FIELD, NOW)).toEqual([]);
     });
 
     it('zeroes an outage that runs up to the current interval', () => {
@@ -146,13 +146,13 @@ describe('missingIntervals', () => {
         //
         const rows = WEEKDAYS.filter(d => d <= day(2026, 3, 12)).map(d => row(d));
 
-        expect(dates(missingIntervals(rows, 'stockmarket', 'day', FIELD, NOW)))
+        expect(dates(missingIntervals(rows, 'stock-market', 'day', FIELD, NOW)))
             .toEqual([[2026, 3, 13], [2026, 3, 16], [2026, 3, 17]]);
     });
 
     it('treats a row that reported zero as present, not missing', () => {
         //
-        // 'usnationalweather' asks the report to zero its own empty buckets, so those
+        // 'us-national-weather' asks the report to zero its own empty buckets, so those
         // rows already exist. A second row on the same instant would put two points on
         // one x value.
         //
@@ -164,7 +164,7 @@ describe('missingIntervals', () => {
             row(day(2026, 3, 17)),
         ];
 
-        expect(missingIntervals(rows, 'usnationalweather', 'day', FIELD, NOW)).toEqual([]);
+        expect(missingIntervals(rows, 'us-national-weather', 'day', FIELD, NOW)).toEqual([]);
     });
 
     it('names nothing for a stream with no rows at all', () => {
@@ -173,8 +173,8 @@ describe('missingIntervals', () => {
         // it has no starting point to fill from, and a flat zero line across the whole
         // window would claim more than is known.
         //
-        expect(missingIntervals([], 'stockmarket', 'day', FIELD, NOW)).toEqual([]);
-        expect(missingIntervals(null, 'stockmarket', 'day', FIELD, NOW)).toEqual([]);
+        expect(missingIntervals([], 'stock-market', 'day', FIELD, NOW)).toEqual([]);
+        expect(missingIntervals(null, 'stock-market', 'day', FIELD, NOW)).toEqual([]);
     });
 
     it('names nothing for a rate that cannot be graded', () => {
@@ -197,7 +197,7 @@ describe('missingIntervals', () => {
         //
         const rows = [null, row(day(2026, 3, 15)), undefined, row(day(2026, 3, 17))];
 
-        expect(dates(missingIntervals(rows, 'usnationalweather', 'day', FIELD, NOW)))
+        expect(dates(missingIntervals(rows, 'us-national-weather', 'day', FIELD, NOW)))
             .toEqual([[2026, 3, 16]]);
     });
 
@@ -213,7 +213,7 @@ describe('missingIntervals', () => {
             row(day(2026, 3, 17)),
         ];
 
-        expect(dates(missingIntervals(rows, 'usnationalweather', 'day', FIELD, NOW)))
+        expect(dates(missingIntervals(rows, 'us-national-weather', 'day', FIELD, NOW)))
             .toEqual([[2026, 3, 16]]);
     });
 
@@ -227,20 +227,20 @@ describe('missingIntervals', () => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        expect(missingIntervals([row(today)], 'usnationalweather', 'day', FIELD)).toEqual([]);
+        expect(missingIntervals([row(today)], 'us-national-weather', 'day', FIELD)).toEqual([]);
     });
 
     it('fills an hourly gap only inside the scraper\'s own hours', () => {
         //
         // the hours narrow an hourly chart where they do not narrow a daily one:
-        // 'stockmarket' runs 9-15 eastern, so 03:00 is silence by design and 11:00 is
+        // 'stock-market' runs 9-15 eastern, so 03:00 is silence by design and 11:00 is
         // a gap.
         //
         const rows = [
             row(new Date(2026, 2, 18, 10)),
             row(new Date(2026, 2, 18, 12)),
         ];
-        const missing = missingIntervals(rows, 'stockmarket', 'hour', FIELD, NOW);
+        const missing = missingIntervals(rows, 'stock-market', 'hour', FIELD, NOW);
 
         //
         // 09:00 sits before the first row and 14:00 is the hour still filling, so the
@@ -253,7 +253,7 @@ describe('missingIntervals', () => {
 describe('fillMissingIntervals', () => {
     it('inserts a zeroed row in date order', () => {
         const rows = [row(day(2026, 3, 16)), row(day(2026, 3, 18))];
-        const filled = fillMissingIntervals(rows, 'stockmarket', 'day', FIELD, SOURCE, NOW);
+        const filled = fillMissingIntervals(rows, 'stock-market', 'day', FIELD, SOURCE, NOW);
 
         expect(dates(filled.map(v => v[FIELD])))
             .toEqual([[2026, 3, 16], [2026, 3, 17], [2026, 3, 18]]);
@@ -266,7 +266,7 @@ describe('fillMissingIntervals', () => {
         // undefined rather than as zero once recharts stacks it.
         //
         const rows = [row(day(2026, 3, 16)), row(day(2026, 3, 18))];
-        const [, gap] = fillMissingIntervals(rows, 'stockmarket', 'day', FIELD, SOURCE, NOW);
+        const [, gap] = fillMissingIntervals(rows, 'stock-market', 'day', FIELD, SOURCE, NOW);
 
         SOURCE.forEach((source) => {
             expect(gap[source]).toBe(0);
@@ -281,7 +281,7 @@ describe('fillMissingIntervals', () => {
         //
         const rows = WEEKDAYS.map(d => row(d));
 
-        expect(fillMissingIntervals(rows, 'stockmarket', 'day', FIELD, SOURCE, NOW)).toBe(rows);
+        expect(fillMissingIntervals(rows, 'stock-market', 'day', FIELD, SOURCE, NOW)).toBe(rows);
     });
 
     it('adds nothing to the totals the listing reads', () => {
@@ -291,7 +291,7 @@ describe('fillMissingIntervals', () => {
         // nothing else.
         //
         const rows = [row(day(2026, 3, 16), 4, 8), row(day(2026, 3, 18), 6, 12)];
-        const filled = fillMissingIntervals(rows, 'stockmarket', 'day', FIELD, SOURCE, NOW);
+        const filled = fillMissingIntervals(rows, 'stock-market', 'day', FIELD, SOURCE, NOW);
         const total = (key) => filled.reduce((sum, v) => sum + v[key], 0);
 
         expect(total('price')).toBe(10);
@@ -304,7 +304,7 @@ describe('fillMissingIntervals', () => {
 
         const rows = [row(today)];
 
-        expect(fillMissingIntervals(rows, 'usnationalweather', 'day', FIELD, SOURCE)).toBe(rows);
+        expect(fillMissingIntervals(rows, 'us-national-weather', 'day', FIELD, SOURCE)).toBe(rows);
     });
 
     it('survives a stream with no source list', () => {
@@ -312,7 +312,7 @@ describe('fillMissingIntervals', () => {
         // the bucket alone still breaks the area, even if no series can be named on it.
         //
         const rows = [row(day(2026, 3, 16)), row(day(2026, 3, 18))];
-        const filled = fillMissingIntervals(rows, 'stockmarket', 'day', FIELD, null, NOW);
+        const filled = fillMissingIntervals(rows, 'stock-market', 'day', FIELD, null, NOW);
 
         expect(filled).toHaveLength(3);
         expect(Object.keys(filled[1])).toEqual([FIELD]);
@@ -329,7 +329,7 @@ describe('fillMissingIntervals', () => {
 const WEATHER = ['weather'];
 
 //
-// a single-series row, the shape the aggregator emits for 'usnationalweather'.
+// a single-series row, the shape the aggregator emits for 'us-national-weather'.
 // success and throughput are separable because an interval where the scraper ran and
 // every request failed reports zero successes and is still an observation.
 //
@@ -357,7 +357,7 @@ function paddedMinuteReport() {
 describe('dropPaddedEmpties', () => {
     it('takes the api padding off a minute report', () => {
         //
-        // the defect this was written for: 'usnationalweather' is scheduled every five
+        // the defect this was written for: 'us-national-weather' is scheduled every five
         // minutes, so the report's own fill states four zeros between each run and the
         // stacked area drops to the axis between every one of them -- twelve separate
         // humps where the stream was behaving perfectly.
@@ -397,7 +397,7 @@ describe('dropPaddedEmpties', () => {
 
         expect(dropped).toHaveLength(4);
 
-        const filled = fillMissingIntervals(dropped, 'usnationalweather', 'day', FIELD, WEATHER, NOW);
+        const filled = fillMissingIntervals(dropped, 'us-national-weather', 'day', FIELD, WEATHER, NOW);
 
         expect(dates(filled.map(v => v[FIELD])))
             .toEqual([[2026, 3, 13], [2026, 3, 14], [2026, 3, 15], [2026, 3, 16], [2026, 3, 17]]);

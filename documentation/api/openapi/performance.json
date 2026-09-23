@@ -21,18 +21,18 @@
             "name": "Stream",
             "in": "query",
             "required": true,
-            "description": "The stream to report on.",
+            "description": "The stream to report on, by its id. The names three of them went by before -- stockmarket, stockmarketstocksplit and usnationalweather -- are still accepted for now.",
             "schema": {
               "type": "string",
               "enum": [
                 "bls",
                 "sec",
-                "stockmarket",
-                "stockmarketstocksplit",
-                "usnationalweather"
+                "stock-market",
+                "stock-split",
+                "us-national-weather"
               ]
             },
-            "example": "bls"
+            "example": "stock-market"
           },
           {
             "name": "Interval",
@@ -84,7 +84,7 @@
                   }
                 },
                 "example": {
-                  "report": "group_by,window_start,total_success,total_success_mean,total_success_max,total_fail,total_fail_mean,total_fail_max\nbls,2026-08-28 12:00:00-0400,6941,867.625,2401,0,0.0,0\nbls,2026-08-29 12:00:00-0400,6941,867.625,2401,0,0.0,0\n"
+                  "report": "group_by,window_start,total_success,total_success_mean,total_success_max,total_fail,total_fail_mean,total_fail_max\nprice,2026-09-03 12:00:00-0400,9481,19.0,19,0,0.0,0\nprice,2026-09-04 12:00:00-0400,9481,19.0,19,0,0.0,0\n"
                 }
               }
             }
@@ -107,7 +107,7 @@
                 "examples": {
                   "unknown stream": {
                     "value": {
-                      "report": "Stream=nope NOT recognized, expected one of bls, sec, stockmarket, stockmarketstocksplit, usnationalweather"
+                      "report": "Stream=nope NOT recognized, expected one of bls, sec, stock-market, stock-split, us-national-weather"
                     }
                   },
                   "missing parameters": {
@@ -173,12 +173,12 @@
                             "enum": [
                               "bls",
                               "sec",
-                              "stockmarket",
-                              "stockmarketstocksplit",
-                              "usnationalweather"
+                              "stock-market",
+                              "stock-split",
+                              "us-national-weather"
                             ]
                           },
-                          "description": "Every stream this api carries."
+                          "description": "Every stream this api carries, by its id."
                         },
                         "archives": {
                           "type": "array",
@@ -198,9 +198,9 @@
                                 "enum": [
                                   "bls",
                                   "sec",
-                                  "stockmarket",
-                                  "stockmarketstocksplit",
-                                  "usnationalweather"
+                                  "stock-market",
+                                  "stock-split",
+                                  "us-national-weather"
                                 ],
                                 "description": "The stream, by the same id the report's Stream takes."
                               },
@@ -211,7 +211,7 @@
                               },
                               "id": {
                                 "type": "string",
-                                "pattern": "^[a-z]+/[0-9]{4}(/[0-9]{2})?$",
+                                "pattern": "^[a-z-]+/[0-9]{4}(/[0-9]{2})?$",
                                 "description": "stream/yyyy or stream/yyyy/mm: the path below /performance/archive that redirects to this file."
                               },
                               "url": {
@@ -240,9 +240,9 @@
                     "streams": [
                       "bls",
                       "sec",
-                      "stockmarket",
-                      "stockmarketstocksplit",
-                      "usnationalweather"
+                      "stock-market",
+                      "stock-split",
+                      "us-national-weather"
                     ],
                     "archives": [
                       {
@@ -262,25 +262,25 @@
                         "modified": "2025-09-27T02:01:33+00:00"
                       },
                       {
-                        "stream": "stockmarket",
+                        "stream": "stock-market",
                         "period": "2025",
-                        "id": "stockmarket/2025",
+                        "id": "stock-market/2025",
                         "url": "https://www.jefflevesque.com/artifact/performance/ingest/stock-market/2025.csv",
                         "bytes": 13730477,
                         "modified": "2025-12-31T21:04:53+00:00"
                       },
                       {
-                        "stream": "stockmarketstocksplit",
+                        "stream": "stock-split",
                         "period": "2026",
-                        "id": "stockmarketstocksplit/2026",
+                        "id": "stock-split/2026",
                         "url": "https://www.jefflevesque.com/artifact/performance/ingest/stock-split/2026.csv",
                         "bytes": 74820,
                         "modified": "2026-09-21T04:01:43+00:00"
                       },
                       {
-                        "stream": "usnationalweather",
+                        "stream": "us-national-weather",
                         "period": "2025-07",
-                        "id": "usnationalweather/2025/07",
+                        "id": "us-national-weather/2025/07",
                         "url": "https://www.jefflevesque.com/artifact/performance/ingest/article/weather/2025/07.csv",
                         "bytes": 1102308,
                         "modified": "2025-07-21T22:22:43+00:00"
@@ -352,12 +352,12 @@
               "enum": [
                 "bls",
                 "sec",
-                "stockmarket",
-                "stockmarketstocksplit",
-                "usnationalweather"
+                "stock-market",
+                "stock-split",
+                "us-national-weather"
               ]
             },
-            "example": "stockmarket"
+            "example": "stock-market"
           },
           {
             "name": "year",
@@ -438,7 +438,7 @@
                   }
                 },
                 "example": {
-                  "report": "archive stockmarket/2027 NOT in the listing"
+                  "report": "archive stock-market/2027 NOT in the listing"
                 }
               }
             }
@@ -483,9 +483,9 @@
               "enum": [
                 "bls",
                 "sec",
-                "stockmarket",
-                "stockmarketstocksplit",
-                "usnationalweather"
+                "stock-market",
+                "stock-split",
+                "us-national-weather"
               ]
             },
             "example": "sec"

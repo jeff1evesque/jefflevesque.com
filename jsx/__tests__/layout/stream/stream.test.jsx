@@ -8,7 +8,7 @@
  *
  * The labels are the valuable part. They come from stream-name.js, which is unit
  * tested separately -- this is what proves the component actually routes its ids
- * through it rather than rendering raw ids like 'StockMarketStockSplit'. The two
+ * through it rather than rendering raw ids like 'stock-split'. The two
  * are otherwise free to drift.
  *
  * Note: no network is mocked here. setup.js provides a fetch that resolves to a
@@ -92,8 +92,8 @@ describe('the stream listing', () => {
 
     it('renders each stream under its display label, not its id', () => {
         //
-        // the ids are 'StockMarket', 'StockMarketStockSplit', 'BLS', 'SEC' and
-        // 'USNationalWeather'. Every one has to reach stream-name.js on the way to
+        // the ids are 'stock-market', 'stock-split', 'bls', 'sec' and
+        // 'us-national-weather'. Every one has to reach stream-name.js on the way to
         // the screen, or the listing shows raw identifiers.
         //
         setup();
@@ -109,9 +109,9 @@ describe('the stream listing', () => {
         setup();
 
         const text = bodyText();
-        expect(text).not.toContain('StockMarketStockSplit');
-        expect(text).not.toContain('USNationalWeather');
-        expect(text).not.toContain('stockmarketstocksplit');
+        expect(text).not.toContain('stock-market');
+        expect(text).not.toContain('stock-split');
+        expect(text).not.toContain('us-national-weather');
     });
 
     it('distinguishes the two stock streams', () => {
@@ -153,7 +153,7 @@ describe('each row before data arrives', () => {
     it('defaults every stream to the daily rate outside market hours', () => {
         //
         // daily is the rate the page has always drawn, and the one every stream
-        // supports -- minute coverage is only gradeable for stockmarket.
+        // supports -- minute coverage is only gradeable for stock-market.
         //
         setupAt(AFTER_THE_BELL);
 
@@ -165,7 +165,7 @@ describe('each row before data arrives', () => {
         //
         // the other half of the same rule, and the reason this pair needs a pinned
         // clock. stream.jsx:234 reads the eastern wall clock in its constructor and
-        // gives stockmarket the minute rate between 09:30 and 16:00 on a weekday, so
+        // gives stock-market the minute rate between 09:30 and 16:00 on a weekday, so
         // whichever regime is asserted, the assertion is only true for part of the day.
         //
         // This previously read 'defaults every stream to the daily rate' against the
