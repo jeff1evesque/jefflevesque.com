@@ -118,9 +118,9 @@ the application:
 
 ## Tests that document defects
 
-Some tests are labelled `DOCUMENTS A DEFECT`. Those assert what the code does
+Some tests are labeled `DOCUMENTS A DEFECT`. Those assert what the code does
 **today**, not what it should do, so that a fix breaks the test loudly instead of the
-behaviour changing unnoticed. Two are worth reading:
+behavior changing unnoticed. Two are worth reading:
 
 - **Registration validates nothing before submitting.**
   [`jsx/import/layout/register/content/webform.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/register/content/webform.jsx)
