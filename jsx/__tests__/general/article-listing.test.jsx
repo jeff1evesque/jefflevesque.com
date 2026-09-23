@@ -6,7 +6,7 @@
  * which is why it earns direct tests rather than being covered incidentally
  * through them.
  *
- * The behaviour worth holding is the filter: it narrows a list held in state
+ * The behavior worth holding is the filter: it narrows a list held in state
  * against a second, untouched copy ('list_article_original'), which is what lets a
  * cleared search restore the full list. A filter that mutated the single source
  * would make the narrowing permanent, and only a clear-and-retype would reveal it.
@@ -77,7 +77,7 @@ describe('rendering', () => {
         expect(text).toContain('Stream Total');
     });
 
-    it('renders each detail as a labelled value', () => {
+    it('renders each detail as a labeled value', () => {
         setup();
 
         const text = bodyText();
