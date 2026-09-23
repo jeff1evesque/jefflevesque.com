@@ -62,7 +62,7 @@ describe('choosing which node types survive', () => {
     it('carries each kept type\'s own metadata across', () => {
         //
         // the values are the component's content -- count drives the label and
-        // category the colour -- so a filter that rebuilt them would be a second
+        // category the color -- so a filter that rebuilt them would be a second
         // place for the shape to drift.
         //
         const schema = schemaOf([9]);
@@ -325,7 +325,7 @@ describe('keeping the graph in one piece', () => {
     it('pads with the largest remaining when connectors run out', () => {
         //
         // budget left over means the graph had nothing else holding it together, and at
-        // that point a type the reader recognises beats a small one that happens to
+        // that point a type the reader recognizes beats a small one that happens to
         // touch something.
         //
         const schema = schemaOf([100, 90, 80, 70]);
@@ -406,9 +406,9 @@ describe('bridging separate components', () => {
     // filings_SECFiling -- which touches ONE kept type and so never qualified as a
     // connector. Two nodes floated beside a twenty-two node body.
     //
-    // Counting kept neighbours is not the same as joining the graph up. A node with
-    // one neighbour in each of two islands has one of those and joins them; a node
-    // with two neighbours inside a single island has two and joins nothing.
+    // Counting kept neighbors is not the same as joining the graph up. A node with
+    // one neighbor in each of two islands has one of those and joins them; a node
+    // with two neighbors inside a single island has two and joins nothing.
     //
 
     //
@@ -663,9 +663,9 @@ describe('components', () => {
         expect(found[1]).toHaveLength(1);
     });
 
-    it('ignores neighbours outside the kept set', () => {
+    it('ignores neighbors outside the kept set', () => {
         //
-        // the walk is over the FILTERED graph -- a neighbour that did not survive is
+        // the walk is over the FILTERED graph -- a neighbor that did not survive is
         // not a route between two types that did.
         //
         const schema = schemaOf([3, 2, 1], { a: edge('n0', 'n2'), b: edge('n2', 'n1') });
