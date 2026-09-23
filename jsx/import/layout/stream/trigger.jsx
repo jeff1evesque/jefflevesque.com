@@ -26,6 +26,13 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName from '../../general/stream-name.js';
+import {
+    STOCK_MARKET,
+    STOCK_SPLIT,
+    BLS,
+    SEC,
+    US_NATIONAL_WEATHER,
+} from '../../general/stream-id.js';
 
 class StreamTriggerLayout extends Component {
     constructor(props) {
@@ -34,7 +41,7 @@ class StreamTriggerLayout extends Component {
         const today = dstDate();
         const mm = String(today.getMonth() + 1).padStart(2, '0'); // january is 0
         const yyyy = today.getFullYear();
-        const stream = 'StockMarket';
+        const stream = STOCK_MARKET;
         const trigger_rate = 'Minutes';
 
         this.state = {
@@ -84,7 +91,7 @@ class StreamTriggerLayout extends Component {
             setSearchParams: setSearchParams
         });
 
-        if (stream.toLowerCase() === 'stockmarket') {
+        if (stream === STOCK_MARKET) {
             var promise_data = getData(
                 'stock-market-candlestick-triggers',
                 this.state.local
@@ -112,7 +119,7 @@ class StreamTriggerLayout extends Component {
                         [1, 2, 3, 4, 5].includes(day)
                         && ( hour === 9 && minute > 30 || hour >= 10 )
                         && hour < 16
-                        && this.state.stream.toLowerCase() === 'stockmarket'
+                        && this.state.stream === STOCK_MARKET
                     ) {
                         this.toggleChartScale('Minutes', selected_trigger);
                     } else {
@@ -173,7 +180,7 @@ class StreamTriggerLayout extends Component {
         this.setState({ scale_chart_hourly: vv === 'hourly' ? true : false });
         this.setState({ scale_chart_Minutes: vv === 'minutes' ? true : false });
 
-        if (this.state.stream.toLowerCase() === 'stockmarket') {
+        if (this.state.stream === STOCK_MARKET) {
             var chart_data = getCandlestickArrResult(
                 this.state.chart_data_original,
                 this.state.field_datetime,
@@ -233,9 +240,15 @@ class StreamTriggerLayout extends Component {
     }
 
     render() {
-        if (this.state.stream.toLowerCase() === 'stockmarket') {
-            const stream = 'stock-market';
-
+        //
+        // the content for the stream the url names, by its id. The route replaces
+        // a url naming a stream by a name it used to go by before this page
+        // mounts -- see route/canonical-stream.jsx -- so nothing here converts
+        // one. The split branch used to match 'stocksplit', which the /stream
+        // page never linked: it linked 'StockMarketStockSplit', and that page
+        // drew no content at all.
+        //
+        if (this.state.stream === STOCK_MARKET) {
             var filter_page = (
                 <CandlestickLeftColumnState
                     expanded={true}
@@ -275,17 +288,17 @@ class StreamTriggerLayout extends Component {
             var content = ! this.state.hide_all
                 ? (
                     <Candlestick
-                        stream={stream}
+                        stream={STOCK_MARKET}
                         listing_graphic_title={this.state.listing_graphic_title}
                         trigger_rate={this.state.trigger_rate}
                     />
                 ) : null;
 
-        } else if (this.state.stream.toLowerCase() === 'stocksplit') {
+        } else if (this.state.stream === STOCK_SPLIT) {
             var filter_page = null;
             var left_column = null;
             var content = ! this.state.hide_all ? <StockSplit /> : null;
-        } else if (this.state.stream.toLowerCase() === 'usnationalweather') {
+        } else if (this.state.stream === US_NATIONAL_WEATHER) {
             var filter_page = null;
             var left_column = null;
             var content = ! this.state.hide_all
@@ -299,9 +312,9 @@ class StreamTriggerLayout extends Component {
                         window_2_blue={false}
                     />
                 ) : null;
-        } else if (['bls', 'sec'].includes(this.state.stream.toLowerCase())) {
-            const stream = this.state.stream.toLowerCase();
-            const source_name = stream === 'bls'
+        } else if ([BLS, SEC].includes(this.state.stream)) {
+            const stream = this.state.stream;
+            const source_name = stream === BLS
                 ? 'the U.S. Bureau of Labor Statistics (BLS)'
                 : 'the U.S. Securities and Exchange Commission (SEC)';
 
@@ -338,7 +351,7 @@ class StreamTriggerLayout extends Component {
                         data={this.state.chart_data}
                         data_keys={this.state.chart_data_keys}
                         color={this.state.chart_data_colors}
-                        title={streamName('StockMarket')}
+                        title={streamName(STOCK_MARKET)}
                         y_label='Total Alerts'
                         data_key={this.state.field_datetime}
                         aspect_ratio={isMobile ? 1.5 : 3}
