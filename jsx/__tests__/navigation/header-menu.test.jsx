@@ -93,7 +93,7 @@ describe('the register header', () => {
 describe('what the layout prop has to look like', () => {
     it('a bare string layout does NOT select the login header', () => {
         //
-        // WORTH KNOWING: reducer/layout.jsx initialises to the string 'analysis'
+        // WORTH KNOWING: reducer/layout.jsx initializes to the string 'analysis'
         // and only replaces it with { css, type } once SET-LAYOUT is dispatched.
         // Until then redux/container/header-menu.jsx forwards a string, and
         // 'login'.type is undefined -- so the guard here is really "has a layout
