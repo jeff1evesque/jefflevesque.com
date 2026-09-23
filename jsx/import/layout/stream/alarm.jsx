@@ -37,6 +37,14 @@ import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName from '../../general/stream-name.js';
 import { loadArchiveListing, archiveFiles } from '../../general/archive-links.js';
 import { datalakeUrl, DATASETS } from '../../general/api-url.js';
+import {
+    STOCK_MARKET,
+    STOCK_SPLIT,
+    BLS,
+    SEC,
+    US_NATIONAL_WEATHER,
+    STREAMS,
+} from '../../general/stream-id.js';
 
 class StreamAlarm extends Component {
     constructor() {
@@ -46,13 +54,12 @@ class StreamAlarm extends Component {
         const today = new Date(now.toLocaleString('en-US', {timeZone: 'America/New_York'}));
         const mm = String(today.getMonth() + 1).padStart(2, '0'); // january is 0
         const yyyy = today.getFullYear();
-        const stream = 'StockMarket';
 
         this.state = {
             local: is_local,
             mm: mm,
             yyyy: yyyy,
-            stream: stream,
+            stream: STOCK_MARKET,
             tool_tip_color: '#777',
             artifact_link: 'https://www.jefflevesque.com/artifact',
             current_accordion: false,
@@ -61,11 +68,10 @@ class StreamAlarm extends Component {
             window_1_purple: true,
             window_1_green: true,
             window_2_blue: true,
-            expand_archive_stocksplit: false,
-            expand_archive_stockmarket: false,
-            expand_archive_usnationalweather: false,
-            expand_archive_bls: false,
-            expand_archive_sec: false,
+            //
+            // whether each stream's archive row is open, keyed by its id
+            //
+            ...Object.fromEntries(STREAMS.map((id) => [`expand_archive_${id}`, false])),
             //
             // per stream: absent until asked, 'pending' while the listing is on
             // its way, then the files it lists -- or 'failed' when it could not
@@ -78,27 +84,28 @@ class StreamAlarm extends Component {
         this.downloadData = this.downloadData.bind(this);
         this.handleArchiveClick = this.handleArchiveClick.bind(this);
         this.loadArchive = this.loadArchive.bind(this);
+        this.selectedStream = this.selectedStream.bind(this);
+    }
+
+    //
+    // the stream this page is for: the one its url names, by id.
+    //
+    // Note: taken as it is, and compared as it is. The route replaces a url
+    //       naming a stream by a name it used to go by with the url naming it
+    //       by its id before this page mounts -- see route/canonical-stream.jsx
+    //       -- so this page converts nothing. It used to rename three streams
+    //       for itself, into names streamName did not know, and was labelled
+    //       'stock-market' and 'us-national-weather' as a result.
+    //
+    selectedStream() {
+        return 'stream' in this.props.params ? this.props.params.stream : this.state.stream;
     }
 
     componentDidMount() {
-        if ('stream' in this.props.params) {
-            const { stream } = this.props.params;
+        const stream = this.selectedStream();
 
-            if (stream.toLowerCase() === 'stocksplit') {
-                var v = 'stock-split';
-            } else if (stream.toLowerCase() === 'stockmarket') {
-                var v = 'stock-market';
-            } else if (stream.toLowerCase() === 'usnationalweather') {
-                var v = 'us-national-weather';
-            } else {
-                var v = stream.toLowerCase();
-            }
-
-            this.setState({ stream: v });
-            this.downloadData(stream);
-        } else {
-            this.downloadData(this.state.stream);
-        }
+        this.setState({ stream: stream });
+        this.downloadData(stream);
     }
 
     handleArchiveClick(stream=null) {
@@ -124,7 +131,7 @@ class StreamAlarm extends Component {
      *       what the stream published.
      */
     loadArchive(stream) {
-        const key = String(stream).toLowerCase();
+        const key = stream;
         const asked = this.state.archive[key];
 
         if (asked && asked !== 'failed') {
@@ -167,27 +174,27 @@ class StreamAlarm extends Component {
     // asks for, over the same loader and the same worker, so the two pages cannot
     // disagree about how many partitions a month holds.
     //
-    // Note: the dataset is 'stock-market', the name /data sends. This asked for
-    //       'stockmarket' -- the STREAM id -- which the api does not recognise and
-    //       answers with a 400, so the count never arrived even after the three
-    //       faults above were fixed. Both pages now build the url with
-    //       api-url.js, which is what the api's documented 'Data' values are
-    //       checked against.
+    // Note: the dataset is the one /data sends, read from DATASETS. This asked
+    //       for 'stockmarket' -- the stream's name at the time, not its dataset --
+    //       which the api does not recognise and answers with a 400, so the count
+    //       never arrived even after the three faults above were fixed. Both pages
+    //       now build the url with api-url.js, which is what the api's documented
+    //       'Data' values are checked against.
     //
     downloadData(type) {
-        if (type.toLowerCase() !== 'stockmarket') {
+        if (type !== STOCK_MARKET) {
             return;
         }
 
-        const url = datalakeUrl(DATASETS.stockmarket, this.state.yyyy, this.state.mm);
+        const url = datalakeUrl(DATASETS[STOCK_MARKET], this.state.yyyy, this.state.mm);
 
         getStockMarketDistribution(
             'data-distribution',
             this.state.local ? null : url,
             (item) => this.callbackGetData(item),
             true,
-            'stockmarket',
-            'stockmarket'
+            STOCK_MARKET,
+            STOCK_MARKET
         );
     }
 
@@ -234,11 +241,10 @@ class StreamAlarm extends Component {
     }
 
     render() {
-        var stream = this.state.stream.replace('-', '').toLowerCase();
-        if ('stream' in this.props.params) {
-            var { stream } = this.props.params;
+        const stream = this.selectedStream();
 
-            if (stream.toLowerCase() === 'stocksplit' || stream.toLowerCase() === 'stockmarketstocksplit') {
+        if ('stream' in this.props.params) {
+            if (stream === STOCK_SPLIT) {
                 {/*
 
                     window is actually sliding, with data drop once per day,
@@ -249,7 +255,7 @@ class StreamAlarm extends Component {
                 var ingest_interval = 'daily at 12am EDT (M-F)';
                 var ingest_content_1 = `
                     Any detected stock-split ticker matching our list of tickers,
-                    will start a refactor job on partitions in the ${streamName('StockMarket')}
+                    will start a refactor job on partitions in the ${streamName(STOCK_MARKET)}
                     datalake. Jobs will be bounded between the beginning of time
                     and split date. Metrics are analyzed on two modalities: health
                     of stock-split detection, and job runtime for detected tickers
@@ -263,7 +269,7 @@ class StreamAlarm extends Component {
                 var late_arrival = false;
                 var x_unit = 'day';
                 var x_increment = 1;
-            } else if (stream.toLowerCase() === 'stockmarket') {
+            } else if (stream === STOCK_MARKET) {
                 var ingest_interval = 'between 9:30am through 4:30pm EDT (M-F)';
                 var ingest_content_1 = `
                     While ingest continues into our datalake through extended hours,
@@ -281,7 +287,7 @@ class StreamAlarm extends Component {
                 var late_arrival = true;
                 var x_unit = 'min';
                 var x_increment = 1;
-            } else if (stream.toLowerCase() === 'usnationalweather') {
+            } else if (stream === US_NATIONAL_WEATHER) {
                 var ingest_interval = 'every 5 minutes (everyday)';
                 var ingest_content_1 = `
                     Data is based on the National Weather Service alerts for the entire
@@ -306,7 +312,7 @@ class StreamAlarm extends Component {
                 var window_1_purple = false;
                 var window_1_green = false;
                 var window_2_blue = false;
-            } else if (stream.toLowerCase() === 'bls') {
+            } else if (stream === BLS) {
                 var ingest_interval = 'every 1 hour (everyday)';
                 var ingest_content_1 = `
                     Data is aggregated from the U.S. Bureau of Labor Statistics (BLS).
@@ -332,7 +338,7 @@ class StreamAlarm extends Component {
                 var window_1_purple = false;
                 var window_1_green = false;
                 var window_2_blue = false;
-            } else if (stream.toLowerCase() === 'sec') {
+            } else if (stream === SEC) {
                 var ingest_interval = 'every 1 hour (everyday)';
                 var ingest_content_1 = `
                     Data is aggregated from the U.S. Securities and Exchange Commission
@@ -376,15 +382,15 @@ class StreamAlarm extends Component {
         const notice = (
             <>
                 {`
-                    To subscribe to ${streamName(this.state.stream)} ${term},
+                    To subscribe to ${streamName(stream)} ${term},
                 `}
                 <span className='bold'>you must accept the terms and conditions.</span>
             </>
         );
 
-        if (stream.toLowerCase() === 'stockmarket') {
+        if (stream === STOCK_MARKET) {
             var alarm_count = parseInt(this.state.total_source) + parseInt(this.state.total_tickers);
-        } else if (this.state.stream.toLowerCase() === 'stockmarketstocksplit') {
+        } else if (stream === STOCK_SPLIT) {
             var alarm_count = 3;
         } else {
             var alarm_count = parseInt(this.state.total_source);
@@ -392,10 +398,10 @@ class StreamAlarm extends Component {
 
         //
         // the archive column: the files this stream published, as the listing
-        // names them -- see loadArchive. Keyed on the stream id from the url,
-        // lower-cased, which is how the listing names a stream.
+        // names them -- see loadArchive. Keyed on the stream's id, which finds
+        // its files whichever name the listing gives it -- see archiveFiles.
         //
-        const key = String(stream).toLowerCase();
+        const key = stream;
         const found = this.state.archive[key];
         const files = Array.isArray(found) ? found : [];
         const status = found === 'failed'
@@ -433,7 +439,7 @@ class StreamAlarm extends Component {
             </div>,
         ];
 
-        const archive_text = `Download raw ${streamName(this.state.stream)} ingest performance metrics`;
+        const archive_text = `Download raw ${streamName(stream)} ingest performance metrics`;
         const tool_tip = ! isMobile
             ? (
                 <Tooltip
@@ -489,7 +495,7 @@ class StreamAlarm extends Component {
 
         const summary = (
             <div>{`
-                The ${streamName(this.state.stream)} ingest stream runs ${ingest_interval}.
+                The ${streamName(stream)} ingest stream runs ${ingest_interval}.
                 ${ingest_content_1}.
             `}
                 {isMobile ? null : summary_graphic}
