@@ -164,7 +164,7 @@ describe('the x_increment fallback', () => {
         expect(bodyText()).toContain('40hour');
     });
 
-    it('honours x_unit once x_increment is supplied', () => {
+    it('honors x_unit once x_increment is supplied', () => {
         setup({ x_unit: 'hour', x_increment: 1 });
 
         expect(bodyText()).toContain('4hour');
