@@ -121,7 +121,7 @@ function rdf_enabled(stream) {
 
     the date defaults to today, which is right for stock-market -- that data
     exists today. bls is the opposite: a reading is published the period AFTER
-    the one it measures, so no bls row is ever labelled with the current month.
+    the one it measures, so no bls row is ever labeled with the current month.
     the 12 aug 2026 cpi release carries JULY numbers, 4 aug jolts carries JUNE.
     landing on today therefore lands on the one month guaranteed to be empty,
     and the page reads 'Records 0' against a table holding 345,467 rows.
@@ -185,7 +185,7 @@ function stream_lag(stream) {
     twice must not walk two months back, and a month the reader chose
     deliberately is theirs. so this moves the landing point without overriding
     the date filter -- picking august by hand still shows august, and still
-    reports 0, because no bls row is labelled august.
+    reports 0, because no bls row is labeled august.
 
     exported and pure so the rule can be tested without driving the component:
     the arithmetic has to go through a Date rather than subtracting from the
@@ -518,7 +518,7 @@ class DataLayout extends Component {
             each stream by its id, which is also its name everywhere on this
             page: the listing's names and links, and the per-stream state keys.
             See stream-id.js. The page used to name each stream twice -- a
-            capitalised name for the listing, lower-cased for everything else.
+            capitalized name for the listing, lower-cased for everything else.
 
         */}
         const streams = STREAMS;
@@ -1009,10 +1009,10 @@ class DataLayout extends Component {
                             rank within each bar rather than across all of them, and keep
                             every series -- no 'Other' lump.
 
-                            a colour means 'the nth largest part of THIS bar' rather than
+                            a color means 'the nth largest part of THIS bar' rather than
                             one fixed series, which is normally wrong, but here the bar is
                             the entity, it is named on the axis, and every segment is named
-                            on hover and in the sheet, so nothing is identified by colour
+                            on hover and in the sheet, so nothing is identified by color
                             alone. ranking globally instead left whole bars anonymous:
                             us-weather-alert put every 'Extreme' event below the cut
                             despite tornado warnings being 85% of that bar
@@ -1238,7 +1238,7 @@ class DataLayout extends Component {
                 a per-bar ranked series is keyed 'slot_n', and which series that is
                 depends on the bar, so the clicked row carries the name alongside it.
                 mapping straight off the bar's data_key leaves every swatch unmatched
-                and the whole sheet renders grey
+                and the whole sheet renders gray
 
             */}
             const color_map = {};
@@ -1480,7 +1480,7 @@ class DataLayout extends Component {
             <div
                 style={{
                     //
-                    // cover the whole chart area and centre within it, rather than
+                    // cover the whole chart area and center within it, rather than
                     // relying on the static position an absolutely positioned flex
                     // child happens to land on. '.recharts-wrapper' is itself
                     // position:relative, so a bare 'position:absolute; margin:auto'
@@ -1512,7 +1512,7 @@ class DataLayout extends Component {
                     series 0 -- and because the bars are stacked, series 0 is the
                     bottom segment of every bar. on a stream whose data lands
                     inside the minimum hold (weather resolves almost at once) the
-                    dots end up painted in the exact colour of the bar behind
+                    dots end up painted in the exact color of the bar behind
                     them, which reads as the loader sitting *under* the chart
                     rather than over it. a few wide bars make it certain; many
                     thin bars leave gaps for the dots to show through, which is
@@ -1539,7 +1539,7 @@ class DataLayout extends Component {
                         //
                         // the app's ui accent -- the same green as the selected
                         // row's left border -- rather than 'colors_categorical[0]'.
-                        // that slot is the first *series* colour, so chrome and
+                        // that slot is the first *series* color, so chrome and
                         // data were sharing one value: a legend swatch and a
                         // loading state meant different things in the same blue.
                         // it also measures better on the chip below, 5.72:1
