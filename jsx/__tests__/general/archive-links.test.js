@@ -7,7 +7,7 @@
  * app's shell under the name of the file it was asked for.
  *
  * The performance api lists the files now, so what is held here is the reading
- * of that listing: which rows a stream gets, in what order, labelled how, and
+ * of that listing: which rows a stream gets, in what order, labeled how, and
  * linked where. What is deliberately NOT here is when the page asks: that has
  * its own cases in alarm.test.jsx.
  *
