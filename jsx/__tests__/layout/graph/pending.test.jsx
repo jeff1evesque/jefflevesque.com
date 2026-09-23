@@ -30,6 +30,7 @@ import {
 } from '../../../import/layout/graph/pending.jsx';
 import { GRAPH_NODE_TYPES } from '../../../import/animation/filter-schema.js';
 import { NODE_RADIUS, NODE_RADIUS_SMALL } from '../../../import/animation/explorer-layout.js';
+import { breathDelay } from '../../../import/animation/breath.js';
 import { medium_minWidth } from '../../../import/general/breakpoints.js';
 
 const circles = () => [...document.querySelectorAll('.graph-pending-node')];
@@ -223,6 +224,17 @@ describe('PendingCanvas', () => {
             expect(y - r).toBeGreaterThanOrEqual(0);
             expect(y + r).toBeLessThanOrEqual(height);
         });
+    });
+
+    it('breathes each node a beat behind the one before, as the graph replacing it will', () => {
+        //
+        // the graph that arrives glints in the time this breathed in, so the swap
+        // reads as the placeholder taking on colour rather than as a new rhythm.
+        //
+        setup();
+
+        expect(circles().map((circle) => circle.style.animationDelay))
+            .toEqual(circles().map((circle, index) => breathDelay(index)));
     });
 
     it('spreads its nodes across the box rather than bunching them in the middle', () => {
