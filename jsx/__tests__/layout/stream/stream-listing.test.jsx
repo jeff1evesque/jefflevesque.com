@@ -31,6 +31,7 @@ import { MemoryRouter } from 'react-router-dom';
 import THROUGHPUT_KEY from '../../../import/general/throughput-key.js';
 import { expectedIntervals } from '../../../import/general/ingest-schedule.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
+import { STREAMS } from '../../../import/general/stream-id.js';
 
 const FIELD = 'window_start';
 
@@ -53,7 +54,7 @@ function row(stream, date, success, throughput = success) {
     const source = {
         bls: 'bls',
         sec: 'sec',
-        usnationalweather: 'weather',
+        'us-national-weather': 'weather',
     }[stream];
 
     return {
@@ -144,7 +145,7 @@ describe('the listing coverage figure', () => {
 
     it('grades the minute rate for a stream on a five minute spacing', () => {
         //
-        // 'usnationalweather' and 'sec' are both 'rate(5 minutes)'. The expression
+        // 'us-national-weather' and 'sec' are both 'rate(5 minutes)'. The expression
         // does not fix which minute a run lands on -- eventbridge counts from
         // whenever the rule was created -- so the alignment was measured against the
         // live report rather than assumed, and every bucket of a trailing hour sits
@@ -154,7 +155,7 @@ describe('the listing coverage figure', () => {
         at(MIDMORNING_WEDNESDAY, () => {
             const page = setup();
 
-            ['usnationalweather', 'sec'].forEach((stream) => {
+            ['us-national-weather', 'sec'].forEach((stream) => {
                 const rows = owed(stream, 'minute').map(d => row(stream, d, 190));
 
                 expect(rows).toHaveLength(12);
@@ -179,18 +180,18 @@ describe('the listing coverage figure', () => {
             const page = setup();
 
             [0, 1, 2, 3, 4].forEach((offset) => {
-                const rows = owed('usnationalweather', 'minute').map(
-                    d => row('usnationalweather', new Date(d.getTime() + offset * 60000), 190)
+                const rows = owed('us-national-weather', 'minute').map(
+                    d => row('us-national-weather', new Date(d.getTime() + offset * 60000), 190)
                 );
 
-                expect(coverageOf(page, 'usnationalweather', 'minute', rows)).toBe('100.00');
+                expect(coverageOf(page, 'us-national-weather', 'minute', rows)).toBe('100.00');
             });
         });
     });
 
     it('holds a named-minute stream to the minutes its cron names', () => {
         //
-        // the other half, and why stockmarket is left exact: its cron lists
+        // the other half, and why stock-market is left exact: its cron lists
         // '0,20,40', so :02 is not a run that drifted, it is a run that
         // should not have happened there. Windowing it would report a clean 100% over
         // a stream firing on the wrong minutes.
@@ -200,13 +201,13 @@ describe('the listing coverage figure', () => {
         //
         at(MIDMORNING_WEDNESDAY, () => {
             const page = setup();
-            const drifted = owed('stockmarket', 'minute').map(d => ({
+            const drifted = owed('stock-market', 'minute').map(d => ({
                 [FIELD]: new Date(d.getTime() + 2 * 60000),
                 options: 190,
                 [`options${THROUGHPUT_KEY}`]: 190,
             }));
 
-            expect(coverageOf(page, 'stockmarket', 'minute', drifted)).toBe('n/a');
+            expect(coverageOf(page, 'stock-market', 'minute', drifted)).toBe('n/a');
         });
     });
 
@@ -326,9 +327,7 @@ describe('the listing figures as they are rendered', () => {
             page.updateStreamListing();
         });
 
-        const name = page.state[`stream_${stream}`];
-
-        return page.state.list_article.find(v => v.name === name).detail;
+        return page.state.list_article.find(v => v.name === stream).detail;
     }
 
     it('appends a percent sign to a figure that is one', () => {
@@ -419,10 +418,10 @@ describe('the listing figures as they are rendered', () => {
         const page = setup();
 
         act(() => {
-            page.updateStreamListing(['BLS', 'SEC']);
+            page.updateStreamListing(['bls', 'sec']);
         });
 
-        expect(page.state.list_article.map(v => v.name)).toEqual(['BLS', 'SEC']);
+        expect(page.state.list_article.map(v => v.name)).toEqual(['bls', 'sec']);
     });
 });
 
@@ -442,7 +441,7 @@ describe('clearing a stream before it is refetched', () => {
         });
 
         act(() => {
-            page.reset_stream('BLS');
+            page.reset_stream('bls');
         });
 
         expect(page.state.chart_data_bls).toEqual([]);
@@ -495,22 +494,23 @@ describe('clearing a stream before it is refetched', () => {
 
     it('zeroes the throughput for a stream whose partitions are its sources', () => {
         //
-        // stockmarket and stocksplit reports are not partitioned by source -- their
-        // 'group_by' values ARE the series names -- so there is no per-source series to
-        // clear, only the one throughput figure.
+        // the stock-market and stock-split reports are not partitioned by source --
+        // their 'group_by' values ARE the series names -- so there is no per-source
+        // series to clear, only the one throughput figure, filed under the stream's
+        // id twice over.
         //
         const page = setup();
 
         act(() => {
-            page.setState({ stream_throughput_stockmarket_stockmarket: 77 });
+            page.setState({ 'stream_throughput_stock-market_stock-market': 77 });
         });
 
         act(() => {
-            page.reset_stream('stockmarket');
+            page.reset_stream('stock-market');
         });
 
-        expect(page.state.chart_data_stockmarket).toEqual([]);
-        expect(page.state.stream_throughput_stockmarket_stockmarket).toBe(0);
+        expect(page.state['chart_data_stock-market']).toEqual([]);
+        expect(page.state['stream_throughput_stock-market_stock-market']).toBe(0);
     });
 });
 
@@ -523,7 +523,7 @@ describe('the per-row control tray', () => {
         return container;
     }
 
-    it('offers the query stats control only for the stockmarket stream', () => {
+    it('offers the query stats control only for the stock-market stream', () => {
         //
         // the bottom sheet it opens shows candlestick triggers, which only that stream
         // produces. Every other row renders the tray without it rather than rendering a
@@ -531,16 +531,20 @@ describe('the per-row control tray', () => {
         //
         const page = setup();
 
-        expect(tray(page, 'StockMarket').querySelector('[data-testid="QueryStatsIcon"]')).toBeTruthy();
-        expect(tray(page, 'BLS').querySelector('[data-testid="QueryStatsIcon"]')).toBeNull();
+        expect(tray(page, 'stock-market').querySelector('[data-testid="QueryStatsIcon"]')).toBeTruthy();
+        expect(tray(page, 'bls').querySelector('[data-testid="QueryStatsIcon"]')).toBeNull();
     });
 
-    it('gives every stream a chart control and an alarm link', () => {
+    it.each(STREAMS)('gives %s a chart control and an alarm link at its id', (stream) => {
+        //
+        // the link used to be the lower-cased name -- '/stream/stockmarket/alarm'
+        // -- where the listing linked '?item=StockMarket'. Both are the id now.
+        //
         const page = setup();
-        const container = tray(page, 'BLS');
+        const container = tray(page, stream);
 
         expect(container.querySelector('[data-testid="BarChartIcon"]')).toBeTruthy();
-        expect(container.querySelector('a[href="/stream/bls/alarm"]')).toBeTruthy();
+        expect(container.querySelector(`a[href="/stream/${stream}/alarm"]`)).toBeTruthy();
     });
 
     it('routes the query stats control when asked for a url trigger', () => {
@@ -550,15 +554,15 @@ describe('the per-row control tray', () => {
         //
         const page = setup();
 
-        expect(tray(page, 'StockMarket', true).querySelector('a[href="/stream/stockmarket/trigger"]'))
+        expect(tray(page, 'stock-market', true).querySelector('a[href="/stream/stock-market/trigger"]'))
             .toBeTruthy();
-        expect(tray(page, 'StockMarket', false).querySelector('a[href="/stream/stockmarket/trigger"]'))
+        expect(tray(page, 'stock-market', false).querySelector('a[href="/stream/stock-market/trigger"]'))
             .toBeNull();
     });
 
     it('opens the sheet when the listing variant is clicked', () => {
         const page = setup();
-        const container = tray(page, 'StockMarket');
+        const container = tray(page, 'stock-market');
 
         expect(page.state.bottom_sheet_open).toBe(false);
 
