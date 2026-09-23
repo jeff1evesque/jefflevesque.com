@@ -54,7 +54,7 @@ The two are not copies of each other, and each holds what the other cannot:
 
 | | the archive | this endpoint |
 |---|---|---|
-| a row is | one ingest event | one bucket, summarised |
+| a row is | one ingest event | one bucket, summarized |
 | columns | `group_by`, `window_start`, `total_success`, `total_fail`, `window_every` | the first four, plus `_mean` and `_max` for each total |
 | window | a whole year, historical | trails from now |
 
@@ -113,7 +113,7 @@ what it answers.
 
 | Status | `report` |
 |---|---|
-| 400 | a message naming what was not accepted, such as a `Stream` it does not recognise |
+| 400 | a message naming what was not accepted, such as a `Stream` it does not recognize |
 | 500 | `null`, when no data could be read for the stream |
 
 ## In the application
