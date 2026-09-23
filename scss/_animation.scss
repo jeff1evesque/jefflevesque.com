@@ -20,35 +20,35 @@
 //
 // One period for all of them, so the graph that arrives on /graph keeps the time
 // its placeholder was keeping. What changes as it lands is the shape of the
-// pulse and its depth: the placeholder is grey and breathes evenly, while a
-// drawn graph rests at its own colours and glints brighter -- see
+// pulse and its depth: the placeholder is gray and breathes evenly, while a
+// drawn graph rests at its own colors and glints brighter -- see
 // graph-node-glint.
 //
 $graph-node-breath: 1.8s;
 
 //
-// a node at its own colour for most of the pulse, then briefly lighter, and back.
+// a node at its own color for most of the pulse, then briefly lighter, and back.
 //
 // Lighter by FILL-opacity, toward the white page, rather than by 'opacity' or by
-// a second colour:
+// a second color:
 //
 //   - 'opacity' is taken. Both graphs drop back what the reader is not asking
 //     about by writing each node's opacity attribute, and an animation outranks
 //     an attribute, so animating it would put every dimmed node straight back to
 //     full strength. The two multiply instead, which leaves a node dimmed to
 //     0.15 glinting by a hundredth or two -- as still as it should look.
-//   - a second colour would have to follow the node's own, and the front page
-//     recolours its nodes on hover. A glint written against the tint a node wore
-//     at rest would flash that tint across the colour hover gave it.
+//   - a second color would have to follow the node's own, and the front page
+//     recolors its nodes on hover. A glint written against the tint a node wore
+//     at rest would flash that tint across the color hover gave it.
 //
-// Note: held at full colour to 60% and back by 100%, rather than an even swell.
-//       Timed evenly, a node spends as long lighter as at its colour, and the eye
+// Note: held at full color to 60% and back by 100%, rather than an even swell.
+//       Timed evenly, a node spends as long lighter as at its color, and the eye
 //       takes the darker half -- the one that stands out from the white -- as the
-//       flicker: the placeholder's grey reads as flickering DARKER. Resting at
-//       its colour most of the time, a node's flicker is the lighter moment.
+//       flicker: the placeholder's gray reads as flickering DARKER. Resting at
+//       its color most of the time, a node's flicker is the lighter moment.
 //
 // Note: how much lighter is each graph's own, as '--graph-node-glint'. One depth
-//       is a very different change on a pale tint than on a full colour.
+//       is a very different change on a pale tint than on a full color.
 //
 @keyframes graph-node-glint {
   0%,
@@ -65,23 +65,27 @@ $graph-node-breath: 1.8s;
 //
 // the front page's nodes, once its graph has arrived.
 //
-// Note: 0.7, deeper than /graph's 0.85, because these rest as pale tints -- see
+// Note: 0.6, deeper than /graph's 0.8, because these rest as pale tints -- see
 //       MUTED_MIX in graph-cluster.jsx -- and a tint is most of the way to white
 //       already. Measured in OKLab over the sixty nodes of the September 2026
-//       build, /graph's placeholder swings 9.1; at 0.85 these would swing 2.3 on
-//       average, which nobody sees, and at 0.7 they swing 4.5 and 6.7 at most --
-//       about half the placeholder, and none of them more.
+//       build, /graph's placeholder swings 9.1; at /graph's depth these would
+//       swing 3.0 on average, which barely registers.
+//
+//       It shipped at 0.7, a swing of 4.5 on average, and was asked for a little
+//       stronger. At 0.6 the average is 6.0 and the most any node swings is 8.9,
+//       which is as deep as this goes while every node stays inside the
+//       placeholder's swing: 0.55 takes the deepest to 10.0, past it.
 //
 .graph-cluster-node {
-  --graph-node-glint: 0.7;
+  --graph-node-glint: 0.6;
   animation: graph-node-glint $graph-node-breath ease-in-out infinite;
 }
 
 //
-// the neighbourhood the pointer has lit holds still, at the colour hover gave
-// it. Those are full colours, darkened, and a glint to 0.7 would swing them 13 on
-// average and 21 at the worst -- well past the placeholder's 9.1 -- while the
-// reader is looking at them.
+// the neighborhood the pointer has lit holds still, at the color hover gave
+// it, as a hovered neighborhood on /graph does. Here there is a second reason:
+// those are full colors, darkened, and a glint to 0.6 would swing them 17.5 on
+// average and 27.7 at the worst -- three times the placeholder's 9.1.
 //
 // Note: after the rule above, which it has to beat at the same weight.
 //
