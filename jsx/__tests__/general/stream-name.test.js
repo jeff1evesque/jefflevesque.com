@@ -1,45 +1,52 @@
 /**
  * stream-name.test.js: stream id to the label a visitor sees.
  *
- * The id is load-bearing well beyond the label: it is the 'Data' param sent to
- * api-datalake, the suffix of every per-stream state key, the '?item=' deep link,
- * and the css class on the active listing row. So only the rendered label is
- * swapped, and an unknown id must pass through untouched rather than becoming
+ * The id is load-bearing well beyond the label: it is the path of the alarm and
+ * trigger pages, the '?item=' deep link, the 'Stream' sent to the performance
+ * api, and the suffix of every per-stream state key. So only the rendered label
+ * is swapped, and an unknown id must pass through untouched rather than becoming
  * empty -- a blank title is worse than a raw id.
  */
 
 import streamName, { streamCoverage } from '../../import/general/stream-name.js';
 
 describe('streamName', () => {
-    it('labels every stream it knows', () => {
-        expect(streamName('stockmarket')).toBe('S&P 500');
-        expect(streamName('stockmarketstocksplit')).toBe('Stock Splits');
-        expect(streamName('usnationalweather')).toBe('US Weather Alerts');
+    it('labels every stream it knows, by its id', () => {
+        expect(streamName('stock-market')).toBe('S&P 500');
+        expect(streamName('stock-split')).toBe('Stock Splits');
+        expect(streamName('us-national-weather')).toBe('US Weather Alerts');
         expect(streamName('bls')).toBe('Bureau of Labor Statistics');
         expect(streamName('sec')).toBe('SEC Filings');
     });
 
-    it('matches either casing the id arrives in', () => {
+    it('finds the label under any name the stream has gone by', () => {
         //
-        // the listing rows carry 'StockMarket' while the chart title is handed the
-        // lower-cased 'selected_stream', so both reach this function.
+        // the alarm page used to rename 'StockMarket' to 'stock-market' for
+        // itself and look that up here, which knew the stream only as
+        // 'stockmarket' -- so the page offered to 'Download raw stock-market
+        // ingest performance metrics'. Every name leads to the id now, and the
+        // id to the label.
         //
         expect(streamName('StockMarket')).toBe('S&P 500');
+        expect(streamName('stockmarket')).toBe('S&P 500');
         expect(streamName('STOCKMARKET')).toBe('S&P 500');
+        expect(streamName('StockMarketStockSplit')).toBe('Stock Splits');
+        expect(streamName('USNationalWeather')).toBe('US Weather Alerts');
     });
 
-    it('matches the whole id, so the two stock streams stay distinct', () => {
+    it('matches the whole name, so the two stock streams stay distinct', () => {
         //
         // 'stockmarketstocksplit' is not a 'stockmarket' that picked up a suffix.
         // A prefix match would label the split feed 'S&P 500', which is exactly
         // the wrong scope.
         //
-        expect(streamName('stockmarketstocksplit')).not.toBe('S&P 500');
+        expect(streamName('stock-split')).not.toBe('S&P 500');
         expect(streamName('stockmarketstocksplit')).toBe('Stock Splits');
     });
 
     it('passes an unknown id through unchanged', () => {
         expect(streamName('somethingelse')).toBe('somethingelse');
+        expect(streamName('constructor')).toBe('constructor');
         expect(streamName('')).toBe('');
     });
 
@@ -61,12 +68,13 @@ describe('streamCoverage', () => {
         // only the stock streams qualify: they sit adjacent in the listing and
         // differ precisely in scope, which the titles alone leave ambiguous.
         //
-        expect(streamCoverage('stockmarket')).toBe('S&P 500');
-        expect(streamCoverage('stockmarketstocksplit')).toBe('Market-wide');
+        expect(streamCoverage('stock-market')).toBe('S&P 500');
+        expect(streamCoverage('stock-split')).toBe('Market-wide');
     });
 
-    it('is case insensitive, like the label lookup', () => {
+    it('finds it under any name the stream has gone by, like the label', () => {
         expect(streamCoverage('StockMarket')).toBe('S&P 500');
+        expect(streamCoverage('stockmarketstocksplit')).toBe('Market-wide');
     });
 
     it('returns null for a stream with no coverage note', () => {
@@ -76,7 +84,7 @@ describe('streamCoverage', () => {
         //
         expect(streamCoverage('bls')).toBeNull();
         expect(streamCoverage('sec')).toBeNull();
-        expect(streamCoverage('usnationalweather')).toBeNull();
+        expect(streamCoverage('us-national-weather')).toBeNull();
         expect(streamCoverage('unknown')).toBeNull();
     });
 
