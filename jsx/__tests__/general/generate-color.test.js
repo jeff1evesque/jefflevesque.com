@@ -1,7 +1,7 @@
 /**
- * generate-color.test.js: HSV to RGB, for evenly spaced wheel colours.
+ * generate-color.test.js: HSV to RGB, for evenly spaced wheel colors.
  *
- * Used to generate a colour per series when the count is not known ahead of
+ * Used to generate a color per series when the count is not known ahead of
  * time, by walking the hue wheel at a fixed interval. The six switch branches
  * are the six 60-degree sectors of the wheel, and each is covered here -- an
  * error in one shows up as a single wrong band of hues rather than as a failure.
@@ -36,7 +36,7 @@ describe('getColor, primary and secondary hues', () => {
 });
 
 describe('saturation and value', () => {
-    it('zero saturation is grey at the given value', () => {
+    it('zero saturation is gray at the given value', () => {
         expect(getColor(0.5, 0, 1)).toEqual({ r: 255, g: 255, b: 255 });
         expect(getColor(0.5, 0, 0.5)).toEqual({ r: 128, g: 128, b: 128 });
     });
@@ -65,7 +65,7 @@ describe('output shape', () => {
         }
     });
 
-    it('gives 24 distinct colours around the wheel, as the docstring describes', () => {
+    it('gives 24 distinct colors around the wheel, as the docstring describes', () => {
         const seen = new Set();
 
         for (let i = 0; i < 24; i++) {
@@ -90,7 +90,7 @@ describe('output shape', () => {
         //
         // so arguments.length is always 3 and that branch can never run. Passing
         // an object gives h={...}, s=undefined, v=undefined, and the arithmetic
-        // yields NaN channels -- which render as no colour rather than raising.
+        // yields NaN channels -- which render as no color rather than raising.
         //
         // Either the export should forward its arguments, or the branch should go.
         //
@@ -109,11 +109,11 @@ describe('out of range hue', () => {
 
     it('yields NaN channels for a negative hue', () => {
         //
-        // DOCUMENTS A LIMIT, not intended behaviour. The sector is chosen with
+        // DOCUMENTS A LIMIT, not intended behavior. The sector is chosen with
         // 'i % 6', and javascript's remainder keeps the sign -- so a negative hue
         // produces a negative index, matches no case in the switch, and leaves
         // r/g/b undefined. Math.round(undefined * 255) is NaN, which renders as
-        // no colour at all rather than as an error.
+        // no color at all rather than as an error.
         //
         // Callers walk i/count upward from zero, so this is unreachable today.
         //
