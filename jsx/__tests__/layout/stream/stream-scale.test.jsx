@@ -459,7 +459,7 @@ describe('toggleChartScale gap filling', () => {
         //
         // the reason the report's own 'FillEmptyBuckets' is not used for this: it
         // zeroes every empty interval, so a weekday-only stream would draw an outage
-        // across every weekend. 'stockmarketstocksplit' is weekday-only, and a ten day
+        // across every weekend. 'stock-split' is weekday-only, and a ten day
         // span always contains one.
         //
         // Note: both rows are snapped to a weekday. The assertion below reads every
@@ -475,7 +475,7 @@ describe('toggleChartScale gap filling', () => {
 
         act(() => {
             result = page.toggleChartScale(
-                'stockmarketstocksplit',
+                'stock-split',
                 'day',
                 [
                     row(weekdayOnOrBefore(daysAgo(12))),
@@ -496,7 +496,7 @@ describe('toggleChartScale gap filling', () => {
 describe('toggleChartScale padding removal', () => {
     //
     // the mirror of the gap filling above, and the defect it was written for is the
-    // opposite one: 'usnationalweather' is the one stream the api treats as continuous,
+    // opposite one: 'us-national-weather' is the one stream the api treats as continuous,
     // so its report is padded to a row per interval. At the MINUTE rate that states a
     // zero for the four minutes in five the scraper is idle by design, and the stacked
     // area dropped to the axis between every run -- twelve separate humps for a stream
@@ -558,7 +558,7 @@ describe('toggleChartScale padding removal', () => {
 
     it('takes the api padding off a minute chart', () => {
         const page = setup();
-        const result = scaleFor(page, 'usnationalweather', 'minute', paddedMinuteReport());
+        const result = scaleFor(page, 'us-national-weather', 'minute', paddedMinuteReport());
 
         expect(result).toHaveLength(12);
         expect(result.every(v => v[`weather${THROUGHPUT_KEY}`] > 0)).toBe(true);
@@ -571,7 +571,7 @@ describe('toggleChartScale padding removal', () => {
         // runs on, oldest first.
         //
         const page = setup();
-        const result = scaleFor(page, 'usnationalweather', 'minute', paddedMinuteReport());
+        const result = scaleFor(page, 'us-national-weather', 'minute', paddedMinuteReport());
         const spacing = result.slice(1).map((v, i) => v[FIELD] - result[i][FIELD]);
 
         //
