@@ -6,7 +6,7 @@
  * simulation on the next frame. d3 gives any node without a position a place on
  * a small spiral around the ORIGIN -- (0,0), the svg's top-left corner -- so the
  * first thing a visitor saw was the whole graph sweeping in from that corner as
- * the centring forces dragged it to the middle. Nothing about that motion is
+ * the centering forces dragged it to the middle. Nothing about that motion is
  * data; it is the simulation's warm-up, played in public.
  *
  * The answer is the same for both, and lives here once:
@@ -29,7 +29,7 @@ const SEED_RADIUS = 10;
 const SEED_TURN = Math.PI * (3 - Math.sqrt(5));
 
 /**
- * place every node on d3's starting spiral, centred on (cx, cy).
+ * place every node on d3's starting spiral, centered on (cx, cy).
  *
  * Note: a node that already has a position keeps it. The callers build their
  *       nodes fresh from the schema, so in practice nothing is skipped -- but
@@ -85,12 +85,12 @@ export function settleTicks(simulation) {
 }
 
 /**
- * scale and centre a settled layout so it fills a width x height canvas, leaving
+ * scale and center a settled layout so it fills a width x height canvas, leaving
  * `pad` px clear on every side. Returns the scale applied on each axis.
  *
  * Positions are scaled, not the drawing. Scaling an svg group would scale the
  * node radius and every stroke with it, so a dense build would draw smaller,
- * fainter nodes than a sparse one; moving the centres keeps every mark the size
+ * fainter nodes than a sparse one; moving the centers keeps every mark the size
  * it was designed at and changes only the distances between them.
  *
  * `most` caps the scale. A layout far smaller than its canvas -- a two-type
