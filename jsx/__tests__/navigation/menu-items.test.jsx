@@ -87,7 +87,7 @@ describe('LoginLink defaults', () => {
 });
 
 describe('LoginLink props', () => {
-    it('honours a supplied path and text', () => {
+    it('honors a supplied path and text', () => {
         renderAt(<LoginLink path='/login/reset' text='Forgot password' />);
 
         const link = screen.getByRole('link');
