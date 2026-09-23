@@ -4,7 +4,7 @@
  *
  * The page's suite holds that every placeholder is there while the page waits
  * and gone once it stops. What is held here is the one placeholder with
- * behaviour of its own -- a made-up graph, drawn by the real canvas's rules --
+ * behavior of its own -- a made-up graph, drawn by the real canvas's rules --
  * and the ways it could stop looking like the graph that replaces it:
  *
  *   - nodes of another size, which is what the hand-drawn cluster before it had
@@ -117,7 +117,7 @@ describe('pendingGraph', () => {
 
     it('gathers its links at a few hubs, the way the real graph does', () => {
         //
-        // the build published in September 2026 gives one type 48 neighbours
+        // the build published in September 2026 gives one type 48 neighbors
         // while the median type has 4. Links spread evenly draw a mesh, which is
         // not the shape of anything this page is about to show.
         //
@@ -229,7 +229,7 @@ describe('PendingCanvas', () => {
     it('breathes each node a beat behind the one before, as the graph replacing it will', () => {
         //
         // the graph that arrives glints in the time this breathed in, so the swap
-        // reads as the placeholder taking on colour rather than as a new rhythm.
+        // reads as the placeholder taking on color rather than as a new rhythm.
         //
         setup();
 
@@ -273,7 +273,7 @@ describe('PendingCanvas', () => {
     describe('the drift', () => {
         let pending;
         let asked;
-        let cancelled;
+        let canceled;
 
         beforeEach(() => {
             pending = null;
@@ -281,14 +281,14 @@ describe('PendingCanvas', () => {
                 pending = fn;
                 return 1;
             });
-            cancelled = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
+            canceled = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
                 pending = null;
             });
         });
 
         afterEach(() => {
             asked.mockRestore();
-            cancelled.mockRestore();
+            canceled.mockRestore();
         });
 
         function frames(n = 1) {
@@ -320,7 +320,7 @@ describe('PendingCanvas', () => {
 
             unmount();
 
-            expect(cancelled).toHaveBeenCalled();
+            expect(canceled).toHaveBeenCalled();
             expect(pending).toBeNull();
         });
 
