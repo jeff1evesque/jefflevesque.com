@@ -97,16 +97,16 @@ describe('settleLayout', () => {
 
 describe('driftNodes', () => {
     let asked;
-    let cancelled;
+    let canceled;
 
     beforeEach(() => {
         asked = jest.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 7);
-        cancelled = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+        canceled = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
     });
 
     afterEach(() => {
         asked.mockRestore();
-        cancelled.mockRestore();
+        canceled.mockRestore();
     });
 
     it('hands back what stops it, and that cancels the frame it asked for', () => {
@@ -120,7 +120,7 @@ describe('driftNodes', () => {
 
         stop();
 
-        expect(cancelled).toHaveBeenCalledWith(7);
+        expect(canceled).toHaveBeenCalledWith(7);
     });
 
     it('asks for nothing when there is nothing to move', () => {
