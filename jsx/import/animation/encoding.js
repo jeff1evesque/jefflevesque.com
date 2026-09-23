@@ -1,9 +1,9 @@
 /**
- * encoding.js: how a graph_schema.json becomes colour and line style.
+ * encoding.js: how a graph_schema.json becomes color and line style.
  *
  * Two surfaces draw the same published graph and have to agree about what it
  * looks like: the front page backdrop (graph-cluster.jsx), glanced at, and the
- * explorer page, read closely and carrying a legend that names what each colour
+ * explorer page, read closely and carrying a legend that names what each color
  * means. If the two drift, the explorer's legend starts describing the backdrop
  * incorrectly -- and nothing fails, because both still render.
  *
@@ -12,7 +12,7 @@
  * the backdrop alone, and the explorer's always-on labels belong to it alone.
  * This module is only the part that must not disagree.
  *
- * Note: category was the original colour channel and it carried nothing --
+ * Note: category was the original color channel and it carried nothing --
  *       every node type in a published build arrives as 'entity', so the whole
  *       cluster resolved to a single hue while still looking like a working
  *       encoding. Namespace is what actually varies across a build, and it
@@ -32,7 +32,7 @@ import filterSchema, { GRAPH_NODE_TYPES } from './filter-schema.js';
 // takes enrichment vocabularies to 'ontology/<source>/enrichment/'. Reading the
 // first segment there answers 'bls' for ten different vocabularies: the current
 // build puts 118 of its 151 node types under that one source, so three quarters
-// of the graph would resolve to a single colour, on both surfaces, while still
+// of the graph would resolve to a single color, on both surfaces, while still
 // looking like a working encoding. That is the state this module's own header
 // records climbing out of, and it would arrive silently.
 //
@@ -75,7 +75,7 @@ export function sourceNamespace(meta, id) {
  * the namespaces present, ordered biggest first, ties broken by name.
  *
  * Note: ordered by how many node types a namespace contributes so the same
- *       build always paints the same colours. Object key order would repaint
+ *       build always paints the same colors. Object key order would repaint
  *       the graph whenever the builder emitted its types in a different
  *       sequence.
  */
@@ -92,19 +92,19 @@ export function rankNamespaces(nodes) {
 }
 
 /**
- * assign a colour to every namespace present, biggest first.
+ * assign a color to every namespace present, biggest first.
  *
  * `tail` decides what happens past the eight categorical slots, and the two
  * surfaces answer it differently on purpose:
  *
  *   - the BACKDROP rolls the tail into one neutral (`color_other`). It is
- *     glanced at and carries no legend, so nine namespaces sharing a grey costs
+ *     glanced at and carries no legend, so nine namespaces sharing a gray costs
  *     nothing and keeps the named ones legible.
  *   - the EXPLORER shades the tail (`color_tail`), one desaturated hue varying
  *     in lightness. It carries a legend, and "and 9 others" is exactly what a
  *     legend must not say.
  *
- * Note: the palette is never cycled. Two unrelated sources sharing a colour
+ * Note: the palette is never cycled. Two unrelated sources sharing a color
  *       reads as a relationship that is not there, which is worse than a tail
  *       that reads as a tail.
  */
@@ -128,14 +128,14 @@ export function assignNamespaceColors(nodes, tail = 'roll-up') {
 }
 
 /**
- * the ONE namespace -> colour map for a published build.
+ * the ONE namespace -> color map for a published build.
  *
  * assignNamespaceColors ranks the namespaces it is handed and deals out eight
  * categorical slots, so the answer depends entirely on WHICH node types were in
  * the set. Both surfaces called it, and each handed it its own slice -- the
  * backdrop its 24, the explorer its 60 -- so the same build came out painted two
  * different ways. Measured on the September build: of the eight namespaces the
- * front page draws, SEVEN were a different colour on /graph. `metro` was the
+ * front page draws, SEVEN were a different color on /graph. `metro` was the
  * blue on the front page and orange on /graph, where the legend called the blue
  * `empsit` -- a namespace the front page does not draw at all. Nothing failed,
  * because both still rendered.
@@ -150,7 +150,7 @@ export function assignNamespaceColors(nodes, tail = 'roll-up') {
  *       three of the largest -- jolts, realer, wkyeng -- are drawn by neither
  *       page. Ranking over all 151 node types spends three of the eight slots on
  *       namespaces that are never on screen and pushes six of the front page's
- *       eight into the tail, which on the backdrop is a single flat grey. The
+ *       eight into the tail, which on the backdrop is a single flat gray. The
  *       drawn slice spends every slot on something a reader can actually see.
  *
  * Note: always 'shade'. One map serves both surfaces, so there is no longer a
@@ -183,8 +183,8 @@ export function buildPalette(schema, limit = GRAPH_NODE_TYPES) {
 
     Note: 'origin' is the channel most likely to be lost without anyone
           noticing. A published build that stopped carrying origins would render
-          every link solid grey -- a plausible looking graph that has quietly
-          dropped a dimension -- which is why the styling degrades to grey
+          every link solid gray -- a plausible looking graph that has quietly
+          dropped a dimension -- which is why the styling degrades to gray
           rather than throwing, and why the suite pins it.
 
 */}
@@ -198,7 +198,7 @@ export const ORIGIN_COLOR = {
 };
 
 /**
- * the colour for an edge origin, falling back to neutral grey for an origin
+ * the color for an edge origin, falling back to neutral gray for an origin
  * this codebase does not know about.
  */
 export function originColor(origin) {
