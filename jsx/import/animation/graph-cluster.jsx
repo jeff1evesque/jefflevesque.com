@@ -25,9 +25,11 @@
  *     - the cursor is a smooth repeller: nearby nodes flow away, with a push
  *       that ramps up the closer the pointer gets (proximity, not collision)
  *     - at rest every node wears a washed-out tint of its category color, so
- *       the cluster reads as a quiet backdrop rather than a chart
+ *       the cluster reads as a quiet backdrop rather than a chart, and glints
+ *       a little lighter now and then (see breath.js)
  *     - hovering a node reveals its type name + count and brings the hovered
- *       type and the types it connects to up to full color; the rest stay muted
+ *       type and the types it connects to up to full color, holding still; the
+ *       rest stay muted
  *
  * @GraphCluster, must be capitalized so reactjs renders it as a component.
  *
@@ -78,6 +80,7 @@ import {
     originColor,
 } from './encoding.js';
 import { seedAround, settleTicks } from './layout.js';
+import { breathDelay } from './breath.js';
 import { medium_minWidth } from '../general/breakpoints';
 import PropTypes from 'prop-types';
 
@@ -749,6 +752,10 @@ class GraphCluster extends Component {
         // muted nodes also sit back a little, so the lit neighborhood carries
         // both more color and more presence
         this.nodeSel.attr('opacity', (d) => (!active || lit(d) ? 1 : 0.5));
+        // and the lit neighborhood stops glinting while it is being looked at.
+        // Its colors are full ones, which the glint would swing much harder than
+        // the pale tints it is tuned for -- see '_animation.scss'.
+        this.nodeSel.classed('graph-cluster-node-lit', lit);
         this.linkSel.attr('opacity', (d) => {
             const s = d.source.id ? d.source.id : d.source;
             const t = d.target.id ? d.target.id : d.target;
@@ -849,15 +856,20 @@ class GraphCluster extends Component {
             .attr('opacity', 0.18);
 
         // ---- nodes ---------------------------------------------------------
+        // the class is what the stylesheet glints, a beat behind the node
+        // before -- see breathDelay. Only the graph's own nodes carry it: the
+        // gray field is on screen before the graph arrives, and stays still.
         this.nodeSel = gNodes.selectAll('circle')
             .data(nodes)
             .join('circle')
+            .attr('class', 'graph-cluster-node')
             .attr('r', (d) => d.r)
             // resting state is the muted tint; hover is what brings color in
             .attr('fill', (d) => this.mutedColor(d.namespace))
             .attr('stroke', colors['gray-1'])
             .attr('stroke-width', 1)
-            .style('cursor', 'pointer');
+            .style('cursor', 'pointer')
+            .style('animation-delay', (d, index) => breathDelay(index));
 
         // ---- labels (hidden until hover) -----------------------------------
         this.labelSel = gLabels.selectAll('text')
