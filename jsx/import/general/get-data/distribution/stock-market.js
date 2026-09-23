@@ -9,6 +9,7 @@
  */
 
 import { readString } from 'react-papaparse';
+import { STOCK_MARKET, STOCK_SPLIT } from '../../stream-id.js';
 
 function isValidUrl(string) {
     try {
@@ -121,7 +122,7 @@ function get(type, url, callback, worker, source, stream) {
         if (url) {
             return get_promise(url, callback, source, stream);
         } else {
-            if (stream === 'stockmarket') {
+            if (stream === STOCK_MARKET) {
                 var csv_data_distribution = `sector,industry,total_tickers,total_records
                     Communication Services,Advertising,2,128848
                     Communication Services,Broadcasting,3,122782
@@ -254,7 +255,7 @@ function get(type, url, callback, worker, source, stream) {
 
                 var csv_count = `count\n20,,,`;
 
-            } else if (stream === 'stockmarketstocksplit') {
+            } else if (stream === STOCK_SPLIT) {
                 {/*
 
                     production stock-split rows carry no sector/industry: api-datalake
