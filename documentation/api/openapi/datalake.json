@@ -15,7 +15,7 @@
       "get": {
         "operationId": "getDatalake",
         "summary": "One dataset's distribution and partition count for a month",
-        "description": "Data names a dataset, not a stream: the stream id 'stockmarket' is answered with a 400, where the dataset is 'stock-market'.",
+        "description": "Data names a dataset, not a stream: the stream id 'us-national-weather' is answered with a 400, where the dataset is 'us-weather-alert'.",
         "parameters": [
           {
             "name": "Data",
