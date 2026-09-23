@@ -80,12 +80,12 @@ beforeEach(() => {
 
 describe('choosing a loader per stream', () => {
     it.each([
-        ['stream_stockmarket', () => getStockMarket],
-        ['stream_stockmarketstocksplit', () => getStockMarket],
-        ['stream_usnationalweather', () => getUsWeatherAlert],
-        ['stream_bls', () => getBls],
-        ['stream_sec', () => getSec],
-    ])('%s downloads through its own loader', (key, expected) => {
+        ['stock-market', () => getStockMarket],
+        ['stock-split', () => getStockMarket],
+        ['us-national-weather', () => getUsWeatherAlert],
+        ['bls', () => getBls],
+        ['sec', () => getSec],
+    ])('%s downloads through its own loader', (stream, expected) => {
         //
         // the two stock streams share one loader; the other three each have their own.
         // Getting this wrong would query the wrong table and quietly chart another
@@ -94,7 +94,7 @@ describe('choosing a loader per stream', () => {
         const page = setup();
         LOADERS.forEach(l => l.mockClear());
 
-        download(page, page.state[key]);
+        download(page, stream);
 
         expect(expected()).toHaveBeenCalledTimes(1);
         LOADERS.filter(l => l !== expected()).forEach(l => {
@@ -106,7 +106,7 @@ describe('choosing a loader per stream', () => {
         const page = setup();
         getBls.mockClear();
 
-        download(page, page.state.stream_bls);
+        download(page, 'bls');
 
         expect(getBls.mock.calls[0][0]).toBe('data-distribution');
     });
@@ -119,7 +119,7 @@ describe('choosing a loader per stream', () => {
         const page = setup();
         getBls.mockClear();
 
-        download(page, page.state.stream_bls);
+        download(page, 'bls');
 
         expect(getBls.mock.calls[0][3]).toBe(true);
     });
@@ -132,11 +132,11 @@ describe('choosing a loader per stream', () => {
         const page = setup();
         getBls.mockClear();
 
-        download(page, page.state.stream_bls);
+        download(page, 'bls');
 
         const [, , , , source, stream] = getBls.mock.calls[0];
         expect(source).toBe('bls');
-        expect(stream).toBe(page.state.stream_bls);
+        expect(stream).toBe('bls');
     });
 
     it('routes the answer back into callbackGetData', () => {
@@ -148,10 +148,10 @@ describe('choosing a loader per stream', () => {
         getBls.mockClear();
         const spy = jest.spyOn(page, 'callbackGetData').mockImplementation(() => {});
 
-        download(page, page.state.stream_bls);
-        getBls.mock.calls[0][2]({ stream: page.state.stream_bls });
+        download(page, 'bls');
+        getBls.mock.calls[0][2]({ stream: 'bls' });
 
-        expect(spy).toHaveBeenCalledWith({ stream: page.state.stream_bls });
+        expect(spy).toHaveBeenCalledWith({ stream: 'bls' });
 
         spy.mockRestore();
     });
@@ -162,19 +162,11 @@ describe('choosing a loader per stream', () => {
         //
         const page = setup();
 
-        download(page, page.state.stream_bls);
+        download(page, 'bls');
 
         expect(page.state.promise_get_data_bls).toBe(false);
     });
 
-    it('accepts a stream name in any casing', () => {
-        const page = setup();
-        getBls.mockClear();
-
-        download(page, page.state.stream_bls.toUpperCase());
-
-        expect(getBls).toHaveBeenCalledTimes(1);
-    });
 });
 
 describe('the url it builds', () => {
@@ -182,7 +174,7 @@ describe('the url it builds', () => {
         const page = setup();
         getBls.mockClear();
 
-        download(page, page.state.stream_bls);
+        download(page, 'bls');
 
         expect(urlOf(getBls)).toContain('api.jefflevesque.com/v1/public/datalake');
     });
@@ -191,7 +183,7 @@ describe('the url it builds', () => {
         const page = setup();
         getBls.mockClear();
 
-        download(page, page.state.stream_bls);
+        download(page, 'bls');
 
         expect(urlOf(getBls)).toContain('Data=bls');
     });
@@ -204,7 +196,7 @@ describe('the url it builds', () => {
         const page = setup();
         getBls.mockClear();
 
-        download(page, page.state.stream_bls);
+        download(page, 'bls');
 
         const scale = JSON.parse(
             new URL(urlOf(getBls)).searchParams.get('Scale')
@@ -227,7 +219,7 @@ describe('the url it builds', () => {
             page.setState({ mm: 7 });
         });
 
-        download(page, page.state.stream_bls);
+        download(page, 'bls');
 
         expect(JSON.parse(new URL(urlOf(getBls)).searchParams.get('Scale')).month).toBe('07');
     });
@@ -243,7 +235,7 @@ describe('the url it builds', () => {
             page.setState({ local: true });
         });
 
-        download(page, page.state.stream_bls);
+        download(page, 'bls');
 
         expect(getBls.mock.calls[0][1]).toBeNull();
     });
@@ -468,9 +460,9 @@ describe('every loader\'s answer', () => {
     // that reached no callback would leave that stream's chart empty with nothing logged.
     //
     it.each([
-        ['stockmarket', () => getStockMarket],
-        ['stockmarketstocksplit', () => getStockMarket],
-        ['usnationalweather', () => getUsWeatherAlert],
+        ['stock-market', () => getStockMarket],
+        ['stock-split', () => getStockMarket],
+        ['us-national-weather', () => getUsWeatherAlert],
         ['bls', () => getBls],
         ['sec', () => getSec],
     ])('%s is handed back to callbackGetData', (stream, loaderOf) => {
