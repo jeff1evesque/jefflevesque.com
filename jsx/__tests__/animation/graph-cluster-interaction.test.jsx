@@ -30,6 +30,7 @@ import GraphCluster, {
     EDGE_MARGIN,
 } from '../../import/animation/graph-cluster.jsx';
 import { colors } from '../../import/general/colors.js';
+import { breathDelay } from '../../import/animation/breath.js';
 import schema from '../fixtures/graph-schema.mock.json';
 
 //
@@ -258,6 +259,70 @@ describe('highlight', () => {
             .filter(n => n.getAttribute('opacity') === '1');
         expect(visible).toHaveLength(0);
         expect(labels(container).length).toBeGreaterThan(0);
+    });
+});
+
+//
+// once the graph is drawn, each node rests at its tint and glints lighter now and
+// then. The stylesheet runs it -- see breath.test.js, which reads it there -- so
+// what is held here is what the cluster owes it: which circles carry the class,
+// the delay on each, and which of them hold still while hover has them lit.
+//
+describe('the glint', () => {
+    const lit = (page) => page.nodeSel.nodes()
+        .filter(n => n.classList.contains('graph-cluster-node-lit'));
+
+    it('marks every node of the graph, and none of the gray field', () => {
+        //
+        // the field is on screen before the graph arrives and is decoration,
+        // not data; it keeps the stillness it always had.
+        //
+        const { container, page } = setup();
+
+        page.nodeSel.nodes().forEach(n => expect(n).toHaveClass('graph-cluster-node'));
+        page.bgNodeSel.nodes().forEach(n => expect(n).not.toHaveClass('graph-cluster-node'));
+        expect(container.querySelectorAll('.graph-cluster-node')).toHaveLength(page.nodes.length);
+    });
+
+    it('sets each node a beat behind the one before', () => {
+        const { page } = setup();
+
+        expect(page.nodeSel.nodes().map(n => n.style.animationDelay))
+            .toEqual(page.nodes.map((n, index) => breathDelay(index)));
+    });
+
+    it('holds nothing still at rest', () => {
+        const { page } = setup();
+
+        expect(lit(page)).toHaveLength(0);
+    });
+
+    it('holds the lit neighbourhood still, and only that', () => {
+        //
+        // hover brings those nodes up to full colour, which the glint -- tuned
+        // for the pale tints -- would swing far harder. The rest, dimmed, go on.
+        //
+        const { page } = setup();
+        const link = page.links.find(l => l.source.id !== l.target.id);
+
+        page.highlight(link.source.id);
+
+        const held = new Set(lit(page));
+        page.nodeSel.nodes().forEach(n => {
+            expect(held.has(n)).toBe(n.getAttribute('opacity') === '1');
+        });
+        expect(held.size).toBeGreaterThan(1);
+        expect(held.size).toBeLessThan(page.nodes.length);
+    });
+
+    it('lets every node glint again once the hover clears', () => {
+        const { page } = setup();
+        const [id] = nodeIds(page);
+
+        page.highlight(id);
+        page.highlight(null);
+
+        expect(lit(page)).toHaveLength(0);
     });
 });
 
