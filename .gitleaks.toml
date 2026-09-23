@@ -235,7 +235,7 @@ regexes = [
 id = "aws-access-key-id"
 description = "AWS access key id"
 # Explicit, despite `useDefault`. The bundled aws rules want the key ALONGSIDE
-# a recognised assignment or its matching secret, so a bare
+# a recognized assignment or its matching secret, so a bare
 # `AKIA...` on its own line passes -- verified against 8.30. That is the single
 # most damaging string that can enter these repositories, so it is matched on
 # its own unmistakable shape: AKIA/ASIA/ABIA/ACCA plus 16 upper-case
@@ -371,7 +371,7 @@ tags = ["aws", "s3", "portability"]
 #
 # Note: the global 'values that are not secrets by construction' allowlist below
 #       already carries a filename shape, and gitleaks would apply it here --
-#       it declares `regexTarget = "secret"`. check_secrets.py does not honour
+#       it declares `regexTarget = "secret"`. check_secrets.py does not honor
 #       regexTarget and tests global allowlists against the LINE only, where an
 #       anchored `^name.ext$` cannot match. So the hook reports what CI would
 #       not, which inverts the subset the two are supposed to stand in. Handled
