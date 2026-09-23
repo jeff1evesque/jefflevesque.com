@@ -31,7 +31,7 @@ import sys
 
 
 #
-# the usual shields.io ladder. Coverage is a proportion, so the colour carries the
+# the usual shields.io ladder. Coverage is a proportion, so the color carries the
 # reading a reviewer takes at a glance and the number carries the detail.
 #
 COLORS = [
@@ -45,7 +45,7 @@ COLORS = [
 
 #
 # anything that would leak a file name, a directory or the tree's shape. Applied to the
-# SERIALISED payload, so it catches a leak through any field rather than a field this
+# SERIALIZED payload, so it catches a leak through any field rather than a field this
 # script currently happens to set.
 #
 FORBIDDEN = re.compile(r'[/\\]|\.jsx?\b|\.tsx?\b|node_modules|import\b|__tests__')
@@ -79,18 +79,18 @@ def main(argv):
         summary = json.load(handle)
 
     payload = payload_from(summary)
-    serialised = json.dumps(payload, separators=(',', ':'), sort_keys=True)
+    serialized = json.dumps(payload, separators=(',', ':'), sort_keys=True)
 
     #
     # the guard that makes this safe to publish. A future change that widened the
     # payload -- a per-file breakdown, a link back to the report -- would fail here
     # rather than quietly publishing the tree to a public gist.
     #
-    leak = FORBIDDEN.search(serialised)
+    leak = FORBIDDEN.search(serialized)
     if leak:
         sys.stderr.write(
             f'refusing to publish: payload contains {leak.group(0)!r}, which could '
-            f'identify a source file.\n{serialised}\n'
+            f'identify a source file.\n{serialized}\n'
         )
         return 1
 
@@ -103,7 +103,7 @@ def main(argv):
         sys.stderr.write(f'refusing to publish: unexpected keys {set(payload) ^ expected}\n')
         return 1
 
-    print(serialised)
+    print(serialized)
     return 0
 
 
