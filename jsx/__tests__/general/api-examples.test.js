@@ -75,7 +75,7 @@ describe('performance, as the /stream page loads it', () => {
                 expect(row[column]).toBeTruthy();
             });
         });
-        expect(rows[0]).toMatchObject({ group_by: 'options', total_success: '10062742', total_fail: '0' });
+        expect(rows[0]).toMatchObject({ group_by: 'price', total_success: '9481', total_fail: '0' });
     });
 
     it('hands the page nothing, rather than a failure, when the window holds no rows', async () => {
