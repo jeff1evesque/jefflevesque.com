@@ -37,7 +37,14 @@ export default () => {
             const selected_stream = 'stream' in item && item.stream ? item.stream : null;
             const selected_source = 'source' in item && item.source ? item.source : null;
 
-            if (['stockmarket', 'stockmarketstocksplit'].includes(selected_stream)) {
+            {/*
+
+                the two streams this worker reads, by their ids. Written out rather
+                than imported from stream-id.js: this function reaches the worker as
+                source text (see web-worker.js), where nothing it imports exists.
+
+            */}
+            if (['stock-market', 'stock-split'].includes(selected_stream)) {
                 // Result intentionally discarded: the callback below populates
                 // data_reformat by side effect, so the call must still run.
                 item['data-distribution'].map(v => {
@@ -54,13 +61,13 @@ export default () => {
 
                     */}
                     if (
-                        selected_stream === 'stockmarket'
+                        selected_stream === 'stock-market'
                         && 'total_records' in v
                         && checkValidInt(v.total_records)
                     ) {
                         total_records += parseInt(v.total_records);
                     } else if (
-                        selected_stream === 'stockmarketstocksplit'
+                        selected_stream === 'stock-split'
                         && 'total_tickers' in v
                         && checkValidInt(v.total_tickers)
                     ) {
@@ -80,7 +87,7 @@ export default () => {
 
                     */}
                     if (
-                        selected_stream === 'stockmarketstocksplit'
+                        selected_stream === 'stock-split'
                         && 'split_date' in v
                         && checkValidString(v.split_date)
                         && 'total_tickers' in v
@@ -96,7 +103,7 @@ export default () => {
 
                         data_reformat[split_key] = record;
                     } else if (
-                        selected_stream === 'stockmarket'
+                        selected_stream === 'stock-market'
                         && 'sector' in v
                         && trim(v.sector) in data_reformat
                         && checkValidString(v.sector)
@@ -121,7 +128,7 @@ export default () => {
                             record
                         );
                     } else if (
-                        selected_stream === 'stockmarket'
+                        selected_stream === 'stock-market'
                         && 'sector' in v
                         && checkValidString(v.sector)
                         && 'industry' in v
