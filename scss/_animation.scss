@@ -12,3 +12,89 @@
   position: absolute;
   top: 0;
 }
+
+//
+// how long one pulse of a graph's nodes takes, on every graph that pulses: the
+// front page's cluster below, and on /graph both the placeholder and the build
+// that replaces it -- see '_graph.scss'.
+//
+// One period for all of them, so the graph that arrives on /graph keeps the time
+// its placeholder was keeping. What changes as it lands is the shape of the
+// pulse and its depth: the placeholder is grey and breathes evenly, while a
+// drawn graph rests at its own colours and glints brighter -- see
+// graph-node-glint.
+//
+$graph-node-breath: 1.8s;
+
+//
+// a node at its own colour for most of the pulse, then briefly lighter, and back.
+//
+// Lighter by FILL-opacity, toward the white page, rather than by 'opacity' or by
+// a second colour:
+//
+//   - 'opacity' is taken. Both graphs drop back what the reader is not asking
+//     about by writing each node's opacity attribute, and an animation outranks
+//     an attribute, so animating it would put every dimmed node straight back to
+//     full strength. The two multiply instead, which leaves a node dimmed to
+//     0.15 glinting by a hundredth or two -- as still as it should look.
+//   - a second colour would have to follow the node's own, and the front page
+//     recolours its nodes on hover. A glint written against the tint a node wore
+//     at rest would flash that tint across the colour hover gave it.
+//
+// Note: held at full colour to 60% and back by 100%, rather than an even swell.
+//       Timed evenly, a node spends as long lighter as at its colour, and the eye
+//       takes the darker half -- the one that stands out from the white -- as the
+//       flicker: the placeholder's grey reads as flickering DARKER. Resting at
+//       its colour most of the time, a node's flicker is the lighter moment.
+//
+// Note: how much lighter is each graph's own, as '--graph-node-glint'. One depth
+//       is a very different change on a pale tint than on a full colour.
+//
+@keyframes graph-node-glint {
+  0%,
+  60%,
+  100% {
+    fill-opacity: 1;
+  }
+
+  80% {
+    fill-opacity: var(--graph-node-glint);
+  }
+}
+
+//
+// the front page's nodes, once its graph has arrived.
+//
+// Note: 0.7, deeper than /graph's 0.85, because these rest as pale tints -- see
+//       MUTED_MIX in graph-cluster.jsx -- and a tint is most of the way to white
+//       already. Measured in OKLab over the sixty nodes of the September 2026
+//       build, /graph's placeholder swings 9.1; at 0.85 these would swing 2.3 on
+//       average, which nobody sees, and at 0.7 they swing 4.5 and 6.7 at most --
+//       about half the placeholder, and none of them more.
+//
+.graph-cluster-node {
+  --graph-node-glint: 0.7;
+  animation: graph-node-glint $graph-node-breath ease-in-out infinite;
+}
+
+//
+// the neighbourhood the pointer has lit holds still, at the colour hover gave
+// it. Those are full colours, darkened, and a glint to 0.7 would swing them 13 on
+// average and 21 at the worst -- well past the placeholder's 9.1 -- while the
+// reader is looking at them.
+//
+// Note: after the rule above, which it has to beat at the same weight.
+//
+.graph-cluster-node-lit {
+  animation: none;
+}
+
+//
+// Note: removed rather than paused. A paused animation holds whichever frame it
+//       had reached, which for two nodes in five is partway into the glint.
+//
+@media (prefers-reduced-motion: reduce) {
+  .graph-cluster-node {
+    animation: none;
+  }
+}

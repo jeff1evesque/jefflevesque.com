@@ -17,6 +17,10 @@
  *   - a drift that moves each node a little around where it settled, rather than
  *     a simulation left running that moves the layout itself
  *
+ * The glint its nodes share with the backdrop is held here only as far as the
+ * markup goes -- a class and a delay per node. What the stylesheet does with them
+ * is read in breath.test.js, because jsdom runs no css animation.
+ *
  * A regression in any of those turns this page back into the backdrop, which
  * renders fine and is useless to read.
  */
@@ -36,6 +40,7 @@ import GraphExplorer, {
     DIM_OPACITY,
     LINK_REST,
 } from '../../import/animation/graph-explorer.jsx';
+import { breathDelay } from '../../import/animation/breath.js';
 
 const schema = {
     version: '1',
@@ -1413,6 +1418,46 @@ describe('the drift', () => {
         setup({ data: null });
 
         expect(pending).toBeNull();
+    });
+});
+
+describe('the glint', () => {
+    //
+    // each node rests at its colour and brightens now and then, in the time the
+    // placeholder breathed in. The stylesheet runs it; what the canvas owes it is
+    // a class on every node and a delay that sets each a beat behind the last.
+    //
+    const delays = () => circles().map((c) => c.style.animationDelay);
+
+    it('marks every node for the stylesheet to glint', () => {
+        setup();
+
+        circles().forEach((c) => expect(c).toHaveClass('graph-explorer-node'));
+    });
+
+    it('sets each node a beat behind the one before', () => {
+        setup();
+
+        expect(delays()).toEqual(TYPES.map((id, index) => breathDelay(index)));
+    });
+
+    it('restarts no node when the emphasis changes', () => {
+        //
+        // a node that lost its class or its delay, or was drawn afresh, would
+        // start its glint again -- so every hover would set the whole canvas
+        // pulsing in step.
+        //
+        const { page, rerender } = setup();
+        const drawn = circles();
+        const before = delays();
+
+        pointAt(page, 'sec_C');
+        page.highlight('bls_A');
+        rerender(<GraphExplorer data={schema} emphasis={[{ kind: 'namespace', value: 'sec' }]} />);
+
+        circles().forEach((c, index) => expect(c).toBe(drawn[index]));
+        expect(delays()).toEqual(before);
+        circles().forEach((c) => expect(c).toHaveClass('graph-explorer-node'));
     });
 });
 

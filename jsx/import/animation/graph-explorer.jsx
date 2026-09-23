@@ -27,6 +27,9 @@
  * named nothing. A node names itself when it is pointed at (or tapped: a phone
  * cannot hover), in a card that has room for the whole name.
  *
+ * They also share the glint: each node rests at its colour and brightens now
+ * and then, in the time the placeholder here breathed in. See breath.js.
+ *
  * Note: a separate component rather than a prop on GraphCluster. The two share
  *       the parts that must not disagree and nothing else -- threading "am I a
  *       backdrop" through the other file would have meant branching in the gray
@@ -52,6 +55,7 @@ import {
     DRIFT,
     DRIFT_SPEED,
 } from './explorer-layout.js';
+import { breathDelay } from './breath.js';
 import PropTypes from 'prop-types';
 
 // the tail past the eight categorical slots is SHADED here rather than rolled
@@ -584,13 +588,20 @@ class GraphExplorer extends Component {
             .attr('stroke-dasharray', (d) => ORIGIN_DASH[d.origin])
             .attr('opacity', LINK_REST);
 
+        //
+        // the class is what the stylesheet glints, and each node's delay puts it
+        // a beat behind the one before -- see breathDelay. Nothing else touches
+        // either, so a change of emphasis repaints a node without restarting it.
+        //
         this.nodeSel = gNodes.selectAll('circle')
             .data(nodes)
             .join('circle')
+            .attr('class', 'graph-explorer-node')
             .attr('r', (d) => d.r)
             .attr('fill', (d) => this.namespaceColors.get(d.namespace) || colors['gray-5'])
             .attr('stroke', '#ffffff')
-            .attr('stroke-width', 1);
+            .attr('stroke-width', 1)
+            .style('animation-delay', (d, index) => breathDelay(index));
 
         //
         // and straight into whatever the legend is asking for, rather than into
