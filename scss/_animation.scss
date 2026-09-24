@@ -16,13 +16,15 @@
 //
 // how long one pulse of a graph's nodes takes, on every graph that pulses: the
 // front page's cluster below, and on /graph both the placeholder and the build
-// that replaces it -- see '_graph.scss'.
+// that replaces it -- see '_graph.scss'. breath.js reckons each node's delay in
+// it, and breath.test.js holds the two to the same length.
 //
 // One period for all of them, so the graph that arrives on /graph keeps the time
 // its placeholder was keeping. What changes as it lands is the shape of the
-// pulse and its depth: the placeholder is gray and breathes evenly, while a
-// drawn graph rests at its own colors and glints brighter -- see
-// graph-node-glint.
+// pulse, its depth and the order its nodes take it in: the placeholder is gray
+// and breathes evenly, a beat apart, while a drawn graph rests at its own colors
+// and glints brighter, its nodes scattered through the pulse -- see
+// graph-node-glint, and breath.js for why the order changes.
 //
 $graph-node-breath: 1.8s;
 
