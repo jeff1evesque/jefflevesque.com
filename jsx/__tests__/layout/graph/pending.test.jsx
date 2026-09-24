@@ -226,10 +226,12 @@ describe('PendingCanvas', () => {
         });
     });
 
-    it('breathes each node a beat behind the one before, as the graph replacing it will', () => {
+    it('breathes each node a beat behind the one before', () => {
         //
-        // the graph that arrives glints in the time this breathed in, so the swap
-        // reads as the placeholder taking on color rather than as a new rhythm.
+        // its order means nothing on screen -- every node gray, each linked to an
+        // earlier hub -- so a beat apart reads as random here. The graph that
+        // arrives keeps the period and scatters its nodes through it, since its
+        // order puts each source's types in a row. See breath.js.
         //
         setup();
 
