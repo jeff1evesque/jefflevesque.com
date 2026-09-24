@@ -30,7 +30,7 @@ import GraphCluster, {
     EDGE_MARGIN,
 } from '../../import/animation/graph-cluster.jsx';
 import { colors } from '../../import/general/colors.js';
-import { breathDelay } from '../../import/animation/breath.js';
+import { glintDelay } from '../../import/animation/breath.js';
 import schema from '../fixtures/graph-schema.mock.json';
 
 //
@@ -284,11 +284,11 @@ describe('the glint', () => {
         expect(container.querySelectorAll('.graph-cluster-node')).toHaveLength(page.nodes.length);
     });
 
-    it('sets each node a beat behind the one before', () => {
+    it('scatters the nodes through the glint, in the order they are drawn', () => {
         const { page } = setup();
 
         expect(page.nodeSel.nodes().map(n => n.style.animationDelay))
-            .toEqual(page.nodes.map((n, index) => breathDelay(index)));
+            .toEqual(page.nodes.map((n, index) => glintDelay(index)));
     });
 
     it('holds nothing still at rest', () => {
