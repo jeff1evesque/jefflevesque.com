@@ -80,7 +80,7 @@ import {
     originColor,
 } from './encoding.js';
 import { seedAround, settleTicks } from './layout.js';
-import { breathDelay } from './breath.js';
+import { glintDelay } from './breath.js';
 import { medium_minWidth } from '../general/breakpoints';
 import PropTypes from 'prop-types';
 
@@ -856,8 +856,9 @@ class GraphCluster extends Component {
             .attr('opacity', 0.18);
 
         // ---- nodes ---------------------------------------------------------
-        // the class is what the stylesheet glints, a beat behind the node
-        // before -- see breathDelay. Only the graph's own nodes carry it: the
+        // the class is what the stylesheet glints, and the delay is where in the
+        // glint each node starts, scattered so that no row of one color lights
+        // together -- see glintDelay. Only the graph's own nodes carry it: the
         // gray field is on screen before the graph arrives, and stays still.
         this.nodeSel = gNodes.selectAll('circle')
             .data(nodes)
@@ -869,7 +870,7 @@ class GraphCluster extends Component {
             .attr('stroke', colors['gray-1'])
             .attr('stroke-width', 1)
             .style('cursor', 'pointer')
-            .style('animation-delay', (d, index) => breathDelay(index));
+            .style('animation-delay', (d, index) => glintDelay(index));
 
         // ---- labels (hidden until hover) -----------------------------------
         this.labelSel = gLabels.selectAll('text')
