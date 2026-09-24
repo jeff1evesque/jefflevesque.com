@@ -56,7 +56,7 @@ import {
     DRIFT,
     DRIFT_SPEED,
 } from './explorer-layout.js';
-import { breathDelay } from './breath.js';
+import { glintDelay } from './breath.js';
 import PropTypes from 'prop-types';
 
 // the tail past the eight categorical slots is SHADED here rather than rolled
@@ -598,10 +598,11 @@ class GraphExplorer extends Component {
             .attr('opacity', LINK_REST);
 
         //
-        // the class is what the stylesheet glints, and each node's delay puts it
-        // a beat behind the one before -- see breathDelay. Nothing else touches
-        // either: highlight holds a hovered neighborhood still with a class of
-        // its own, so a change of emphasis restarts no node it did not hold.
+        // the class is what the stylesheet glints, and each node's delay is where
+        // in the glint it starts, scattered so that no row of one color lights
+        // together -- see glintDelay. Nothing else touches either: highlight
+        // holds a hovered neighborhood still with a class of its own, so a
+        // change of emphasis restarts no node it did not hold.
         //
         this.nodeSel = gNodes.selectAll('circle')
             .data(nodes)
@@ -611,7 +612,7 @@ class GraphExplorer extends Component {
             .attr('fill', (d) => this.namespaceColors.get(d.namespace) || colors['gray-5'])
             .attr('stroke', '#ffffff')
             .attr('stroke-width', 1)
-            .style('animation-delay', (d, index) => breathDelay(index));
+            .style('animation-delay', (d, index) => glintDelay(index));
 
         //
         // and straight into whatever the legend is asking for, rather than into
