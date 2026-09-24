@@ -40,7 +40,7 @@ import GraphExplorer, {
     DIM_OPACITY,
     LINK_REST,
 } from '../../import/animation/graph-explorer.jsx';
-import { breathDelay } from '../../import/animation/breath.js';
+import { glintDelay } from '../../import/animation/breath.js';
 
 const schema = {
     version: '1',
@@ -1425,8 +1425,9 @@ describe('the glint', () => {
     //
     // each node rests at its color and brightens now and then, in the time the
     // placeholder breathed in. The stylesheet runs it; what the canvas owes it is
-    // a class on every node, a delay that sets each a beat behind the last, and a
-    // second class on whatever the pointer is lighting, which holds it still.
+    // a class on every node, a delay that scatters where each starts in the
+    // glint, and a second class on whatever the pointer is lighting, which holds
+    // it still.
     //
     const delays = () => circles().map((c) => c.style.animationDelay);
     const held = () => circles()
@@ -1440,10 +1441,10 @@ describe('the glint', () => {
         circles().forEach((c) => expect(c).toHaveClass('graph-explorer-node'));
     });
 
-    it('sets each node a beat behind the one before', () => {
+    it('scatters the nodes through the glint, in the order they are drawn', () => {
         setup();
 
-        expect(delays()).toEqual(TYPES.map((id, index) => breathDelay(index)));
+        expect(delays()).toEqual(TYPES.map((id, index) => glintDelay(index)));
     });
 
     it('holds nothing still at rest', () => {
