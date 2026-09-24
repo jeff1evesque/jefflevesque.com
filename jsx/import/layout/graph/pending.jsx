@@ -390,8 +390,10 @@ export class PendingCanvas extends Component {
             .join('line');
 
         //
-        // each node a beat behind the one before, in the rhythm the graph that
-        // replaces it keeps -- see breathDelay.
+        // each node a beat behind the one before -- see breathDelay. The graph
+        // that replaces it keeps this period but scatters its nodes through it:
+        // its order puts each source's types in a row, and this one's order
+        // puts nothing anywhere. See breath.js.
         //
         this.nodeSel = svg.append('g')
             .selectAll('circle')
