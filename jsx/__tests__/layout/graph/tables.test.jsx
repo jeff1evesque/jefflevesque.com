@@ -559,3 +559,106 @@ describe('arrange', () => {
         expect(arrange(rows, '  beta  ', null)).toHaveLength(1);
     });
 });
+
+describe('a day of the tables', () => {
+    //
+    // the Retrieval graph hands this a day of the knowledge graph tables api, put
+    // into a schema's shape. Its node types carry no ontology term, and two
+    // measures a build's do not: how many of their nodes can be found by name,
+    // and how many values are held about them -- what the canvas above was
+    // chosen by.
+    //
+    const DAY = {
+        node_types: {
+            market_quotes_OptionSnapshot: { count: 9603436, entities: 0, facts: 0 },
+            filings_SECFiling: { count: 2441, entities: 2441, facts: 24800 },
+            cap_Info: { count: 893, entities: 893, facts: 12532 },
+            ximpim_PercentChange: { count: 9336, entities: 0, facts: 18672 },
+        },
+        edge_types: {
+            '(filings_SECFiling, filings_hasIssuer, filings_Issuer)': {
+                src_type: 'filings_SECFiling',
+                relation: 'filings_hasIssuer',
+                dst_type: 'filings_Issuer',
+                count: 2441,
+                origin: 'raw',
+            },
+        },
+    };
+
+    const dayTables = (props = {}) => render(
+        <GraphTables
+            schema={DAY}
+            drawn={{ node_types: { filings_SECFiling: DAY.node_types.filings_SECFiling } }}
+            painted={new Map()}
+            terms={false}
+            lookups
+            scope='on this day'
+            weight='entities'
+            {...props}
+        />
+    );
+
+    const headings = () => [...document.querySelectorAll('thead th')].map((th) => th.textContent);
+
+    it('leads with what can be looked up, and prints no ontology term', () => {
+        //
+        // an empty column the width of a uri, on every row, would read as a term
+        // the page failed to find -- the tables carry none.
+        //
+        dayTables();
+
+        expect(headings()).toEqual(['Node type', 'Entities', 'Facts', 'Nodes', 'On canvas']);
+    });
+
+    it('opens on the types with the most to find, as the canvas was chosen', () => {
+        dayTables();
+
+        //
+        // the two with nothing to find tie at zero, and keep the day's own order
+        //
+        expect(firstColumn()).toEqual([
+            'filings_SECFiling',
+            'cap_Info',
+            'market_quotes_OptionSnapshot',
+            'ximpim_PercentChange',
+        ]);
+        expect(cells(bodyRows()[0]).slice(1, 4)).toEqual(['2,441', '24,800', '2,441']);
+    });
+
+    it('sorts facts biggest first on the first click, as it does every count', () => {
+        dayTables();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Facts' }));
+
+        expect(cells(bodyRows()[0])[2]).toBe('24,800');
+        expect(cells(bodyRows()[1])[2]).toBe('18,672');
+    });
+
+    it('names its tables for the day', () => {
+        dayTables();
+
+        expect(screen.getByRole('table', { name: 'Node types on this day' })).toBeInTheDocument();
+    });
+
+    it('is headed the same way while the day is still on its way', () => {
+        //
+        // the page says what the rows will carry, since there are none yet to
+        // ask. Headings that changed when the day arrived would move under the
+        // reader.
+        //
+        dayTables({ schema: null, loading: true });
+
+        expect(headings()).toEqual(['Node type', 'Entities', 'Facts', 'Nodes', 'On canvas']);
+    });
+
+    it('drops the ontology term wherever no row has one, whatever it was told', () => {
+        //
+        // the rows decide once they are here -- the props only stand in for them
+        // while there are none.
+        //
+        render(<GraphTables schema={DAY} drawn={null} painted={new Map()} />);
+
+        expect(headings()).not.toContain('Ontology term');
+    });
+});

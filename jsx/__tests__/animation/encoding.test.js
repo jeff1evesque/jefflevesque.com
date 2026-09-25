@@ -436,4 +436,24 @@ describe('buildPalette', () => {
         expect(buildPalette({})).toBeNull();
         expect(buildPalette({ node_types: {} })).toBeNull();
     });
+
+    it('ranks over the slice the page draws, when the page weighs types another way', () => {
+        //
+        // the Retrieval graph draws a day by its findable entities, and a palette
+        // ranked over the slice by count would spend its first slot on a
+        // namespace that page never draws -- here, the nameless 'quotes'.
+        //
+        const day = {
+            node_types: {
+                quotes_Option: { count: 9_000_000, entities: 0 },
+                filings_Filing: { count: 10, entities: 10 },
+                filings_Issuer: { count: 8, entities: 8 },
+                cap_Alert: { count: 5, entities: 5 },
+            },
+            edge_types: {},
+        };
+
+        expect([...buildPalette(day, 3, 'entities').keys()]).toEqual(['filings', 'cap']);
+        expect([...buildPalette(day, 3).keys()]).toContain('quotes');
+    });
 });

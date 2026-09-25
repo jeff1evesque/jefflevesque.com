@@ -1,22 +1,28 @@
 /**
- * tables.jsx: everything in the build the canvas could not draw.
+ * tables.jsx: everything in the build, or the day, the canvas could not draw.
  *
  * The canvas carries sixty node types because sixty is the density a force
  * layout reads at, and the caption above it says so -- '60 of 151 node types'.
  * That sentence raised a question the page then had no way to answer. These two
  * tables are the answer: every node type and every edge type the selected build
- * holds, at a grain a canvas cannot show.
+ * or day holds, at a grain a canvas cannot show.
  *
- * Note: NO new request. The page already fetches the whole schema in order to
+ * Note: NO new request. The page already fetches the whole document in order to
  *       draw a slice of it, and used to discard the rest on the line that
  *       measured it. This reads what was already in hand. See graph.jsx, which
  *       now keeps the unfiltered document alongside the filtered one.
  *
- * Note: NOT the `knowledge-graph/tables/*` api, which is the other thing called
- *       tables and is deliberately not used here. Those paths take no build id
- *       -- they answer across the published window -- so under a build picker
- *       their rows would read as belonging to the selected build when they do
- *       not. The schema in hand is exact for this build and cost nothing more.
+ * Note: two pages hand it that document, and it cannot tell them apart. The
+ *       Training graph hands it a build's schema. The Retrieval graph hands it a
+ *       day of the `knowledge-graph/tables/*` api, the other thing called tables,
+ *       put into the same shape -- see get-graph-tables.js. Those paths once went
+ *       unused here because they take no build id, and under a build picker their
+ *       rows would have read as the build's. Under a day picker they are exact for
+ *       what is selected, which is what a picker needs of them.
+ *
+ * Note: a day's node types carry no ontology term, so the column that prints one
+ *       is drawn only when a row has one. An empty column the width of a uri, on
+ *       every row, would read as a term the page failed to find.
  *
  * Note: it draws itself EMPTY while the build is on its way rather than not at
  *       all -- the controls, the column headings, a boxful of blank rows and
@@ -85,6 +91,40 @@ const NODE_COLUMNS = [
     { key: 'drawn', label: 'On canvas', pending: '0.6rem' },
     { key: 'uri', label: 'Ontology term', className: 'graph-tables-uri', pending: '15rem' },
 ];
+
+//
+// the two measures a day of the tables carries beside its node count: how many
+// of a type's nodes carry text and so can be found by name, and how many values
+// are held about them. They lead a day's columns, being what its graph is drawn
+// by -- see source.js.
+//
+const LOOKUP_COLUMNS = [
+    { key: 'entities', label: 'Entities', numeric: true, pending: '3rem' },
+    { key: 'facts', label: 'Facts', numeric: true, pending: '3.5rem' },
+];
+
+//
+// the columns that open sorted biggest first, being counts
+//
+const DESCENDING = ['count', 'entities', 'facts'];
+
+//
+// the node table's columns, for what its rows carry: the ontology term only
+// where a row has one, and a day's two measures ahead of its node count where
+// the rows carry them. See the notes at the top of this file.
+//
+export function nodeColumns(terms, lookups) {
+    return NODE_COLUMNS.flatMap((column) => {
+        if (column.key === 'uri') {
+            return terms ? [column] : [];
+        }
+        if (column.key === 'count' && lookups) {
+            return [...LOOKUP_COLUMNS, column];
+        }
+
+        return [column];
+    });
+}
 
 const EDGE_COLUMNS = [
     { key: 'src', label: 'Edge type' },
@@ -171,6 +211,9 @@ export function nodeRows(schema, drawn, painted) {
             namespace: namespace,
             color: painted ? painted.get(namespace) : undefined,
             count: meta.count,
+            // a day's two measures; a build's types carry neither
+            entities: meta.entities,
+            facts: meta.facts,
             uri: meta.source_type_uri || '',
             drawn: !!(drawn && drawn.has(id)),
             search: `${id} ${namespace} ${meta.source_type_uri || ''}`.toLowerCase(),
@@ -254,6 +297,25 @@ class GraphTables extends Component {
         // schema, and only the first of them is worth drawing an empty table
         // for.
         loading: PropTypes.bool,
+        // whether the rows on their way will carry an ontology term, and a
+        // day's two measures. The rows decide once they are here; this is all an
+        // empty table has to go on, and heading it with columns the rows then
+        // drop, or add, would be headings that change when the data arrives.
+        terms: PropTypes.bool,
+        lookups: PropTypes.bool,
+        // what the rows belong to, as the tables name it to assistive
+        // technology: 'in this build', or 'on this day'.
+        scope: PropTypes.string,
+        // the measure the node table opens sorted by: the one the canvas above
+        // it was chosen by
+        weight: PropTypes.string,
+    }
+
+    static defaultProps = {
+        terms: true,
+        lookups: false,
+        scope: 'in this build',
+        weight: 'count',
     }
 
     constructor(props) {
@@ -262,12 +324,13 @@ class GraphTables extends Component {
         //
         // biggest first, on both tabs. A build's shape is carried by its large
         // types, and an alphabetical first page opens on whatever happens to
-        // begin with 'a'.
+        // begin with 'a'. Biggest by the measure the canvas was chosen by, so
+        // the first page of rows is the canvas's own types.
         //
         this.state = {
             tab: 'nodes',
             query: '',
-            sort: { key: 'count', direction: 'desc' },
+            sort: { key: props.weight, direction: 'desc' },
             page: 0,
             rows_per_page: ROWS_PER_PAGE[0],
         };
@@ -289,7 +352,11 @@ class GraphTables extends Component {
             return;
         }
 
-        this.setState({ tab: tab, page: 0, sort: { key: 'count', direction: 'desc' } });
+        this.setState({
+            tab: tab,
+            page: 0,
+            sort: { key: tab === 'nodes' ? this.props.weight : 'count', direction: 'desc' },
+        });
     }
 
     search(query) {
@@ -301,7 +368,7 @@ class GraphTables extends Component {
             page: 0,
             sort: state.sort.key === key
                 ? { key: key, direction: state.sort.direction === 'asc' ? 'desc' : 'asc' }
-                : { key: key, direction: key === 'count' ? 'desc' : 'asc' },
+                : { key: key, direction: DESCENDING.includes(key) ? 'desc' : 'asc' },
         }));
     }
 
@@ -315,19 +382,75 @@ class GraphTables extends Component {
         const { schema, drawn, painted } = this.props;
 
         if (this.built !== schema || this.builtDrawn !== drawn) {
+            const nodes = nodeRows(
+                schema,
+                new Set(drawn && drawn.node_types ? Object.keys(drawn.node_types) : []),
+                painted
+            );
+
             this.built = schema;
             this.builtDrawn = drawn;
             this.cache = {
-                nodes: nodeRows(
-                    schema,
-                    new Set(drawn && drawn.node_types ? Object.keys(drawn.node_types) : []),
-                    painted
-                ),
+                nodes: nodes,
                 edges: edgeRows(schema),
+                // asked once per document rather than per render, for the reason
+                // the rows are -- see the notes at the top
+                columns: nodeColumns(
+                    nodes.some((row) => row.uri),
+                    nodes.some((row) => typeof row.entities === 'number')
+                ),
             };
         }
 
         return this.cache[this.state.tab];
+    }
+
+    //
+    // the node table's columns, for what this document's rows carry
+    //
+    columnsOfNodes() {
+        this.rows();
+
+        return this.cache.columns;
+    }
+
+    //
+    // one node row's cell in one column. A count right-aligned, as every count
+    // on the page is, whichever count it is.
+    //
+    nodeCell(column, row) {
+        if (column.key === 'id') {
+            return (
+                <TableCell key='id'>
+                    <span
+                        className='graph-legend-swatch'
+                        style={row.color ? { backgroundColor: row.color } : undefined}
+                        title={row.namespace}
+                    />
+                    {wrapped(row.id)}
+                </TableCell>
+            );
+        }
+        if (column.key === 'drawn') {
+            return (
+                <TableCell key='drawn'>
+                    {row.drawn ? <span aria-label='on the canvas'>●</span> : ''}
+                </TableCell>
+            );
+        }
+        if (column.key === 'uri') {
+            return (
+                <TableCell key='uri' className='graph-tables-uri'>
+                    {wrapped(row.uri)}
+                </TableCell>
+            );
+        }
+
+        return (
+            <TableCell key={column.key} align='right' className='graph-tables-count'>
+                {number(row[column.key])}
+            </TableCell>
+        );
     }
 
     header(columns) {
@@ -358,29 +481,15 @@ class GraphTables extends Component {
     }
 
     nodeTable(shown) {
+        const columns = this.columnsOfNodes();
+
         return (
-            <Table stickyHeader size='small' aria-label='Node types in this build'>
-                {this.header(NODE_COLUMNS)}
+            <Table stickyHeader size='small' aria-label={`Node types ${this.props.scope}`}>
+                {this.header(columns)}
                 <TableBody>
                     {shown.map((row) => (
                         <TableRow key={row.key} hover>
-                            <TableCell>
-                                <span
-                                    className='graph-legend-swatch'
-                                    style={row.color ? { backgroundColor: row.color } : undefined}
-                                    title={row.namespace}
-                                />
-                                {wrapped(row.id)}
-                            </TableCell>
-                            <TableCell align='right' className='graph-tables-count'>
-                                {number(row.count)}
-                            </TableCell>
-                            <TableCell>
-                                {row.drawn ? <span aria-label='on the canvas'>●</span> : ''}
-                            </TableCell>
-                            <TableCell className='graph-tables-uri'>
-                                {wrapped(row.uri)}
-                            </TableCell>
+                            {columns.map((column) => this.nodeCell(column, row))}
                         </TableRow>
                     ))}
                 </TableBody>
@@ -390,7 +499,7 @@ class GraphTables extends Component {
 
     edgeTable(shown) {
         return (
-            <Table stickyHeader size='small' aria-label='Edge types in this build'>
+            <Table stickyHeader size='small' aria-label={`Edge types ${this.props.scope}`}>
                 {this.header(EDGE_COLUMNS)}
                 <TableBody>
                     {shown.map((row) => (
@@ -440,8 +549,15 @@ class GraphTables extends Component {
      *       appeared under the table when the build landed. Its count is a bar
      *       rather than the '0-0 of 0' a count of nothing would print: what
      *       it will say depends on the build, and nothing here invents a value.
+     *
+     * Note: headed without the ontology term, and with a day's two measures,
+     *       where the page says the rows will be shaped so -- see `terms` and
+     *       `lookups` -- for the reason it is headed with the node columns at
+     *       all.
      */
     pending() {
+        const columns = nodeColumns(this.props.terms, this.props.lookups);
+
         return (
             <section className='graph-tables graph-tables-pending' aria-hidden='true'>
                 <div className='graph-tables-controls'>
@@ -475,7 +591,7 @@ class GraphTables extends Component {
                     <Table stickyHeader size='small'>
                         <TableHead>
                             <TableRow>
-                                {NODE_COLUMNS.map((column) => (
+                                {columns.map((column) => (
                                     <TableCell
                                         key={column.key}
                                         className={column.className}
@@ -489,7 +605,7 @@ class GraphTables extends Component {
                         <TableBody>
                             {[...Array(PENDING_ROWS).keys()].map((row) => (
                                 <TableRow key={row}>
-                                    {NODE_COLUMNS.map((column) => (
+                                    {columns.map((column) => (
                                         <TableCell
                                             key={column.key}
                                             className={column.className}

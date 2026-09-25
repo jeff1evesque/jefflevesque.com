@@ -19,7 +19,7 @@ import StreamLayoutState from '../redux/container/stream/stream.jsx';
 import StreamTriggerLayoutState from '../redux/container/stream/trigger/trigger.jsx';
 import StreamAlarm from '../layout/stream/alarm.jsx';
 import ModelLayout from '../layout/model.jsx';
-import GraphLayout from '../layout/graph/graph.jsx';
+import GraphLayout, { RetrievalGraph } from '../layout/graph/graph.jsx';
 import HomePageState from '../redux/container/home-page.jsx';
 import ForgotPasswordState from '../redux/container/forgot-password.jsx';
 import ErrorPage from '../content/error-page.jsx';
@@ -30,6 +30,11 @@ import CanonicalStream from './canonical-stream.jsx';
 //       listing links to -- is wrapped in CanonicalStream, which replaces a url
 //       naming the stream by a name it used to go by with the url naming it by
 //       its id. A bookmark keeps working, and the page is only handed the id.
+//
+// Note: '/graph/retrieval' is a static segment, so react-router ranks it above
+//       '/graph/:graph' whatever order they are written in, and it is never read
+//       as a build id. A build published as 'retrieval' would be shadowed by it,
+//       which no build can be: an id is '<dataset>.<YYYY-MM>.<run>.<variant>'.
 //
 class MainRoute extends Component {
     render() {
@@ -54,6 +59,8 @@ class MainRoute extends Component {
                 />
                 <Route path='/model' element={<ModelLayout />}/>
                 <Route path='/graph' element={<GraphLayout />}/>
+                <Route path='/graph/retrieval' element={<RetrievalGraph />}/>
+                <Route path='/graph/retrieval/:day' element={<RetrievalGraph />}/>
                 <Route path='/graph/:graph' element={<GraphLayout />}/>
                 <Route path='/*' element={<ErrorPage />} />
             </Routes>

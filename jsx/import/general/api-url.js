@@ -5,13 +5,14 @@
  *     performance       read by /stream                        Stream, Interval, Timezone
  *                       its archive, the published files       (none)
  *     datalake          read by /data, /stream/:stream/alarm   Data, Scale
- *     knowledge-graph   read by /graph and /                   Graph
- *                       its tables, one path per question      Text, Uri, Day, Limit
+ *     knowledge-graph   read by /graph and /                   (the id, in the path)
+ *                       its tables, read by /graph/retrieval   Day, Limit
+ *                         and one path per question            Text, Uri, Symbol
  *
  * Three apis, and the knowledge graph has two shapes. It answers what a build IS on
- * two paths taking their id in the path, and what a build CONTAINS on four more,
- * one per question, each taking only that question's values. Separate builders for
- * that reason.
+ * two paths taking their id in the path, and what the published tables CONTAIN on
+ * more, one per question, each taking only that question's values. Separate builders
+ * for that reason.
  *
  * Every url a page fetches from these apis is built here, and so is the link that
  * shows a reader the request behind what the page draws. One builder for both is
@@ -152,31 +153,44 @@ export function knowledgeGraphUrl(graph = null, base = ENDPOINTS.knowledgeGraph)
 // sending one is a 400 -- the lists are held here so it is refused before the
 // request instead.
 //
-// 'Limit' is accepted by all four and left out of the lists, being a ceiling on the
-// answer rather than part of the question.
+// 'Limit' is accepted by every question but Days and left out of the lists, being a
+// ceiling on the answer rather than part of the question. Days takes nothing at
+// all, a Limit included: it is every published day, a year of them at most, and
+// the api refuses a value it would have to ignore.
+//
+// 'Day' on EdgeTypes and Find narrows them to that day, where each row appears
+// once. Without it they read every day in the window, and a row comes back once
+// for every day that holds it, with nothing on it saying which.
 //
 // the operation used to be an 'Operation' parameter on one path. It moved because
-// four operations taking four different parameter sets cannot be described on one
-// path: OpenAPI gives a flat parameter list per path, so a document of that shape
+// operations taking different parameter sets cannot be described on one path:
+// OpenAPI gives a flat parameter list per path, so a document of that shape
 // permitted requests the api rejects, and the rendered form on the documentation
 // site built one every time.
 //
 const TABLES_VALUES = {
-    EdgeTypes: { path: 'edge-types', values: [] },
-    Find: { path: 'find', values: ['Text'] },
+    Days: { path: 'days', values: [], limit: false },
+    EdgeTypes: { path: 'edge-types', values: ['Day'] },
+    NodeTypes: { path: 'node-types', values: ['Day'] },
+    Find: { path: 'find', values: ['Text', 'Day'] },
     Facts: { path: 'facts', values: ['Uri', 'Day'] },
     Neighborhood: { path: 'neighborhood', values: ['Uri', 'Day'] },
+    Quotes: { path: 'quotes', values: ['Symbol', 'Day'] },
+    LastQuotes: { path: 'last-quotes', values: ['Day'] },
 };
 
 /**
- * one question of a published build's tables: which links exist, which entities
- * match some text, what is held about one entity, or what one entity is linked to
- * within a day.
+ * one question of the published tables: which days are published, which links
+ * exist and how many nodes of each type a day holds, which entities match some
+ * text, what is held about one entity, what one entity is linked to within a day,
+ * and one stock's quotes through a day or every stock's last.
  *
- * Note: 'Day' is required by Neighborhood and optional for Facts. That asymmetry is
- *       the api's, and it is real -- the numeric ids the tables join on are
- *       renumbered daily, so an edge only means anything joined within its own day.
- *       Uris are stable across days, which is what a caller follows instead.
+ * Note: 'Day' is required by Neighborhood, NodeTypes, Quotes and LastQuotes, and
+ *       optional for the rest. That asymmetry is the api's, and it is real -- the
+ *       numeric ids the tables join on are renumbered daily, so an edge only means
+ *       anything joined within its own day, and a node counted across days is
+ *       counted once for every day that holds it. Uris are stable across days,
+ *       which is what a caller follows instead.
  *
  * Note: a value the named operation does not take throws here rather than being
  *       sent. The api answers one with a 400, so the alternative is a request that
@@ -193,8 +207,9 @@ export function knowledgeGraphTablesUrl(operation, values = {}, base = ENDPOINTS
         throw new Error(`knowledgeGraphTablesUrl: no such operation '${operation}'`);
     }
 
+    const takes = asked.limit === false ? asked.values : [...asked.values, 'Limit'];
     const given = Object.keys(values).filter((name) => values[name] !== undefined && values[name] !== null && values[name] !== '');
-    const unexpected = given.filter((name) => name !== 'Limit' && !asked.values.includes(name));
+    const unexpected = given.filter((name) => !takes.includes(name));
 
     if (unexpected.length) {
         throw new Error(`knowledgeGraphTablesUrl: ${operation} does not take ${unexpected.sort().join(', ')}`);

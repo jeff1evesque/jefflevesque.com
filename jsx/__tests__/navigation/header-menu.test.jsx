@@ -26,7 +26,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { createStore, combineReducers } from 'redux';
 
@@ -36,7 +36,15 @@ import HeaderMenu from '../../import/navigation/header-menu.jsx';
 const DESKTOP = 1024;
 const MOBILE = 375;
 
-function renderHeader({ layout, username = 'anonymous', width = DESKTOP } = {}) {
+//
+// where the router is, so a test can tell a link the router followed from one it
+// never saw
+//
+function Where() {
+    return <output data-testid='where'>{useLocation().pathname}</output>;
+}
+
+function renderHeader({ layout, username = 'anonymous', width = DESKTOP, path = '/' } = {}) {
     window.innerWidth = width;
 
     const store = createStore(
@@ -46,11 +54,19 @@ function renderHeader({ layout, username = 'anonymous', width = DESKTOP } = {}) 
 
     return render(
         <Provider store={store}>
-            <MemoryRouter>
+            <MemoryRouter initialEntries={[path]}>
                 <HeaderMenu layout={layout} />
+                <Where />
             </MemoryRouter>
         </Provider>
     );
+}
+
+//
+// the desktop Graph section is a dropdown: a toggle, and a menu the toggle opens
+//
+async function openGraphMenu() {
+    await userEvent.click(screen.getByRole('button', { name: 'Graph' }));
 }
 
 afterEach(() => {
@@ -130,7 +146,7 @@ describe('the desktop header', () => {
         expect(screen.getByRole('link', { name: 'Data' })).toHaveAttribute('href', '/data');
         expect(screen.getByRole('link', { name: 'Stream' })).toHaveAttribute('href', '/stream');
         expect(screen.getByRole('link', { name: 'Model' })).toHaveAttribute('href', '/model');
-        expect(screen.getByRole('link', { name: 'Graph' })).toHaveAttribute('href', '/graph');
+        expect(screen.getByRole('button', { name: 'Graph' })).toBeInTheDocument();
     });
 
     it('offers both login and sign-up to an anonymous visitor', () => {
@@ -148,6 +164,75 @@ describe('the desktop header', () => {
         renderHeader({ username: 'jeff' });
 
         expect(screen.queryByText('Sign up')).not.toBeInTheDocument();
+    });
+
+    it('opens Graph onto its two pages, through the router', async () => {
+        //
+        // the Training graph keeps /graph, so every link to a build keeps
+        // working, and the Retrieval graph sits beside it. Both are router
+        // links, as the pills beside the dropdown are.
+        //
+        renderHeader();
+
+        await openGraphMenu();
+
+        const training = screen.getByRole('link', { name: 'Training graph' });
+        const retrieval = screen.getByRole('link', { name: 'Retrieval graph' });
+
+        expect(training).toHaveAttribute('href', '/graph');
+        expect(retrieval).toHaveAttribute('href', '/graph/retrieval');
+
+        //
+        // followed by the router, without a page load: the in-memory address
+        // moves, which a plain href would leave where it was
+        //
+        await userEvent.click(retrieval);
+
+        expect(screen.getByTestId('where')).toHaveTextContent('/graph/retrieval');
+    });
+
+    it('offers nothing but the two pages under Graph', async () => {
+        renderHeader();
+
+        await openGraphMenu();
+
+        const menu = document.querySelector('.main-navigation-dropdown .dropdown-menu');
+
+        expect([...menu.querySelectorAll('a')].map((a) => a.textContent))
+            .toEqual(['Training graph', 'Retrieval graph']);
+    });
+
+    it.each([
+        ['/graph', 'Training graph'],
+        ['/graph/all-sources.2026-09.20260924T050042Z.1024d', 'Training graph'],
+        ['/graph/retrieval', 'Retrieval graph'],
+        ['/graph/retrieval/2026-09-23', 'Retrieval graph'],
+    ])('on %s, marks Graph and %s as where the reader is', async (path, page) => {
+        //
+        // '/graph' is a prefix of '/graph/retrieval', which is why the marking is
+        // the page's own and not a NavLink's: that would light the Training
+        // graph on both pages.
+        //
+        renderHeader({ path: path });
+
+        expect(screen.getByRole('button', { name: 'Graph' })).toHaveClass('active');
+
+        await openGraphMenu();
+
+        const marked = [...document.querySelectorAll('.main-navigation-dropdown .dropdown-item.active')]
+            .map((a) => a.textContent);
+
+        expect(marked).toEqual([page]);
+    });
+
+    it('marks nothing under Graph on another section', async () => {
+        renderHeader({ path: '/data' });
+
+        expect(screen.getByRole('button', { name: 'Graph' })).not.toHaveClass('active');
+
+        await openGraphMenu();
+
+        expect(document.querySelectorAll('.main-navigation-dropdown .dropdown-item.active')).toHaveLength(0);
     });
 
     it('still shows "Login in" to a signed-in user', () => {
@@ -187,7 +272,33 @@ describe('the mobile header', () => {
         expect(screen.getByRole('link', { name: 'Data' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Stream' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Model' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Graph' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Training graph' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Retrieval graph' })).toBeInTheDocument();
+    });
+
+    it('lists the two graph pages under a Graph heading of their own', async () => {
+        //
+        // a dropdown inside this dropdown would be a menu a phone cannot hold
+        // open while the reader moves between them, so the one Graph entry
+        // became a heading over two.
+        //
+        renderHeader({ width: MOBILE });
+
+        await userEvent.click(screen.getByRole('button', { name: /Session/ }));
+
+        const entries = [...document.querySelectorAll('.session .dropdown-menu > *')]
+            .map((entry) => `${entry.classList.contains('dropdown-header') ? '# ' : ''}${entry.textContent}`);
+
+        expect(entries).toEqual([
+            'Stream',
+            'Data',
+            '# Graph',
+            'Training graph',
+            'Retrieval graph',
+            'Model',
+        ]);
+        expect(screen.getByRole('link', { name: 'Training graph' })).toHaveAttribute('href', '/graph');
+        expect(screen.getByRole('link', { name: 'Retrieval graph' })).toHaveAttribute('href', '/graph/retrieval');
     });
 
     it('navigates the mobile sections with plain hrefs, not the router', async () => {

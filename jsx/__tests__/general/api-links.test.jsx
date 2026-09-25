@@ -54,6 +54,48 @@ describe('the two links', () => {
     });
 });
 
+describe('a page drawn from more than one request', () => {
+    //
+    // the Retrieval graph draws a day from its node types and its edge types,
+    // asked side by side. Linking one of them would show a reader half of what
+    // the graph was drawn from.
+    //
+    const NODES = 'https://api.jefflevesque.com/v1/public/knowledge-graph/tables/node-types?Day=2026-09-23&Limit=1000';
+    const EDGES = 'https://api.jefflevesque.com/v1/public/knowledge-graph/tables/edge-types?Day=2026-09-23&Limit=1000';
+
+    const requests = [
+        { url: NODES, label: 'Node types request' },
+        { url: new URL(EDGES), label: 'Edge types request' },
+    ];
+
+    it('links each request, named for what it asks', () => {
+        render(<ApiLinks docs={DOCS} requests={requests} />);
+
+        expect(screen.getByRole('link', { name: 'Node types request' })).toHaveAttribute('href', NODES);
+        expect(screen.getByRole('link', { name: 'Edge types request' })).toHaveAttribute('href', EDGES);
+    });
+
+    it('still links the docs first, and opens every link in a new tab', () => {
+        render(<ApiLinks docs={DOCS} requests={requests} />);
+
+        const links = screen.getAllByRole('link');
+
+        expect(links.map((link) => link.getAttribute('aria-label')))
+            .toEqual(['API docs', 'Node types request', 'Edge types request']);
+        links.forEach((link) => expect(link).toHaveAttribute('target', '_blank'));
+    });
+
+    it('names a single request as it always has', () => {
+        //
+        // the Training graph hands its one request in this form too, and its
+        // icon reads as it did before there was a second page.
+        //
+        render(<ApiLinks docs={DOCS} requests={[{ url: REQUEST, label: 'This request' }]} />);
+
+        expect(screen.getByRole('link', { name: 'This request' })).toHaveAttribute('href', REQUEST);
+    });
+});
+
 describe('sizing', () => {
     it('defaults to the medium icon', () => {
         const { container } = render(<ApiLinks docs={DOCS} request={REQUEST} />);

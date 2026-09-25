@@ -42,8 +42,11 @@ const KNOWLEDGE_GRAPH = ENDPOINTS.knowledgeGraph;
  * A non-ok response and a body without 'report' are both rejections: the service
  * answers errors as a 4xx/5xx carrying 'report.error', so there is no success
  * shape that lacks the envelope.
+ *
+ * Note: exported for get-graph-tables.js, which reads the same api's tables. One
+ *       reading of the envelope, so the two cannot come to disagree about it.
  */
-function report(url) {
+export function report(url) {
     return fetch(url, { method: 'GET' })
         .then((response) => {
             if (response.ok) {

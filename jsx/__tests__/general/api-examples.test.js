@@ -20,6 +20,7 @@ const path = require('path');
 import getData from '../../import/general/get-data.js';
 import getBlsDistribution from '../../import/general/get-data/distribution/bls.js';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
+import { getTableDays, getTableDay } from '../../import/general/get-graph-tables.js';
 import filterSchema from '../../import/animation/filter-schema.js';
 import { sourceNamespace } from '../../import/animation/encoding.js';
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
@@ -196,5 +197,61 @@ describe('knowledge graph, as the /graph page loads it', () => {
             .map(([id, meta]) => sourceNamespace(meta, id));
 
         expect([...new Set(drawn)]).toEqual(['bls-cpi']);
+    });
+});
+
+describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
+    //
+    // three documented answers make a day: the days, and one day's node types and
+    // edge types asked side by side. Each is read off its own route, and the two
+    // halves of a day are answered by path -- they are asked at once, and nothing
+    // promises which arrives first.
+    //
+    const days = successOf('knowledge-graph', '/knowledge-graph/tables/days');
+    const nodeTypes = successOf('knowledge-graph', '/knowledge-graph/tables/node-types');
+    const edgeTypes = successOf('knowledge-graph', '/knowledge-graph/tables/edge-types');
+
+    function answeringByPath(byPath) {
+        global.fetch = jest.fn((url) => Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve(byPath[new URL(String(url)).pathname.split('/').pop()]),
+        }));
+    }
+
+    it('reads the documented days, newest first', async () => {
+        answering(days.example);
+
+        const listed = await getTableDays();
+
+        expect(listed.length).toBeGreaterThan(1);
+        expect(listed).toEqual([...listed].sort().reverse());
+    });
+
+    it('reads the documented node and edge types as one day', async () => {
+        answeringByPath({ 'node-types': nodeTypes.example, 'edge-types': edgeTypes.example });
+
+        const day = await getTableDay('2026-09-23');
+
+        expect(Object.keys(day.node_types)).toEqual(
+            nodeTypes.example.report.rows.map((row) => row.node_type)
+        );
+        expect(Object.keys(day.edge_types)).toHaveLength(edgeTypes.example.report.rows.length);
+    });
+
+    it('documents node types that say what can be looked up in them', async () => {
+        //
+        // the day loader refuses a node type without its entities and facts, so a
+        // documented answer that left them out would document a day this site
+        // could not draw.
+        //
+        answeringByPath({ 'node-types': nodeTypes.example, 'edge-types': edgeTypes.example });
+
+        const day = await getTableDay('2026-09-23');
+
+        Object.values(day.node_types).forEach((type) => {
+            expect(typeof type.entities).toBe('number');
+            expect(typeof type.facts).toBe('number');
+        });
     });
 });

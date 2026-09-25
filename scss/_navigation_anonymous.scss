@@ -29,6 +29,29 @@
         .navbar-header {
           padding: 0 0 0 $gutter-1 / 2;
         }
+
+        //
+        // the Graph section's two pages, under a heading of their own, and set
+        // in from it so they read as its entries. See showMobileHeader in
+        // header-menu.jsx.
+        //
+        .main-navigation {
+          .dropdown-header {
+            padding: 1rem $anon-dropdown-item-side 0.25rem;
+            color: $gray-5;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+          }
+
+          .dropdown-item.menu-sub-item {
+            padding-left: $anon-dropdown-item-side + 1.25rem;
+          }
+
+          .dropdown-item.menu-sub-item:hover {
+            padding-left: $anon-dropdown-item-side + 1.25rem - $menu-border-left;
+          }
+        }
       }
     }
   }
@@ -51,6 +74,66 @@
 
         .home {
           text-align: center;
+        }
+
+        //
+        // the Graph section: a dropdown dressed as the pills beside it. See
+        // GraphMenu in header-menu.jsx.
+        //
+        // Bootstrap draws its toggle as a .nav-link in a .nav-item, and the
+        // rules this header has for those are the PHONE's -- a rule under every
+        // item, a dark hover, a toggle with no padding, and a caret moved to the
+        // far edge -- so each is put back to what the pills beside it wear.
+        //
+        .menu-home-desktop .main-navigation-dropdown {
+          display: inline-block;
+          border-bottom: none;
+
+          &:hover {
+            background-color: transparent;
+          }
+
+          > .dropdown-toggle {
+            display: inline-block;
+            color: $gray-8;
+            font-size: 1.125rem;
+            letter-spacing: 0.02em;
+            padding: 0.5rem 1.5rem;
+          }
+
+          > .dropdown-toggle.active {
+            color: $green-6;
+          }
+
+          > .dropdown-toggle.active,
+          > .dropdown-toggle:hover,
+          &.show > .dropdown-toggle {
+            text-decoration: underline;
+            text-decoration-color: $gray-1;
+            text-underline-offset: 0.5rem;
+          }
+
+          .dropdown-toggle::after {
+            position: static;
+          }
+
+          .dropdown-menu {
+            min-width: 12rem;
+            padding: 0.25rem 0;
+          }
+
+          .dropdown-item {
+            height: auto;
+            padding: 0.75rem 1.5rem;
+            color: $white-1;
+          }
+
+          .dropdown-item:hover,
+          .dropdown-item.active {
+            background-color: transparent;
+            border-left: $menu-border-left solid green;
+            padding-left: 1.5rem - $menu-border-left;
+          }
         }
       }
 

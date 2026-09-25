@@ -1,9 +1,22 @@
 /**
- * graph.jsx: browse the published knowledge graph builds.
+ * graph.jsx: browse the published knowledge graph, as two pages.
  *
  * The front page draws one graph -- the default build -- as a backdrop, and is
- * deliberately not readable up close. This page is the other half: pick a build,
+ * deliberately not readable up close. These pages are the other half: pick one,
  * see what is in it, and read the thing properly.
+ *
+ *     /graph              the Training graph: a published PyG build, from its
+ *                         schema -- the graph a graph neural network trains on
+ *     /graph/retrieval    the Retrieval graph: one day of the published query
+ *                         tables -- the graph an LLM's retrieval step reads
+ *
+ * One layout draws both. Which graph it is -- what the picker offers, how one is
+ * loaded, what the details panel says about it, the words the page uses -- is a
+ * SOURCE handed in, and see source.js for the two. Everything below reads the
+ * document a source loads as a build's schema, so a day of the tables, put in
+ * that shape, is drawn by the same code: the filter, the legend, the canvas and
+ * the tables. A "build" in the notes that follow is whichever of the two is
+ * being drawn.
  *
  * Laid out in three columns on a wide screen -- what the build is, the graph,
  * and how to read its colors -- so all three are in view together. On a narrow
@@ -61,12 +74,12 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import GraphExplorer from '../../animation/graph-explorer.jsx';
-import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
-import { knowledgeGraphUrl, API_DOCS } from '../../general/api-url.js';
+import { API_DOCS } from '../../general/api-url.js';
 import ApiLinks from '../../general/api-links.jsx';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
-import filterSchema from '../../animation/filter-schema.js';
+import filterSchema, { GRAPH_NODE_TYPES } from '../../animation/filter-schema.js';
 import GraphTables from './tables.jsx';
+import { BUILDS, DAYS } from './source.js';
 import {
     PendingCanvas,
     PendingCaption,
@@ -100,10 +113,11 @@ const ORIGIN_LABEL = {
 const PANELS_START = { build: false, legend: false, row: true };
 
 //
-// what this page is called in the preference store, which keeps more than one
-// surface's arrangement under a single key.
+// Note: what the page is called in the preference store, which keeps more than
+//       one surface's arrangement under a single key, is its source's `surface`.
+//       Each graph is arranged apart: a column folded on one stays open on the
+//       other, which is a different page with a different panel in it.
 //
-const SURFACE = 'graph';
 
 //
 // where the layout becomes three columns, in pixels, mirroring '$graph-columns'
@@ -209,157 +223,13 @@ const PICKER_MENU = {
     PaperProps: { className: 'graph-picker-menu', style: { maxHeight: 48 * 8 } },
 };
 
-const COMPACT = new Intl.NumberFormat('en-US', {
-    notation: 'compact',
-    maximumSignificantDigits: 3,
-});
-
-function when(iso) {
-    if (!iso) {
-        return 'n/a';
-    }
-
-    const zone = /(Z|[+-]00:?00)$/.test(String(iso)) ? ' UTC' : '';
-
-    return String(iso).replace('T', ' ').replace(/(:\d\d).*$/, '$1').replace(/\+.*$/, '') + zone;
-}
-
-function count(n) {
-    return typeof n === 'number' ? n.toLocaleString() : 'n/a';
-}
-
-//
-// the first schema version that says which sources reached the graph, rather
-// than only which ones its run read. See graphSources.
-//
-const SOURCES_IN_GRAPH = [1, 4];
-
-//
-// whether a schema's `version` is at least [major, minor].
-//
-// Compared a part at a time, as numbers. As text or as one float, '1.10' would
-// come out below '1.4'.
-//
-// Note: a version that is missing or does not parse is below every version,
-//       so the page reads that build the way it read every build before 1.4.
-//
-function atLeast(version, [major, minor]) {
-    const [have, part] = String(version || '').split('.').map(Number);
-
-    return have > major || (have === major && part >= minor);
-}
-
-/**
- * the sources the GRAPH holds, which need not be every source its run read.
- *
- * The listing's `sources` is what the run read. From schema 1.4 a build also
- * says what reached the graph, in `build_metadata.sources_in_graph`, and the two
- * can differ by a whole source: the daily run reads noaa and leaves every one of
- * its node types out of the graph. Below 1.4 a build cannot say, and `sources`
- * is the only account there is. It is what this row showed for every build
- * before.
- *
- * Note: undefined while there is no schema, because until there is one it is
- *       not known which of the two lists applies. The listing's list is not a
- *       safe guess: on a 1.4 build it names a source the graph does not hold.
- */
-function graphSources(build, schema) {
-    if (!schema) {
-        return undefined;
-    }
-
-    const sources = atLeast(schema.version, SOURCES_IN_GRAPH)
-        ? (schema.build_metadata || {}).sources_in_graph
-        : build.sources;
-
-    return (sources || []).join(', ');
-}
-
-//
-// the build panel's rows: what each is called, and how to read it off a listing
-// entry. `schema` marks the one row that is read off the build's schema as
-// well, and so has to wait for it. See details.
-//
-// A table rather than a list built inline, because the placeholder that stands
-// in for this panel while the listing is still on its way is laid out from the
-// same labels -- see pending.jsx. Two copies of them drift apart the first time
-// a row is added to one of them.
-//
-const DETAILS = [
-    { label: 'Nodes', read: (build) => count(build.nodes) },
-    { label: 'Edges', read: (build) => count(build.edges) },
-    { label: 'Sources', read: graphSources, schema: true },
-    { label: 'Run', read: (build) => when(build.run) },
-    { label: 'Built', read: (build) => when(build.built) },
-    { label: 'Dataset', read: (build) => build.dataset },
-    { label: 'Variant', read: (build) => build.variant },
-];
-
-const DETAIL_LABELS = DETAILS.map((row) => row.label);
-
-//
-// what tells the builds in the picker apart, which is not what the listing
-// calls them.
-//
-// The listing labels a build with a sentence -- 'September 2026 (all-sources,
-// 1024d, run 2026-09-19 05:00 UTC)' -- and the builds it returns differ only in
-// the last few characters of it. Seven of those made a 466px control beside the
-// page heading, and, in a phone's option list, seven wrapped paragraphs to
-// choose between builds that read as identical until their end.
-//
-// Every constant part of that sentence is already on the page, in the build
-// panel directly below it: Dataset, Variant, Run. So an option says the run
-// time -- the part that differs, in the words the Run row uses -- and then
-// whatever else actually varies across THIS listing, which is nothing while
-// every published build is the same dataset and variant.
-//
-// Note: `period` is deliberately not one of the fields that can be added. It is
-//       a partition key rather than a window over the data -- see the note below
-//       -- and an option ending '2026-09' would put it back in front of a reader
-//       as though it bounded something.
-//
-// Note: the listing's own labels are used for ALL of them when the derived ones
-//       do not tell every build apart: two builds run in the same minute would
-//       both read '2026-09-19 05:00 UTC'. A shorter label is worth having, and a
-//       label that names two different builds is not.
-//
-const DISTINGUISHING = ['dataset', 'variant'];
-
-function pickerLabels(graphs) {
-    const varies = DISTINGUISHING.filter(
-        (key) => new Set(graphs.map((build) => build[key])).size > 1
-    );
-
-    const labels = graphs.map((build) => (build.run
-        ? [when(build.run), ...varies.map((key) => build[key]).filter(Boolean)].join(' · ')
-        : build.label));
-
-    return new Set(labels).size === labels.length ? labels : graphs.map((build) => build.label);
-}
-
-//
-// There is deliberately no 'Period' row below, and the listing's `period` is
-// read by nothing on this page.
-//
-// It is a PARTITION KEY: the builds are listed out of a partition, and an id is
-// selected from within it. It is not a window over the data, and a row headed
-// 'Period' invited every reader to take it for one. The September build carries
-// 76 distinct dates -- `bls_enrichment_UnifiedDay` in its own schema -- across
-// economic series going back eighteen years, so '2026-09' bounds none of it.
-//
-// The page said so twice before arriving here. First as a derived day range,
-// '2026-09-01 – 2026-09-19', whose end was the run date wearing a coverage
-// date's clothes. Then as 'September 2026', which dropped the invented precision
-// and kept the false framing. What a reader can actually use is in the rows that
-// remain -- and the partition itself is already in the picker's label, where it
-// reads as part of a build's name rather than as a claim about its contents.
-//
-
 class GraphLayout extends Component {
     constructor() {
         super();
 
         this.state = {
+            // what the picker offers: the source's { default, choices } -- the
+            // published builds, or the published days. See list() in source.js
             listing: null,
             selected: null,
             schema: null,
@@ -396,10 +266,10 @@ class GraphLayout extends Component {
 
         this.openPicker = this.openPicker.bind(this);
         this.closePicker = this.closePicker.bind(this);
-        this.selectBuild = this.selectBuild.bind(this);
-        this.navigateToBuild = this.navigateToBuild.bind(this);
-        this.requestedBuild = this.requestedBuild.bind(this);
-        this.selectedBuild = this.selectedBuild.bind(this);
+        this.select = this.select.bind(this);
+        this.navigateTo = this.navigateTo.bind(this);
+        this.requested = this.requested.bind(this);
+        this.selectedChoice = this.selectedChoice.bind(this);
         this.onScreen = this.onScreen.bind(this);
         this.toggle = this.toggle.bind(this);
         this.panel = this.panel.bind(this);
@@ -454,7 +324,7 @@ class GraphLayout extends Component {
 
         const wide = typeof window.matchMedia === 'function'
             && window.matchMedia(`(min-width: ${PANELS_WIDE}px)`).matches;
-        const stored = readLayout(SURFACE, wide ? 'wide' : 'narrow');
+        const stored = readLayout(this.props.source.surface, wide ? 'wide' : 'narrow');
 
         this.variant = wide ? 'wide' : 'narrow';
 
@@ -491,14 +361,14 @@ class GraphLayout extends Component {
         this.stored = stored.size;
         this.setState({ open: open });
 
-        getGraphListing().then((listing) => {
-            if (!listing || !listing.graphs.length) {
+        this.props.source.list().then((listing) => {
+            if (!listing) {
                 this.setState({ listing: null, loading: false, failed: true });
                 return;
             }
 
             this.setState({ listing: listing });
-            this.selectBuild(this.requestedBuild(listing));
+            this.select(this.requested(listing));
         });
     }
 
@@ -550,16 +420,18 @@ class GraphLayout extends Component {
      *       than 404ing. The listing is what decides which builds exist, and a
      *       link to a build that has since rolled off is an ordinary thing to
      *       find in someone's bookmarks -- the page still has something true to
-     *       draw, and the picker shows what it drew instead.
+     *       draw, and the picker shows what it drew instead. A day the tables no
+     *       longer list falls back to the newest the same way, for the same
+     *       reason.
      */
-    requestedBuild(listing) {
-        const requested = this.props.params.graph;
+    requested(listing) {
+        const requested = this.props.params[this.props.source.param];
 
-        if (requested && listing.graphs.some((b) => b.id === requested)) {
+        if (requested && listing.choices.some((choice) => choice.id === requested)) {
             return requested;
         }
 
-        return listing.default || listing.graphs[0].id;
+        return listing.default || listing.choices[0].id;
     }
 
     /**
@@ -570,20 +442,21 @@ class GraphLayout extends Component {
      *       this navigating AND selecting. Two entry points writing 'selected'
      *       -- the picker and the back button -- is how they get to disagree.
      */
-    navigateToBuild(id) {
-        this.props.navigate(`/graph/${encodeURIComponent(id)}`);
+    navigateTo(id) {
+        this.props.navigate(this.props.source.path(id));
     }
 
     componentDidUpdate(previous) {
-        const before = previous.params.graph;
-        const now = this.props.params.graph;
+        const param = this.props.source.param;
+        const before = previous.params[param];
+        const now = this.props.params[param];
         const { listing } = this.state;
 
         if (before !== now && listing) {
-            const wanted = this.requestedBuild(listing);
+            const wanted = this.requested(listing);
 
             if (wanted !== this.state.selected) {
-                this.selectBuild(wanted);
+                this.select(wanted);
             }
         }
     }
@@ -594,7 +467,7 @@ class GraphLayout extends Component {
      *       build's label for as long as the request takes, which reads as a
      *       correct answer and is not one.
      */
-    selectBuild(id) {
+    select(id) {
         //
         // the legend's marks go with the build. They name a namespace or an
         // origin out of the build being left, and the next one need not carry
@@ -611,8 +484,12 @@ class GraphLayout extends Component {
             marked: [],
         });
 
-        return getGraphById(id).then((schema) => {
-            const filtered = filterSchema(schema);
+        return this.props.source.load(id).then((schema) => {
+            //
+            // the slice is chosen by what the source weighs a type by: its
+            // nodes for a build, its findable entities for a day. See source.js
+            //
+            const filtered = filterSchema(schema, GRAPH_NODE_TYPES, this.props.source.weight);
 
             this.setState({
                 schema: filtered,
@@ -623,14 +500,14 @@ class GraphLayout extends Component {
         });
     }
 
-    selectedBuild() {
+    selectedChoice() {
         const { listing, selected } = this.state;
 
         if (!listing || !selected) {
             return null;
         }
 
-        return listing.graphs.find((b) => b.id === selected) || null;
+        return listing.choices.find((choice) => choice.id === selected) || null;
     }
 
     //
@@ -674,7 +551,7 @@ class GraphLayout extends Component {
         this.screenFor = schema;
         this.screen = {
             namespaces: rankNamespaces(nodes),
-            painted: buildPalette(this.state.build),
+            painted: buildPalette(this.state.build, GRAPH_NODE_TYPES, this.props.source.weight),
             origins: [...new Set(
                 Object.values(schema.edge_types).map((e) => e.origin).filter(Boolean)
             )].sort(),
@@ -903,7 +780,7 @@ class GraphLayout extends Component {
     save() {
         const { open, size } = this.state;
 
-        writeLayout(SURFACE, this.variant, {
+        writeLayout(this.props.source.surface, this.variant, {
             fold: { build: !open.build, legend: !open.legend, row: !open.row },
             size: size,
         });
@@ -1252,12 +1129,13 @@ class GraphLayout extends Component {
      */
     picker() {
         const { listing, selected } = this.state;
+        const { source } = this.props;
 
         if (!listing) {
             return null;
         }
 
-        const labels = pickerLabels(listing.graphs);
+        const labels = source.labels(listing.choices);
 
         return (
             <Select
@@ -1265,16 +1143,16 @@ class GraphLayout extends Component {
                 variant='standard'
                 disableUnderline
                 value={selected || ''}
-                onChange={(event) => this.navigateToBuild(event.target.value)}
-                inputProps={{ 'aria-label': 'Published build' }}
+                onChange={(event) => this.navigateTo(event.target.value)}
+                inputProps={{ 'aria-label': source.picker.name }}
                 MenuProps={PICKER_MENU}
                 open={this.state.picker_open}
                 onOpen={this.openPicker}
                 onClose={this.closePicker}
             >
-                {listing.graphs.map((build, index) => (
-                    <MenuItem key={build.id} value={build.id} disabled={!!build.error}>
-                        {build.error ? `${labels[index]} (unavailable)` : labels[index]}
+                {listing.choices.map((choice, index) => (
+                    <MenuItem key={choice.id} value={choice.id} disabled={!!choice.error}>
+                        {choice.error ? `${labels[index]} (unavailable)` : labels[index]}
                     </MenuItem>
                 ))}
             </Select>
@@ -1297,6 +1175,10 @@ class GraphLayout extends Component {
     //       its place with the bar the whole panel's stand-in draws in that
     //       row, and reads 'n/a' once there is no schema coming.
     //
+    // Note: a DAY's panel is the same panel with other rows, and every one of
+    //       them but the day itself is totalled from the day's rows -- so all
+    //       of those wait the way Sources does. See DAY_DETAILS in source.js.
+    //
     details(build) {
         if (!build) {
             return null;
@@ -1306,12 +1188,12 @@ class GraphLayout extends Component {
 
         return (
             <dl className='graph-details'>
-                {DETAILS.map((row, index) => (
+                {this.props.source.rows.map((row, index) => (
                     <div key={row.label} className='graph-details-row'>
                         <dt>{row.label}</dt>
                         <dd>
                             {row.schema && !whole && this.state.loading
-                                ? <PendingDetail index={index} />
+                                ? <PendingDetail index={index} width={row.pending || null} />
                                 : row.read(build, whole) || 'n/a'}
                         </dd>
                     </div>
@@ -1341,8 +1223,15 @@ class GraphLayout extends Component {
             return null;
         }
 
+        const { rows } = this.props.source;
+
         return key === 'build'
-            ? <PendingDetails labels={DETAIL_LABELS} />
+            ? (
+                <PendingDetails
+                    labels={rows.map((row) => row.label)}
+                    widths={rows.map((row) => row.pending || null)}
+                />
+            )
             : <PendingLegend />;
     }
 
@@ -1426,16 +1315,24 @@ class GraphLayout extends Component {
             ? `${drawn} of ${published} node types`
             : `All ${drawn} node types`;
 
+        //
+        // what chose them, where it is not their size. The two graphs are drawn
+        // alike, so which types are on the canvas is the one difference a
+        // reader cannot see for themselves -- see `chosen` in source.js
+        //
+        const chosen = this.props.source.chosen;
+
         return (
             <p className='graph-caption'>
-                {scope} · hover or tap a node for details · the rest are below
+                {chosen ? `${scope}, ${chosen}` : scope} · hover or tap a node for details · the rest are below
             </p>
         );
     }
 
     render() {
         const { schema, loading, failed, listing } = this.state;
-        const build = this.selectedBuild();
+        const { source } = this.props;
+        const build = this.selectedChoice();
         const shown = this.onScreen();
 
         const body = () => {
@@ -1445,9 +1342,7 @@ class GraphLayout extends Component {
             if (failed || !schema) {
                 return (
                     <p className='graph-status graph-status-failed'>
-                        {listing
-                            ? 'That build could not be loaded.'
-                            : 'The published builds could not be listed.'}
+                        {listing ? source.failed.load : source.failed.list}
                     </p>
                 );
             }
@@ -1462,9 +1357,7 @@ class GraphLayout extends Component {
             );
         };
 
-        const nodes = build && typeof build.nodes === 'number'
-            ? `${COMPACT.format(build.nodes)} nodes`
-            : null;
+        const nodes = source.summary(build, this.state.build);
         const namespaces = shown
             ? `${shown.namespaces.length} ${shown.namespaces.length === 1 ? 'namespace' : 'namespaces'}`
             : null;
@@ -1497,7 +1390,13 @@ class GraphLayout extends Component {
                         Note: the visible 'Build' is what a sighted reader was
                               missing -- the accessible name has always been
                               'Published build', which screen readers got and
-                              nobody else did.
+                              nobody else did. A day is 'Day' and 'Published
+                              day', from its source, for the same reason.
+
+                        Note: the heading names WHICH graph -- 'Training graph'
+                              or 'Retrieval graph' -- rather than the 'Knowledge
+                              graph' both of them are, since the two are one
+                              menu away from each other and look alike.
 
                     */}
                     <div
@@ -1507,7 +1406,7 @@ class GraphLayout extends Component {
                         ref={this.layout}
                     >
                         <div className='graph-header'>
-                            <h4>Knowledge graph</h4>
+                            <h4>{source.heading}</h4>
                             {/*
 
                                 the field is here while the listing is on its
@@ -1523,14 +1422,14 @@ class GraphLayout extends Component {
                             */}
                             {listing || loading ? (
                                 <div className='graph-picker-field'>
-                                    <span className='graph-picker-label'>Build</span>
+                                    <span className='graph-picker-label'>{source.picker.label}</span>
                                     {listing ? this.picker() : <PendingPicker />}
                                 </div>
                             ) : null}
                         </div>
                         {this.panel(
                             'build',
-                            'Build details',
+                            source.panel,
                             nodes,
                             this.details(build) || this.pending('build')
                         )}
@@ -1555,14 +1454,16 @@ class GraphLayout extends Component {
                                 the build is drawn, and the request it was drawn
                                 from -- the build the picker has selected, as
                                 getGraphById fetches it, or the listing, before
-                                one is selected.
+                                one is selected. A day is drawn from TWO
+                                requests, and gets an icon for each -- see
+                                requests() in source.js.
 
                             */}
                             <div className='graph-canvas-header'>
                                 {this.caption()}
                                 <ApiLinks
                                     docs={API_DOCS.knowledgeGraph}
-                                    request={knowledgeGraphUrl(this.state.selected)}
+                                    requests={source.requests(this.state.selected)}
                                     size='medium'
                                 />
                             </div>
@@ -1612,6 +1513,10 @@ class GraphLayout extends Component {
                             drawn={schema}
                             painted={shown ? shown.painted : null}
                             loading={loading}
+                            terms={source.terms}
+                            lookups={source.lookups}
+                            scope={source.scope}
+                            weight={source.weight}
                         />
                     </div>
                 </div>
@@ -1621,10 +1526,26 @@ class GraphLayout extends Component {
 }
 
 //
+// a page that names no source is the Training graph, which is what this page was
+// before there were two.
+//
+GraphLayout.defaultProps = { source: BUILDS };
+
+//
 // the address is injected rather than read inside the class, the way
 // stream/trigger.jsx and stream/alarm.jsx do it -- react-router's hooks cannot
 // be called from a class component.
 //
-export default (props) => <GraphLayout {...props} params={useParams()} navigate={useNavigate()} />;
+// Two pages, one layout, and the source is what tells them apart. Each is its own
+// component so that moving between the two -- by the Graph menu -- mounts the
+// other rather than handing one page the other's source mid-life.
+//
+export default (props) => (
+    <GraphLayout {...props} source={BUILDS} params={useParams()} navigate={useNavigate()} />
+);
+
+export function RetrievalGraph(props) {
+    return <GraphLayout {...props} source={DAYS} params={useParams()} navigate={useNavigate()} />;
+}
 
 export { GraphLayout };

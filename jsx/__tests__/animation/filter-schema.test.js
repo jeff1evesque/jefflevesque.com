@@ -775,3 +775,126 @@ describe('rank', () => {
         expect(rank(node_types, 99)).toHaveLength(2);
     });
 });
+
+describe('weighing types by something other than their count', () => {
+    //
+    // the Retrieval graph weighs a day's node types by how many of their nodes can
+    // be found by name. Weighed by count, the day drew its own build again -- 56 of
+    // the same 60 types on 2026-09-23 -- because the tables and the build count the
+    // same nodes. See source.js.
+    //
+    // Each type here carries a `count` that orders it one way and `entities` that
+    // order it the other, so which measure did the choosing is never in doubt.
+    //
+    function weighed(types, edge_types = {}) {
+        const node_types = {};
+
+        Object.entries(types).forEach(([id, [count, entities]]) => {
+            node_types[id] = { count: count, entities: entities };
+        });
+
+        return { node_types: node_types, edge_types: edge_types };
+    }
+
+    const kept = (schema, limit, weight) => Object.keys(filterSchema(schema, limit, weight).node_types).sort();
+
+    it('ranks by the measure it is handed', () => {
+        const { node_types } = weighed({ big: [900, 1], named: [5, 40], middling: [50, 20] });
+
+        expect(rank(node_types, 3, 'entities')).toEqual(['named', 'middling', 'big']);
+        expect(rank(node_types, 3)).toEqual(['big', 'middling', 'named']);
+    });
+
+    it('keeps the heaviest by that measure, not by count', () => {
+        const schema = weighed({ big: [900, 1], named: [5, 40], middling: [50, 20] });
+
+        expect(kept(schema, 2, 'entities')).toEqual(['middling', 'named']);
+        expect(kept(schema, 2)).toEqual(['big', 'middling']);
+    });
+
+    it('never pads the canvas with a type that weighs nothing', () => {
+        //
+        // room for five and only two named types: the three nameless ones join
+        // nothing, so there is no reason to draw them. Nine million market
+        // snapshots are exactly such a type on a day of the tables.
+        //
+        const schema = weighed({
+            quotes: [9_000_000, 0],
+            options: [8_000_000, 0],
+            other: [7_000_000, 0],
+            filing: [2, 2],
+            issuer: [1, 1],
+        });
+
+        expect(kept(schema, 5, 'entities')).toEqual(['filing', 'issuer']);
+    });
+
+    it('still draws a nameless type that joins two named ones, when there is room', () => {
+        const schema = weighed(
+            { filing: [3, 3], issuer: [2, 2], company: [9, 0] },
+            { a: edge('company', 'filing'), b: edge('company', 'issuer') }
+        );
+
+        expect(kept(schema, 5, 'entities')).toEqual(['company', 'filing', 'issuer']);
+    });
+
+    it('gives a named type the place before a nameless connector', () => {
+        //
+        // the rule measured against a real day: a connector pass that ran before
+        // the padding spent nineteen of sixty places on nameless series joining
+        // two named types each, and left nine named types off the canvas.
+        //
+        // Four places. Three named types seed, and the fourth named one and the
+        // nameless joiner both want the last place -- it goes to the named one.
+        //
+        const schema = weighed(
+            { w0: [1, 40], w1: [1, 30], w2: [1, 20], w3: [1, 10], joiner: [99, 0] },
+            { a: edge('joiner', 'w0'), b: edge('joiner', 'w1') }
+        );
+
+        expect(kept(schema, 4, 'entities')).toEqual(['w0', 'w1', 'w2', 'w3']);
+    });
+
+    it('never trades a named type for a nameless bridge', () => {
+        //
+        // two named pairs that do not touch, and a nameless type bridging them.
+        // Joining the canvas up by dropping a named type would be the page
+        // choosing a connection over a thing a reader came for, so the two
+        // pieces stand -- under count, the same bridge IS traded in. See the
+        // bridging cases above.
+        //
+        const schema = weighed(
+            { a0: [1, 40], a1: [1, 30], b0: [1, 20], b1: [1, 10], span: [1, 0] },
+            {
+                inA: edge('a0', 'a1'),
+                inB: edge('b0', 'b1'),
+                toA: edge('span', 'a0'),
+                toB: edge('span', 'b0'),
+            }
+        );
+
+        expect(kept(schema, 4, 'entities')).toEqual(['a0', 'a1', 'b0', 'b1']);
+    });
+
+    it('draws no build differently for being asked by name', () => {
+        //
+        // every type in a build holds nodes, so under 'count' none weighs
+        // nothing, and naming the default changes no answer.
+        //
+        const schema = schemaOf([50, 40, 30, 20, 10, 5], {
+            a: edge('n0', 'n5'),
+            b: edge('n5', 'n1'),
+        });
+
+        expect(filterSchema(schema, 4, 'count')).toEqual(filterSchema(schema, 4));
+    });
+
+    it('treats a type missing the measure as weighing nothing', () => {
+        const schema = {
+            node_types: { named: { count: 1, entities: 3 }, unmeasured: { count: 99 } },
+            edge_types: {},
+        };
+
+        expect(kept(schema, 5, 'entities')).toEqual(['named']);
+    });
+});

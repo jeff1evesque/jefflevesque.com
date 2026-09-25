@@ -27,6 +27,7 @@ import {
     DOCUMENTATION,
     API_DOCS,
     DATASETS,
+    TABLES_VALUES,
 } from '../../import/general/api-url.js';
 
 const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', 'openapi');
@@ -211,20 +212,29 @@ describe('knowledgeGraphUrl', () => {
 describe('knowledgeGraphTablesUrl', () => {
     it('asks each operation on its own path, and sends no Operation', () => {
         //
-        // the operation moved into the path because four operations taking four
+        // the operation moved into the path because operations taking different
         // parameter sets cannot be described on one. Sending it as well would be
         // a parameter the path does not take, which the api answers with a 400.
         //
+        expect(knowledgeGraphTablesUrl('Days').pathname)
+            .toBe('/v1/public/knowledge-graph/tables/days');
         expect(knowledgeGraphTablesUrl('EdgeTypes').pathname)
             .toBe('/v1/public/knowledge-graph/tables/edge-types');
+        expect(knowledgeGraphTablesUrl('NodeTypes', { Day: '2026-09-23' }).pathname)
+            .toBe('/v1/public/knowledge-graph/tables/node-types');
         expect(knowledgeGraphTablesUrl('Find', { Text: 'a' }).pathname)
             .toBe('/v1/public/knowledge-graph/tables/find');
         expect(knowledgeGraphTablesUrl('Facts', { Uri: 'urn:x' }).pathname)
             .toBe('/v1/public/knowledge-graph/tables/facts');
         expect(knowledgeGraphTablesUrl('Neighborhood', { Uri: 'urn:x', Day: '2026-09-18' }).pathname)
             .toBe('/v1/public/knowledge-graph/tables/neighborhood');
+        expect(knowledgeGraphTablesUrl('Quotes', { Symbol: 'NVDA', Day: '2026-09-23' }).pathname)
+            .toBe('/v1/public/knowledge-graph/tables/quotes');
+        expect(knowledgeGraphTablesUrl('LastQuotes', { Day: '2026-09-23' }).pathname)
+            .toBe('/v1/public/knowledge-graph/tables/last-quotes');
 
         expect(sent(knowledgeGraphTablesUrl('EdgeTypes'))).toEqual([]);
+        expect(sent(knowledgeGraphTablesUrl('Days'))).toEqual([]);
     });
 
     it('sends each operation the values that operation takes', () => {
@@ -234,6 +244,23 @@ describe('knowledgeGraphTablesUrl', () => {
             .toEqual(['Uri']);
         expect(sent(knowledgeGraphTablesUrl('Neighborhood', { Uri: 'urn:x', Day: '2026-09-18' })))
             .toEqual(['Day', 'Uri']);
+        expect(sent(knowledgeGraphTablesUrl('NodeTypes', { Day: '2026-09-23' })))
+            .toEqual(['Day']);
+        expect(sent(knowledgeGraphTablesUrl('Quotes', { Symbol: 'NVDA', Day: '2026-09-23' })))
+            .toEqual(['Day', 'Symbol']);
+        expect(sent(knowledgeGraphTablesUrl('LastQuotes', { Day: '2026-09-23' })))
+            .toEqual(['Day']);
+    });
+
+    it('narrows the edge types and a search to one day, when asked', () => {
+        //
+        // across the window each row comes back once per day that holds it, with
+        // nothing on it saying which. One day holds each once.
+        //
+        expect(sent(knowledgeGraphTablesUrl('EdgeTypes', { Day: '2026-09-23' })))
+            .toEqual(['Day']);
+        expect(sent(knowledgeGraphTablesUrl('Find', { Text: 'nvidia', Day: '2026-09-23' })))
+            .toEqual(['Day', 'Text']);
     });
 
     it('refuses an operation the api does not offer, rather than sending it', () => {
@@ -252,15 +279,28 @@ describe('knowledgeGraphTablesUrl', () => {
         //
         expect(() => knowledgeGraphTablesUrl('EdgeTypes', { Uri: 'urn:x' }))
             .toThrow(/EdgeTypes does not take Uri/);
-        expect(() => knowledgeGraphTablesUrl('Find', { Day: '2026-09-18' }))
-            .toThrow(/Find does not take Day/);
+        expect(() => knowledgeGraphTablesUrl('Find', { Uri: 'urn:x' }))
+            .toThrow(/Find does not take Uri/);
+        expect(() => knowledgeGraphTablesUrl('LastQuotes', { Day: '2026-09-23', Symbol: 'NVDA' }))
+            .toThrow(/LastQuotes does not take Symbol/);
     });
 
-    it('takes a Limit on every operation, being a ceiling rather than a question', () => {
+    it('takes a Limit on every operation but the days, being a ceiling rather than a question', () => {
         expect(sent(knowledgeGraphTablesUrl('EdgeTypes', { Limit: 10 })))
             .toEqual(['Limit']);
         expect(knowledgeGraphTablesUrl('EdgeTypes', { Limit: 10 }).searchParams.get('Limit'))
             .toBe('10');
+    });
+
+    it('refuses anything at all on the days, a Limit included', () => {
+        //
+        // every published day is the answer, a year of them at most, and the api
+        // refuses a value it would have to ignore.
+        //
+        expect(() => knowledgeGraphTablesUrl('Days', { Limit: 10 }))
+            .toThrow(/Days does not take Limit/);
+        expect(() => knowledgeGraphTablesUrl('Days', { Day: '2026-09-23' }))
+            .toThrow(/Days does not take Day/);
     });
 
     it('leaves out a value that was not given', () => {
@@ -374,10 +414,14 @@ describe('what is sent is what is documented', () => {
     });
 
     it.each([
-        ['EdgeTypes', 'edge-types', { Limit: 10 }],
-        ['Find', 'find', { Text: 'apple', Limit: 10 }],
+        ['Days', 'days', {}],
+        ['EdgeTypes', 'edge-types', { Day: '2026-09-23', Limit: 10 }],
+        ['NodeTypes', 'node-types', { Day: '2026-09-23', Limit: 10 }],
+        ['Find', 'find', { Text: 'apple', Day: '2026-09-23', Limit: 10 }],
         ['Facts', 'facts', { Uri: 'urn:x', Day: '2026-09-18', Limit: 10 }],
         ['Neighborhood', 'neighborhood', { Uri: 'urn:x', Day: '2026-09-18', Limit: 10 }],
+        ['Quotes', 'quotes', { Symbol: 'NVDA', Day: '2026-09-23', Limit: 10 }],
+        ['LastQuotes', 'last-quotes', { Day: '2026-09-23', Limit: 10 }],
     ])('knowledge graph tables: %s sends exactly what its own route declares', (operation, segment, values) => {
         //
         // per route, which is the point of the split. One route with a flat list
@@ -400,10 +444,14 @@ describe('what is sent is what is documented', () => {
 
         expect(routes).toEqual([
             '/knowledge-graph',
+            '/knowledge-graph/tables/days',
             '/knowledge-graph/tables/edge-types',
             '/knowledge-graph/tables/facts',
             '/knowledge-graph/tables/find',
+            '/knowledge-graph/tables/last-quotes',
             '/knowledge-graph/tables/neighborhood',
+            '/knowledge-graph/tables/node-types',
+            '/knowledge-graph/tables/quotes',
             '/knowledge-graph/{graph}',
         ]);
         expect(routeSent(document, knowledgeGraphUrl())).toBe('/knowledge-graph');
@@ -415,7 +463,7 @@ describe('what is sent is what is documented', () => {
         // document does not template is the failure this exists to catch, and
         // it can happen to one operation at a time.
         //
-        ['EdgeTypes', 'Find', 'Facts', 'Neighborhood'].forEach((operation) => {
+        Object.keys(TABLES_VALUES).forEach((operation) => {
             expect(routes).toContain(routeSent(document, knowledgeGraphTablesUrl(operation)));
         });
     });

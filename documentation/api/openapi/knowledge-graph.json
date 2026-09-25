@@ -3,7 +3,7 @@
   "info": {
     "title": "Knowledge graph",
     "version": "v1",
-    "description": "The published builds of the knowledge graph, and each build's schema: its node types, its edge types and their counts. Read by the /graph page, and by the front page for its default build."
+    "description": "The published builds of the knowledge graph and each build's schema -- read by the Training graph, /graph, and by the front page for its default build -- and the published query tables, a day at a time, read by the Retrieval graph, /graph/retrieval."
   },
   "servers": [
     {
@@ -537,27 +537,23 @@
         }
       }
     },
-    "/knowledge-graph/tables/edge-types": {
+    "/knowledge-graph/tables/days": {
       "get": {
-        "operationId": "listKnowledgeGraphEdgeTypes",
-        "summary": "The relation catalog",
-        "description": "Which links exist between which node types, and how many of each. Takes no value beyond a Limit.",
-        "parameters": [
-          {
-            "name": "Limit",
-            "in": "query",
-            "required": false,
-            "description": "The most rows to answer with. The service applies a ceiling of its own, so a larger value does not widen the answer.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "example": 10
-          }
-        ],
+        "operationId": "listKnowledgeGraphDays",
+        "summary": "Every published day",
+        "description": "The days the tables hold, newest first -- every day the other tables paths may name as a Day. Takes no value at all, a Limit included: the answer is every published day, a year of them at most. Answered from the list the service resolves on every request, so it runs no query.",
         "responses": {
           "200": {
-            "description": "The rows the question answers with, which may legitimately be empty.",
+            "description": "Every published day, newest first. Empty when none has finished publishing.",
+            "headers": {
+              "Cache-Control": {
+                "description": "The listing's: fresh for five minutes, and usable stale for a day while a fresh one is fetched, since a day landing changes it.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=300, stale-while-revalidate=86400, stale-if-error=86400"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -574,10 +570,18 @@
                       "properties": {
                         "rows": {
                           "type": "array",
-                          "description": "One object per row. The columns depend on the Operation.",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
                           "items": {
                             "type": "object",
-                            "additionalProperties": true
+                            "required": [
+                              "day"
+                            ],
+                            "properties": {
+                              "day": {
+                                "type": "string",
+                                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                              }
+                            }
                           }
                         }
                       }
@@ -588,10 +592,13 @@
                   "report": {
                     "rows": [
                       {
-                        "src_type": "filings_SECFiling",
-                        "relation": "filings_hasIssuer",
-                        "dst_type": "sec_enrichment_UnifiedCompany",
-                        "count": 838
+                        "day": "2026-09-23"
+                      },
+                      {
+                        "day": "2026-09-22"
+                      },
+                      {
+                        "day": "2026-09-21"
                       }
                     ]
                   }
@@ -600,7 +607,7 @@
             }
           },
           "400": {
-            "description": "An operation the service does not offer, or a value meaningless to the one named. The rejected value is never echoed back.",
+            "description": "Any value on the query string. The days take none.",
             "content": {
               "application/json": {
                 "schema": {
@@ -624,14 +631,213 @@
                 },
                 "example": {
                   "report": {
-                    "error": "Operation NOT recognized, expected one of EdgeTypes, Find, Neighborhood, Facts"
+                    "error": "query string NOT supported for Days, expected none"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The published days could not be listed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "published days unavailable"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph/tables/node-types": {
+      "get": {
+        "operationId": "listKnowledgeGraphNodeTypes",
+        "summary": "A day's node types",
+        "description": "One row per node type the day holds, biggest count first: how many nodes of it there are, how many of those carry text and so can be found by name, and how many values are held about them. The Retrieval graph draws a day by its entities. Day is required: every day is written whole, so counted across days a node would be counted once for each day that holds it.",
+        "parameters": [
+          {
+            "name": "Day",
+            "in": "query",
+            "required": true,
+            "description": "The published day to count, as YYYY-MM-DD, from Every published day.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            "example": "2026-09-23"
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "required": false,
+            "description": "The most rows to answer with: 100 when it is left out, and 1000 at most. A larger value is refused with a 400 rather than cut to the ceiling.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            },
+            "example": 1000
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The day's node types, biggest count first. About 155 on a day, so a Limit of 1000 is all of them.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Kept a day, and usable stale for a week while a fresh copy is fetched: a published day is written whole and never rewritten, so an answer naming one cannot change.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "rows"
+                      ],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "node_type",
+                              "count",
+                              "entities",
+                              "facts"
+                            ],
+                            "properties": {
+                              "node_type": {
+                                "type": "string"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "How many nodes of this type the day holds."
+                              },
+                              "entities": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "How many of them carry text, and so can be found by name. 0 for a type that carries none, such as a market quote."
+                              },
+                              "facts": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "How many values are held about them, one per value."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "rows": [
+                      {
+                        "node_type": "market_quotes_OptionSnapshot",
+                        "count": 9603436,
+                        "entities": 0,
+                        "facts": 0
+                      },
+                      {
+                        "node_type": "market_quotes_EquitySnapshot",
+                        "count": 9481,
+                        "entities": 0,
+                        "facts": 0
+                      },
+                      {
+                        "node_type": "ximpim_PercentChange",
+                        "count": 9336,
+                        "entities": 0,
+                        "facts": 18672
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Day is missing, or a value is not one the path takes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "required": {
+                    "summary": "A missing Day",
+                    "value": {
+                      "report": {
+                        "error": "Day is required for NodeTypes"
+                      }
+                    }
+                  },
+                  "limit": {
+                    "summary": "A Limit that is not a whole number from 1 to 1000",
+                    "value": {
+                      "report": {
+                        "error": "Limit NOT valid, expected a whole number of rows"
+                      }
+                    }
                   }
                 }
               }
             }
           },
           "404": {
-            "description": "A named Day that is not a published day, or no published day at all.",
+            "description": "A named Day that has not finished publishing, or no published day at all.",
             "content": {
               "application/json": {
                 "schema": {
@@ -653,16 +859,29 @@
                     }
                   }
                 },
-                "example": {
-                  "report": {
-                    "error": "not a published day"
+                "examples": {
+                  "unpublished": {
+                    "summary": "A Day the tables do not hold",
+                    "value": {
+                      "report": {
+                        "error": "Day is not a published day"
+                      }
+                    }
+                  },
+                  "nothing": {
+                    "summary": "No day has finished publishing",
+                    "value": {
+                      "report": {
+                        "error": "no published day is complete"
+                      }
+                    }
                   }
                 }
               }
             }
           },
-          "504": {
-            "description": "The question was too large to answer inside the request window.",
+          "500": {
+            "description": "The question could not be answered.",
             "content": {
               "application/json": {
                 "schema": {
@@ -686,7 +905,257 @@
                 },
                 "example": {
                   "report": {
-                    "error": "query took too long, narrow it"
+                    "error": "query failed"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph/tables/edge-types": {
+      "get": {
+        "operationId": "listKnowledgeGraphEdgeTypes",
+        "summary": "The relation catalog",
+        "description": "Which links exist between which node types, how many of each, and whether each was published by a source or derived here. With a Day, that day's catalog, each edge type once: about 838 rows, so a Limit of 1000 is the whole of it. Without one, every day in the window, where an edge type comes back once for each day that holds it.",
+        "parameters": [
+          {
+            "name": "Day",
+            "in": "query",
+            "required": false,
+            "description": "A published day, as YYYY-MM-DD. Narrows the answer to that day, where each edge type appears once.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            "example": "2026-09-23"
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "required": false,
+            "description": "The most rows to answer with: 100 when it is left out, and 1000 at most. A larger value is refused with a 400 rather than cut to the ceiling.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            },
+            "example": 1000
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The edge types, biggest count first.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Kept a day, and usable stale for a week, when a Day is named -- a published day never changes. Five minutes, public, max-age=300, when none is: the answer reads the newest days, which a landing day changes.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "rows"
+                      ],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "src_type",
+                              "relation",
+                              "dst_type",
+                              "count",
+                              "origin"
+                            ],
+                            "properties": {
+                              "src_type": {
+                                "type": "string"
+                              },
+                              "relation": {
+                                "type": "string"
+                              },
+                              "dst_type": {
+                                "type": "string"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "How many edges of this type."
+                              },
+                              "predicate_uri": {
+                                "type": "string"
+                              },
+                              "origin": {
+                                "type": "string",
+                                "description": "raw, enrichment or unification."
+                              },
+                              "relation_group": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "rows": [
+                      {
+                        "src_type": "market_quotes_OptionSnapshot",
+                        "relation": "bls_enrichment_observedInPeriod",
+                        "dst_type": "temporal_SourceDay",
+                        "count": 9603436,
+                        "predicate_uri": "https://jefflevesque.com/ontology/bls/enrichment/observedInPeriod",
+                        "origin": "enrichment",
+                        "relation_group": "bls_enrichment_observedInPeriod"
+                      },
+                      {
+                        "src_type": "market_quotes_OptionSnapshot",
+                        "relation": "market_enrichment_hasMoneyness",
+                        "dst_type": "market_enrichment_Moneyness",
+                        "count": 9603436,
+                        "predicate_uri": "https://jefflevesque.com/ontology/market/enrichment/hasMoneyness",
+                        "origin": "enrichment",
+                        "relation_group": "market_enrichment_hasMoneyness"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A value the path does not take.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "required": {
+                    "summary": "A value the path does not take",
+                    "value": {
+                      "report": {
+                        "error": "query string NOT supported for EdgeTypes, expected Day, Limit"
+                      }
+                    }
+                  },
+                  "limit": {
+                    "summary": "A Limit that is not a whole number from 1 to 1000",
+                    "value": {
+                      "report": {
+                        "error": "Limit NOT valid, expected a whole number of rows"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A named Day that has not finished publishing, or no published day at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "unpublished": {
+                    "summary": "A Day the tables do not hold",
+                    "value": {
+                      "report": {
+                        "error": "Day is not a published day"
+                      }
+                    }
+                  },
+                  "nothing": {
+                    "summary": "No day has finished publishing",
+                    "value": {
+                      "report": {
+                        "error": "no published day is complete"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The question could not be answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "query failed"
                   }
                 }
               }
@@ -699,33 +1168,57 @@
       "get": {
         "operationId": "findKnowledgeGraphEntities",
         "summary": "Entities matching some text",
-        "description": "Entities whose text matches, as a case-insensitive substring. Wildcards are refused, so a literal % or _ cannot widen the match.",
+        "description": "Entities whose text contains Text, case-insensitively -- the first step of a retrieval walk, which gives the Uri the rest take. With a Day, that day's entities, each once. Without one, every day in the window, where an entity comes back once for each day that holds it.",
         "parameters": [
           {
             "name": "Text",
             "in": "query",
             "required": true,
-            "description": "Required by Find. Matched as a case-insensitive substring of an entity's text. Wildcards are refused, so a literal % or _ cannot widen the match.",
+            "description": "The text to look for, matched as a substring. Up to 128 characters, with no wildcard of its own: % and _ are refused.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             },
-            "example": "apple"
+            "example": "nvidia"
+          },
+          {
+            "name": "Day",
+            "in": "query",
+            "required": false,
+            "description": "A published day, as YYYY-MM-DD. Narrows the answer to that day, where each entity appears once.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            "example": "2026-09-23"
           },
           {
             "name": "Limit",
             "in": "query",
             "required": false,
-            "description": "The most rows to answer with. The service applies a ceiling of its own, so a larger value does not widen the answer.",
+            "description": "The most rows to answer with: 100 when it is left out, and 1000 at most. A larger value is refused with a 400 rather than cut to the ceiling.",
             "schema": {
               "type": "integer",
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
             },
             "example": 10
           }
         ],
         "responses": {
           "200": {
-            "description": "The rows the question answers with, which may legitimately be empty.",
+            "description": "The matching entities, shortest text first.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Kept a day, and usable stale for a week, when a Day is named -- a published day never changes. Five minutes, public, max-age=300, when none is: the answer reads the newest days, which a landing day changes.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -742,10 +1235,27 @@
                       "properties": {
                         "rows": {
                           "type": "array",
-                          "description": "One object per row. The columns depend on the Operation.",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
                           "items": {
                             "type": "object",
-                            "additionalProperties": true
+                            "required": [
+                              "node_type",
+                              "uri",
+                              "text"
+                            ],
+                            "properties": {
+                              "node_type": {
+                                "type": "string"
+                              },
+                              "uri": {
+                                "type": "string",
+                                "description": "The entity, to give Facts or Neighborhood."
+                              },
+                              "text": {
+                                "type": "string",
+                                "description": "Its text-bearing values, joined."
+                              }
+                            }
                           }
                         }
                       }
@@ -756,10 +1266,14 @@
                   "report": {
                     "rows": [
                       {
-                        "src_type": "filings_SECFiling",
-                        "relation": "filings_hasIssuer",
-                        "dst_type": "sec_enrichment_UnifiedCompany",
-                        "count": 838
+                        "node_type": "filings_Issuer",
+                        "uri": "https://jefflevesque.com/id/sec/filings/Issuer_0001045810",
+                        "text": "filings_hasIssuerName: NVIDIA CORP"
+                      },
+                      {
+                        "node_type": "filings_InstitutionalHolding",
+                        "uri": "https://jefflevesque.com/id/sec/filings/0001218761-26-000014_InstitutionalHolding_23",
+                        "text": "filings_hasIssuerName: NVIDIA CORPORATION; filings_hasTitleOfClass: COM"
                       }
                     ]
                   }
@@ -768,7 +1282,7 @@
             }
           },
           "400": {
-            "description": "An operation the service does not offer, or a value meaningless to the one named. The rejected value is never echoed back.",
+            "description": "Text is missing or carries a wildcard, or a value is not one the path takes.",
             "content": {
               "application/json": {
                 "schema": {
@@ -790,16 +1304,29 @@
                     }
                   }
                 },
-                "example": {
-                  "report": {
-                    "error": "Operation NOT recognized, expected one of EdgeTypes, Find, Neighborhood, Facts"
+                "examples": {
+                  "required": {
+                    "summary": "A missing Text",
+                    "value": {
+                      "report": {
+                        "error": "Text is required for Find"
+                      }
+                    }
+                  },
+                  "limit": {
+                    "summary": "A Limit that is not a whole number from 1 to 1000",
+                    "value": {
+                      "report": {
+                        "error": "Limit NOT valid, expected a whole number of rows"
+                      }
+                    }
                   }
                 }
               }
             }
           },
           "404": {
-            "description": "A named Day that is not a published day, or no published day at all.",
+            "description": "A named Day that has not finished publishing, or no published day at all.",
             "content": {
               "application/json": {
                 "schema": {
@@ -821,16 +1348,29 @@
                     }
                   }
                 },
-                "example": {
-                  "report": {
-                    "error": "not a published day"
+                "examples": {
+                  "unpublished": {
+                    "summary": "A Day the tables do not hold",
+                    "value": {
+                      "report": {
+                        "error": "Day is not a published day"
+                      }
+                    }
+                  },
+                  "nothing": {
+                    "summary": "No day has finished publishing",
+                    "value": {
+                      "report": {
+                        "error": "no published day is complete"
+                      }
+                    }
                   }
                 }
               }
             }
           },
-          "504": {
-            "description": "The question was too large to answer inside the request window.",
+          "500": {
+            "description": "The question could not be answered.",
             "content": {
               "application/json": {
                 "schema": {
@@ -854,7 +1394,7 @@
                 },
                 "example": {
                   "report": {
-                    "error": "query took too long, narrow it"
+                    "error": "query failed"
                   }
                 }
               }
@@ -867,44 +1407,55 @@
       "get": {
         "operationId": "listKnowledgeGraphFacts",
         "summary": "The values held about one entity",
-        "description": "Everything the build holds about one entity. Reads across the published window unless a Day narrows it.",
+        "description": "Every value held about one entity, one row per value. With a Day, that day's. Without one, the newest day in the window that holds the entity.",
         "parameters": [
           {
             "name": "Uri",
             "in": "query",
             "required": true,
-            "description": "Required by Facts and Neighborhood. The entity to read, as its uri from a Find result. Uris are stable across days, unlike the numeric ids the tables join on.",
+            "description": "The entity, as its uri from Entities matching some text. Uris are stable across days, unlike the numeric ids the tables join on.",
             "schema": {
               "type": "string"
             },
-            "example": "https://jefflevesque.com/ontology/unified/Company_0000001800"
+            "example": "https://jefflevesque.com/id/sec/filings/Issuer_0001045810"
           },
           {
             "name": "Day",
             "in": "query",
             "required": false,
-            "description": "A published day, as YYYY-MM-DD. Required by Neighborhood, because ids are renumbered daily and an edge only means anything joined within its own day. Optional for Facts, which reads across the published window when it is omitted.",
+            "description": "A published day, as YYYY-MM-DD. Without one, the answer reads across the published window.",
             "schema": {
               "type": "string",
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
             },
-            "example": "2026-09-18"
+            "example": "2026-09-23"
           },
           {
             "name": "Limit",
             "in": "query",
             "required": false,
-            "description": "The most rows to answer with. The service applies a ceiling of its own, so a larger value does not widen the answer.",
+            "description": "The most rows to answer with: 100 when it is left out, and 1000 at most. A larger value is refused with a 400 rather than cut to the ceiling.",
             "schema": {
               "type": "integer",
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
             },
             "example": 10
           }
         ],
         "responses": {
           "200": {
-            "description": "The rows the question answers with, which may legitimately be empty.",
+            "description": "The values, one row each.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Kept a day, and usable stale for a week, when a Day is named -- a published day never changes. Five minutes, public, max-age=300, when none is: the answer reads the newest days, which a landing day changes.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -921,10 +1472,41 @@
                       "properties": {
                         "rows": {
                           "type": "array",
-                          "description": "One object per row. The columns depend on the Operation.",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
                           "items": {
                             "type": "object",
-                            "additionalProperties": true
+                            "required": [
+                              "node_type",
+                              "uri",
+                              "predicate",
+                              "predicate_name",
+                              "value",
+                              "is_numeric"
+                            ],
+                            "properties": {
+                              "node_type": {
+                                "type": "string"
+                              },
+                              "uri": {
+                                "type": "string"
+                              },
+                              "predicate": {
+                                "type": "string",
+                                "description": "The property, as its full uri."
+                              },
+                              "predicate_name": {
+                                "type": "string",
+                                "description": "The property's short name."
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": "The value, as text."
+                              },
+                              "is_numeric": {
+                                "type": "boolean",
+                                "description": "Whether the value reads as a finite number."
+                              }
+                            }
                           }
                         }
                       }
@@ -935,10 +1517,28 @@
                   "report": {
                     "rows": [
                       {
-                        "src_type": "filings_SECFiling",
-                        "relation": "filings_hasIssuer",
-                        "dst_type": "sec_enrichment_UnifiedCompany",
-                        "count": 838
+                        "node_type": "filings_Issuer",
+                        "uri": "https://jefflevesque.com/id/sec/filings/Issuer_0001045810",
+                        "predicate": "https://jefflevesque.com/ontology/sec/filings/hasIssuerCik",
+                        "predicate_name": "filings_hasIssuerCik",
+                        "value": "0001045810",
+                        "is_numeric": true
+                      },
+                      {
+                        "node_type": "filings_Issuer",
+                        "uri": "https://jefflevesque.com/id/sec/filings/Issuer_0001045810",
+                        "predicate": "https://jefflevesque.com/ontology/sec/filings/hasIssuerName",
+                        "predicate_name": "filings_hasIssuerName",
+                        "value": "NVIDIA CORP",
+                        "is_numeric": false
+                      },
+                      {
+                        "node_type": "filings_Issuer",
+                        "uri": "https://jefflevesque.com/id/sec/filings/Issuer_0001045810",
+                        "predicate": "https://jefflevesque.com/ontology/sec/filings/hasIssuerSic",
+                        "predicate_name": "filings_hasIssuerSic",
+                        "value": "3674",
+                        "is_numeric": true
                       }
                     ]
                   }
@@ -947,7 +1547,7 @@
             }
           },
           "400": {
-            "description": "An operation the service does not offer, or a value meaningless to the one named. The rejected value is never echoed back.",
+            "description": "Uri is missing or not shaped like one, or a value is not one the path takes.",
             "content": {
               "application/json": {
                 "schema": {
@@ -969,16 +1569,73 @@
                     }
                   }
                 },
-                "example": {
-                  "report": {
-                    "error": "Operation NOT recognized, expected one of EdgeTypes, Find, Neighborhood, Facts"
+                "examples": {
+                  "required": {
+                    "summary": "A missing Uri",
+                    "value": {
+                      "report": {
+                        "error": "Uri is required for Facts"
+                      }
+                    }
+                  },
+                  "limit": {
+                    "summary": "A Limit that is not a whole number from 1 to 1000",
+                    "value": {
+                      "report": {
+                        "error": "Limit NOT valid, expected a whole number of rows"
+                      }
+                    }
                   }
                 }
               }
             }
           },
           "404": {
-            "description": "A named Day that is not a published day, or no published day at all.",
+            "description": "A named Day that has not finished publishing, or no published day at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "unpublished": {
+                    "summary": "A Day the tables do not hold",
+                    "value": {
+                      "report": {
+                        "error": "Day is not a published day"
+                      }
+                    }
+                  },
+                  "nothing": {
+                    "summary": "No day has finished publishing",
+                    "value": {
+                      "report": {
+                        "error": "no published day is complete"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The question could not be answered.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1002,14 +1659,14 @@
                 },
                 "example": {
                   "report": {
-                    "error": "not a published day"
+                    "error": "query failed"
                   }
                 }
               }
             }
           },
           "504": {
-            "description": "The question was too large to answer inside the request window.",
+            "description": "The question was too large to answer inside the request window. Name a Day, or a smaller Limit.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1033,7 +1690,7 @@
                 },
                 "example": {
                   "report": {
-                    "error": "query took too long, narrow it"
+                    "error": "query did not finish in time, narrow it"
                   }
                 }
               }
@@ -1046,44 +1703,55 @@
       "get": {
         "operationId": "listKnowledgeGraphNeighborhood",
         "summary": "The edges touching one entity, within a day",
-        "description": "The edges touching one entity on one published day. The Day is required: the numeric ids the tables join on are renumbered daily, so an edge only means anything joined within its own day.",
+        "description": "Every edge to or from one entity on one day, with the entity at its other end. Day is required: the numeric ids the tables join on are renumbered daily, so an edge only means anything joined within its own day. Rows currently also carry two columns, api and type, read from where the answer was stored rather than asked for; they are not part of the answer.",
         "parameters": [
           {
             "name": "Uri",
             "in": "query",
             "required": true,
-            "description": "Required by Facts and Neighborhood. The entity to read, as its uri from a Find result. Uris are stable across days, unlike the numeric ids the tables join on.",
+            "description": "The entity, as its uri from Entities matching some text.",
             "schema": {
               "type": "string"
             },
-            "example": "https://jefflevesque.com/ontology/unified/Company_0000001800"
+            "example": "https://jefflevesque.com/id/sec/filings/Issuer_0001045810"
           },
           {
             "name": "Day",
             "in": "query",
             "required": true,
-            "description": "A published day, as YYYY-MM-DD. Required by Neighborhood, because ids are renumbered daily and an edge only means anything joined within its own day. Optional for Facts, which reads across the published window when it is omitted.",
+            "description": "The published day to walk, as YYYY-MM-DD.",
             "schema": {
               "type": "string",
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
             },
-            "example": "2026-09-18"
+            "example": "2026-09-23"
           },
           {
             "name": "Limit",
             "in": "query",
             "required": false,
-            "description": "The most rows to answer with. The service applies a ceiling of its own, so a larger value does not widen the answer.",
+            "description": "The most rows to answer with: 100 when it is left out, and 1000 at most. A larger value is refused with a 400 rather than cut to the ceiling.",
             "schema": {
               "type": "integer",
-              "minimum": 1
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
             },
             "example": 10
           }
         ],
         "responses": {
           "200": {
-            "description": "The rows the question answers with, which may legitimately be empty.",
+            "description": "The edges touching the entity that day.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Kept a day, and usable stale for a week while a fresh copy is fetched: a published day is written whole and never rewritten, so an answer naming one cannot change.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1100,10 +1768,33 @@
                       "properties": {
                         "rows": {
                           "type": "array",
-                          "description": "One object per row. The columns depend on the Operation.",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
                           "items": {
                             "type": "object",
-                            "additionalProperties": true
+                            "required": [
+                              "src_uri",
+                              "relation",
+                              "dst_uri",
+                              "src_type",
+                              "dst_type"
+                            ],
+                            "properties": {
+                              "src_uri": {
+                                "type": "string"
+                              },
+                              "relation": {
+                                "type": "string"
+                              },
+                              "dst_uri": {
+                                "type": "string"
+                              },
+                              "src_type": {
+                                "type": "string"
+                              },
+                              "dst_type": {
+                                "type": "string"
+                              }
+                            }
                           }
                         }
                       }
@@ -1114,10 +1805,31 @@
                   "report": {
                     "rows": [
                       {
-                        "src_type": "filings_SECFiling",
+                        "src_uri": "https://jefflevesque.com/id/sec/filings/0001696841-26-000014_Filing",
                         "relation": "filings_hasIssuer",
+                        "dst_uri": "https://jefflevesque.com/id/sec/filings/Issuer_0001045810",
+                        "src_type": "filings_SECFiling",
+                        "dst_type": "filings_Issuer",
+                        "api": "knowledge-graph-tables",
+                        "type": "output"
+                      },
+                      {
+                        "src_uri": "https://jefflevesque.com/id/sec/filings/Issuer_0001045810",
+                        "relation": "bls_enrichment_refersToCompany",
+                        "dst_uri": "https://jefflevesque.com/ontology/unified/Company_0001045810",
+                        "src_type": "filings_Issuer",
                         "dst_type": "sec_enrichment_UnifiedCompany",
-                        "count": 838
+                        "api": "knowledge-graph-tables",
+                        "type": "output"
+                      },
+                      {
+                        "src_uri": "https://jefflevesque.com/id/sec/filings/Issuer_0001045810",
+                        "relation": "filings_hasIndustrySector",
+                        "dst_uri": "https://jefflevesque.com/id/sec/filings/IndustrySector_office-of-manufacturing",
+                        "src_type": "filings_Issuer",
+                        "dst_type": "filings_IndustrySector",
+                        "api": "knowledge-graph-tables",
+                        "type": "output"
                       }
                     ]
                   }
@@ -1126,7 +1838,7 @@
             }
           },
           "400": {
-            "description": "An operation the service does not offer, or a value meaningless to the one named. The rejected value is never echoed back.",
+            "description": "Uri or Day is missing, or a value is not one the path takes.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1148,16 +1860,73 @@
                     }
                   }
                 },
-                "example": {
-                  "report": {
-                    "error": "Operation NOT recognized, expected one of EdgeTypes, Find, Neighborhood, Facts"
+                "examples": {
+                  "required": {
+                    "summary": "A missing Day",
+                    "value": {
+                      "report": {
+                        "error": "Day is required for Neighborhood"
+                      }
+                    }
+                  },
+                  "limit": {
+                    "summary": "A Limit that is not a whole number from 1 to 1000",
+                    "value": {
+                      "report": {
+                        "error": "Limit NOT valid, expected a whole number of rows"
+                      }
+                    }
                   }
                 }
               }
             }
           },
           "404": {
-            "description": "A named Day that is not a published day, or no published day at all.",
+            "description": "A named Day that has not finished publishing, or no published day at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "unpublished": {
+                    "summary": "A Day the tables do not hold",
+                    "value": {
+                      "report": {
+                        "error": "Day is not a published day"
+                      }
+                    }
+                  },
+                  "nothing": {
+                    "summary": "No day has finished publishing",
+                    "value": {
+                      "report": {
+                        "error": "no published day is complete"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The question could not be answered.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1181,14 +1950,14 @@
                 },
                 "example": {
                   "report": {
-                    "error": "not a published day"
+                    "error": "query failed"
                   }
                 }
               }
             }
           },
           "504": {
-            "description": "The question was too large to answer inside the request window.",
+            "description": "The question was too large to answer inside the request window. Name a Day, or a smaller Limit.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1212,7 +1981,580 @@
                 },
                 "example": {
                   "report": {
-                    "error": "query took too long, narrow it"
+                    "error": "query did not finish in time, narrow it"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph/tables/quotes": {
+      "get": {
+        "operationId": "listKnowledgeGraphQuotes",
+        "summary": "One stock's quotes through a day",
+        "description": "One stock's snapshots on one day, oldest first -- about 19, every 20 minutes from 9:40 AM to 3:40 PM Eastern. Stocks only: an option on the same ticker is not a quote of the stock. The columns are named as the tables name them.",
+        "parameters": [
+          {
+            "name": "Symbol",
+            "in": "query",
+            "required": true,
+            "description": "The stock's ticker, in capitals: letters, digits and the . of a share class, such as BRK.B. Compared for equality, never matched.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9.]{0,15}$"
+            },
+            "example": "NVDA"
+          },
+          {
+            "name": "Day",
+            "in": "query",
+            "required": true,
+            "description": "The published day, as YYYY-MM-DD.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            "example": "2026-09-23"
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "required": false,
+            "description": "The most rows to answer with: 100 when it is left out, and 1000 at most. A larger value is refused with a 400 rather than cut to the ceiling.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            },
+            "example": 19
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stock's snapshots that day, oldest first.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Kept a day, and usable stale for a week while a fresh copy is fetched: a published day is written whole and never rewritten, so an answer naming one cannot change.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "rows"
+                      ],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "market_quotes_symbol",
+                              "market_quotes_captureTime",
+                              "market_quotes_lastPrice",
+                              "market_quotes_openPrice",
+                              "market_quotes_closePrice",
+                              "market_quotes_netChange",
+                              "market_quotes_netPercentChange",
+                              "market_quotes_totalVolume"
+                            ],
+                            "properties": {
+                              "market_quotes_symbol": {
+                                "type": "string",
+                                "description": "The stock's ticker."
+                              },
+                              "market_quotes_captureTime": {
+                                "type": "string",
+                                "description": "When the snapshot was taken, ISO-8601 in UTC."
+                              },
+                              "market_quotes_lastPrice": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The last trade's price."
+                              },
+                              "market_quotes_openPrice": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The session's opening price."
+                              },
+                              "market_quotes_closePrice": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The PREVIOUS session's close, which the two changes are measured from."
+                              },
+                              "market_quotes_netChange": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "lastPrice less the previous close."
+                              },
+                              "market_quotes_netPercentChange": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The same, as a percentage of the previous close."
+                              },
+                              "market_quotes_totalVolume": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "Shares traded in the session so far."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "rows": [
+                      {
+                        "market_quotes_symbol": "NVDA",
+                        "market_quotes_captureTime": "2026-09-23T13:40:40.122Z",
+                        "market_quotes_lastPrice": 228.1701,
+                        "market_quotes_openPrice": 228.03,
+                        "market_quotes_closePrice": 228.87,
+                        "market_quotes_netChange": -0.6999,
+                        "market_quotes_netPercentChange": -0.30580679,
+                        "market_quotes_totalVolume": 9951415.0
+                      },
+                      {
+                        "market_quotes_symbol": "NVDA",
+                        "market_quotes_captureTime": "2026-09-23T14:00:40.106Z",
+                        "market_quotes_lastPrice": 226.787,
+                        "market_quotes_openPrice": 228.03,
+                        "market_quotes_closePrice": 228.87,
+                        "market_quotes_netChange": -2.083,
+                        "market_quotes_netPercentChange": -0.91012365,
+                        "market_quotes_totalVolume": 14602557.0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Symbol or Day is missing, the Symbol is not a ticker in capitals, or a value is not one the path takes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "required": {
+                    "summary": "A missing Symbol",
+                    "value": {
+                      "report": {
+                        "error": "Symbol is required for Quotes"
+                      }
+                    }
+                  },
+                  "limit": {
+                    "summary": "A Limit that is not a whole number from 1 to 1000",
+                    "value": {
+                      "report": {
+                        "error": "Limit NOT valid, expected a whole number of rows"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A named Day that has not finished publishing, or no published day at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "unpublished": {
+                    "summary": "A Day the tables do not hold",
+                    "value": {
+                      "report": {
+                        "error": "Day is not a published day"
+                      }
+                    }
+                  },
+                  "nothing": {
+                    "summary": "No day has finished publishing",
+                    "value": {
+                      "report": {
+                        "error": "no published day is complete"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The question could not be answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "query failed"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph/tables/last-quotes": {
+      "get": {
+        "operationId": "listKnowledgeGraphLastQuotes",
+        "summary": "Every stock's last quote of a day",
+        "description": "Each stock's last snapshot that day, one row per stock in symbol order -- about 500, under the 1000 ceiling. Its netPercentChange is the day's move against the previous close, opening gap included, and each row is the last row Quotes answers for that stock and day.",
+        "parameters": [
+          {
+            "name": "Day",
+            "in": "query",
+            "required": true,
+            "description": "The published day, as YYYY-MM-DD.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            "example": "2026-09-23"
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "required": false,
+            "description": "The most rows to answer with: 100 when it is left out, and 1000 at most. A larger value is refused with a 400 rather than cut to the ceiling.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            },
+            "example": 1000
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every stock's last snapshot that day, in symbol order.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Kept a day, and usable stale for a week while a fresh copy is fetched: a published day is written whole and never rewritten, so an answer naming one cannot change.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "rows"
+                      ],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "market_quotes_symbol",
+                              "market_quotes_captureTime",
+                              "market_quotes_lastPrice",
+                              "market_quotes_openPrice",
+                              "market_quotes_closePrice",
+                              "market_quotes_netChange",
+                              "market_quotes_netPercentChange",
+                              "market_quotes_totalVolume"
+                            ],
+                            "properties": {
+                              "market_quotes_symbol": {
+                                "type": "string",
+                                "description": "The stock's ticker."
+                              },
+                              "market_quotes_captureTime": {
+                                "type": "string",
+                                "description": "When the snapshot was taken, ISO-8601 in UTC."
+                              },
+                              "market_quotes_lastPrice": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The last trade's price."
+                              },
+                              "market_quotes_openPrice": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The session's opening price."
+                              },
+                              "market_quotes_closePrice": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The PREVIOUS session's close, which the two changes are measured from."
+                              },
+                              "market_quotes_netChange": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "lastPrice less the previous close."
+                              },
+                              "market_quotes_netPercentChange": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The same, as a percentage of the previous close."
+                              },
+                              "market_quotes_totalVolume": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "Shares traded in the session so far."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "rows": [
+                      {
+                        "market_quotes_symbol": "A",
+                        "market_quotes_captureTime": "2026-09-23T19:40:40.084Z",
+                        "market_quotes_lastPrice": 163.96,
+                        "market_quotes_openPrice": 166.54,
+                        "market_quotes_closePrice": 167.26,
+                        "market_quotes_netChange": -3.3,
+                        "market_quotes_netPercentChange": -1.9729762,
+                        "market_quotes_totalVolume": 2086271.0
+                      },
+                      {
+                        "market_quotes_symbol": "AAPL",
+                        "market_quotes_captureTime": "2026-09-23T19:40:40.084Z",
+                        "market_quotes_lastPrice": 336.6,
+                        "market_quotes_openPrice": 341.075,
+                        "market_quotes_closePrice": 339.75,
+                        "market_quotes_netChange": -3.15,
+                        "market_quotes_netPercentChange": -0.92715232,
+                        "market_quotes_totalVolume": 19479582.0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Day is missing, or a value is not one the path takes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "required": {
+                    "summary": "A missing Day",
+                    "value": {
+                      "report": {
+                        "error": "Day is required for LastQuotes"
+                      }
+                    }
+                  },
+                  "limit": {
+                    "summary": "A Limit that is not a whole number from 1 to 1000",
+                    "value": {
+                      "report": {
+                        "error": "Limit NOT valid, expected a whole number of rows"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A named Day that has not finished publishing, or no published day at all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "unpublished": {
+                    "summary": "A Day the tables do not hold",
+                    "value": {
+                      "report": {
+                        "error": "Day is not a published day"
+                      }
+                    }
+                  },
+                  "nothing": {
+                    "summary": "No day has finished publishing",
+                    "value": {
+                      "report": {
+                        "error": "no published day is complete"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The question could not be answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "query failed"
                   }
                 }
               }

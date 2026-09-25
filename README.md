@@ -32,8 +32,10 @@ comes from three public APIs, called from the browser at runtime.
 | `/stream/:stream/trigger` | trigger conditions for one stream, charted against its history | |
 | `/stream/:stream/alarm` | alarms raised for a stream | datalake |
 | `/data` | each stream's data as it is stored, with its distribution for a chosen month | datalake |
-| `/graph` | every published knowledge graph build, with a picker, a legend that lights what it names on the graph, and tables of every node and edge type it holds. Its columns fold and drag, and it opens the way it was last left | knowledge graph |
+| `/graph` | the **Training graph**: every published knowledge graph build — the graph a graph neural network trains on — with a picker, a legend that lights what it names on the graph, and tables of every node and edge type it holds. Its columns fold and drag, and it opens the way it was last left | knowledge graph |
 | `/graph/:graph` | the same page, opened on one build, so a build can be linked to | knowledge graph |
+| `/graph/retrieval` | the **Retrieval graph**: the same layout, drawn from one published day of the query tables — the graph an LLM's retrieval step reads — with a picker of days, the day's node types chosen by what can be found by name, and tables of their entities, facts and edges. Arranged apart from the Training graph | knowledge graph tables |
+| `/graph/retrieval/:day` | the same page, opened on one day, so a day can be linked to | knowledge graph tables |
 | `/model` | model article listing, with filters and performance | |
 | `/login`, `/logout`, `/register`, `/login/reset` | Cognito-backed authentication | |
 | `/:user`, `/:user/settings` | account and account settings | |
