@@ -160,9 +160,14 @@ export function assignNamespaceColors(nodes, tail = 'roll-up') {
  * Note: takes the UNFILTERED schema. A caller holding only its own filtered
  *       slice cannot produce this map, which is the point -- that is exactly the
  *       call that used to disagree.
+ *
+ * Note: `weight` is the slice's, and has to be. The Retrieval graph weighs a
+ *       day by its findable entities, so its canvas holds different types from
+ *       a slice by count -- and a palette ranked over the slice by count would
+ *       spend its colors on namespaces that page does not draw.
  */
-export function buildPalette(schema, limit = GRAPH_NODE_TYPES) {
-    const drawn = filterSchema(schema, limit);
+export function buildPalette(schema, limit = GRAPH_NODE_TYPES, weight = 'count') {
+    const drawn = filterSchema(schema, limit, weight);
 
     if (!drawn) {
         return null;
