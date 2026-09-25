@@ -459,6 +459,26 @@ describe('agreeing with the graph above it', () => {
         expect(line).not.toBeNull();
         expect(line.getAttribute('stroke')).toBeTruthy();
     });
+
+    it('prints a unification edge as owl:sameAs, the name the legend gives it', () => {
+        //
+        // the legend above calls this line owl:sameAs. A table calling the same
+        // line 'unification' is one line going by two names on one page.
+        //
+        const schema = schemaOf(4);
+        schema.edge_types.same = {
+            src_type: 'bls_T0', relation: 'owl_sameAs', dst_type: 'sec_T1', count: 7, origin: 'unification',
+        };
+        setup({ schema: schema });
+
+        fireEvent.click(tab('Edge types'));
+        fireEvent.change(filter(), { target: { value: 'owl_sameAs' } });
+
+        const row = bodyRows()[0];
+
+        expect(cells(row)[2]).toBe('owl:sameAs');
+        expect(row.querySelector('.graph-tables-origin line').getAttribute('stroke-dasharray')).toBeTruthy();
+    });
 });
 
 describe('nodeRows', () => {
@@ -501,6 +521,44 @@ describe('edgeRows', () => {
         });
 
         expect(rows[0]).toMatchObject({ src: 'a', relation: 'r', dst: 'b', count: 3, origin: 'raw' });
+    });
+
+    it('names a unification edge owl:sameAs, and keeps the schema\'s value for its line', () => {
+        const rows = edgeRows({
+            edge_types: { k: { src_type: 'a', relation: 'owl_sameAs', dst_type: 'b', count: 3, origin: 'unification' } },
+        });
+
+        expect(rows[0]).toMatchObject({ origin: 'owl:sameAs', schemaOrigin: 'unification' });
+    });
+
+    it('sorts on the name the column prints', () => {
+        //
+        // sorted on the schema's value, owl:sameAs would follow raw -- out of
+        // order in the column a reader is looking at.
+        //
+        const rows = edgeRows({
+            edge_types: {
+                one: { src_type: 'a', relation: 'r', dst_type: 'b', count: 1, origin: 'raw' },
+                two: { src_type: 'a', relation: 'owl_sameAs', dst_type: 'b', count: 1, origin: 'unification' },
+                three: { src_type: 'a', relation: 'r', dst_type: 'b', count: 1, origin: 'enrichment' },
+            },
+        });
+
+        expect(arrange(rows, '', { key: 'origin', direction: 'asc' }).map(r => r.origin))
+            .toEqual(['enrichment', 'owl:sameAs', 'raw']);
+    });
+
+    it('is found by either name for its origin', () => {
+        //
+        // 'owl:sameAs' is what the row prints; 'unification' is what the api
+        // answers, and what a reader arriving from the api docs will type.
+        //
+        const rows = edgeRows({
+            edge_types: { k: { src_type: 'a', relation: 'r', dst_type: 'b', count: 3, origin: 'unification' } },
+        });
+
+        expect(arrange(rows, 'owl:sameAs', null)).toHaveLength(1);
+        expect(arrange(rows, 'unification', null)).toHaveLength(1);
     });
 
     it('keys on the schema\'s own key, not the triple', () => {
