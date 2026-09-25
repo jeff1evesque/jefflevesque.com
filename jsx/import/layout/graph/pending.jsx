@@ -113,13 +113,18 @@ const DETAIL_WIDTHS = ['4.5rem', '5.5rem', '7rem', '9rem', '9rem', '6rem', '3.5r
  * The whole panel's stand-in draws one of these in every row. The real panel
  * draws one in its Sources row alone, which waits for the schema a round trip
  * after the rest of the panel has filled in from the listing -- see graphSources
- * in graph.jsx -- so the row keeps the bar it had rather than changing size
+ * in source.js -- so the row keeps the bar it had rather than changing size
  * twice.
+ *
+ * Note: `width` is for a panel whose values are not the build panel's. A day's
+ *       rows are a date and four totals, and each says what it measures -- see
+ *       DAY_DETAILS in source.js. Without one, the row's index picks the width
+ *       the build panel's value in that row measures.
  */
-export function PendingDetail({ index }) {
+export function PendingDetail({ index, width = null }) {
     return (
         <PendingBar
-            width={DETAIL_WIDTHS[index % DETAIL_WIDTHS.length]}
+            width={width || DETAIL_WIDTHS[index % DETAIL_WIDTHS.length]}
             delay={index * STAGGER}
         />
     );
@@ -127,23 +132,25 @@ export function PendingDetail({ index }) {
 
 PendingDetail.propTypes = {
     index: PropTypes.number.isRequired,
+    width: PropTypes.string,
 };
 
 /**
  * the build panel, before the listing names a build.
  *
- * The labels are handed in rather than written here, because graph.jsx holds
+ * The labels are handed in rather than written here, because source.js holds
  * them for the panel itself -- see DETAILS there. A second copy would drift
- * apart from the first the day a row was added.
+ * apart from the first the day a row was added. So are the widths, where the
+ * panel's rows name their own -- see PendingDetail.
  */
-export function PendingDetails({ labels }) {
+export function PendingDetails({ labels, widths = [] }) {
     return (
         <dl className='graph-details graph-pending' aria-hidden='true'>
             {labels.map((label, index) => (
                 <div key={label} className='graph-details-row'>
                     <dt>{label}</dt>
                     <dd>
-                        <PendingDetail index={index} />
+                        <PendingDetail index={index} width={widths[index] || null} />
                     </dd>
                 </div>
             ))}
@@ -153,6 +160,7 @@ export function PendingDetails({ labels }) {
 
 PendingDetails.propTypes = {
     labels: PropTypes.arrayOf(PropTypes.string).isRequired,
+    widths: PropTypes.arrayOf(PropTypes.string),
 };
 
 //
