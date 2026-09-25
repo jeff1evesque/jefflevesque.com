@@ -9,7 +9,7 @@ import SvgHome from '../svg/svg-home.jsx';
 import SvgBooks from '../svg/svg-books.jsx';
 import SvgUser from '../svg/svg-user.jsx';
 import SvgPencilNote from '../svg/svg-pencil-note.jsx';
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import HomeLink from './menu-items/home.jsx';
 import LoginLinkState from '../redux/container/login-link.jsx';
 import RegisterLinkState from '../redux/container/register-link.jsx';
@@ -17,6 +17,64 @@ import { Navbar, Nav, NavDropdown } from 'react-bootstrap';
 import { BreakpointRender } from 'rearm/lib/Breakpoint';
 import { breakpoints } from '../general/breakpoints.js';
 import PropTypes from 'prop-types';
+
+//
+// the Graph section, which is two pages: the published PyG build a graph neural
+// network trains on, and a day of the query tables an LLM's retrieval step reads.
+// Named for what each graph is FOR, in the builder's own split, so neither name
+// asks a reader to know what PyG is.
+//
+// Note: '/graph' keeps its address, so every link to a build keeps working. See
+//       main-route.jsx for why '/graph/retrieval' is never read as one.
+//
+const GRAPH_PAGES = [
+    { to: '/graph', label: 'Training graph' },
+    { to: '/graph/retrieval', label: 'Retrieval graph' },
+];
+
+//
+// which of the two an address is on, or null for neither. '/graph/<id>' is the
+// Training graph opened on one build, so it counts as '/graph'.
+//
+function graphPage(pathname) {
+    if (/^\/graph\/retrieval(\/|$)/.test(pathname)) {
+        return '/graph/retrieval';
+    }
+
+    return /^\/graph(\/|$)/.test(pathname) ? '/graph' : null;
+}
+
+/**
+ * the Graph section on a wide screen: a pill like the three beside it, opening
+ * onto the two pages.
+ *
+ * Its entries go through the router, as the pills beside it do. The toggle is
+ * marked active on either page, and each entry on its own, for the reason a
+ * NavLink marks itself -- the header says where the reader is.
+ *
+ * Note: a function component beside the class, because it reads the address,
+ *       and react-router's hooks cannot be called from a class. A NavLink cannot
+ *       say it either: '/graph' is a prefix of '/graph/retrieval', so the
+ *       Training graph's entry would light on both pages.
+ */
+function GraphMenu() {
+    const current = graphPage(useLocation().pathname);
+
+    return (
+        <NavDropdown
+            id='graph-nav-dropdown'
+            className='main-navigation-dropdown'
+            title='Graph'
+            active={Boolean(current)}
+        >
+            {GRAPH_PAGES.map((page) => (
+                <NavDropdown.Item key={page.to} as={Link} to={page.to} active={current === page.to}>
+                    {page.label}
+                </NavDropdown.Item>
+            ))}
+        </NavDropdown>
+    );
+}
 
 class HeaderMenu extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
@@ -57,7 +115,7 @@ class HeaderMenu extends Component {
                                         </span>
                                         <span className='horizontal-spacer'>|</span>
                                         <span className='border-oval-radius'>
-                                            <NavLink className='main-navigation-large' to='/graph'>Graph</NavLink>
+                                            <GraphMenu />
                                         </span>
                                         <span className='horizontal-spacer'>|</span>
                                         <span className='border-oval-radius'>
@@ -97,7 +155,20 @@ class HeaderMenu extends Component {
                     >
                         <NavDropdown.Item href='/stream'>{'Stream'}</NavDropdown.Item>
                         <NavDropdown.Item href='/data'>{'Data'}</NavDropdown.Item>
-                        <NavDropdown.Item href='/graph'>{'Graph'}</NavDropdown.Item>
+                        {/*
+
+                            the Graph section is two pages, so its one entry
+                            becomes a heading over two. A dropdown inside this
+                            dropdown would be a menu a phone cannot hold open
+                            while the reader moves between them.
+
+                        */}
+                        <NavDropdown.Header>{'Graph'}</NavDropdown.Header>
+                        {GRAPH_PAGES.map((page) => (
+                            <NavDropdown.Item key={page.to} className='menu-sub-item' href={page.to}>
+                                {page.label}
+                            </NavDropdown.Item>
+                        ))}
                         <NavDropdown.Item href='/model'>{'Model'}</NavDropdown.Item>
                     </NavDropdown>
                     <Nav>
