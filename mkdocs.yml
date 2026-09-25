@@ -115,9 +115,15 @@ plugins:
   ## keeps Swagger UI from sending each document to swagger.io's online
   ## validator; openapi.test.js validates them instead.
   ##
+  ## `extra_css` is loaded into each Swagger UI frame after Swagger UI's own
+  ## stylesheet, from the site root. It draws inline code the way the pages
+  ## around the frame do, instead of bold in Swagger UI's purple.
+  ##
   - swagger-ui-tag:
       supportedSubmitMethods: ["get"]
       validatorUrl: none
+      extra_css:
+        - stylesheets/swagger-ui.css
 
 nav:
   - Home: index.md
