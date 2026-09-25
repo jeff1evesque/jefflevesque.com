@@ -85,6 +85,11 @@
         // item, a dark hover, a toggle with no padding, and a caret moved to the
         // far edge -- so each is put back to what the pills beside it wear.
         //
+        // The toggle is inline, as their links are. Every link in the navbar is
+        // given a 4rem height, which only an inline link ignores: an
+        // inline-block toggle took it, and stood the pill's hover background and
+        // its menu 2rem lower than the pills beside it.
+        //
         .menu-home-desktop .main-navigation-dropdown {
           display: inline-block;
           border-bottom: none;
@@ -94,7 +99,7 @@
           }
 
           > .dropdown-toggle {
-            display: inline-block;
+            display: inline;
             color: $gray-8;
             font-size: 1.125rem;
             letter-spacing: 0.02em;
@@ -117,7 +122,15 @@
             position: static;
           }
 
+          //
+          // opens just under the pill's hover background, which reaches 0.25rem
+          // below the pill. Absolute at every width the pills show: below 992px
+          // Bootstrap sets a navbar's menus static, for its collapsed navbar,
+          // and this one would push the header down to make room for itself.
+          //
           .dropdown-menu {
+            position: absolute;
+            margin-top: 0.25rem;
             min-width: 12rem;
             padding: 0.25rem 0;
           }

@@ -1,0 +1,24 @@
+/*
+ * swagger-ui.css: loaded into each api page's Swagger UI frame, after Swagger
+ * UI's own stylesheet. See swagger-ui-tag in mkdocs.yml.
+ *
+ * Swagger UI draws inline code -- a parameter or a path named in a description
+ * -- bold, in a purple of its own. The pages around it draw inline code at
+ * regular weight, in Material's code colours, so this draws it the same way.
+ *
+ * Note: the frame cannot read the page's css variables, so the colours are
+ *       Material's own, written out: its default scheme, and slate under the
+ *       dark-mode class the plugin sets while the page is dark.
+ */
+.swagger-ui .markdown code,
+.swagger-ui .renderedMarkdown code {
+  background: #f5f5f5;
+  color: #36464e;
+  font-weight: 400;
+}
+
+html.dark-mode .swagger-ui .markdown code,
+html.dark-mode .swagger-ui .renderedMarkdown code {
+  background: hsla(225deg, 15%, 18%, 1);
+  color: hsla(225deg, 18%, 86%, 0.82);
+}
