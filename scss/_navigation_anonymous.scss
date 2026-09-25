@@ -128,24 +128,52 @@
           // Bootstrap sets a navbar's menus static, for its collapsed navbar,
           // and this one would push the header down to make room for itself.
           //
+          // Light, as the header it opens from is. Every other menu in the
+          // header is the near-black '_navigation.scss' gives them, and each of
+          // those opens from a black bar -- the phone's header, or the signed-in
+          // one -- where it matches what is behind it. Under these pills, gray
+          // on white, it was a black box dropped onto a white page.
+          //
           .dropdown-menu {
             position: absolute;
             margin-top: 0.25rem;
             min-width: 12rem;
             padding: 0.25rem 0;
+            background-color: $white-1;
+            border: 1px solid $gray-2;
+            box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.08);
           }
 
+          //
+          // Note: the background is set on the item itself, not left to
+          //       Bootstrap. Bootstrap gives an item its own blue while it is
+          //       .active or pressed, and a gray while it has focus, and each of
+          //       those would show through here.
+          //
           .dropdown-item {
             height: auto;
             padding: 0.75rem 1.5rem;
-            color: $white-1;
+            color: $gray-8;
+            background-color: transparent;
           }
 
           .dropdown-item:hover,
+          .dropdown-item:focus-visible {
+            background-color: rgba(0, 0, 0, 0.04);
+          }
+
+          .dropdown-item:hover,
+          .dropdown-item:focus-visible,
           .dropdown-item.active {
-            background-color: transparent;
             border-left: $menu-border-left solid green;
             padding-left: 1.5rem - $menu-border-left;
+          }
+
+          //
+          // the page the reader is on, in the green its pill is lit in.
+          //
+          .dropdown-item.active {
+            color: $green-6;
           }
         }
       }
