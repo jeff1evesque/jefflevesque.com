@@ -122,8 +122,24 @@ export function adjacency(node_types, edge_types) {
     return adjacent;
 }
 
+//
+// what a node type WEIGHS, which decides the slice: how many nodes it holds,
+// unless the caller names another measure the types carry.
+//
+// The Retrieval graph names 'entities' -- how many of a type's nodes can be
+// found by name -- because a day of the tables weighed by its node count is its
+// build again: the same types, led by the same nine million market snapshots,
+// none of which carries a name or a value to look up. See source.js.
+//
+// Note: a type that does not carry the measure weighs nothing, rather than
+//       throwing. A published document is free to omit a field.
+//
+function weighs(meta, weight) {
+    return (meta && meta[weight]) || 0;
+}
+
 /**
- * order node types by count, descending, ties broken by id.
+ * order node types by weight, descending, ties broken by id.
  *
  * Note: the tie-break is not decoration. Five types share a count of 1,998 in
  *       the live build and three share 371, so a sort that left equal counts in
@@ -131,10 +147,10 @@ export function adjacency(node_types, edge_types) {
  *       would quietly reshuffle between builds. Sorting the ids makes the same
  *       schema always produce the same answer.
  */
-export function rank(node_types, limit) {
+export function rank(node_types, limit, weight = 'count') {
     return Object.keys(node_types)
         .sort((a, b) => {
-            const delta = (node_types[b].count || 0) - (node_types[a].count || 0);
+            const delta = weighs(node_types[b], weight) - weighs(node_types[a], weight);
             return delta !== 0 ? delta : a.localeCompare(b);
         })
         .slice(0, limit);
@@ -188,12 +204,34 @@ export function components(keep, adjacent) {
     return found.sort((a, b) => b.length - a.length);
 }
 
-export function selectTypes(node_types, edge_types, limit) {
-    const ordered = rank(node_types, Object.keys(node_types).length);
+//
+// Note: a type that weighs NOTHING never takes a place a type that weighs
+//       something could have. It is never a seed and never padding, and it is
+//       kept as a connector only with the budget left once every type that
+//       weighs something has a place -- joining two things a reader came for is
+//       a reason to be drawn, but not ahead of a third thing they came for.
+//
+//       Measured on the 2026-09-23 day weighed by its findable entities, the
+//       rule without that last clause spent nineteen of sixty places on
+//       nameless measurement series that each joined two named types, and left
+//       nine named types out.
+//
+//       Every type in a build holds nodes, so under the default weight no type
+//       weighs nothing, and none of this changes a build's slice.
+//
+export function selectTypes(node_types, edge_types, limit, weight = 'count') {
+    const ordered = rank(node_types, Object.keys(node_types).length, weight);
+    const weighted = ordered.filter((id) => weighs(node_types[id], weight) > 0);
     const adjacent = adjacency(node_types, edge_types);
     const seeded = Math.max(1, Math.round(limit * SEED_FRACTION));
-    const seeds = new Set(ordered.slice(0, seeded));
+    const seeds = new Set(weighted.slice(0, seeded));
     const keep = new Set(seeds);
+
+    //
+    // whether a type that weighs nothing may take a place now: only while there
+    // are more places left than types that weigh something and are still out
+    //
+    const spare = () => limit - keep.size > weighted.filter((id) => !keep.has(id)).length;
 
     {/* anything linking two or more of the ones already kept */}
 
@@ -204,14 +242,14 @@ export function selectTypes(node_types, edge_types, limit) {
 
         const links = [...adjacent.get(id)].filter((other) => keep.has(other));
 
-        if (links.length >= CONNECTOR_MIN_LINKS) {
+        if (links.length >= CONNECTOR_MIN_LINKS && (weighs(node_types[id], weight) > 0 || spare())) {
             keep.add(id);
         }
     });
 
-    {/* any budget left over goes on size */}
+    {/* any budget left over goes on size -- on weight, where a weight is named */}
 
-    ordered.forEach((id) => {
+    weighted.forEach((id) => {
         if (keep.size >= limit) {
             return;
         }
@@ -267,11 +305,17 @@ export function selectTypes(node_types, edge_types, limit) {
             what to give up for it: the smallest type that is not one of the
             originals, and whose absence does not itself break the graph apart.
 
+            Note: a joiner that weighs nothing may only take the place of
+                  another that weighs nothing, for the reason selectTypes'
+                  note gives. Under the default weight there is no such
+                  joiner, and this is the rule it always was.
+
         */}
 
+        const nameless = !(weighs(node_types[joins_up], weight) > 0);
         const give_up = [...keep]
-            .filter((id) => !seeds.has(id))
-            .sort((a, b) => (node_types[a].count || 0) - (node_types[b].count || 0))
+            .filter((id) => !seeds.has(id) && (!nameless || !(weighs(node_types[id], weight) > 0)))
+            .sort((a, b) => weighs(node_types[a], weight) - weighs(node_types[b], weight))
             .find((id) => {
                 const swapped = new Set(keep);
                 swapped.delete(id);
@@ -305,7 +349,7 @@ export function selectTypes(node_types, edge_types, limit) {
  *       page will want them -- and a caller that reads 'summary.total_node_types'
  *       should still see the TRUE total rather than the filtered one.
  */
-export default function filterSchema(schema, limit = GRAPH_NODE_TYPES) {
+export default function filterSchema(schema, limit = GRAPH_NODE_TYPES, weight = 'count') {
     if (!schema || typeof schema !== 'object') {
         return null;
     }
@@ -317,7 +361,7 @@ export default function filterSchema(schema, limit = GRAPH_NODE_TYPES) {
         return null;
     }
 
-    const keep = selectTypes(node_types, edge_types, limit);
+    const keep = selectTypes(node_types, edge_types, limit, weight);
 
     const kept_nodes = {};
     keep.forEach((id) => { kept_nodes[id] = node_types[id]; });
