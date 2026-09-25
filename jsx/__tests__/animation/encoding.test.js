@@ -18,6 +18,7 @@ import {
     assignNamespaceColors,
     buildPalette,
     originColor,
+    originName,
     ORIGIN_DASH,
     ORIGIN_COLOR,
 } from '../../import/animation/encoding.js';
@@ -342,6 +343,22 @@ describe('link styling by edge origin', () => {
 
     it('leaves an unknown origin undashed rather than throwing', () => {
         expect(ORIGIN_DASH['something-new']).toBeUndefined();
+    });
+});
+
+describe('what an origin is called', () => {
+    it('calls unification by what its edges assert', () => {
+        expect(originName('unification')).toBe('owl:sameAs');
+    });
+
+    it('calls every other origin by its own value', () => {
+        expect(originName('raw')).toBe('raw');
+        expect(originName('enrichment')).toBe('enrichment');
+        expect(originName('something-new')).toBe('something-new');
+    });
+
+    it('calls a missing origin nothing rather than undefined', () => {
+        expect(originName(undefined)).toBe('');
     });
 });
 

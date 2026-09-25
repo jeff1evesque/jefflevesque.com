@@ -1988,6 +1988,49 @@ describe('the legend', () => {
         expect(origins.textContent).toContain('raw');
         expect(origins.textContent).toContain('enrichment');
         expect(origins.textContent).not.toContain('unification');
+        expect(origins.textContent).not.toContain('owl:sameAs');
+    });
+
+    it('names a unification edge by what it asserts, owl:sameAs', async () => {
+        //
+        // 'unification' is the builder's word for how the edge was made, and the
+        // note under it said 'the same thing, seen twice' -- which a reader could
+        // take for a duplicate, the opposite of what it means.
+        //
+        const schema = schemaOf(4);
+        schema.edge_types.c = {
+            src_type: 'bls_T0', dst_type: 'bls_T2', relation: 'owl_sameAs', origin: 'unification', count: 5,
+        };
+        getGraphById.mockResolvedValue(schema);
+
+        await setup();
+
+        const same = [...document.querySelectorAll('.graph-legend-origins li')]
+            .find(li => li.textContent.startsWith('owl:sameAs'));
+
+        expect(same.querySelector('.graph-legend-note').textContent).toBe('the two nodes are the same');
+        expect(document.querySelector('.graph-legend-origins').textContent).not.toContain('unification');
+    });
+
+    it('still marks a renamed origin by its value in the schema', async () => {
+        //
+        // the canvas matches an edge to a legend entry by the schema's value. A
+        // mark carrying the printed name would light nothing.
+        //
+        const schema = schemaOf(4);
+        schema.edge_types.c = {
+            src_type: 'bls_T0', dst_type: 'bls_T2', relation: 'owl_sameAs', origin: 'unification', count: 5,
+        };
+        getGraphById.mockResolvedValue(schema);
+
+        await setup();
+
+        const same = [...document.querySelectorAll('.graph-legend-origins li button')]
+            .find(button => button.textContent.startsWith('owl:sameAs'));
+
+        fireEvent.click(same);
+
+        expect(explorer().getAttribute('data-emphasis')).toBe('origin:unification');
     });
 
     it('gives each namespace its own swatch', async () => {

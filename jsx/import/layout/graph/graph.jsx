@@ -94,16 +94,21 @@ import {
     rankNamespaces,
     ORIGIN_DASH,
     originColor,
+    originName,
 } from '../../animation/encoding.js';
 
 //
 // what each origin means, for the legend. The styling itself lives in
 // encoding.js -- this is only the wording.
 //
+// Note: keyed by the origin's value in the schema, not by the name the legend
+//       prints over it -- 'unification' is printed as 'owl:sameAs'. See
+//       originName in encoding.js.
+//
 const ORIGIN_LABEL = {
     raw: 'as published by the source',
     enrichment: 'derived during the build',
-    unification: 'the same thing, seen twice',
+    unification: 'the two nodes are the same',
 };
 
 //
@@ -1274,7 +1279,7 @@ class GraphLayout extends Component {
                                     strokeDasharray={ORIGIN_DASH[origin] || undefined}
                                 />
                             </svg>
-                            {origin}
+                            {originName(origin)}
                             <span className='graph-legend-note'>
                                 {ORIGIN_LABEL[origin] || ''}
                             </span>

@@ -49,7 +49,7 @@ import TableHead from '@mui/material/TableHead';
 import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
 import TableSortLabel from '@mui/material/TableSortLabel';
-import { sourceNamespace, originColor, ORIGIN_DASH } from '../../animation/encoding.js';
+import { sourceNamespace, originColor, originName, ORIGIN_DASH } from '../../animation/encoding.js';
 import { breakable } from '../../animation/graph-explorer.jsx';
 import { PendingBar } from './pending.jsx';
 
@@ -227,6 +227,10 @@ export function nodeRows(schema, drawn, painted) {
  * Note: keyed by the schema's own opaque key rather than by the triple. The
  *       triple is what a reader sees and it is not guaranteed unique, while the
  *       key is what the document is keyed by.
+ *
+ * Note: the filter finds an origin by either of its names -- the one the row
+ *       prints, 'owl:sameAs', and the one the api answers, 'unification' -- so
+ *       a reader arriving from either finds the rows. See originName.
  */
 export function edgeRows(schema) {
     if (!schema || !schema.edge_types) {
@@ -235,6 +239,7 @@ export function edgeRows(schema) {
 
     return Object.keys(schema.edge_types).map((key) => {
         const edge = schema.edge_types[key];
+        const origin = edge.origin || '';
 
         return {
             key: key,
@@ -242,8 +247,14 @@ export function edgeRows(schema) {
             relation: edge.relation,
             dst: edge.dst_type,
             count: edge.count,
-            origin: edge.origin || '',
-            search: `${edge.src_type} ${edge.relation} ${edge.dst_type} ${edge.origin || ''}`
+            //
+            // the origin by the name the cell prints, so the column sorts in the
+            // order a reader sees, and by the schema's own value, which picks
+            // the line the cell draws beside it.
+            //
+            origin: originName(origin),
+            schemaOrigin: origin,
+            search: `${edge.src_type} ${edge.relation} ${edge.dst_type} ${origin} ${originName(origin)}`
                 .toLowerCase(),
         };
     });
@@ -515,7 +526,7 @@ class GraphTables extends Component {
                                 {number(row.count)}
                             </TableCell>
                             <TableCell>
-                                {originMark(row.origin)}
+                                {originMark(row.schemaOrigin)}
                                 {row.origin}
                             </TableCell>
                         </TableRow>

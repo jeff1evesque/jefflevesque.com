@@ -210,4 +210,27 @@ export function originColor(origin) {
     return ORIGIN_COLOR[origin] || colors['gray-5'];
 }
 
+//
+// what the page CALLS an origin, where that is not its value in the schema. The
+// legend and the tables' Origin column both name it, and read it from here, so
+// the one dotted line cannot go by two names on one page.
+//
+// Note: 'unification' is the builder's word for how an edge was made, and says
+//       nothing to a reader about what the edge asserts. Every edge published
+//       under it asserts one thing -- owl:sameAs, the five edge types of it in
+//       each of the ten builds and nine days listed on 2026-09-25 -- so the page
+//       names the assertion. A unification edge of any other relation would
+//       make this name wrong, and the tables would show it: its relation and
+//       its origin would disagree on the same row.
+//
+export const ORIGIN_NAME = { unification: 'owl:sameAs' };
+
+/**
+ * the name an origin goes by on the page -- its own value, for any origin
+ * without a name of its own.
+ */
+export function originName(origin) {
+    return ORIGIN_NAME[origin] || origin || '';
+}
+
 export { NAMESPACE_FROM_URI };
