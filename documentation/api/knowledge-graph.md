@@ -90,6 +90,11 @@ Each build in `graphs` carries:
 | `build_metadata` | how the build was made. `/graph` reads one field of it, `sources_in_graph`, from version `1.4` |
 | `relation_groups` | carried through; the application does not read it |
 
+**Every `unification` edge published so far is an `owl:sameAs`**, joining two nodes that
+stand for one thing -- a source's own month and the build's unified month, say. The graph
+pages name the origin by what its edges assert, `owl:sameAs`, rather than by the builder's
+word for how they were made, and their tables find it under either name.
+
 `nodes` in the listing and `node_types` in the schema count different things. A build
 holds millions of nodes across well over a hundred node types, and the graph draws one
 circle per node **type** -- a slice of them, since not all fit legibly. See
