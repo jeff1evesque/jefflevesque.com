@@ -17,6 +17,11 @@
  * Note: both open in a new tab. The page is a chart someone may have spent a
  *       while arranging -- a stream, a rate, a month, a build -- and following a
  *       link should not throw that away.
+ *
+ * Note: a page drawn from MORE than one request hands them all in, each named,
+ *       as `requests`, and gets an icon for each. The Retrieval graph draws a day
+ *       from two answers side by side, and linking one of them would show a reader
+ *       half of what the graph was drawn from.
  */
 
 import React from 'react';
@@ -25,7 +30,9 @@ import Tooltip from '@mui/material/Tooltip';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 
-function ApiLinks({ docs, request = null, size = 'medium' }) {
+function ApiLinks({ docs, request = null, requests = null, size = 'medium' }) {
+    const shown = requests || (request ? [{ url: request, label: 'This request' }] : []);
+
     return (
         <div className={`api-links api-links-${size}`}>
             <Tooltip title='API docs'>
@@ -39,21 +46,19 @@ function ApiLinks({ docs, request = null, size = 'medium' }) {
                     <MenuBookIcon fontSize={size} />
                 </a>
             </Tooltip>
-            {request
-                ? (
-                    <Tooltip title='This request'>
-                        <a
-                            className='api-link'
-                            href={String(request)}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            aria-label='This request'
-                        >
-                            <DataObjectIcon fontSize={size} />
-                        </a>
-                    </Tooltip>
-                )
-                : null}
+            {shown.map(({ url, label }) => (
+                <Tooltip key={label} title={label}>
+                    <a
+                        className='api-link'
+                        href={String(url)}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        aria-label={label}
+                    >
+                        <DataObjectIcon fontSize={size} />
+                    </a>
+                </Tooltip>
+            ))}
         </div>
     );
 }
@@ -61,6 +66,10 @@ function ApiLinks({ docs, request = null, size = 'medium' }) {
 ApiLinks.propTypes = {
     docs: PropTypes.string.isRequired,
     request: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    requests: PropTypes.arrayOf(PropTypes.shape({
+        url: PropTypes.oneOfType([PropTypes.string, PropTypes.object]).isRequired,
+        label: PropTypes.string.isRequired,
+    })),
     size: PropTypes.oneOf(['medium', 'large']),
 };
 
