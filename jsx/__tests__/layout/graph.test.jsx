@@ -1574,7 +1574,7 @@ describe('the divider above the tables', () => {
 
         fireEvent.click(fold());
 
-        expect(screen.getByRole('heading', { name: 'Knowledge graph' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Training graph' })).toBeTruthy();
         expect(picker()).toBeTruthy();
         expect(document.querySelector('[data-testid="tables"]')).not.toBeNull();
     });
