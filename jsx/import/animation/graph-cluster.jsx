@@ -72,7 +72,7 @@
 
 import React, { Component } from 'react';
 import * as d3 from 'd3';
-import { colors } from '../general/colors.js';
+import { themeColors } from '../general/colors.js';
 import {
     sourceNamespace,
     assignNamespaceColors,
@@ -117,12 +117,15 @@ const HOVER_DETECT = 130;
 // dispatches once per tap, after touchend) are ignored
 const MOUSE_AFTER_TOUCH = 700;
 
-// how far a resting node's color is mixed toward white (0 = full color, 1 =
-// white). Color arrives on hover; at rest the cluster is a pale backdrop.
+// how far a resting node's color is mixed toward the page (0 = full color, 1 =
+// the page). Color arrives on hover; at rest the cluster is a pale backdrop --
+// white's pale on a light page, and the dark page's own on a dark one.
 const MUTED_MIX = 0.62;
 // ...and how much darker than the raw category color a lit node goes. The node
 // under the cursor darkens further than its neighbors, so the two roles stay
-// readable when a whole neighborhood lights up at once.
+// readable when a whole neighborhood lights up at once. On a dark page a lit
+// node goes BRIGHTER by as much, since deeper is what stands out from a pale
+// field and lighter is what stands out from a dark one.
 const HOVER_DARKEN = 0.5;
 const HOVER_DARKEN_SELF = 0.85;
 
@@ -378,6 +381,12 @@ class GraphCluster extends Component {
         }),
         // namespace -> color, ranked over the whole build by buildPalette
         palette: PropTypes.instanceOf(Map),
+        // the page's theme, which the backdrop's neutrals and its muting follow
+        theme: PropTypes.oneOf(['light', 'dark']),
+    }
+
+    static defaultProps = {
+        theme: 'light',
     }
 
     constructor(props) {
@@ -399,6 +408,8 @@ class GraphCluster extends Component {
         this.renderD3 = this.renderD3.bind(this);
         this.nodeColor = this.nodeColor.bind(this);
         this.mutedColor = this.mutedColor.bind(this);
+        this.litColor = this.litColor.bind(this);
+        this.paint = this.paint.bind(this);
         this.highlight = this.highlight.bind(this);
         this.updateHover = this.updateHover.bind(this);
         this.handleResize = this.handleResize.bind(this);
@@ -426,6 +437,17 @@ class GraphCluster extends Component {
                 this.simulation.stop();
             }
             this.renderD3();
+            return;
+        }
+
+        //
+        // the page changed theme, and the palette with it. Recolored where it
+        // stands: laying the cluster out again would move every node on the
+        // screen because the reader pressed a button in the header.
+        //
+        if ((prevProps.palette !== this.props.palette || prevProps.theme !== this.props.theme) && this.nodeSel) {
+            this.namespaceColors = this.props.palette || assignNamespaceColors(this.nodes);
+            this.paint();
         }
     }
 
@@ -490,15 +512,55 @@ class GraphCluster extends Component {
             ? this.namespaceColors.get(namespace)
             : null;
 
-        return assigned ? assigned : colors['gray-5'];
+        return assigned ? assigned : this.shade()['gray-5'];
     }
 
-    // the resting tint: the namespace color mixed most of the way to white, so a
-    // node still hints at its source without competing for attention. Mixing
-    // toward white rather than lowering opacity keeps it opaque over the gray
-    // field — a translucent node would pick up whatever mesh sits behind it.
+    // the page's named colors, as the theme draws them
+    shade() {
+        return themeColors(this.props.theme);
+    }
+
+    // the resting tint: the namespace color mixed most of the way to the page,
+    // so a node still hints at its source without competing for attention.
+    // Mixing toward the page rather than lowering opacity keeps it opaque over
+    // the gray field — a translucent node would pick up whatever mesh sits
+    // behind it.
     mutedColor(namespace) {
-        return d3.interpolateRgb(this.nodeColor(namespace), '#ffffff')(MUTED_MIX);
+        return d3.interpolateRgb(this.nodeColor(namespace), this.shade()['white-1'])(MUTED_MIX);
+    }
+
+    // a lit node: its full color, deepened on a light page and lightened on a
+    // dark one, and furthest for the node under the pointer
+    litColor(namespace, self) {
+        const base = d3.color(this.nodeColor(namespace));
+        const by = self ? HOVER_DARKEN_SELF : HOVER_DARKEN;
+
+        return (this.props.theme === 'dark' ? base.brighter(by) : base.darker(by)).toString();
+    }
+
+    /**
+     * color everything the theme decides, where it stands: the field, the
+     * edges, the nodes and their labels.
+     *
+     * Note: a node's resting color is its '--node-fill' as well as its fill.
+     *       The dark theme's glint lightens a node by mixing that color with
+     *       white, where the light theme's lets the white page show through --
+     *       see graph-node-glint-dark in '_animation.scss'.
+     */
+    paint() {
+        const shade = this.shade();
+
+        this.bgLinkSel.attr('stroke', shade['gray-6']);
+        this.bgNodeSel.attr('fill', shade['gray-5']);
+        this.linkSel.attr('stroke', (d) => originColor(d.origin, this.props.theme));
+        this.nodeSel
+            .attr('stroke', shade['gray-1'])
+            .style('--node-fill', (d) => this.mutedColor(d.namespace));
+        this.labelSel
+            .attr('fill', shade['gray-8'])
+            .attr('stroke', shade['white-1']);
+
+        this.highlight(this.hoveredId);
     }
 
     // transform the graph_schema.json shape into d3 nodes + links
@@ -707,7 +769,7 @@ class GraphCluster extends Component {
         this.bgLinkSel = this.gBgLinks.selectAll('line')
             .data(this.background.links)
             .join('line')
-            .attr('stroke', colors['gray-6'])
+            .attr('stroke', this.shade()['gray-6'])
             .attr('stroke-width', 0.6)
             .attr('opacity', BG_LINK_OPACITY);
 
@@ -715,7 +777,7 @@ class GraphCluster extends Component {
             .data(this.background.nodes)
             .join('circle')
             .attr('r', nodeRadius)
-            .attr('fill', colors['gray-5'])
+            .attr('fill', this.shade()['gray-5'])
             .attr('opacity', BG_OPACITY);
     }
 
@@ -743,12 +805,9 @@ class GraphCluster extends Component {
         // category color — deeper reads as "selected" against the pale resting
         // field, and the hovered node is darkened furthest so it stays
         // distinguishable from the neighbors lighting up alongside it
-        this.nodeSel.attr('fill', (d) => {
-            if (!lit(d)) return this.mutedColor(d.namespace);
-            const base = d3.color(this.nodeColor(d.namespace));
-            return base.darker(d.id === nodeId ? HOVER_DARKEN_SELF : HOVER_DARKEN)
-                .toString();
-        });
+        this.nodeSel.attr('fill', (d) => (
+            lit(d) ? this.litColor(d.namespace, d.id === nodeId) : this.mutedColor(d.namespace)
+        ));
         // muted nodes also sit back a little, so the lit neighborhood carries
         // both more color and more presence
         this.nodeSel.attr('opacity', (d) => (!active || lit(d) ? 1 : 0.5));
@@ -849,7 +908,7 @@ class GraphCluster extends Component {
         this.linkSel = gLinks.selectAll('line')
             .data(links)
             .join('line')
-            .attr('stroke', (d) => originColor(d.origin))
+            .attr('stroke', (d) => originColor(d.origin, this.props.theme))
             .attr('stroke-width', (d) => (d.origin === 'raw' ? 1 : 1.5))
             .attr('stroke-dasharray', (d) => ORIGIN_DASH[d.origin])
             // faint at rest, to match the muted nodes
@@ -867,7 +926,8 @@ class GraphCluster extends Component {
             .attr('r', (d) => d.r)
             // resting state is the muted tint; hover is what brings color in
             .attr('fill', (d) => this.mutedColor(d.namespace))
-            .attr('stroke', colors['gray-1'])
+            .style('--node-fill', (d) => this.mutedColor(d.namespace))
+            .attr('stroke', this.shade()['gray-1'])
             .attr('stroke-width', 1)
             .style('cursor', 'pointer')
             .style('animation-delay', (d, index) => glintDelay(index));
@@ -880,8 +940,8 @@ class GraphCluster extends Component {
             .attr('font-size', small ? 11 : 13)
             .attr('font-family', 'sans-serif')
             .attr('font-weight', 600)
-            .attr('fill', colors['gray-8'])
-            .attr('stroke', '#ffffff')
+            .attr('fill', this.shade()['gray-8'])
+            .attr('stroke', this.shade()['white-1'])
             .attr('stroke-width', 3)
             .attr('paint-order', 'stroke')
             .attr('text-anchor', 'middle')
