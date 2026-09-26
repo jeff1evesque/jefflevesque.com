@@ -14,10 +14,10 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import NoticeTerms from '../../import/general/notice-terms.jsx';
+import NoticeTerms, { TERMS_VERSION } from '../../import/general/notice-terms.jsx';
 
 function setup(props = {}) {
     const held = React.createRef();
@@ -109,6 +109,77 @@ describe('the defaults', () => {
         expect(terms()).toContain('offered as is');
 
         quiet.mockRestore();
+    });
+});
+
+describe('a signed-in reader', () => {
+    //
+    // only the alarm page says a reader is signed in. There the notice takes their
+    // acceptance of the terms in place of the way to sign in, and the page holds it,
+    // since what it lets them turn on depends on it.
+    //
+    const SIGNED_IN = { subject: 'ingest alarms', signed_in: true, accepted: false };
+    const box = () => screen.getByRole('checkbox', { name: 'I accept the terms and conditions' });
+
+    it('is offered the terms to accept, rather than a way to sign in', () => {
+        setup(SIGNED_IN);
+
+        expect(box()).not.toBeChecked();
+        expect(document.querySelectorAll('.agreement-button a')).toHaveLength(0);
+    });
+
+    it('is told what the notice is for, rather than asked to sign in', () => {
+        setup(SIGNED_IN);
+
+        expect(heading()).toBe('Subscribe to ingest alarms');
+    });
+
+    it('still reads the notice and the terms', () => {
+        setup(SIGNED_IN);
+
+        expect(text()).toContain('you must accept the terms and conditions');
+        expect(terms()).toContain('offered as is');
+    });
+
+    it('reports ticking and unticking the box, which the page holds', () => {
+        const onAccept = jest.fn();
+        const { rerender } = setup({ ...SIGNED_IN, onAccept: onAccept });
+
+        fireEvent.click(box());
+        expect(onAccept).toHaveBeenLastCalledWith(true);
+
+        rerender({ ...SIGNED_IN, accepted: true, onAccept: onAccept });
+        expect(box()).toBeChecked();
+
+        fireEvent.click(box());
+        expect(onAccept).toHaveBeenLastCalledWith(false);
+    });
+
+    it('can be ticked with nothing listening', () => {
+        setup(SIGNED_IN);
+
+        expect(() => fireEvent.click(box())).not.toThrow();
+    });
+
+    it('is not assumed of any other caller, who gets the way to sign in', () => {
+        //
+        // the four trigger pages pass no 'signed_in', and subscribing to triggers is
+        // not offered yet
+        //
+        setup({ subject: 'triggers' });
+
+        expect(screen.queryByRole('checkbox')).toBeNull();
+        expect(document.querySelectorAll('.agreement-button a').length).toBeGreaterThanOrEqual(2);
+    });
+});
+
+describe('the version of the terms', () => {
+    it('is one the account api accepts', () => {
+        //
+        // a short token, as the api checks it -- anything else, and every subscribe
+        // is refused 400
+        //
+        expect(TERMS_VERSION).toMatch(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/);
     });
 });
 
