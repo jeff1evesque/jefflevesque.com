@@ -14,6 +14,9 @@
 
 import {
     sourceNamespace,
+    ontologyTerm,
+    vocabulary,
+    typeSource,
     rankNamespaces,
     assignNamespaceColors,
     buildPalette,
@@ -34,7 +37,7 @@ import filterSchema, { GRAPH_NODE_TYPES } from '../../import/animation/filter-sc
 // handed the same number twice passes while holding nothing at all.
 //
 const SMALLER_SLICE = 24;
-import { colors, colors_categorical, color_other } from '../../import/general/colors.js';
+import { colors, colors_categorical, colors_dark, color_other, color_tail } from '../../import/general/colors.js';
 
 const nodesOf = (namespaces) => namespaces.map((ns, i) => ({ id: `n${i}`, namespace: ns }));
 const manyNamespaces = (n) => [...Array(n)].map((_, i) => `ns${String(i).padStart(2, '0')}`);
@@ -159,8 +162,38 @@ describe('sourceNamespace', () => {
         )).toBe('sec');
     });
 
-    it('takes only the first segment of a multi-part id', () => {
-        expect(sourceNamespace({}, 'bls_enrichment_PriceIndex')).toBe('bls');
+    it('takes everything before the type\'s own name from a multi-part id', () => {
+        //
+        // the id joins the vocabulary's path where the uri nests it, so it answers
+        // what the uri would. The first segment alone put a day's market quotes
+        // and its market enrichment under one 'market' that no build has.
+        //
+        expect(sourceNamespace({}, 'bls_enrichment_PriceIndex')).toBe('bls-enrichment');
+        expect(sourceNamespace({}, 'market_quotes_EquitySnapshot')).toBe('market-quotes');
+    });
+
+    it('reads the vocabulary a day\'s predicates name, where there is no uri', () => {
+        //
+        // the id says 'jolts', and the day's own predicates say 'bls/jolts' --
+        // which is what a build's uri says of the same type.
+        //
+        expect(sourceNamespace({ vocabulary: 'bls/jolts' }, 'jolts_Industry')).toBe('bls-jolts');
+    });
+
+    it('prefers the uri over a vocabulary', () => {
+        expect(sourceNamespace(
+            { source_type_uri: 'https://example.com/ontology/bls/jolts/Industry', vocabulary: 'odd' },
+            'jolts_Industry'
+        )).toBe('bls-jolts');
+    });
+
+    it('ignores a vocabulary that is not a path', () => {
+        expect(sourceNamespace({ vocabulary: '' }, 'jolts_Industry')).toBe('jolts');
+        expect(sourceNamespace({ vocabulary: 7 }, 'jolts_Industry')).toBe('jolts');
+    });
+
+    it('never answers an empty namespace', () => {
+        expect(sourceNamespace({}, '__Odd')).toBe('__Odd');
     });
 
     it('returns the whole id when it carries no prefix', () => {
@@ -173,7 +206,8 @@ describe('sourceNamespace', () => {
 
     it('does not treat a leading underscore as a prefix', () => {
         //
-        // indexOf('_') is 0 there, and slice(0, 0) would name every such type ''.
+        // lastIndexOf('_') is 0 there, and slice(0, 0) would name every such
+        // type ''.
         //
         expect(sourceNamespace({}, '_odd')).toBe('_odd');
     });
@@ -187,6 +221,62 @@ describe('sourceNamespace', () => {
             { source_type_uri: 'https://example.com/ontology/bls/Thing' },
             'odd_Thing'
         )).toBe('bls');
+    });
+});
+
+describe('ontologyTerm', () => {
+    it('splits a term into its vocabulary and its own name', () => {
+        expect(ontologyTerm('https://jefflevesque.com/ontology/bls/jolts/hasIndustry'))
+            .toEqual({ vocabulary: 'bls/jolts', name: 'hasIndustry' });
+    });
+
+    it('answers null for a uri that is not a term of the ontology', () => {
+        //
+        // owl:sameAs is the W3C's, and names no vocabulary of the builder's
+        //
+        expect(ontologyTerm('http://www.w3.org/2002/07/owl#sameAs')).toBeNull();
+        expect(ontologyTerm('https://example.com/ontology/bls/')).toBeNull();
+        expect(ontologyTerm(undefined)).toBeNull();
+    });
+});
+
+describe('vocabulary', () => {
+    it('is the path the uri nests the type under', () => {
+        expect(vocabulary(
+            { source_type_uri: 'https://example.com/ontology/noaa/cap-model/Area' },
+            'cap_Area'
+        )).toEqual(['noaa', 'cap-model']);
+    });
+
+    it('is the id\'s reading of it where nothing published says', () => {
+        expect(vocabulary({}, 'sec_common_Date')).toEqual(['sec', 'common']);
+        expect(vocabulary({}, 'temporal_SourceDay')).toEqual(['temporal']);
+    });
+});
+
+describe('typeSource', () => {
+    it('is the vocabulary a type\'s own is nested under', () => {
+        expect(typeSource({ source_type_uri: 'https://example.com/ontology/bls/jolts/Industry' })).toBe('bls');
+        expect(typeSource({ vocabulary: 'noaa/cap-model' })).toBe('noaa');
+    });
+
+    it('is null for a vocabulary nested under nothing', () => {
+        //
+        // the builder's shared time types, and every uri published before it
+        // filed its vocabularies under their sources
+        //
+        expect(typeSource({ source_type_uri: 'https://example.com/ontology/temporal/SourceDay' })).toBeNull();
+        expect(typeSource({ vocabulary: 'jolts' })).toBeNull();
+    });
+
+    it('does not read a source off an id', () => {
+        //
+        // 'market_quotes' would answer 'market' on a day whose own predicates put
+        // market enrichment under no source, and a list of sources read that way
+        // came out as two of the day's four.
+        //
+        expect(typeSource({}, 'market_quotes_EquitySnapshot')).toBeNull();
+        expect(typeSource(undefined)).toBeNull();
     });
 });
 
@@ -341,6 +431,21 @@ describe('link styling by edge origin', () => {
         expect(originColor(undefined)).toBe(originColor('something-new'));
     });
 
+    it('draws a raw edge in the dark page\'s quiet gray on a dark page', () => {
+        //
+        // the light page's pale gray is the loudest line on a dark one. The
+        // ramp's own '$gray-5' is as far from either page as the other.
+        //
+        expect(originColor('raw', 'dark')).toBe(colors_dark['gray-5']);
+        expect(originColor('something-new', 'dark')).toBe(colors_dark['gray-5']);
+    });
+
+    it('keeps the derived origins\' colors on either page, which the legend names', () => {
+        ['enrichment', 'unification'].forEach((origin) => {
+            expect(originColor(origin, 'dark')).toBe(originColor(origin));
+        });
+    });
+
     it('leaves an unknown origin undashed rather than throwing', () => {
         expect(ORIGIN_DASH['something-new']).toBeUndefined();
     });
@@ -446,6 +551,30 @@ describe('buildPalette', () => {
         expect(painted).toHaveLength(12);
         expect(painted).not.toContain(color_other);
         expect(new Set(painted).size).toBe(12);
+    });
+
+    it('shades the tail for the page it is drawn on, and nothing else', () => {
+        //
+        // a namespace with a color of its own has it on either page: the color
+        // says which source it is. The tail fades toward the page, and a dark
+        // page is the other way to fade.
+        //
+        const nodes = manyNamespaces(10).map((ns, i) => ({ id: `n${i}`, namespace: ns }));
+        const light = assignNamespaceColors(nodes, 'shade');
+        const dark = assignNamespaceColors(nodes, 'shade', 'dark');
+        const ordered = rankNamespaces(nodes);
+
+        ordered.slice(0, 8).forEach((ns) => expect(dark.get(ns)).toBe(light.get(ns)));
+        expect(dark.get(ordered[8])).toBe(color_tail(0, 2, 'dark'));
+        expect(dark.get(ordered[9])).toBe(color_tail(1, 2, 'dark'));
+        expect(dark.get(ordered[9])).not.toBe(light.get(ordered[9]));
+    });
+
+    it('builds a dark page\'s palette from the same ranking', () => {
+        const schema = rerankingBuild();
+
+        expect([...buildPalette(schema, GRAPH_NODE_TYPES, 'count', 'dark').keys()])
+            .toEqual([...buildPalette(schema).keys()]);
     });
 
     it('answers null for a schema it cannot read, like the filter it is built on', () => {
