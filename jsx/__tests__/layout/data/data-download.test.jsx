@@ -43,6 +43,8 @@ import DataLayout, {
     DistributionTooltip,
 } from '../../../import/layout/data/data.jsx';
 import { API_DOCS, DATASETS } from '../../../import/general/api-url.js';
+import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
+import { colors, colors_dark, toRGB } from '../../../import/general/colors.js';
 
 function setup() {
     const held = React.createRef();
@@ -367,6 +369,26 @@ describe('DistributionTooltip', () => {
 
         expect(text).toContain('CPI');
         expect(text).not.toContain('EMPTY');
+    });
+
+    it('draws itself in the page\'s own colors, on a dark page as on a light one', () => {
+        //
+        // a white card of dark text on a dark page reads as a hole in it
+        //
+        const panel = (container) => container.firstChild;
+
+        const light = panel(show({ active: true, payload: PAYLOAD, label: 'Reports' }));
+        expect(light.style.background).toBe(toRGB(colors['white-1']));
+        expect(light.style.color).toBe(toRGB(colors['gray-7']));
+
+        const { container } = render(
+            <ThemeModeContext.Provider value={{ theme: 'dark', toggle: () => {} }}>
+                <DistributionTooltip active payload={PAYLOAD} label='Reports' />
+            </ThemeModeContext.Provider>
+        );
+
+        expect(panel(container).style.background).toBe(toRGB(colors_dark['white-1']));
+        expect(panel(container).style.color).toBe(toRGB(colors_dark['gray-7']));
     });
 
     it('drops a null segment as well', () => {
