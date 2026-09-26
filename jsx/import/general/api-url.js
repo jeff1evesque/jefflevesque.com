@@ -1,13 +1,21 @@
 /**
- * api-url.js: the requests this application makes to its three public apis, and
- *             where each api is documented.
+ * api-url.js: the requests this application makes to its three public apis and to
+ *             the account api, and where each api is documented.
  *
  *     performance       read by /stream                        Stream, Interval, Timezone
  *                       its archive, the published files       (none)
- *     datalake          read by /data, /stream/:stream/alarm   Data, Scale
+ *     datalake          read by /data                          Data, Scale
  *     knowledge-graph   read by /graph and /                   (the id, in the path)
  *                       its tables, read by /graph/retrieval   Day, Limit
  *                         and one path per question            Text, Uri, Symbol
+ *     alarms            read by /stream/:stream/alarm          stream
+ *     account           read by /stream/:stream/alarm,         (the stream and the
+ *                         /stream and /:user/settings            alarm, in the path)
+ *
+ * The account api is the one that is not public. It answers only a signed-in
+ * reader, whose ID token each request carries -- see account-api.js -- so its base
+ * is under '/v1/private' rather than beside the others in ENDPOINTS. The list of
+ * alarms that can be subscribed to is the same for everyone, and is public.
  *
  * Three apis, and the knowledge graph has two shapes. It answers what a build IS on
  * two paths taking their id in the path, and what the published tables CONTAIN on
@@ -42,7 +50,14 @@ const ENDPOINTS = {
     datalake: `${API}/datalake`,
     knowledgeGraph: `${API}/knowledge-graph`,
     knowledgeGraphTables: `${API}/knowledge-graph/tables`,
+    alarms: `${API}/alarms`,
 };
+
+//
+// the account api: a signed-in reader's own data, starting with the alarms they
+// subscribe to. Private, so apart from ENDPOINTS -- see the note above.
+//
+const ACCOUNT = 'https://api.jefflevesque.com/v1/private/account';
 
 //
 // the documentation site, and each api's reference page on it. Moving the site is
@@ -54,6 +69,7 @@ const API_DOCS = {
     performance: `${DOCUMENTATION}/api/performance/`,
     datalake: `${DOCUMENTATION}/api/datalake/`,
     knowledgeGraph: `${DOCUMENTATION}/api/knowledge-graph/`,
+    account: `${DOCUMENTATION}/api/account/`,
 };
 
 //
@@ -221,4 +237,34 @@ export function knowledgeGraphTablesUrl(operation, values = {}, base = ENDPOINTS
     ));
 }
 
-export { API, ENDPOINTS, DOCUMENTATION, API_DOCS, DATASETS, TABLES_VALUES };
+/**
+ * the alarms a stream has, which a signed-in reader may subscribe to: the same list
+ * for everyone, so public, and the list the alarm page counts as well as offers.
+ *
+ * Note: 'stream' in lower case, as the account api names it -- not 'Stream', as the
+ *       performance api does. Each api's parameters are its own.
+ */
+export function alarmsUrl(stream, base = ENDPOINTS.alarms) {
+    return withParams(base, { stream: stream });
+}
+
+/**
+ * the signed-in reader's subscriptions. Who they are is read from the token the
+ * request carries, so nothing here names them.
+ */
+export function subscriptionsUrl(base = ACCOUNT) {
+    return new URL(`${base}/subscriptions`);
+}
+
+/**
+ * one subscription of the signed-in reader's: PUT subscribes, DELETE unsubscribes.
+ *
+ * Note: both ids are path segments, and encoded. Every stream and alarm id the api
+ *       holds is lower-case letters, digits and hyphens, but an id is not this
+ *       module's to assume, and a '/' in one would name a different path.
+ */
+export function subscriptionUrl(stream, alarm, base = ACCOUNT) {
+    return new URL(`${base}/subscriptions/${encodeURIComponent(stream)}/${encodeURIComponent(alarm)}`);
+}
+
+export { API, ENDPOINTS, ACCOUNT, DOCUMENTATION, API_DOCS, DATASETS, TABLES_VALUES };
