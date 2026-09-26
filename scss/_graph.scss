@@ -1587,10 +1587,12 @@ $graph-held-edge: $green-4;
   // top padding keeps the column's heading off the tint's top edge, as the outer
   // padding keeps its text off the outer one.
   //
-  // Note: no padding at the foot. measureColumns reads a column from the top of
-  //       its panel to the bottom of its body, and that reading is the canvas's
-  //       floor: padding under the body would be height the reading cannot see,
-  //       and the last stretch of a drag toward the floor would move nothing.
+  // Note: no padding at the foot of the PANEL. measureColumns reads a column from
+  //       the top of its panel to the bottom of its body, and that reading is the
+  //       canvas's floor: padding under the body would be height the reading
+  //       cannot see, and the last stretch of a drag toward the floor would move
+  //       nothing. The room under a column's last line is the body's own padding
+  //       instead -- see below.
   //
   .graph-panel-open {
     align-self: stretch;
@@ -1621,12 +1623,129 @@ $graph-held-edge: $green-4;
 
     //
     // a legend row under the pointer, a step darker than it is on the page:
-    // '$gray-1' is all but the tint's own color in either theme. A held row keeps
-    // its green.
+    // '$gray-1' is all but the tint's own color by night, 1.07:1 on
+    // '$dark-graph-panel'. By day it would show on the lighter tint, and the
+    // step is kept there too, so a row answers the pointer alike in both themes.
+    // A held row keeps its green.
     //
     .graph-legend-entry:not([aria-pressed='true']):hover {
       background-color: $gray-2;
     }
+  }
+
+  //
+  // room under each column's last line, the same step the tint leaves over its
+  // heading, so a column that is the tallest thing in the row does not end flush
+  // with its text. It is on the body rather than the panel, so measureColumns
+  // counts it -- see the note above.
+  //
+  // Note: the legend's last list gives up the margin every list in it takes.
+  //       Inside a padded body that margin would stand above the padding, and
+  //       the legend would end on 2rem of tint where the details end on 0.75rem.
+  //       The stacked bands below the breakpoint are left as they are.
+  //
+  .graph-panel-open > .graph-panel-body {
+    padding-bottom: 0.75rem;
+  }
+
+  .graph-legend ul:last-child {
+    margin-bottom: 0;
+  }
+
+  //
+  // an accent rule across each side column, dividing it in two: under Sources in
+  // either page's details -- see `ruled` in source.js -- where the rows below
+  // begin to run two abreast, and between the legend's namespaces, two abreast,
+  // and its edges, one to a line.
+  //
+  // A hairline that fades out toward both ends, in the gray of the rule under the
+  // column's heading, so it reads as a pause inside the column rather than as
+  // another of its edges. Faded, it is lighter than that rule everywhere but its
+  // middle, and '$gray-2' is the theme's own, so the same line serves by night.
+  //
+  // Note: 1rem clear either side of it, well over the 0.6rem between two rows, so
+  //       it reads as the break between two parts of the column rather than as a
+  //       line through a list. Under the details' rule, the grid's row gap gives
+  //       0.6rem of that and the ruled row's margin the rest. Over the legend's,
+  //       each namespace's own padding gives 0.15rem.
+  //
+  // Note: drawn as a border-image, so it is the bottom border of the row or the
+  //       list it closes, and needs no element of its own. A <dl> may hold only
+  //       its rows, so a separator between two of them would not be one.
+  //
+  // Note: '.graph-legend' for the specificity. The margin every legend list
+  //       takes is set on 'h6 + ul', which outweighs one class alone.
+  //
+  $graph-divider: linear-gradient(to right, transparent, $gray-2 20%, $gray-2 80%, transparent);
+
+  .graph-details-ruled {
+    border-bottom: 1px solid;
+    border-image: $graph-divider 1;
+    margin-bottom: 0.4rem;
+    padding-bottom: 1rem;
+  }
+
+  .graph-legend .graph-legend-namespaces {
+    border-bottom: 1px solid;
+    border-image: $graph-divider 1;
+    margin-bottom: 1rem;
+    padding-bottom: 0.85rem;
+  }
+
+  //
+  // the rows under Sources, two abreast in the side column: a day's six totals --
+  // 'Entities' beside 'Facts', and each count of types beside what those types
+  // hold -- and a build's 'Nodes' beside 'Edges' and 'Dataset' beside 'Variant'.
+  // source.js says which rows pair -- see DETAILS and DAY_DETAILS there -- and
+  // those rows wear '.graph-details-pair'. Every other row takes the whole width,
+  // as before.
+  //
+  // Two columns at most, and one where the column has been dragged too narrow to
+  // hold two. The grid decides which rather than a query, the way the legend's
+  // namespaces decide how many columns they take. A track is 6.25rem, or half the
+  // list less the gap where that is wider: from 13.5rem up the halves are the
+  // wider and two of them fit exactly, and below it two 6.25rem tracks and their
+  // gap no longer fit, and one does.
+  //
+  // Note: at most two, rather than as many as fit, because the rows are PAIRS. A
+  //       third track would set three totals to a line and split every pair
+  //       after the first. The side column has no room for three today, and
+  //       widening it should not be what breaks them up.
+  //
+  // Note: 6.25rem is measured against the widest value, a count in the tens of
+  //       millions: '76,644,387' edges on 2026-09-25 is about 77px in the Mac's
+  //       system font, in the tabular digits these are set in. A nine-digit
+  //       count, about 86px, still fits, as does a build's 'all-sources', about
+  //       72px. The column opens at 16 to 18rem, so a panel opens two abreast,
+  //       and a drag takes it to one from 13.5rem down.
+  //
+  // Note: spaced by the grid's row gap, with the margin under each value taken
+  //       off. A grid item keeps its children's margins inside it, so the last
+  //       row's would stand at the foot of the list, above the body's own
+  //       padding, and the details would end on more tint than the legend.
+  //
+  // Note: only in the side column. Below the breakpoint a row is one line, its
+  //       label at the left and its value at the right, and two of those abreast
+  //       would set '10,725' nearer the 'Facts' beside it than the 'Entities' it
+  //       belongs to.
+  //
+  .graph-details {
+    column-gap: 1rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(max(6.25rem, calc((100% - 1rem) / 2)), 1fr));
+    row-gap: 0.6rem;
+
+    dd {
+      margin-bottom: 0;
+    }
+  }
+
+  .graph-details-row {
+    grid-column: 1 / -1;
+  }
+
+  .graph-details-pair {
+    grid-column: auto;
   }
 
 }
