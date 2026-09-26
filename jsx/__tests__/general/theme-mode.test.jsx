@@ -2,20 +2,22 @@
  * theme-mode.test.jsx: the theme the page is drawn in, and the switch that changes
  * it.
  *
- * Held here: that the page opens in the reader's choice, or the system's where they
- * have made none; that the switch in the header changes the page and keeps the
- * change for the next visit; that the page follows the system while the reader has
- * not chosen, and stops following it once they have; and that mui's components are
- * handed the theme the stylesheet is drawing.
+ * Held here: that the page opens in the theme the reader's clock gives, or in
+ * the one they asked for while that choice holds; that the switch in the header
+ * changes the page and keeps the change until the clock's next switch; that a
+ * page left open changes at the switch by itself, and again when a tab the
+ * browser put to sleep is shown; and that mui's components are handed the theme
+ * the stylesheet is drawing.
  *
- * Note: the provider is rendered with a probe beside the switch that records what
- *       it is told, the way the page's own components read it.
+ * Note: the clock is jest's, set to a moment on New York's -- the zone
+ *       jest.config.js pins -- and moved forward the way a page left open would
+ *       see it move.
  */
 
 import React, { useContext } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useTheme } from '@mui/material/styles';
-import ThemeMode, { ThemeModeContext, MUI_THEMES } from '../../import/general/theme-mode.jsx';
+import ThemeMode, { ThemeModeContext, MUI_THEMES, SWITCH_SLACK } from '../../import/general/theme-mode.jsx';
 import ThemeToggle from '../../import/navigation/theme-toggle.jsx';
 import { readTheme, writeTheme, KEY } from '../../import/general/theme-preference.js';
 import { colors_dark } from '../../import/general/colors.js';
@@ -27,29 +29,6 @@ function Probe() {
     return <output data-testid='probe' data-theme={theme} data-mui={mui.palette.mode} />;
 }
 
-//
-// a system that asks for `theme`, and can change its mind: `flip` tells every
-// listener the system now asks for the other one
-//
-function system(theme) {
-    const listeners = new Set();
-    const query = {
-        matches: theme === 'dark',
-        addEventListener: (type, listener) => listeners.add(listener),
-        removeEventListener: (type, listener) => listeners.delete(listener),
-    };
-
-    window.matchMedia = jest.fn().mockReturnValue(query);
-
-    return {
-        listeners: listeners,
-        flip(next) {
-            query.matches = next === 'dark';
-            listeners.forEach((listener) => listener({ matches: query.matches }));
-        },
-    };
-}
-
 function page() {
     return render(
         <ThemeMode>
@@ -58,6 +37,27 @@ function page() {
         </ThemeMode>
     );
 }
+
+//
+// a moment on the reader's clock, on 2026-09-26 unless another day is named
+//
+const at = (time, day = '2026-09-26') => new Date(`${day}T${time}:00`);
+
+//
+// the page's clock set to `time`, as a page opened then would find it
+//
+function clock(time, day) {
+    jest.useFakeTimers({ now: at(time, day) });
+}
+
+//
+// the clock moved on by `ms`, with every timer due in that time run
+//
+function wait(ms) {
+    act(() => { jest.advanceTimersByTime(ms); });
+}
+
+const HOUR = 60 * 60 * 1000;
 
 const probe = () => screen.getByTestId('probe');
 const toggle = () => screen.getByRole('button', { name: 'Dark theme' });
@@ -68,46 +68,62 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    delete window.matchMedia;
+    jest.useRealTimers();
     document.documentElement.removeAttribute('data-theme');
 });
 
 describe('the theme a page opens in', () => {
-    it('is light for a reader who has not chosen, on a system that does not ask', () => {
+    it('is light by day, on the reader\'s clock', () => {
+        clock('12:00');
         page();
 
         expect(probe().dataset.theme).toBe('light');
         expect(root()).toBe('light');
     });
 
-    it('is the system\'s for a reader who has not chosen', () => {
-        system('dark');
+    it('is dark in the evening', () => {
+        clock('21:00');
         page();
 
         expect(probe().dataset.theme).toBe('dark');
         expect(root()).toBe('dark');
     });
 
-    it('is exactly the reader\'s choice once they have made one, whatever the system says', () => {
-        system('dark');
-        writeTheme('light');
+    it('is the reader\'s choice while it holds, whatever the clock says', () => {
+        clock('12:00');
+        writeTheme('dark', at('11:00'));
         page();
 
-        expect(probe().dataset.theme).toBe('light');
-        expect(root()).toBe('light');
+        expect(probe().dataset.theme).toBe('dark');
+        expect(root()).toBe('dark');
     });
 });
 
 describe('the switch', () => {
     it('shows a moon on a light page, which is where it would take it', () => {
+        clock('12:00');
         page();
 
         expect(toggle()).toHaveAttribute('aria-pressed', 'false');
-        expect(toggle()).toHaveAttribute('title', 'Switch to the dark theme');
         expect(toggle().querySelector('[data-testid="DarkModeOutlinedIcon"]')).not.toBeNull();
     });
 
-    it('turns the page dark, and shows a sun that would bring it back', () => {
+    it('says a dark page asked for by day is for the rest of the day', () => {
+        clock('12:00');
+        page();
+
+        expect(toggle()).toHaveAttribute('title', 'Switch to the dark theme for the rest of the day');
+    });
+
+    it('says a light page asked for in the evening is for the rest of the night', () => {
+        clock('20:00');
+        page();
+
+        expect(toggle()).toHaveAttribute('title', 'Switch to the light theme for the rest of the night');
+    });
+
+    it('turns the page dark, and shows a sun that would bring it back to the schedule', () => {
+        clock('12:00');
         page();
 
         fireEvent.click(toggle());
@@ -119,51 +135,42 @@ describe('the switch', () => {
         expect(toggle().querySelector('[data-testid="LightModeOutlinedIcon"]')).not.toBeNull();
     });
 
-    it('turns it light again', () => {
-        page();
-
-        fireEvent.click(toggle());
-        fireEvent.click(toggle());
-
-        expect(probe().dataset.theme).toBe('light');
-        expect(root()).toBe('light');
-    });
-
-    it('keeps the choice, and the next visit opens in it', () => {
+    it('keeps the choice until the next switch, and the next visit opens in it', () => {
+        clock('20:00');
         const first = page();
 
         fireEvent.click(toggle());
-        expect(window.localStorage.getItem(KEY)).toBe('dark');
+        expect(JSON.parse(window.localStorage.getItem(KEY)).theme).toBe('light');
 
         first.unmount();
         document.documentElement.removeAttribute('data-theme');
         page();
 
-        expect(probe().dataset.theme).toBe('dark');
-        expect(root()).toBe('dark');
+        expect(probe().dataset.theme).toBe('light');
+        expect(root()).toBe('light');
     });
 
-    it('keeps a choice of light over a dark system, for the next visit too', () => {
-        system('dark');
-        const first = page();
-
-        fireEvent.click(toggle());
-        expect(readTheme()).toBe('light');
-
-        first.unmount();
+    it('puts the page back on its schedule when pressed again', () => {
+        clock('12:00');
         page();
 
+        fireEvent.click(toggle());
+        fireEvent.click(toggle());
+
         expect(probe().dataset.theme).toBe('light');
+        expect(readTheme(at('12:00'))).toBeNull();
     });
 
     it('still changes the page where storage refuses to keep it', () => {
         const storage = window.localStorage;
 
+        clock('12:00');
         Object.defineProperty(window, 'localStorage', {
             configurable: true,
             value: {
                 getItem() { throw new Error('denied'); },
                 setItem() { throw new Error('denied'); },
+                removeItem() { throw new Error('denied'); },
                 clear() {},
             },
         });
@@ -179,86 +186,89 @@ describe('the switch', () => {
     });
 });
 
-describe('following the system', () => {
-    it('follows it while the reader has not chosen', () => {
-        const settings = system('light');
+describe('a page left open', () => {
+    it('goes dark at 7 in the evening by itself', () => {
+        clock('18:59');
         page();
 
-        act(() => { settings.flip('dark'); });
+        expect(probe().dataset.theme).toBe('light');
+
+        wait(60 * 1000 + SWITCH_SLACK);
+
+        expect(probe().dataset.theme).toBe('dark');
+        expect(root()).toBe('dark');
+        expect(toggle()).toHaveAttribute('title', 'Switch to the light theme for the rest of the night');
+    });
+
+    it('goes light at 7 in the morning by itself', () => {
+        clock('06:30');
+        page();
+
+        wait(HOUR / 2 + SWITCH_SLACK);
+
+        expect(probe().dataset.theme).toBe('light');
+    });
+
+    it('holds an evening\'s choice of light through midnight, and on into the day', () => {
+        clock('20:00');
+        page();
+
+        fireEvent.click(toggle());
+        wait(6 * HOUR);
+
+        expect(probe().dataset.theme).toBe('light');
+
+        wait(5 * HOUR + SWITCH_SLACK);
+
+        expect(probe().dataset.theme).toBe('light');
+        expect(readTheme(new Date())).toBeNull();
+    });
+
+    it('holds a day\'s choice of dark into the evening the schedule makes dark too', () => {
+        clock('12:00');
+        page();
+
+        fireEvent.click(toggle());
+        wait(7 * HOUR + SWITCH_SLACK);
+
+        expect(probe().dataset.theme).toBe('dark');
+        expect(readTheme(new Date())).toBeNull();
+
+        wait(12 * HOUR);
+
+        expect(probe().dataset.theme).toBe('light');
+    });
+
+    it('catches up when a tab the browser put to sleep is shown again', () => {
+        //
+        // a sleeping tab or a closed laptop hears its timer late, or not at all
+        //
+        clock('18:00');
+        page();
+
+        act(() => {
+            jest.setSystemTime(at('20:00'));
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
 
         expect(probe().dataset.theme).toBe('dark');
         expect(root()).toBe('dark');
     });
 
-    it('stops following it once the reader has chosen', () => {
-        const settings = system('light');
-        page();
-
-        fireEvent.click(toggle());
-        act(() => { settings.flip('light'); });
-
-        expect(probe().dataset.theme).toBe('dark');
-    });
-
-    it('stops listening when the page goes', () => {
-        const settings = system('light');
+    it('stops keeping time when the page goes', () => {
+        clock('18:59');
         const { unmount } = page();
-
-        expect(settings.listeners.size).toBe(1);
 
         unmount();
 
-        expect(settings.listeners.size).toBe(0);
-    });
-
-    it('follows it back to light as well', () => {
-        const settings = system('dark');
-        page();
-
-        act(() => { settings.flip('light'); });
-
-        expect(probe().dataset.theme).toBe('light');
-        expect(root()).toBe('light');
-    });
-
-    it('opens in the system\'s theme on a browser that cannot tell it of a change', () => {
-        //
-        // a MediaQueryList with neither way to listen: the page reads the setting
-        // once, and mounts and unmounts without asking for more
-        //
-        window.matchMedia = jest.fn().mockReturnValue({ matches: true });
-
-        const { unmount } = page();
-
-        expect(probe().dataset.theme).toBe('dark');
-        expect(() => unmount()).not.toThrow();
-    });
-
-    it('listens the old way on a browser that only knows it', () => {
-        //
-        // Safari before 14 has addListener on a MediaQueryList, and no
-        // addEventListener
-        //
-        const listeners = new Set();
-
-        window.matchMedia = jest.fn().mockReturnValue({
-            matches: false,
-            addListener: (listener) => listeners.add(listener),
-            removeListener: (listener) => listeners.delete(listener),
-        });
-
-        const { unmount } = page();
-
-        act(() => { [...listeners].forEach((listener) => listener({ matches: true })); });
-        expect(probe().dataset.theme).toBe('dark');
-
-        unmount();
-        expect(listeners.size).toBe(0);
+        expect(() => wait(HOUR)).not.toThrow();
+        act(() => { document.dispatchEvent(new Event('visibilitychange')); });
     });
 });
 
 describe('mui\'s components', () => {
     it('are handed the theme the page is drawn in', () => {
+        clock('12:00');
         page();
 
         expect(probe().dataset.mui).toBe('light');
@@ -288,8 +298,8 @@ describe('mui\'s components', () => {
 
 describe('what the page\'s components are told', () => {
     //
-    // one object per theme: a component reading the context draws again when the
-    // theme changes, and not on every render of the provider
+    // one object per theme and schedule: a component reading the context draws
+    // again when either changes, and not on every render of the provider
     //
     function Recorder({ seen }) {
         seen.push(useContext(ThemeModeContext));
@@ -298,6 +308,8 @@ describe('what the page\'s components are told', () => {
     }
 
     it('is the same object until the theme changes', () => {
+        clock('12:00');
+
         const seen = [];
         const { rerender } = render(<ThemeMode><Recorder seen={seen} /><ThemeToggle /></ThemeMode>);
 
