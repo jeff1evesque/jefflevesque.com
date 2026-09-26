@@ -3,7 +3,7 @@
   "info": {
     "title": "Knowledge graph",
     "version": "v1",
-    "description": "The published builds of the knowledge graph and each build's schema -- read by the Training graph, /graph, and by the front page for its default build -- and the published query tables, a day at a time, read by the Retrieval graph, /graph/retrieval."
+    "description": "The published builds of the knowledge graph and each build's schema -- read by the Training Graph, /graph, and by the front page for its default build -- and the published query tables, a day at a time, read by the Retrieval Graph, /graph/retrieval."
   },
   "servers": [
     {
@@ -750,7 +750,7 @@
       "get": {
         "operationId": "listKnowledgeGraphNodeTypes",
         "summary": "A day's node types",
-        "description": "One row per node type the day holds, biggest count first: how many nodes of it there are, how many of those carry text and so can be found by name, and how many values are held about them. The Retrieval graph draws a day by its entities. Day is required: every day is written whole, so counted across days a node would be counted once for each day that holds it.",
+        "description": "One row per node type the day holds, biggest count first: how many nodes of it there are, how many of those carry text and so can be found by name, and how many values are held about them. The Retrieval Graph draws a day by its entities. Day is required: every day is written whole, so counted across days a node would be counted once for each day that holds it.",
         "parameters": [
           {
             "name": "Day",
