@@ -334,7 +334,7 @@ describe('the day details', () => {
 
         expect([...document.querySelectorAll('.graph-details-row dt')].map((dt) => dt.textContent))
             .toEqual([
-                'Day', 'Run', 'Published', 'Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types', 'Sources',
+                'Day', 'Run', 'Published', 'Sources', 'Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types',
             ]);
     });
 
