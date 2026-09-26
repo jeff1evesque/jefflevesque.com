@@ -210,15 +210,25 @@ function buildDay(build, days) {
 //       for the round trip the schema takes it holds its bar between rows the
 //       listing has already filled -- see details in graph.jsx.
 //
+// Note: `ruled` draws a light rule under a row, dividing the panel in two: when
+//       the build ran and what it read, over what it holds. The day panel is
+//       ruled in the same place, under its own Sources -- see DAY_DETAILS.
+//
+// Note: what the build holds is two pairs, and `pair` sets each on one line
+//       where the column has room for two: 'Nodes' beside 'Edges', how big the
+//       build is, and 'Dataset' beside 'Variant', which build it is. Below the
+//       rule both panels run two abreast -- see DAY_DETAILS for the day's three
+//       pairs, and '.graph-details' in '_graph.scss' for how they sit.
+//
 const DETAILS = [
     { label: 'Day', read: (build) => build.day },
     { label: 'Run', read: (build) => when(build.run) },
     { label: 'Built', read: (build) => when(build.built) },
-    { label: 'Sources', read: graphSources, schema: true },
-    { label: 'Nodes', read: (build) => count(build.nodes) },
-    { label: 'Edges', read: (build) => count(build.edges) },
-    { label: 'Dataset', read: (build) => build.dataset },
-    { label: 'Variant', read: (build) => build.variant },
+    { label: 'Sources', read: graphSources, schema: true, ruled: true },
+    { label: 'Nodes', read: (build) => count(build.nodes), pair: true },
+    { label: 'Edges', read: (build) => count(build.edges), pair: true },
+    { label: 'Dataset', read: (build) => build.dataset, pair: true },
+    { label: 'Variant', read: (build) => build.variant, pair: true },
 ];
 
 //
@@ -428,8 +438,18 @@ function daySources(types) {
 //
 // `pending` is the width a row's value is drawn at while it waits, as pending.jsx
 // does for the build panel's: a date, two timestamps at the width the build panel
-// gives its own, four sources, totals in the thousands and the millions, and two
-// counts of types in the hundreds.
+// gives its own, four sources, and then the pairs below them -- a total in the
+// thousands beside one in the hundreds of thousands, and each count of types, in
+// the hundreds, beside a total in the millions.
+//
+// `pair` marks a row that shares its line with its partner where the column has
+// room for two, and takes a line of its own where it has not. Partners are listed
+// together, left then right, which is also the order a column too narrow for two
+// reads them in. See '.graph-details' in '_graph.scss'.
+//
+// `ruled` draws a light rule under a row: under Sources, where the rows that
+// take a line each give way to the pairs, as the build panel is ruled and paired
+// under its own Sources -- see DETAILS.
 //
 // Note: 'Run' is the run that published the day, and it is the Run of the build
 //       the Training graph names by the same day: the two graphs of a day are
@@ -446,6 +466,13 @@ function daySources(types) {
 //       give for a build. 'Node types' and 'Edge types' are what the canvas and
 //       the tables below it count.
 //
+// Note: the six totals are three pairs. 'Entities' sits beside 'Facts', and each
+//       count of types beside what those types hold: 'Node types' beside
+//       'Nodes', 'Edge types' beside 'Edges'. So the day's three largest totals
+//       run down the right-hand column -- 380 thousand facts, 10 million nodes
+//       and 77 million edges on 2026-09-25 -- and the three smaller ones down
+//       the left.
+//
 // Note: 'Sources' comes straight after Published, where the build panel has
 //       its own under Built. It waits for the day's rows like the totals below
 //       it do, because it is read off them -- see daySources -- so it heads the
@@ -460,32 +487,49 @@ const DAY_DETAILS = [
         read: (day, whole) => whole && daySources(whole.node_types),
         schema: true,
         pending: '8.5rem',
+        ruled: true,
     },
     {
         label: 'Entities',
         read: (day, whole) => whole && count(total(whole.node_types, 'entities')),
         schema: true,
         pending: '3.5rem',
+        pair: true,
     },
     {
         label: 'Facts',
         read: (day, whole) => whole && count(total(whole.node_types, 'facts')),
         schema: true,
         pending: '4.5rem',
+        pair: true,
     },
-    { label: 'Nodes', read: (day, whole) => whole && count(total(whole.node_types)), schema: true, pending: '5rem' },
-    { label: 'Edges', read: (day, whole) => whole && count(total(whole.edge_types)), schema: true, pending: '5.5rem' },
     {
         label: 'Node types',
         read: (day, whole) => whole && count(Object.keys(whole.node_types).length),
         schema: true,
         pending: '2rem',
+        pair: true,
+    },
+    {
+        label: 'Nodes',
+        read: (day, whole) => whole && count(total(whole.node_types)),
+        schema: true,
+        pending: '5rem',
+        pair: true,
     },
     {
         label: 'Edge types',
         read: (day, whole) => whole && count(Object.keys(whole.edge_types).length),
         schema: true,
         pending: '2rem',
+        pair: true,
+    },
+    {
+        label: 'Edges',
+        read: (day, whole) => whole && count(total(whole.edge_types)),
+        schema: true,
+        pending: '5.5rem',
+        pair: true,
     },
 ];
 
