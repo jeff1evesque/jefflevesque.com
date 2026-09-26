@@ -23,6 +23,10 @@
     .MuiCardActions-root,
     .MuiCardContent-root {
       background-color: #fbfbfb;
+
+      @include dark {
+        background-color: rgba(var(--ink-rgb), 0.03);
+      }
     }
   }
 }
@@ -55,8 +59,14 @@ div.featured-carousel-stock-market {
   }
 
   li .MuiPaper-root {
-    border-bottom: 1px solid rgba(0,0,0,.075);
+    border-bottom: 1px solid rgba(var(--ink-rgb), 0.075);
   }
+
+  //
+  // the chart paper under each candlestick pattern stays light in either theme.
+  // The patterns are drawn in fixed grays, and one in black, and read as a
+  // picture on the card rather than as part of the page.
+  //
 
   li .MuiPaper-root .MuiCardActions-root {
     padding-top: 0;
