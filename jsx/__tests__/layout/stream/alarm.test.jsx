@@ -8,42 +8,35 @@
  * by a name it used to go by is replaced before this page mounts, so the cases
  * that go through the route do so the way main-route.jsx wires it.
  *
- * Note: 'general/get-data.js' is mocked. It is the network boundary, and mocking
- *       it also makes 'which streams download anything' directly observable.
- *
- * Note: 'worker/web-worker.js' is mocked so the data-distribution reply can be
- *       delivered on demand. setup.js's Worker shim never posts a message back,
- *       so without this the ticker count is permanently zero.
+ * Note: 'general/account-api.js' is mocked. It is the network boundary for the
+ *       alarms and the reader's subscriptions, and each call is pending by default
+ *       -- so a case that does not care sees the page as it first draws, and a case
+ *       that does answers the calls it is about and waits for the page to follow.
+ *       The module itself has its own suite.
  */
 
 import React from 'react';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
-const mockWorkers = [];
-
-jest.mock('../../../import/general/get-data/distribution/stock-market.js', () => ({
+jest.mock('../../../import/general/account-api.js', () => ({
     __esModule: true,
-    default: jest.fn(),
+    signedIn: jest.fn(),
+    listSubscriptions: jest.fn(),
+    subscribe: jest.fn(),
+    unsubscribe: jest.fn(),
+    streamAlarms: jest.fn(),
 }));
 
-jest.mock('../../../import/worker/web-worker.js', () => ({
-    __esModule: true,
-    default: class FakeWorkerBuilder {
-        constructor(fn) {
-            this.fn = fn;
-            this.posted = [];
-            mockWorkers.push(this);
-        }
-        postMessage(message) {
-            this.posted.push(message);
-        }
-        terminate() {}
-    },
-}));
-
-import getData from '../../../import/general/get-data/distribution/stock-market.js';
+import {
+    signedIn,
+    listSubscriptions,
+    subscribe,
+    unsubscribe,
+    streamAlarms,
+} from '../../../import/general/account-api.js';
+import { TERMS_VERSION } from '../../../import/general/notice-terms.jsx';
 import StreamAlarm from '../../../import/layout/stream/alarm.jsx';
 import CanonicalStream from '../../../import/route/canonical-stream.jsx';
 import { STREAMS } from '../../../import/general/stream-id.js';
@@ -119,9 +112,19 @@ function crashFrom(stream) {
     }
 }
 
+//
+// a call to the account api that never answers: the default, so the page stays as
+// it first draws
+//
+const pending = () => new Promise(() => {});
+
 beforeEach(() => {
     jest.clearAllMocks();
-    mockWorkers.length = 0;
+    signedIn.mockImplementation(pending);
+    listSubscriptions.mockImplementation(pending);
+    streamAlarms.mockImplementation(pending);
+    subscribe.mockImplementation(pending);
+    unsubscribe.mockImplementation(pending);
 });
 
 afterEach(() => {
@@ -307,211 +310,249 @@ describe('naming the stream', () => {
 });
 
 describe('the alarm count', () => {
-    function count() {
-        return document.querySelector('.title-count').textContent;
-    }
+    //
+    // counted from the account api's list of the stream's alarms, which is also
+    // what a signed-in reader's switches are drawn from -- so the two cannot
+    // disagree. It used to be worked out on the page, from a datalake request made
+    // for nothing else: one per source, one per ticker, and three for stock splits,
+    // none of which anybody could subscribe to.
+    //
+    const count = () => document.querySelector('.title-count');
 
-    it('is one per source before any ticker count has arrived', () => {
-        renderAlarm('stock-market');
+    it('asks for the alarms of the stream the url names', () => {
+        renderAlarm('bls');
 
-        expect(count()).toBe('1');
+        expect(streamAlarms).toHaveBeenCalledWith('bls');
     });
 
-    it('is hard-coded to three for the stock-split stream', () => {
-        //
-        // WORTH KNOWING: every other stream derives its count, this one is the
-        // literal 3. Nothing recomputes it if the split stream gains a modality.
-        //
-        // It used to be three only at the url '/stream/StockMarketStockSplit', and
-        // one at '/stream/stocksplit', because the page compared its own renamed
-        // copy of the id on one line and the url's on the next.
-        //
-        renderAlarm('stock-split');
+    it('is left off until the list has arrived', () => {
+        renderAlarm('bls');
 
-        expect(count()).toBe('3');
+        expect(count()).toBeNull();
     });
 
-    it.each([['us-national-weather'], ['bls'], ['sec']])(
-        '%s counts its single source',
-        (stream) => {
-            renderAlarm(stream);
-
-            expect(count()).toBe('1');
-        }
-    );
-});
-
-describe('downloading the distribution', () => {
-    it('is requested for the stock-market stream only', () => {
-        //
-        // the loader was called as 'stock-market-distribution', a type
-        // 'get-data.js' does not dispatch. It fell out of the type chain, logged
-        // 'not a valid choice', and returned undefined -- so no request was ever
-        // made and the alarm count sat at its initial 0. It now goes through the
-        // same distribution loader the /data page uses, whose type IS handled.
-        //
-        renderAlarm('stock-market');
-
-        expect(getData).toHaveBeenCalledTimes(1);
-        expect(getData.mock.calls[0][0]).toBe('data-distribution');
-    });
-
-    it.each([['stock-split'], ['us-national-weather'], ['bls'], ['sec']])(
-        '%s never downloads anything, so its ticker count can never change',
-        (stream) => {
-            //
-            // downloadData() returns without doing anything unless the stream is
-            // 'stock-market'. For the other four the alarm count is therefore
-            // fixed at render time.
-            //
-            renderAlarm(stream);
-
-            expect(getData).not.toHaveBeenCalled();
-        }
-    );
-
-    it('asks for the month it is actually in', () => {
-        //
-        // the month was 'mm - 1', naming the month BEFORE the one state.mm holds
-        // and underflowing to '00' every january -- a partition that cannot
-        // exist. api-datalake takes a 1-indexed month, the same value the /data
-        // page sends, so there is no arithmetic left to get wrong.
-        //
-        renderAlarm('stock-market');
-
-        const scale = JSON.parse(
-            new URL(String(getData.mock.calls[0][1])).searchParams.get('Scale')
+    it.each([
+        ['stock-market', 1],
+        ['stock-split', 1],
+        ['bls', 2],
+    ])('%s counts the %i alarms its list holds', async (stream, many) => {
+        streamAlarms.mockResolvedValue(
+            Array.from({ length: many }, (unused, index) => ({ id: `alarm-${index}`, name: `Alarm ${index}` }))
         );
 
-        expect(scale.month).toBe(String(new Date().getMonth() + 1).padStart(2, '0'));
+        renderAlarm(stream);
+
+        await waitFor(() => expect(count()).toHaveTextContent(String(many)));
     });
 
-    it('never names a month outside 01-12', () => {
-        //
-        // the regression guard for the january underflow specifically.
-        //
-        renderAlarm('stock-market');
+    it('is left off when the list could not be had, rather than guessed', async () => {
+        streamAlarms.mockRejectedValue(new Error('no such stream'));
 
-        const scale = JSON.parse(
-            new URL(String(getData.mock.calls[0][1])).searchParams.get('Scale')
-        );
+        renderAlarm('bls');
 
-        expect(parseInt(scale.month)).toBeGreaterThanOrEqual(1);
-        expect(parseInt(scale.month)).toBeLessThanOrEqual(12);
+        await waitFor(() => expect(streamAlarms).toHaveBeenCalled());
+        await waitFor(() => expect(count()).toBeNull());
     });
 
-    it('asks api-datalake rather than a static artifact', () => {
+    it('asks the datalake nothing', () => {
         //
-        // 'artifact/stock-market/data-distribution/YYYY/MM.csv' is written by
-        // nothing -- the distribution moved to api-datalake, which computes it
-        // from the glue table. The old url could only ever have 404'd.
+        // the distribution was asked for only to count tickers, and the count now
+        // comes from the list. The archive column still asks for its listing, but
+        // only when it is opened.
         //
+        const fetcher = jest.spyOn(global, 'fetch');
+
         renderAlarm('stock-market');
 
-        const url = String(getData.mock.calls[0][1]);
-
-        expect(url).toContain('/v1/public/datalake');
-        expect(url).not.toContain('/artifact/stock-market/data-distribution/');
-    });
-
-    it('asks for the same dataset and scale the /data page asks for', () => {
-        //
-        // both pages report a partition count for one month, so a disagreement
-        // between them is a bug in one of the two. Sharing the endpoint, the
-        // loader, the worker and the url builder is what makes that impossible.
-        //
-        // FIXED. This pinned 'Data=stockmarket' while claiming the two pages
-        // agreed. They did not: /data sends the dataset name, 'stock-market', and
-        // the api answers the stream id 'stockmarket' with a 400 -- so the ticker
-        // count this page waits for could never arrive.
-        //
-        renderAlarm('stock-market');
-
-        const url = new URL(String(getData.mock.calls[0][1]));
-
-        expect(url.searchParams.get('Data')).toBe('stock-market');
-        expect(JSON.parse(url.searchParams.get('Scale'))).toEqual({
-            year: new Date().getFullYear(),
-            month: String(new Date().getMonth() + 1).padStart(2, '0'),
-        });
+        expect(fetcher).not.toHaveBeenCalled();
+        fetcher.mockRestore();
     });
 });
 
-describe('the ticker count arriving from the worker', () => {
-    it('raises the alarm count when the worker reports partitions', async () => {
-        //
-        // the only asynchronous state change on this page. callbackGetData spins
-        // up a worker and adds whatever it reports to the source count, so the
-        // header goes from '1' to '1 + partitions'.
-        //
-        renderAlarm('stock-market');
+const BLS_ALARMS = [{ id: 'ingest', name: 'Bureau of Labor Statistics ingest' }];
+const HELD = { stream: 'bls', alarm: 'ingest', since: '2026-09-26T12:00:00Z', terms: TERMS_VERSION };
 
-        const callback = getData.mock.calls[0][2];
-        //
-        // both wrapped in act(): each delivers data straight into setState from outside
-        // React's event system, which React reports as an update not wrapped in act().
-        //
-        act(() => {
-            callback({ data: [{ ticker: 'crwd' }] });
-        });
+//
+// the page for a signed-in reader, once their subscriptions and the stream's
+// alarms have both arrived
+//
+async function renderSignedIn({ held = [], alarms = BLS_ALARMS } = {}) {
+    signedIn.mockResolvedValue(true);
+    listSubscriptions.mockResolvedValue(held);
+    streamAlarms.mockResolvedValue(alarms);
 
-        expect(mockWorkers).toHaveLength(1);
+    renderAlarm('bls');
 
-        await userEvent.click(document.body);
-        act(() => {
-            mockWorkers[0].onmessage({ data: { count: 41, selected_stream: 'stock-market' } });
-        });
+    await screen.findByLabelText('Bureau of Labor Statistics ingest');
+    await waitFor(() => expect(listSubscriptions).toHaveBeenCalled());
+}
 
-        expect(await screen.findByText('42')).toBeInTheDocument();
+const alarmSwitch = () => screen.getByLabelText('Bureau of Labor Statistics ingest');
+const acceptBox = () => screen.getByRole('checkbox', { name: 'I accept the terms and conditions' });
+
+describe('signed out', () => {
+    it('is asked to sign in to subscribe, with no switches', async () => {
+        signedIn.mockResolvedValue(false);
+        streamAlarms.mockResolvedValue(BLS_ALARMS);
+
+        renderAlarm('bls');
+
+        await waitFor(() => expect(document.querySelector('.title-count')).toHaveTextContent('1'));
+
+        expect(screen.getByText(/You need to login to subscribe to ingest alarms/)).toBeInTheDocument();
+        expect(screen.queryByLabelText('Bureau of Labor Statistics ingest')).toBeNull();
+        expect(screen.queryByRole('checkbox')).toBeNull();
     });
 
-    it('ignores the distribution half of the response', () => {
-        //
-        // the worker posts two shapes down one channel: the distribution as a
-        // 'detail' object, and the partition count as { count, selected_stream }.
-        // This read 'event.data.partitions', which NEITHER carries, so the count
-        // resolved to undefined -- the fault that would have survived fixing the
-        // loader type and the month.
-        //
-        renderAlarm('stock-market');
-        getData.mock.calls[0][2]({ data: [] });
+    it('asks for no subscriptions', async () => {
+        signedIn.mockResolvedValue(false);
 
-        act(() => {
-            mockWorkers[0].onmessage({ data: { aggregate_key: 'sector', records: 7 } });
-        });
+        renderAlarm('bls');
 
-        expect(screen.getByText('1')).toBeInTheDocument();
+        await waitFor(() => expect(signedIn).toHaveBeenCalled());
+        expect(listSubscriptions).not.toHaveBeenCalled();
+    });
+});
+
+describe('signed in', () => {
+    it('is offered the terms to accept, in place of the way to sign in', async () => {
+        await renderSignedIn();
+
+        expect(acceptBox()).not.toBeChecked();
+        expect(screen.queryByText(/You need to login/)).toBeNull();
     });
 
-    it('hands the worker the validators as source text', () => {
-        //
-        // a worker cannot receive functions over postMessage, so the helpers are
-        // stringified and re-evaluated on the other side. Pinned because a
-        // rename or a change of shape here fails silently inside the worker.
-        //
-        renderAlarm('stock-market');
+    it('lists the stream\'s alarms, each with a switch', async () => {
+        await renderSignedIn();
 
-        getData.mock.calls[0][2]({ data: [] });
-
-        const [message] = mockWorkers[0].posted;
-        expect(Object.keys(message).sort()).toEqual([
-            'item',
-            'stringifiedCheckValidArray',
-            'stringifiedCheckValidInt',
-            'stringifiedCheckValidObject',
-            'stringifiedCheckValidString',
-            'stringifiedTrim',
-        ]);
-        expect(message.stringifiedTrim).toContain('function');
+        expect(alarmSwitch()).toHaveAttribute('type', 'checkbox');
+        expect(alarmSwitch()).not.toBeChecked();
     });
 
-    it('survives a worker that fails', () => {
-        renderAlarm('stock-market');
+    it('shows an alarm the reader holds switched on', async () => {
+        await renderSignedIn({ held: [HELD] });
 
-        getData.mock.calls[0][2]({ data: [] });
+        await waitFor(() => expect(alarmSwitch()).toBeChecked());
+    });
 
-        expect(() => mockWorkers[0].onerror(new Error('worker died'))).not.toThrow();
-        expect(screen.getByRole('heading', { name: 'Ingest Alarms' })).toBeInTheDocument();
+    it('does not take a subscription to another stream for this one\'s', async () => {
+        await renderSignedIn({ held: [{ ...HELD, stream: 'sec' }] });
+
+        expect(alarmSwitch()).not.toBeChecked();
+    });
+
+    it('lets no switch be turned on before the terms are accepted', async () => {
+        await renderSignedIn();
+
+        expect(alarmSwitch()).toBeDisabled();
+        expect(screen.getByText(/Accept the terms and conditions above/)).toBeInTheDocument();
+
+        fireEvent.click(alarmSwitch());
+
+        expect(subscribe).not.toHaveBeenCalled();
+    });
+
+    it('lets a held one be turned off before the terms are accepted', async () => {
+        unsubscribe.mockResolvedValue(true);
+
+        await renderSignedIn({ held: [HELD] });
+        await waitFor(() => expect(alarmSwitch()).toBeEnabled());
+
+        fireEvent.click(alarmSwitch());
+
+        await waitFor(() => expect(alarmSwitch()).not.toBeChecked());
+        expect(unsubscribe).toHaveBeenCalledWith('bls', 'ingest');
+    });
+
+    it('subscribes once the terms are accepted, sending their version', async () => {
+        subscribe.mockResolvedValue(HELD);
+
+        await renderSignedIn();
+
+        fireEvent.click(acceptBox());
+        await waitFor(() => expect(alarmSwitch()).toBeEnabled());
+
+        fireEvent.click(alarmSwitch());
+
+        await waitFor(() => expect(alarmSwitch()).toBeChecked());
+        expect(subscribe).toHaveBeenCalledWith('bls', 'ingest', TERMS_VERSION);
+    });
+
+    it('moves a switch only once the api has answered', async () => {
+        await renderSignedIn();
+
+        fireEvent.click(acceptBox());
+        await waitFor(() => expect(alarmSwitch()).toBeEnabled());
+
+        fireEvent.click(alarmSwitch());
+
+        await waitFor(() => expect(alarmSwitch()).toBeDisabled());
+        expect(alarmSwitch()).not.toBeChecked();
+    });
+
+    it('says what the api said when it refuses, and leaves the switch where it was', async () => {
+        subscribe.mockRejectedValue(new Error('verify your email address to subscribe'));
+
+        await renderSignedIn();
+
+        fireEvent.click(acceptBox());
+        await waitFor(() => expect(alarmSwitch()).toBeEnabled());
+
+        fireEvent.click(alarmSwitch());
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('verify your email address to subscribe');
+        expect(alarmSwitch()).not.toBeChecked();
+        expect(alarmSwitch()).toBeEnabled();
+    });
+
+    it('is shown the signed-out view once the session has ended', async () => {
+        //
+        // null from the api is a 401: not an error, a reader who has to sign in again
+        //
+        subscribe.mockResolvedValue(null);
+
+        await renderSignedIn();
+
+        fireEvent.click(acceptBox());
+        await waitFor(() => expect(alarmSwitch()).toBeEnabled());
+
+        fireEvent.click(alarmSwitch());
+
+        expect(await screen.findByText(/You need to login to subscribe/)).toBeInTheDocument();
+        expect(screen.queryByLabelText('Bureau of Labor Statistics ingest')).toBeNull();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('is shown the signed-out view when the subscriptions come back signed out', async () => {
+        signedIn.mockResolvedValue(true);
+        listSubscriptions.mockResolvedValue(null);
+        streamAlarms.mockResolvedValue(BLS_ALARMS);
+
+        renderAlarm('bls');
+
+        await waitFor(() => expect(listSubscriptions).toHaveBeenCalled());
+        expect(await screen.findByText(/You need to login to subscribe/)).toBeInTheDocument();
+    });
+
+    it('holds every switch still, and says why, when the subscriptions could not be had', async () => {
+        signedIn.mockResolvedValue(true);
+        listSubscriptions.mockRejectedValue(new Error('busy, try again'));
+        streamAlarms.mockResolvedValue(BLS_ALARMS);
+
+        renderAlarm('bls');
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('busy, try again');
+        expect(alarmSwitch()).toBeDisabled();
+    });
+
+    it('says the alarms could not be listed when the list fails', async () => {
+        signedIn.mockResolvedValue(true);
+        listSubscriptions.mockResolvedValue([]);
+        streamAlarms.mockRejectedValue(new Error('no such stream'));
+
+        renderAlarm('bls');
+
+        expect(await screen.findByText('The alarms could not be listed right now.')).toBeInTheDocument();
     });
 });
 
