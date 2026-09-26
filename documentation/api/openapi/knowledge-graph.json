@@ -67,7 +67,7 @@
                                   "string",
                                   "null"
                                 ],
-                                "description": "The year and month the build covers, as YYYY-MM."
+                                "description": "The partition the build was published under, as YYYY-MM. Not a window over its data: a build carries dates from well outside it. The day of the tables a build holds is day, from schema version 1.5."
                               },
                               "variant": {
                                 "type": [
@@ -113,6 +113,20 @@
                                 },
                                 "description": "Every source the build's run read. They need not all be in its graph: from schema version 1.4, the build's schema says which are, in build_metadata.sources_in_graph."
                               },
+                              "schema_version": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The version of the build's schema, as its schema's own version field gives it. It says which fields the build carries, here and in its schema: day, from 1.5."
+                              },
+                              "day": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The day of the published tables the build holds, as YYYY-MM-DD: the Day the tables paths take to read the same day. The build's own record of it, build_metadata.day, from schema version 1.5, and null before it."
+                              },
                               "error": {
                                 "type": [
                                   "string",
@@ -147,6 +161,8 @@
                           "noaa",
                           "sec"
                         ],
+                        "schema_version": "1.3",
+                        "day": null,
                         "error": null
                       },
                       {
@@ -165,6 +181,8 @@
                           "noaa",
                           "sec"
                         ],
+                        "schema_version": "1.3",
+                        "day": null,
                         "error": null
                       },
                       {
@@ -183,6 +201,8 @@
                           "noaa",
                           "sec"
                         ],
+                        "schema_version": "1.3",
+                        "day": null,
                         "error": null
                       }
                     ]

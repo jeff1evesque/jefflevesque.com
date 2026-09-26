@@ -15,10 +15,11 @@
  * Note: two pages hand it that document, and it cannot tell them apart. The
  *       Training graph hands it a build's schema. The Retrieval graph hands it a
  *       day of the `knowledge-graph/tables/*` api, the other thing called tables,
- *       put into the same shape -- see get-graph-tables.js. Those paths once went
- *       unused here because they take no build id, and under a build picker their
- *       rows would have read as the build's. Under a day picker they are exact for
- *       what is selected, which is what a picker needs of them.
+ *       put into the same shape -- see get-graph-tables.js. Both pages pick a day
+ *       now, and the Training graph still reads its rows from the build rather
+ *       than from its day's tables. A build is that day less four node types it
+ *       leaves out, which the tables keep, so the build's own rows are the only
+ *       ones exact for the graph drawn above them.
  *
  * Note: a day's node types carry no ontology term, so the column that prints one
  *       is drawn only when a row has one. An empty column the width of a uri, on

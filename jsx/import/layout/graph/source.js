@@ -44,10 +44,18 @@
  *       Every day is written whole, so a question across days sees each node
  *       once per day that holds it, and the ids an edge joins on are renumbered
  *       daily. A picker of days is what makes every row on the page one day's.
+ *
+ * Note: the Training graph picks by day as well. A build IS one day of the
+ *       tables -- that day's node types and edges, less four node types the
+ *       build leaves out -- and its picker used to name each build by when it
+ *       ran, which is never the day it holds: the build run on 09-25 holds
+ *       09-24. Lining up the two graphs of one day took a rule the page stated
+ *       nowhere. A choice is still a build, linked by its id, because one day
+ *       can name two builds. See buildDay.
  */
 
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
-import { getTableDays, getTableDay, daysRequest, dayRequests } from '../../general/get-graph-tables.js';
+import { DAY, getTableDays, getTableDay, daysRequest, dayRequests } from '../../general/get-graph-tables.js';
 import { knowledgeGraphUrl } from '../../general/api-url.js';
 
 const COMPACT = new Intl.NumberFormat('en-US', {
@@ -117,6 +125,68 @@ function graphSources(build, schema) {
 }
 
 //
+// the first schema version whose builds record the day of the tables they hold,
+// which the listing passes on as `day`. See buildDay.
+//
+const DAY_RECORDED = [1, 5];
+
+//
+// the UTC date a run started on, as 'YYYY-MM-DD', or null.
+//
+// Note: a time published without a zone is read as UTC, which is what the
+//       listing says its times are. Read the way Date reads one, in the
+//       reader's own zone, a build would hold one day in Tokyo and another in
+//       Boston.
+//
+function runDate(run) {
+    if (!run) {
+        return null;
+    }
+
+    const time = new Date(/(Z|[+-]\d\d:?\d\d)$/i.test(run) ? run : `${run}Z`);
+
+    return Number.isNaN(time.getTime()) ? null : time.toISOString().slice(0, 10);
+}
+
+/**
+ * the day of the published tables a build holds, as 'YYYY-MM-DD', or null.
+ *
+ * Which rule applies goes by the schema version the listing carries, as the
+ * Sources row goes by the schema's -- see graphSources:
+ *
+ *     1.5 and later     the listing's `day`, the builder's own record of it,
+ *                       whatever the run says. A build of that version with no
+ *                       well-formed day has none, and none is guessed for it
+ *     older, or none    the newest of `days` before the run's UTC date
+ *
+ * The second is how the builds have been run, and no build states it. Measured
+ * on 2026-09-25, 10 of the 11 listed builds equal that day's tables exactly,
+ * node for node and edge for edge, once the four node types a build leaves out
+ * are taken out of the day. The Saturday 09-19 run holds Friday 09-18, and the
+ * Sunday 09-13 run holds Wednesday 09-09, the tables holding no day between. It
+ * is safe because the builds it applies to are a closed set: none from 1.5 on
+ * needs it, and the older ones leave the listing in turn.
+ *
+ * Note: BEFORE the run's date, and not simply the day before it. The tables can
+ *       hold the run's own date by the time anyone reads the listing -- the
+ *       09-16 17:15 run holds 09-15 -- and they hold no day for a weekend.
+ *
+ * Note: `days` are the published days, as getTableDays answers them, or null
+ *       when they could not be had. Then an older build has no day, and keeps
+ *       the label its run gave it: the Training graph never fails because the
+ *       tables did.
+ */
+function buildDay(build, days) {
+    if (atLeast(build.schema_version, DAY_RECORDED)) {
+        return typeof build.day === 'string' && DAY.test(build.day) ? build.day : null;
+    }
+
+    const date = runDate(build.run);
+
+    return (date && (days || []).filter((day) => day < date).sort().pop()) || null;
+}
+
+//
 // the build panel's rows: what each is called, and how to read it off a listing
 // entry. `schema` marks the one row that is read off the build's schema as
 // well, and so has to wait for it. See details in graph.jsx.
@@ -126,7 +196,12 @@ function graphSources(build, schema) {
 // same labels -- see pending.jsx. Two copies of them drift apart the first time
 // a row is added to one of them.
 //
+// Note: 'Day' leads, and is the day the picker names the build by, which list()
+//       gives each choice. Every other row describes the BUILD, and Run still
+//       says when it ran -- which is not that day.
+//
 const DETAILS = [
+    { label: 'Day', read: (build) => build.day },
     { label: 'Nodes', read: (build) => count(build.nodes) },
     { label: 'Edges', read: (build) => count(build.edges) },
     { label: 'Sources', read: graphSources, schema: true },
@@ -147,10 +222,24 @@ const DETAILS = [
 // choose between builds that read as identical until their end.
 //
 // Every constant part of that sentence is already on the page, in the build
-// panel directly below it: Dataset, Variant, Run. So an option says the run
-// time -- the part that differs, in the words the Run row uses -- and then
-// whatever else actually varies across THIS listing, which is nothing while
-// every published build is the same dataset and variant.
+// panel directly below it: Dataset, Variant, Run. So an option says the DAY the
+// build holds -- in the Day row's words, which are the Retrieval graph's, so the
+// two pickers name one day alike -- and then whatever else actually varies
+// across THIS listing, which is nothing while every published build is the same
+// dataset and variant.
+//
+// Note: one day can name two builds. The 09-10 and 09-13 runs both hold 09-09,
+//       the second having written that day again. Those two, and only those,
+//       add their run in the Run row's words -- '2026-09-09 · run 2026-09-13
+//       15:04 UTC' -- and every other option stays a bare day. It goes by what
+//       an option would say rather than by its day alone, so two variants of
+//       one run, which their variant already tells apart, do not both add a
+//       run that tells them apart from nothing.
+//
+// Note: a build with no day -- a 1.5 build that records none, or an older one
+//       while the published days cannot be had -- is labeled by its run time,
+//       as every build was before, and one with no run either by the listing's
+//       own label.
 //
 // Note: `period` is deliberately not one of the fields that can be added. It is
 //       a partition key rather than a window over the data -- see the note below
@@ -158,9 +247,10 @@ const DETAILS = [
 //       as though it bounded something.
 //
 // Note: the listing's own labels are used for ALL of them when the derived ones
-//       do not tell every build apart: two builds run in the same minute would
-//       both read '2026-09-19 05:00 UTC'. A shorter label is worth having, and a
-//       label that names two different builds is not.
+//       still do not tell every build apart: two builds of one day run in the
+//       same minute would both read '2026-09-09 · run 2026-09-13 15:04 UTC'. A
+//       shorter label is worth having, and a label that names two different
+//       builds is not.
 //
 const DISTINGUISHING = ['dataset', 'variant'];
 
@@ -168,10 +258,20 @@ function pickerLabels(graphs) {
     const varies = DISTINGUISHING.filter(
         (key) => new Set(graphs.map((build) => build[key])).size > 1
     );
+    const extra = (build) => varies.map((key) => build[key]).filter(Boolean);
 
-    const labels = graphs.map((build) => (build.run
-        ? [when(build.run), ...varies.map((key) => build[key]).filter(Boolean)].join(' · ')
-        : build.label));
+    const short = graphs.map((build) => (build.day ? [build.day, ...extra(build)].join(' · ') : null));
+    const twice = new Set(short.filter((label, index) => label && short.indexOf(label) !== index));
+
+    const labels = graphs.map((build, index) => {
+        if (build.day) {
+            return twice.has(short[index]) && build.run
+                ? [build.day, `run ${when(build.run)}`, ...extra(build)].join(' · ')
+                : short[index];
+        }
+
+        return build.run ? [when(build.run), ...extra(build)].join(' · ') : build.label;
+    });
 
     return new Set(labels).size === labels.length ? labels : graphs.map((build) => build.label);
 }
@@ -190,8 +290,9 @@ function pickerLabels(graphs) {
 // '2026-09-01 – 2026-09-19', whose end was the run date wearing a coverage
 // date's clothes. Then as 'September 2026', which dropped the invented precision
 // and kept the false framing. What a reader can actually use is in the rows that
-// remain -- and the partition itself is already in the picker's label, where it
-// reads as part of a build's name rather than as a claim about its contents.
+// remain -- the Day among them, which is what the tables say a build holds -- and
+// the partition itself is in the listing's own label for a build, where it reads
+// as part of a name rather than as a claim about its contents.
 //
 
 //
@@ -205,12 +306,25 @@ function buildSummary(build) {
         : null;
 }
 
+//
+// the picker both pages offer, which is a picker of days on both: the Retrieval
+// graph's choices are days of the tables, and the Training graph's are builds,
+// each named by the day it holds. One pair of words for the one thing, where the
+// Training graph's 'Build' and 'Published build' named something a reader could
+// not line up with the other page.
+//
+// `pending` is the width its stand-in is drawn at while there is nothing to
+// pick from, which is a date's -- about half the run time it was sized for
+// before. See PendingPicker in pending.jsx.
+//
+const DAY_PICKER = { label: 'Day', name: 'Published day', pending: '5.5rem' };
+
 const BUILDS = {
     heading: 'Training graph',
     surface: 'graph',
     param: 'graph',
     path: (id) => `/graph/${encodeURIComponent(id)}`,
-    picker: { label: 'Build', name: 'Published build' },
+    picker: DAY_PICKER,
     panel: 'Build details',
     rows: DETAILS,
     failed: {
@@ -227,9 +341,23 @@ const BUILDS = {
     //       different to the page from one that could not be had -- there is
     //       nothing to pick, and nothing to draw.
     //
-    list: () => getGraphListing().then((listing) => (listing && listing.graphs.length
-        ? { default: listing.default, choices: listing.graphs }
-        : null)),
+    // Note: the published days are asked for only while the listing holds a
+    //       build too old to record its own day, and only once the listing has
+    //       said so. When the last of those has rolled off, the page makes
+    //       exactly the requests it made before it picked by day. See buildDay.
+    //
+    list: () => getGraphListing().then((listing) => {
+        if (!listing || !listing.graphs.length) {
+            return null;
+        }
+
+        const older = listing.graphs.some((build) => !atLeast(build.schema_version, DAY_RECORDED));
+
+        return (older ? getTableDays() : Promise.resolve(null)).then((days) => ({
+            default: listing.default,
+            choices: listing.graphs.map((build) => ({ ...build, day: buildDay(build, days) })),
+        }));
+    }),
     load: (id) => getGraphById(id),
     labels: pickerLabels,
     summary: buildSummary,
@@ -302,7 +430,7 @@ const DAYS = {
     surface: 'graph-retrieval',
     param: 'day',
     path: (day) => `/graph/retrieval/${encodeURIComponent(day)}`,
-    picker: { label: 'Day', name: 'Published day' },
+    picker: DAY_PICKER,
     panel: 'Day details',
     rows: DAY_DETAILS,
     failed: {
@@ -350,4 +478,4 @@ const DAYS = {
     },
 };
 
-export { BUILDS, DAYS, DETAILS, DAY_DETAILS, pickerLabels, graphSources, when };
+export { BUILDS, DAYS, DETAILS, DAY_DETAILS, buildDay, pickerLabels, graphSources, when };

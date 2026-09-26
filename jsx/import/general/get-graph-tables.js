@@ -48,6 +48,9 @@ const LIMIT = 1000;
 //
 // a day as the tables spell it, and as the api refuses anything else.
 //
+// Note: exported for source.js, which holds the day a build's listing entry
+//       names to the pattern a published day matches. See buildDay there.
+//
 const DAY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
 function logged(what, e) {
@@ -186,4 +189,4 @@ export function getTableDay(day, base = TABLES) {
         .catch((e) => logged(`${base} Day=${day}`, e));
 }
 
-export { LIMIT, TABLES };
+export { DAY, LIMIT, TABLES };
