@@ -15,8 +15,8 @@ GET https://api.jefflevesque.com/v1/public/knowledge-graph/tables/last-quotes
 
 The published builds of the knowledge graph, and each build's schema: its node types,
 its edge types, and how many of each it holds. The **Training graph**, `/graph`, lets a
-reader pick a build and draws it; the front page draws the default build, and is that
-graph and nothing else.
+reader pick a build, by the day of the tables it holds, and draws it; the front page
+draws the default build, and is that graph and nothing else.
 
 The `tables` paths answer a different kind of question. The first two say what a build
 **is**; these say what the published tables **contain**, a day at a time — which days
@@ -30,7 +30,7 @@ is held about one of them, and the day's stock quotes. The **Retrieval graph**,
 |---|---|---|
 | `/knowledge-graph` | the listing of builds | on every Training graph load, to find out which builds exist |
 | `/knowledge-graph/<id>` | that build's schema | the build selected in the picker, or named in the address |
-| `/knowledge-graph/tables/days` | every published day | on every Retrieval graph load, to find out which days exist |
+| `/knowledge-graph/tables/days` | every published day | on every Retrieval graph load, to find out which days exist; and on a Training graph load while its listing holds a build older than schema `1.5`, to find the day that build holds |
 | `/knowledge-graph/tables/node-types` | a day's node types, with what can be looked up in each | the day selected, and a `Limit` of 1000 |
 | `/knowledge-graph/tables/edge-types` | the relation catalog | the same `Day`, and a `Limit` of 1000 |
 | `/knowledge-graph/tables/find` | entities matching some text | nothing yet |
@@ -75,6 +75,8 @@ Each build in `graphs` carries:
 | `run`, `built` | when the build ran and when it finished, in UTC |
 | `nodes`, `edges` | every node and every edge in the build |
 | `sources` | every source the build's run read. **Not always the sources in its graph** — see below |
+| `schema_version` | the version of the build's schema, which says which fields the build carries |
+| `day` | the day of the tables the build holds, as `YYYY-MM-DD`: from schema `1.5`, and `null` before it — see below |
 | `error` | why the build cannot be served, or `null` when it can |
 
 ## Response: a build's schema
@@ -87,7 +89,7 @@ Each build in `graphs` carries:
 | `edge_types` | keyed by an opaque label, each naming its `src_type`, `relation` and `dst_type`, with its `count` and its `origin`: `raw`, `enrichment` or `unification` |
 | `summary` | totals: `total_node_types`, `total_edge_types`, `total_nodes`, `total_edges` |
 | `version` | the schema's version, which says which fields the rest of it carries |
-| `build_metadata` | how the build was made. `/graph` reads one field of it, `sources_in_graph`, from version `1.4` |
+| `build_metadata` | how the build was made. `/graph` reads one field of it, `sources_in_graph`, from version `1.4`. Another, `day`, from version `1.5`, reaches `/graph` through the listing |
 | `relation_groups` | carried through; the application does not read it |
 
 **Every `unification` edge published so far is an `owl:sameAs`**, joining two nodes that
@@ -103,9 +105,11 @@ labeled the first figure as the second.
 
 The types the canvas leaves out are not lost: `/graph` lists every `node_types` and
 `edge_types` entry in tables below the graph, read from this same response. No further
-request is made for them, and nothing there comes from the `tables` paths below -- those
-take no build id, which under a build picker would read as something they are not. The
-Retrieval graph reads them under a **day** picker instead, where every row is the day's.
+request is made for them, and nothing there comes from the `tables` paths below, though
+`/graph` picks a build by the day of the tables it holds. That day's tables keep four
+node types the build leaves out, so the build's own rows are the only ones exact for
+the graph drawn above them. The Retrieval graph reads the tables themselves, where every
+row is the day's.
 
 **A build's `sources` are what its run read, not what its graph holds.** From schema
 `1.4`, `build_metadata.sources_in_graph` names the sources whose node types reached the
@@ -131,6 +135,32 @@ bounds anything: nothing published after it can be in there.
 `/graph` deliberately shows no `period`. It read it out first as a derived day range
 ending on the run date, then as a month, and both told a reader it was a coverage window.
 The partition is in each build's `label`, where it reads as part of a name.
+
+**A build is one day of the tables.** Measured on 2026-09-25, against the listing and
+against `node-types` and `edge-types` for every published day: a build leaves out four
+node types the tables keep, `cap_Area`, `cap_Geocode`, `cap_Info` and
+`weather_WeatherAlert`, which a `1.4` build names in `build_metadata.excluded_node_types`.
+With those types and every edge touching them taken out, 10 of the 11 listed builds equal
+one day exactly, node for node and edge for edge. Each is the newest published day
+**before** the run's UTC date, which is not always the day before the run: the run of
+Sunday 09-13 holds Wednesday 09-09, the tables holding no day between, and the run on the
+afternoon of 09-16 holds 09-15, though 09-16 is published.
+
+From schema `1.5` a build records that day itself, as `build_metadata.day`, and the
+listing carries it as `day`. `/graph` names each build by it: its picker is a picker of
+days, as the Retrieval graph's is, and its build details lead with a Day row. An older
+build records no day, and `/graph` names it by the newest day `tables/days` lists before
+its run. No older build states that rule; it is how they were run, and the set it
+applies to is closed, since a build from `1.5` on never needs it. Where the days cannot
+be had, such a build is named by its run time instead.
+
+A day is still not a bound on what a build holds, and `run` is still the only date that
+is. One day can have two builds: the 09-10 run and the 09-13 run both hold 09-09, the
+second having written that day again. The 09-09 the 09-13 run wrote holds a month of CPI
+-- 319 series' one- and twelve-month changes and their price index, 958 nodes -- that
+reached the tables after the 09-10 run, and is filed under 09-09 all the same. The 09-10
+build matches no day: it is 970 nodes short of that day's tables, and those 958 are most
+of them.
 
 ## Response: the tables
 
@@ -236,7 +266,8 @@ what a wrong path looks like, as distinct from a wrong value.
   and, on the front page,
   [`jsx/import/animation/graph-cluster.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/animation/graph-cluster.jsx).
   What differs between the Training graph and the Retrieval graph — what each picks
-  from, loads, weighs its slice by and says about it — is in
+  from, loads, weighs its slice by and says about it, and the day each build holds — is
+  in
   [`jsx/import/layout/graph/source.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/graph/source.js).
 
 ## Try it
