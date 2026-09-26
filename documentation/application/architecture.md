@@ -49,7 +49,8 @@ The stylesheet follows the attribute through custom properties that
 sets for each theme. Every partial after it reads the neutral ramp -- `$gray-6`,
 `$white-1` -- as those properties, and the ramp keeps its order in both themes: a higher
 numeral is further from the page. So a rule written against the light theme's colors
-draws the dark one too. The ink on the header's black bars is held fixed.
+draws the dark one too. The ink on the header's black bars is held fixed, and so is the
+construction banner's, dark on its yellow in either theme.
 
 Whatever computes a color in script -- the two graphs, the charts, a tooltip -- reads
 the theme from `ThemeModeContext` and its colors from `themeColors` in
