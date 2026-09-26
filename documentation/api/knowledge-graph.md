@@ -14,23 +14,23 @@ GET https://api.jefflevesque.com/v1/public/knowledge-graph/tables/last-quotes
 ```
 
 The published builds of the knowledge graph, and each build's schema: its node types,
-its edge types, and how many of each it holds. The **Training graph**, `/graph`, lets a
+its edge types, and how many of each it holds. The **Training Graph**, `/graph`, lets a
 reader pick a build, by the day of the tables it holds, and draws it; the front page
 draws the default build, and is that graph and nothing else.
 
 The `tables` paths answer a different kind of question. The first two say what a build
 **is**; these say what the published tables **contain**, a day at a time — which days
 there are, which links and node types a day holds, which entities match some text, what
-is held about one of them, and the day's stock quotes. The **Retrieval graph**,
+is held about one of them, and the day's stock quotes. The **Retrieval Graph**,
 `/graph/retrieval`, draws one day from them.
 
 ## The calls
 
 | Request | Answer | The application sends |
 |---|---|---|
-| `/knowledge-graph` | the listing of builds | on every Training graph load, to find out which builds exist |
+| `/knowledge-graph` | the listing of builds | on every Training Graph load, to find out which builds exist |
 | `/knowledge-graph/<id>` | that build's schema | the build selected in the picker, or named in the address |
-| `/knowledge-graph/tables/days` | every published day, with the run that published it | on every Retrieval graph load, to find out which days exist; and on a Training graph load while its listing holds a build older than schema `1.5`, to find the day that build holds |
+| `/knowledge-graph/tables/days` | every published day, with the run that published it | on every Retrieval Graph load, to find out which days exist; and on a Training Graph load while its listing holds a build older than schema `1.5`, to find the day that build holds |
 | `/knowledge-graph/tables/node-types` | a day's node types, with what can be looked up in each | the day selected, and a `Limit` of 1000 |
 | `/knowledge-graph/tables/edge-types` | the relation catalog | the same `Day`, and a `Limit` of 1000 |
 | `/knowledge-graph/tables/find` | entities matching some text | nothing yet |
@@ -108,7 +108,7 @@ The types the canvas leaves out are not lost: `/graph` lists every `node_types` 
 request is made for them, and nothing there comes from the `tables` paths below, though
 `/graph` picks a build by the day of the tables it holds. That day's tables keep four
 node types the build leaves out, so the build's own rows are the only ones exact for
-the graph drawn above them. The Retrieval graph reads the tables themselves, where every
+the graph drawn above them. The Retrieval Graph reads the tables themselves, where every
 row is the day's.
 
 **A build's `sources` are what its run read, not what its graph holds.** From schema
@@ -148,7 +148,7 @@ afternoon of 09-16 holds 09-15, though 09-16 is published.
 
 From schema `1.5` a build records that day itself, as `build_metadata.day`, and the
 listing carries it as `day`. `/graph` names each build by it: its picker is a picker of
-days, as the Retrieval graph's is, and its build details lead with a Day row. An older
+days, as the Retrieval Graph's is, and its build details lead with a Day row. An older
 build records no day, and `/graph` names it by the newest day `tables/days` lists before
 its run. No older build states that rule; it is how they were run, and the set it
 applies to is closed, since a build from `1.5` on never needs it. Where the days cannot
@@ -181,7 +181,7 @@ answer — it was asked and nothing matched.
 
 **A day says which run published it.** Each `days` row carries a `run`, written as the
 listing writes a build's, and it is the `run` of the build that holds the day: 2026-09-24
-names the run of 2026-09-25 at 05:00 UTC, whose build the Training graph names by
+names the run of 2026-09-25 at 05:00 UTC, whose build the Training Graph names by
 2026-09-24. `published` is when the day finished publishing, which is when it became
 readable, not when its tables were written: nothing records that. Either is `null` for a
 day that does not say.
@@ -214,7 +214,7 @@ close — `market_quotes_netChange`, `market_quotes_netPercentChange` and
 A value meaningless to the path is refused rather than ignored, the same way a query
 string is refused on the build paths.
 
-### What the Retrieval graph reads
+### What the Retrieval Graph reads
 
 `/graph/retrieval` draws one day from `days`, `node-types` and `edge-types`, put into
 the shape of a build's schema so the page that draws a build draws it. It chooses the
@@ -228,6 +228,26 @@ Its Day details put the day's **Run** and **Published** directly under the Day, 
 from `days`, so the three are on screen with the picker, above the totals that arrive a
 round trip later. `/graph`'s Build details put a build's Run and Built in the same place,
 under its Day, and the Run is the one `/graph` shows for the build of the same day.
+
+**A day's node types are named by the day's predicates.** A `node-types` row carries no
+ontology term, and a type's name can leave its source out: `jolts_Industry` is a type of
+`bls/jolts`. The `edge-types` rows carry each relation's `predicate_uri`, which names the
+whole vocabulary — `jolts_hasIndustry`'s is `https://jefflevesque.com/ontology/bls/jolts/hasIndustry`
+— so every `jolts_` type is drawn and listed under `bls-jolts`, which is what `/graph`
+reads off a build's `source_type_uri` for the same type. A prefix no predicate is named
+under — `market_quotes`, `sec_common`, `temporal` and `weather`, on every day published
+so far — is named by its types' names, and for the first three that is what the uri
+says too. Measured on 2026-09-26 against the build of the same run, for every published
+day: every node type the two hold is named alike. The days published before 2026-09-21
+name flat vocabularies — `ontology/jolts/` — and so do their builds, so both pages draw
+those days' types under `jolts`.
+
+Its Day details end with **Sources**, the sources the day's vocabularies are filed under:
+`bls, market, noaa, sec` on every day from 2026-09-21, which is what the run that
+published each one read. `/graph`'s Sources row for the build of the same run says
+`bls, market, sec`, because the build leaves out the four `noaa` node types, and the
+tables keep them. A day before 2026-09-21 files no vocabulary under a source, and its
+Sources row reads `n/a`.
 
 ## Caching
 
@@ -277,7 +297,7 @@ what a wrong path looks like, as distinct from a wrong value.
   [`jsx/import/layout/graph/graph.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/graph/graph.jsx)
   and, on the front page,
   [`jsx/import/animation/graph-cluster.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/animation/graph-cluster.jsx).
-  What differs between the Training graph and the Retrieval graph — what each picks
+  What differs between the Training Graph and the Retrieval Graph — what each picks
   from, loads, weighs its slice by and says about it, and the day each build holds — is
   in
   [`jsx/import/layout/graph/source.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/graph/source.js).
@@ -292,7 +312,7 @@ first. Take an id from that answer and give it to **One build's schema**.
 
 **Every published day** likewise takes nothing, and answers the days. Take one and
 give it to **A day's node types** and **The relation catalog**, which together are
-the day the Retrieval graph draws. From there the tables follow one another:
+the day the Retrieval Graph draws. From there the tables follow one another:
 **Entities matching some text** to get a `Uri`, that `Uri` to **The values held
 about one entity**, and the same `Uri` with a `Day` to **The edges touching one
 entity**. **One stock's quotes through a day** takes a ticker and a `Day`, and
