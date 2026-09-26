@@ -259,8 +259,9 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
     it('reads each documented day with the run that published it, and when', async () => {
         //
         // the Retrieval graph's Run and Published rows read these. A documented
-        // row that gives neither reads null for both, which the page shows as
-        // 'n/a', the way it shows a build's missing run.
+        // row that gives neither would read null for both, which the page shows
+        // as 'n/a', the way it shows a build's missing run -- and every row the
+        // api answers now gives both.
         //
         answering(days.example);
 
@@ -271,6 +272,10 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
             run: typeof row.run === 'string' ? row.run : null,
             published: typeof row.published === 'string' ? row.published : null,
         })));
+        listed.forEach((row) => {
+            expect({ day: row.day, run: typeof row.run, published: typeof row.published })
+                .toEqual({ day: row.day, run: 'string', published: 'string' });
+        });
     });
 
     it('reads the documented node and edge types as one day', async () => {
