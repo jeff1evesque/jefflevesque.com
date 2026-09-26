@@ -25,6 +25,8 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
+import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
+import { colors, colors_dark, toRGB } from '../../../import/general/colors.js';
 
 function setup(props = {}) {
     return render(
@@ -247,5 +249,32 @@ describe('resilience', () => {
         expect(screen.getByText('S&P 500')).toBeInTheDocument();
 
         global.fetch = original;
+    });
+});
+
+//
+// the loading chip over the chart: a patch of the page behind the dots, so they
+// hold their contrast whatever the chart is showing, and the dots in the site's
+// green. Both follow the page's theme -- a white chip on a dark page is a hole in
+// it, and the light green is nearly as dark as a dark page.
+//
+describe('the loading chip', () => {
+    it.each([
+        ['light', 'rgba(255, 255, 255, 0.92)', colors['green-6']],
+        ['dark', 'rgba(30, 30, 30, 0.92)', colors_dark['green-6']],
+    ])('is drawn in the %s page\'s own colors', (theme, chip, green) => {
+        render(
+            <ThemeModeContext.Provider value={{ theme: theme, toggle: () => {} }}>
+                <MemoryRouter>
+                    <StreamLayout />
+                </MemoryRouter>
+            </ThemeModeContext.Provider>
+        );
+
+        const patch = [...document.querySelectorAll('div')].find((div) => div.style.background === chip);
+
+        expect(patch).toBeDefined();
+        expect([...patch.querySelectorAll('span')].map((dot) => dot.style.backgroundColor))
+            .toContain(toRGB(green));
     });
 });
