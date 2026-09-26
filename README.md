@@ -5,7 +5,7 @@
 [![docs](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/docs.yml/badge.svg)](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/docs.yml)
 [![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jeff1evesque/jefflevesque.com/badges/coverage.json)](jsx/jest.config.js)
 
-**[Documentation](https://jeff1evesque.github.io/jefflevesque.com/)** — the three APIs the
+**[Documentation](https://jeff1evesque.github.io/jefflevesque.com/)** — the APIs the
 site is built on, how the application is put together, and how to develop, test and
 deploy it. This file is the short version.
 
@@ -19,7 +19,9 @@ The five streams it reports on are all public feeds: the Bureau of Labor Statist
 the SEC, stock market pricing, stock splits, and US National Weather alerts.
 
 The application is a static bundle with no server of its own. Everything it displays
-comes from three public APIs, called from the browser at runtime.
+comes from three public APIs, called from the browser at runtime, and a signed-in
+reader's alarm subscriptions are kept by a fourth, the account API, which answers only
+them.
 <!-- --8<-- [end:overview] -->
 
 ## What it does
@@ -28,9 +30,9 @@ comes from three public APIs, called from the browser at runtime.
 | Route | | API |
 |---|---|---|
 | `/` | landing page: a D3 force-directed cluster of the default knowledge graph build, and nothing over it | knowledge graph |
-| `/stream` | every stream's throughput, success rate and ingest coverage, at a chosen minute / hour / day / month rate | performance |
+| `/stream` | every stream's throughput, success rate and ingest coverage, at a chosen minute / hour / day / month rate. Each row's bell rings, in green, for a signed-in reader subscribed to the stream's alarm | performance, account |
 | `/stream/:stream/trigger` | trigger conditions for one stream, charted against its history | |
-| `/stream/:stream/alarm` | alarms raised for a stream | datalake |
+| `/stream/:stream/alarm` | a stream's ingest alarms, which a signed-in reader switches on and off once they have accepted the terms | account |
 | `/data` | each stream's data as it is stored, with its distribution for a chosen month | datalake |
 | `/graph` | the **Training Graph**: every published knowledge graph build — the graph a graph neural network trains on — with a picker of the days its builds hold, a legend that lights what it names on the graph, and tables of every node and edge type it holds. Its columns fold and narrow, and the graph drags shorter or a little taller, and it opens the way it was last left | knowledge graph |
 | `/graph/:graph` | the same page, opened on one build, so a build can be linked to | knowledge graph |
@@ -38,7 +40,8 @@ comes from three public APIs, called from the browser at runtime.
 | `/graph/retrieval/:day` | the same page, opened on one day, so a day can be linked to | knowledge graph tables |
 | `/model` | model article listing, with filters and performance | |
 | `/login`, `/logout`, `/register`, `/login/reset` | Cognito-backed authentication | |
-| `/:user`, `/:user/settings` | account and account settings | |
+| `/:user` | the reader's profile, a placeholder | |
+| `/:user/settings` | account settings: the alarms the reader is subscribed to, each with a way to unsubscribe | account |
 
 Every page comes in a light and a dark theme: light from 7 in the morning until 7 in the
 evening on the reader's own clock, and dark the rest of the day. The sun and moon beside
@@ -56,11 +59,13 @@ explains why.
 | API | Endpoint | Read by | Reference |
 |---|---|---|---|
 | Performance | `https://api.jefflevesque.com/v1/public/performance` | `/stream` | [Performance](https://jeff1evesque.github.io/jefflevesque.com/api/performance/) |
-| Datalake | `https://api.jefflevesque.com/v1/public/datalake` | `/data`, `/stream/:stream/alarm` | [Datalake](https://jeff1evesque.github.io/jefflevesque.com/api/datalake/) |
+| Datalake | `https://api.jefflevesque.com/v1/public/datalake` | `/data` | [Datalake](https://jeff1evesque.github.io/jefflevesque.com/api/datalake/) |
 | Knowledge graph | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` | [Knowledge graph](https://jeff1evesque.github.io/jefflevesque.com/api/knowledge-graph/) |
+| Account | `https://api.jefflevesque.com/v1/private/account` | `/stream/:stream/alarm`, `/stream`, `/:user/settings` | [Account](https://jeff1evesque.github.io/jefflevesque.com/api/account/) |
 
 Each reference page describes the parameters the application sends and the response it
-reads, with a Swagger UI whose Try it out sends a live request.
+reads. A public API's has a Swagger UI whose Try it out sends a live request; the account
+API's has none, since its requests need a signed-in reader's token.
 
 ## Quick start
 
