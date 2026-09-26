@@ -1,0 +1,259 @@
+// _theme.scss: the light and dark themes, as custom properties the page
+//     switches between.
+//
+// A reader picks one with the toggle in the header, and a script in the head of
+// index.html puts it on the root element, as `data-theme`, before the first
+// paint -- see theme-preference.js. Everything here keys on that attribute.
+//
+// The neutral ramp -- '$white-1' and '$white-2', '$gray-1' to '$gray-9' -- and
+// the accents read as text on the page are pointed at custom properties at the
+// bottom of this partial, so every partial imported after it writes
+// 'var(--gray-6)' where it says '$gray-6'. Those properties hold the light
+// theme's values, which are the values '_variables.scss' gives the same names,
+// and the dark theme's while the page is dark. A rule written for the light
+// theme draws the dark one without knowing about it, and draws the light one
+// exactly as it always has.
+//
+// Note: only the page's own colors change. The phone's header and the signed-in
+//       header are black bars in either theme, and the ink on them is held
+//       fixed -- see the '-fixed' names below. So are the greens of a button,
+//       and every color of a namespace, which means the same thing on either
+//       page.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+//
+
+//
+// the colors a rule holds FIXED, whichever theme is showing: the ink on the
+// black bars of the phone's header and the signed-in one, and on a green
+// button. Taken while the names still hold values, before they are pointed at
+// the theme below.
+//
+$white-1-fixed: $white-1;
+$white-2-fixed: $white-2;
+$gray-4-fixed: $gray-4;
+$gray-5-fixed: $gray-5;
+$gray-6-fixed: $gray-6;
+$gray-7-fixed: $gray-7;
+$gray-9-fixed: $gray-9;
+
+//
+// every name the theme changes, with its light value and its dark one
+//
+$theme-colors: (
+  'white-1': ($white-1, $dark-white-1),
+  'white-2': ($white-2, $dark-white-2),
+  'gray-1': ($gray-1, $dark-gray-1),
+  'gray-2': ($gray-2, $dark-gray-2),
+  'gray-3': ($gray-3, $dark-gray-3),
+  'gray-4': ($gray-4, $dark-gray-4),
+  'gray-5': ($gray-5, $dark-gray-5),
+  'gray-6': ($gray-6, $dark-gray-6),
+  'gray-7': ($gray-7, $dark-gray-7),
+  'gray-8': ($gray-8, $dark-gray-8),
+  'gray-9': ($gray-9, $dark-gray-9),
+  'green-6': ($green-6, $dark-green-6),
+  'blue-hyperlink': ($blue-hyperlink, $dark-blue-hyperlink),
+  'red-1': ($red-1, $dark-red-1),
+  'red-2': ($red-2, $dark-red-2),
+  'red-3': ($red-3, $dark-red-3),
+  'body-text': ($body-text, $dark-body-text),
+);
+
+//
+// one theme's properties: `$at` is 1 for the light values and 2 for the dark.
+//
+// Beside the names, two the page reaches for as a translucent color:
+//
+//   --ink-rgb       the text end of the ramp as a bare triple, for a shade
+//                   laid over the page -- 'rgba(var(--ink-rgb), 0.04)' is the
+//                   black hover wash on a light page and a white one on a dark
+//                   page, where a black one could not be seen
+//   --white-1-NN    the page itself at NN% opacity, for a panel laid over the
+//                   graph that has to let a little of it through
+//
+@mixin theme-properties($at) {
+  @each $name, $pair in $theme-colors {
+    --#{$name}: #{nth($pair, $at)};
+  }
+
+  $page: nth(map-get($theme-colors, 'white-1'), $at);
+
+  --ink-rgb: #{if($at == 1, '0, 0, 0', '255, 255, 255')};
+  --white-1-96: #{rgba($page, 0.96)};
+  --white-1-92: #{rgba($page, 0.92)};
+  --white-1-85: #{rgba($page, 0.85)};
+}
+
+:root {
+  @include theme-properties(1);
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  @include theme-properties(2);
+
+  color-scheme: dark;
+}
+
+//
+// the same rules, for the dark theme only: `@include dark { ... }` inside a rule
+// emits its contents under '[data-theme='dark']'.
+//
+// Note: the attribute alone, with no 'prefers-color-scheme' query beside it. The
+//       script in the head of index.html sets it before the first paint on every
+//       load, from the reader's choice or from the system's where they have
+//       made none, and nothing on this site draws without script.
+//
+@mixin dark {
+  :root[data-theme='dark'] & {
+    @content;
+  }
+}
+
+//
+// from here on, a name in the ramp is the theme's color rather than the light
+// one. See the note at the top.
+//
+$white-1: var(--white-1);
+$white-2: var(--white-2);
+$gray-1: var(--gray-1);
+$gray-2: var(--gray-2);
+$gray-3: var(--gray-3);
+$gray-4: var(--gray-4);
+$gray-5: var(--gray-5);
+$gray-6: var(--gray-6);
+$gray-7: var(--gray-7);
+$gray-8: var(--gray-8);
+$gray-9: var(--gray-9);
+$green-6: var(--green-6);
+$blue-hyperlink: var(--blue-hyperlink);
+$red-1: var(--red-1);
+$red-2: var(--red-2);
+$red-3: var(--red-3);
+
+//
+// what Bootstrap draws itself, on a dark page.
+//
+// Bootstrap is compiled css with its colors written into it, so it cannot be
+// pointed at the theme the way the partials are. Each rule here beats the one
+// it answers by the root and the attribute in front of it, whatever order the
+// two arrive in -- and Bootstrap arrives last.
+//
+// Only what the site draws with is answered: the page, a menu opened from
+// something on the page, and the one input group. The header's own menus and
+// bars are drawn by '_navigation.scss' and stay as they are.
+//
+:root[data-theme='dark'] {
+  body {
+    background-color: var(--white-1);
+    color: var(--body-text);
+  }
+
+  .dropdown-menu {
+    background-color: var(--white-1);
+    border-color: var(--gray-3);
+    color: var(--body-text);
+  }
+
+  .dropdown-item {
+    color: var(--gray-8);
+  }
+
+  .dropdown-item:hover,
+  .dropdown-item:focus {
+    background-color: var(--gray-1);
+    color: var(--gray-9);
+  }
+
+  .dropdown-header {
+    color: var(--gray-6);
+  }
+
+  .dropdown-divider {
+    border-top-color: var(--gray-3);
+  }
+
+  .input-group-text {
+    background-color: var(--gray-1);
+    border-color: var(--gray-3);
+    color: var(--gray-8);
+  }
+
+  .form-control,
+  .form-control:focus {
+    background-color: var(--white-1);
+    color: var(--gray-8);
+  }
+
+  .form-control {
+    border-color: var(--gray-3);
+  }
+
+  .form-control::placeholder {
+    color: var(--gray-6);
+  }
+
+  //
+  // Bootstrap's utility of the same name is '!important', so it wins over the
+  // site's own '.border-bottom' in either theme; only its color changes here.
+  //
+  .border-bottom {
+    border-bottom-color: var(--gray-2) !important;
+  }
+
+  //
+  // the charts' own lines and labels. Recharts writes them as attributes --
+  // '#666' for an axis and its labels, '#ccc' for the grid -- which a stylesheet
+  // outranks, and which are all but invisible on a dark page.
+  //
+  // Note: the tooltip Recharts draws itself carries its colors inline, which
+  //       only '!important' outranks. The site's own tooltips are drawn with the
+  //       theme's colors -- see data.jsx.
+  //
+  .recharts-cartesian-axis-line,
+  .recharts-cartesian-axis-tick-line {
+    stroke: var(--gray-6);
+  }
+
+  .recharts-cartesian-axis-tick-value,
+  .recharts-label {
+    fill: var(--gray-6);
+  }
+
+  .recharts-cartesian-grid line {
+    stroke: var(--gray-2);
+  }
+
+  .recharts-default-tooltip {
+    background-color: var(--white-1) !important;
+    border-color: var(--gray-3) !important;
+  }
+
+  //
+  // the band under the pointer on a bar chart, and the line on the others.
+  // Recharts draws both as paths, told apart by what they are paths of.
+  //
+  .recharts-rectangle.recharts-tooltip-cursor {
+    fill: var(--gray-1);
+  }
+
+  .recharts-curve.recharts-tooltip-cursor {
+    stroke: var(--gray-5);
+  }
+
+  //
+  // the sheet a listing opens on a phone, which carries its colors inline --
+  // white under its content, a pale gray handle -- so only '!important'
+  // outranks them.
+  //
+  .react-modal-sheet-container {
+    background-color: var(--white-1) !important;
+  }
+
+  .react-modal-sheet-drag-indicator {
+    background-color: var(--gray-3) !important;
+  }
+}
