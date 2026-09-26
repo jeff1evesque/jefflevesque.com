@@ -9,9 +9,11 @@
  *     the default and a day the tables no longer list falling back to it
  *   - how a day is loaded, and what its details panel says about it -- the day and
  *     the run that published it come with the picker, and every other row is
- *     totalled from the day's own rows, and waits for them
+ *     totalled from the day's own rows, or read off them, and waits for them
  *   - which types the canvas draws: a day weighed by its node count is its own
  *     build again, so it is weighed by what can be found by name
+ *   - what the legend calls them: a day's types carry no uri, so the namespace
+ *     is the vocabulary the day's predicates file each one under
  *   - that the page says so, and links both of the requests it was drawn from
  *   - that it is arranged apart from the Training graph
  *
@@ -111,6 +113,27 @@ function dayOf() {
             },
         },
     };
+}
+
+//
+// the same day as its loader answers one from rows whose predicates name the
+// vocabularies: the SEC's filings, the SEC's enrichment and NOAA's alerts, each
+// filed under its source. The market quotes are named by no predicate.
+//
+function namedDay() {
+    const day = dayOf();
+    const named = {
+        filings_SECFiling: 'sec/filings',
+        filings_Issuer: 'sec/filings',
+        cap_Info: 'noaa/cap-model',
+        sec_enrichment_UnifiedCompany: 'sec/enrichment',
+    };
+
+    Object.keys(named).forEach((id) => {
+        day.node_types[id].vocabulary = named[id];
+    });
+
+    return day;
 }
 
 //
@@ -222,10 +245,34 @@ describe('choosing a day', () => {
 });
 
 describe('the heading', () => {
-    it('names the page the Retrieval graph', async () => {
+    it('names the page the Retrieval Graph, in title case as every page heading is', async () => {
         await setup();
 
-        expect(screen.getByRole('heading', { name: 'Retrieval graph' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Retrieval Graph' })).toBeInTheDocument();
+    });
+});
+
+describe('the legend', () => {
+    const namespaces = () => [...document.querySelectorAll('.graph-legend-namespaces .graph-legend-entry')]
+        .map((entry) => entry.textContent);
+
+    it('names each namespace under its source, as the day\'s predicates file it', async () => {
+        //
+        // the Training graph reads 'sec-filings' off its build's uris, and a day
+        // with no uris read 'filings' -- the one type under two names on two
+        // pages drawn from one run.
+        //
+        getTableDay.mockResolvedValue(namedDay());
+
+        await setup();
+
+        expect(namespaces()).toEqual(['sec-filings', 'noaa-cap-model']);
+    });
+
+    it('names a namespace by its type\'s name where no predicate files it', async () => {
+        await setup();
+
+        expect(namespaces()).toEqual(['filings', 'cap']);
     });
 });
 
@@ -261,7 +308,7 @@ describe('the day details', () => {
         await setup();
 
         expect(detail('Day')).toBe('2026-09-23');
-        ['Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types'].forEach((label) => {
+        ['Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types', 'Sources'].forEach((label) => {
             const row = [...document.querySelectorAll('.graph-details-row')]
                 .find((r) => r.querySelector('dt').textContent === label);
 
@@ -286,7 +333,32 @@ describe('the day details', () => {
         await setup();
 
         expect([...document.querySelectorAll('.graph-details-row dt')].map((dt) => dt.textContent))
-            .toEqual(['Day', 'Run', 'Published', 'Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types']);
+            .toEqual([
+                'Day', 'Run', 'Published', 'Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types', 'Sources',
+            ]);
+    });
+
+    //
+    // the Training graph's panel lists the sources its build holds. A day has no
+    // list of its own, and its vocabularies are filed under their sources.
+    //
+    it('lists the sources the day\'s vocabularies are filed under', async () => {
+        getTableDay.mockResolvedValue(namedDay());
+
+        await setup();
+
+        expect(detail('Sources')).toBe('noaa, sec');
+    });
+
+    it('reads n/a for sources where no vocabulary is filed under one', async () => {
+        //
+        // every day published before the builder filed its vocabularies under
+        // their sources. The market quotes' name says 'market', and a list read
+        // off names came out short of the day's four.
+        //
+        await setup();
+
+        expect(detail('Sources')).toBe('n/a');
     });
 
     //
@@ -322,7 +394,7 @@ describe('the day details', () => {
         expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
         expect([...document.querySelectorAll('.graph-details-row')]
             .map((row) => Boolean(row.querySelector('.graph-pending-bar'))))
-            .toEqual([false, false, false, true, true, true, true, true, true]);
+            .toEqual([false, false, false, true, true, true, true, true, true, true]);
     });
 
     it('follows the picker to another day', async () => {
