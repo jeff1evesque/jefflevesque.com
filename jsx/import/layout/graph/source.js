@@ -57,6 +57,7 @@
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
 import { DAY, getTableDays, getTableDay, daysRequest, dayRequests } from '../../general/get-graph-tables.js';
 import { knowledgeGraphUrl } from '../../general/api-url.js';
+import { typeSource } from '../../animation/encoding.js';
 
 const COMPACT = new Intl.NumberFormat('en-US', {
     notation: 'compact',
@@ -323,7 +324,7 @@ function buildSummary(build) {
 const DAY_PICKER = { label: 'Day', name: 'Published day', pending: '5.5rem' };
 
 const BUILDS = {
-    heading: 'Training graph',
+    heading: 'Training Graph',
     surface: 'graph',
     param: 'graph',
     path: (id) => `/graph/${encodeURIComponent(id)}`,
@@ -384,6 +385,30 @@ function total(types, measure = 'count') {
     return Object.values(types).reduce((sum, type) => sum + (type[measure] || 0), 0);
 }
 
+/**
+ * the sources a day holds, as its own rows name them: every source a vocabulary
+ * of its node types is published under.
+ *
+ * The Training graph's row of the same name reads the build's own list, which a
+ * day does not have. The builder files every vocabulary under its source, so the
+ * day's vocabularies say it instead -- see typeSource in encoding.js. On every day
+ * published from 2026-09-21 to 09-24 that is bls, market, noaa and sec, which is
+ * what the run that published each one read. The build of the same run says bls,
+ * market and sec, because it leaves out the four node types of noaa, and the
+ * tables keep them.
+ *
+ * Note: '' for a day whose vocabularies name no source, which the panel prints as
+ *       'n/a'. That is every day published before the builder filed its
+ *       vocabularies under their sources, 09-18 and earlier: 'ontology/jolts/'
+ *       says nothing of bls. Read off such a day's type names instead, the list
+ *       came out as market and sec, two of the day's four.
+ */
+function daySources(types) {
+    return [...new Set(Object.values(types).map((type) => typeSource(type)).filter(Boolean))]
+        .sort()
+        .join(', ');
+}
+
 //
 // the day panel's rows, as DETAILS is the build panel's.
 //
@@ -392,13 +417,13 @@ function total(types, measure = 'count') {
 // run that published it, and when that finished. Those three rows fill in with
 // the picker, as a build's Run and Built do, and lead the panel, so what is on
 // screen with the picker is one block and what waits is the block below it.
-// Every other row is TOTALLED from the day's own rows, and waits for them:
-// `schema` on each.
+// Every other row is TOTALLED from the day's own rows, or read off them, and
+// waits for them: `schema` on each.
 //
 // `pending` is the width a row's value is drawn at while it waits, as pending.jsx
 // does for the build panel's: a date, two timestamps at the width the build panel
-// gives its own, totals in the thousands and the millions, and two counts of
-// types in the hundreds.
+// gives its own, totals in the thousands and the millions, two counts of types in
+// the hundreds, and four sources.
 //
 // Note: 'Run' is the run that published the day, and it is the Run of the build
 //       the Training graph names by the same day: the two graphs of a day are
@@ -414,6 +439,10 @@ function total(types, measure = 'count') {
 //       edge the day holds, the figures the build panel's rows of those names
 //       give for a build. 'Node types' and 'Edge types' are what the canvas and
 //       the tables below it count.
+//
+// Note: 'Sources' closes the panel, after every count, where the build panel's
+//       own comes after all of its counts. It waits for the day's rows like the
+//       totals do, because it is read off them -- see daySources.
 //
 const DAY_DETAILS = [
     { label: 'Day', read: (day) => day.id, pending: '6rem' },
@@ -445,10 +474,16 @@ const DAY_DETAILS = [
         schema: true,
         pending: '2rem',
     },
+    {
+        label: 'Sources',
+        read: (day, whole) => whole && daySources(whole.node_types),
+        schema: true,
+        pending: '8.5rem',
+    },
 ];
 
 const DAYS = {
-    heading: 'Retrieval graph',
+    heading: 'Retrieval Graph',
     surface: 'graph-retrieval',
     param: 'day',
     path: (day) => `/graph/retrieval/${encodeURIComponent(day)}`,
