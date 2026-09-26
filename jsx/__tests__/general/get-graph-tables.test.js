@@ -204,7 +204,12 @@ describe('one day', () => {
         expect(Object.keys(day.node_types)).toEqual([
             'market_quotes_OptionSnapshot', 'filings_SECFiling', 'filings_Issuer',
         ]);
-        expect(day.node_types.filings_SECFiling).toEqual({ count: 2441, entities: 2441, facts: 24800 });
+        expect(day.node_types.filings_SECFiling).toEqual({
+            count: 2441,
+            entities: 2441,
+            facts: 24800,
+            vocabulary: 'sec/filings',
+        });
         expect(day.edge_types['(filings_SECFiling, filings_hasIssuer, filings_Issuer)']).toMatchObject({
             src_type: 'filings_SECFiling',
             relation: 'filings_hasIssuer',
@@ -274,5 +279,109 @@ describe('daySchema', () => {
 
     it('answers an empty day as an empty schema, which is a day with nothing in it', () => {
         expect(daySchema([], [])).toEqual({ node_types: {}, edge_types: {} });
+    });
+});
+
+//
+// a day's node types carry no uri, and their names can leave the source out:
+// 'jolts_Industry' is a type of 'bls/jolts'. The day's predicates say so, and what
+// they say is what a build's uri says of the same type.
+//
+describe('the vocabulary a day names each node type under', () => {
+    const node = (node_type) => ({ node_type: node_type, count: 1, entities: 1, facts: 1 });
+    const edge = (relation, predicate_uri) => ({
+        src_type: 'jolts_JobOpeningsLevel',
+        relation: relation,
+        dst_type: 'jolts_Industry',
+        count: 1,
+        predicate_uri: predicate_uri,
+    });
+
+    const named = (nodes, edges) => {
+        const day = daySchema(nodes.map(node), edges);
+
+        return Object.fromEntries(Object.keys(day.node_types).map((id) => [id, day.node_types[id].vocabulary]));
+    };
+
+    it('is the vocabulary of the predicates named under its prefix', () => {
+        expect(named(
+            ['jolts_Industry', 'jolts_JobOpeningsLevel', 'bls_enrichment_PriceIndex'],
+            [
+                edge('jolts_hasIndustry', 'https://jefflevesque.com/ontology/bls/jolts/hasIndustry'),
+                edge('bls_enrichment_observedInPeriod', 'https://jefflevesque.com/ontology/bls/enrichment/observedInPeriod'),
+            ]
+        )).toEqual({
+            jolts_Industry: 'bls/jolts',
+            jolts_JobOpeningsLevel: 'bls/jolts',
+            bls_enrichment_PriceIndex: 'bls/enrichment',
+        });
+    });
+
+    it('is nothing for a prefix no predicate is named under', () => {
+        //
+        // market_quotes, sec_common, temporal and weather, on every day published
+        // so far. Their names stand in -- see vocabulary in encoding.js.
+        //
+        expect(named(
+            ['market_quotes_EquitySnapshot'],
+            [edge('jolts_hasIndustry', 'https://jefflevesque.com/ontology/bls/jolts/hasIndustry')]
+        )).toEqual({ market_quotes_EquitySnapshot: undefined });
+    });
+
+    it('is nothing for a prefix named under two vocabularies', () => {
+        //
+        // picking one would be a guess dressed as the tables' answer
+        //
+        expect(named(
+            ['jolts_Industry'],
+            [
+                edge('jolts_hasIndustry', 'https://jefflevesque.com/ontology/bls/jolts/hasIndustry'),
+                edge('jolts_hasRegion', 'https://jefflevesque.com/ontology/jolts/hasRegion'),
+            ]
+        )).toEqual({ jolts_Industry: undefined });
+    });
+
+    it('passes over a predicate that says nothing of a prefix', () => {
+        //
+        // owl:sameAs is the W3C's and every source uses it, and a predicate whose
+        // own name is not the end of its relation's does not say where the
+        // relation's prefix ends.
+        //
+        expect(named(
+            ['owl_Thing', 'jolts_Industry'],
+            [
+                edge('owl_sameAs', 'http://www.w3.org/2002/07/owl#sameAs'),
+                edge('jolts_hasIndustry', 'https://jefflevesque.com/ontology/bls/jolts/inIndustry'),
+            ]
+        )).toEqual({ owl_Thing: undefined, jolts_Industry: undefined });
+    });
+
+    it('is nothing for a relation with no prefix before its name', () => {
+        //
+        // '_hasIndustry' names nothing a node type could be filed under
+        //
+        expect(named(
+            ['jolts_Industry'],
+            [edge('_hasIndustry', 'https://jefflevesque.com/ontology/bls/jolts/hasIndustry')]
+        )).toEqual({ jolts_Industry: undefined });
+    });
+
+    it('is nothing for a node type whose name has no prefix', () => {
+        expect(named(
+            ['Standalone', '_Odd'],
+            [edge('jolts_hasIndustry', 'https://jefflevesque.com/ontology/bls/jolts/hasIndustry')]
+        )).toEqual({ Standalone: undefined, _Odd: undefined });
+    });
+
+    it('is the flat vocabulary a day published before the nesting names', () => {
+        //
+        // every day published before 2026-09-21 names 'ontology/jolts/', and the
+        // build of the same run names its types the same way. Each page reads
+        // what was published for the day it draws.
+        //
+        expect(named(
+            ['jolts_Industry'],
+            [edge('jolts_hasIndustry', 'https://jefflevesque.com/ontology/jolts/hasIndustry')]
+        )).toEqual({ jolts_Industry: 'jolts' });
     });
 });
