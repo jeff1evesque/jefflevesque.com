@@ -105,7 +105,7 @@ describe('the switch', () => {
         page();
 
         expect(toggle()).toHaveAttribute('aria-pressed', 'false');
-        expect(toggle().querySelector('[data-testid="DarkModeOutlinedIcon"]')).not.toBeNull();
+        expect(toggle().querySelector('[data-testid="DarkModeIcon"]')).not.toBeNull();
     });
 
     it('says a dark page asked for by day is for the rest of the day', () => {
@@ -132,7 +132,7 @@ describe('the switch', () => {
         expect(root()).toBe('dark');
         expect(toggle()).toHaveAttribute('aria-pressed', 'true');
         expect(toggle()).toHaveAttribute('title', 'Switch to the light theme');
-        expect(toggle().querySelector('[data-testid="LightModeOutlinedIcon"]')).not.toBeNull();
+        expect(toggle().querySelector('[data-testid="LightModeIcon"]')).not.toBeNull();
     });
 
     it('keeps the choice until the next switch, and the next visit opens in it', () => {
