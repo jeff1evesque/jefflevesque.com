@@ -10,6 +10,11 @@
 //
 // Note: this file should contain a superset of definitions for 'colors.js'.
 //
+// Note: these are the LIGHT theme's colors, as values. The partials after
+//       '_theme.scss' read the neutral ramp and a few accents as the theme's
+//       custom properties instead, so the same rule draws either theme -- see
+//       that partial, and the dark theme's values at the bottom of this one.
+//
 
 $gutter-1: 2rem;
 $mobile-width: 25rem;
@@ -43,6 +48,49 @@ $red-2: #86181d;
 $red-3: #ffdce0;
 $header-font-color: #ddd;
 $header-font-color-hover: #fff;
+
+//
+// the dark theme's colors for the same names, which '_theme.scss' puts in place
+// of the light ones while the page is dark.
+//
+// The neutral ramp keeps its ORDER rather than its values: a higher numeral is
+// further from the page and nearer the text in either theme. So '$gray-6' is
+// the muted text it always was, and '$white-1' the page, whichever way round
+// the page is -- which is what lets a rule written for the light theme draw the
+// dark one without knowing it. '$gray-4' stays nearer the page than '$gray-3',
+// as it is above.
+//
+// The page is a dark gray rather than black, and each step's distance from it
+// is about the distance its light twin keeps from white: muted text is 6.4:1
+// against it where '#777' is 4.5:1 on white, and body text 13:1.
+//
+// The accents that are read as text on the page get lighter here -- links, the
+// green a current page is lit in, and the reds of an error -- since their light
+// values are nearly as dark as the page. '$red-3' is the pink an error sits on,
+// and turns a dark red so the lighter '$red-2' can still be read on it.
+//
+$dark-white-1: #1e1e1e;
+$dark-white-2: #222;
+$dark-gray-1: #2a2a2a;
+$dark-gray-2: #363636;
+$dark-gray-4: #3c3c3c;
+$dark-gray-3: #444;
+$dark-gray-5: #5a5a5a;
+$dark-gray-6: #a0a0a0;
+$dark-gray-7: #d0d0d0;
+$dark-gray-8: #e6e6e6;
+$dark-gray-9: #f0f0f0;
+$dark-green-6: #6cc259;
+$dark-blue-hyperlink: #6cb6ff;
+$dark-red-1: #ff8a8a;
+$dark-red-2: #ff9b9f;
+$dark-red-3: #4a1f24;
+
+//
+// body text, which Bootstrap sets and the light theme never overrides
+//
+$body-text: #212529;
+$dark-body-text: #e3e3e3;
 
 //
 // usermenu
