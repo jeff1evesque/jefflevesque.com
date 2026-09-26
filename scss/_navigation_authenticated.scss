@@ -6,6 +6,10 @@
 //
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
+//
+// Note: the ink on the header's black bars and menus is held '-fixed' -- they
+//       are black in either theme. What sits on the page, the desktop header's
+//       own links among them, follows the theme. See '_theme.scss'.
 
 #bootstrap-override {
   .authenticated {
@@ -75,7 +79,7 @@
           }
 
           .dropdown-item {
-            color: $white-2;
+            color: $white-2-fixed;
             padding: 1rem $user-dropdown-item-side;
           }
 
@@ -83,9 +87,9 @@
           a.dropdown-item:active,
           a.dropdown-item:focus,
           a.dropdown-item:visited {
-            background-color: $gray-7;
+            background-color: $gray-7-fixed;
             border-left: $menu-border-left solid green;
-            color: $white-1;
+            color: $white-1-fixed;
             padding-left: $user-dropdown-item-side - $menu-border-left !important;
           }
         }
