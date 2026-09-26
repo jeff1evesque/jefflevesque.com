@@ -29,7 +29,8 @@ import GraphCluster, {
     GRAPH_TOP_PAD,
     EDGE_MARGIN,
 } from '../../import/animation/graph-cluster.jsx';
-import { colors } from '../../import/general/colors.js';
+import { colors, colors_dark } from '../../import/general/colors.js';
+import * as d3 from 'd3';
 import { glintDelay } from '../../import/animation/breath.js';
 import schema from '../fixtures/graph-schema.mock.json';
 
@@ -349,6 +350,97 @@ describe('nodeColor', () => {
         const { namespace } = page.nodes[0];
 
         expect(page.nodeColor(namespace)).toBe(page.namespaceColors.get(namespace));
+    });
+});
+
+//
+// the backdrop on a dark page -- see theme-mode.jsx. What it does with color is the
+// same, turned round: a resting node sits most of the way to the PAGE, which is
+// dark, and the neighborhood the pointer lights stands out from it by coming up
+// lighter rather than deeper.
+//
+describe('on a dark page', () => {
+    function dark() {
+        const held = React.createRef();
+        const utils = render(<GraphCluster ref={held} data={schema} theme='dark' />);
+
+        return { ...utils, page: held.current };
+    }
+
+    const lightness = (color) => d3.hsl(color).l;
+
+    it('rests every node most of the way to the dark page, as a light one rests them toward white', () => {
+        const { page } = dark();
+        const { namespace } = page.nodes[0];
+        const own = page.nodeColor(namespace);
+
+        expect(page.mutedColor(namespace)).toBe(d3.interpolateRgb(own, colors_dark['white-1'])(0.62));
+        expect(lightness(page.mutedColor(namespace))).toBeLessThan(lightness(own));
+    });
+
+    it('lights the pointed-at neighborhood lighter than its own color, and the node itself lightest', () => {
+        const { page } = dark();
+        const link = page.links[0];
+        const self = link.source.id ? link.source.id : link.source;
+        const neighbor = link.target.id ? link.target.id : link.target;
+
+        page.highlight(self);
+
+        const fills = new Map(
+            page.nodeSel.nodes().map((n, i) => [page.nodes[i].id, n.getAttribute('fill')])
+        );
+        const own = (id) => page.nodeColor(page.nodes.find((n) => n.id === id).namespace);
+
+        expect(lightness(fills.get(neighbor))).toBeGreaterThan(lightness(own(neighbor)));
+        expect(lightness(fills.get(self))).toBeGreaterThan(lightness(own(self)));
+    });
+
+    it('draws the field, the rings and the labels in the dark page\'s grays', () => {
+        const { page } = dark();
+
+        expect(page.bgNodeSel.attr('fill')).toBe(colors_dark['gray-5']);
+        expect(page.bgLinkSel.attr('stroke')).toBe(colors_dark['gray-6']);
+        expect(page.nodeSel.attr('stroke')).toBe(colors_dark['gray-1']);
+        expect(page.labelSel.attr('fill')).toBe(colors_dark['gray-8']);
+        expect(page.labelSel.attr('stroke')).toBe(colors_dark['white-1']);
+    });
+
+    it('hands each node its resting color, for the glint the dark page runs', () => {
+        const { page } = dark();
+
+        page.nodeSel.nodes().forEach((n, i) => {
+            expect(n.style.getPropertyValue('--node-fill')).toBe(page.mutedColor(page.nodes[i].namespace));
+        });
+    });
+
+    it('recolors where it stands when the page changes theme', () => {
+        //
+        // a reader pressed a button in the header; nothing on the screen moves
+        //
+        const held = React.createRef();
+        const { rerender } = render(<GraphCluster ref={held} data={schema} />);
+        const page = held.current;
+        const where = page.nodes.map((n) => [n.x, n.y]);
+        const { namespace } = page.nodes[0];
+
+        rerender(<GraphCluster ref={held} data={schema} theme='dark' />);
+
+        expect(page.nodeSel.nodes()[0].getAttribute('fill')).toBe(page.mutedColor(namespace));
+        expect(page.nodeSel.nodes()[0].style.getPropertyValue('--node-fill')).toBe(page.mutedColor(namespace));
+        expect(page.bgNodeSel.attr('fill')).toBe(colors_dark['gray-5']);
+        expect(page.nodes.map((n) => [n.x, n.y])).toEqual(where);
+
+        rerender(<GraphCluster ref={held} data={schema} theme='light' />);
+
+        expect(page.bgNodeSel.attr('fill')).toBe(colors['gray-5']);
+        expect(lightness(page.nodeSel.nodes()[0].getAttribute('fill'))).toBeGreaterThan(0.5);
+    });
+
+    it('falls back to the dark page\'s quiet gray', () => {
+        const held = React.createRef();
+        render(<GraphCluster ref={held} theme='dark' />);
+
+        expect(held.current.nodeColor('bls')).toBe(colors_dark['gray-5']);
     });
 });
 
