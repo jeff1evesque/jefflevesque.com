@@ -286,7 +286,7 @@ describe('the day details', () => {
         await setup();
 
         expect([...document.querySelectorAll('.graph-details-row dt')].map((dt) => dt.textContent))
-            .toEqual(['Day', 'Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types', 'Run', 'Published']);
+            .toEqual(['Day', 'Run', 'Published', 'Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types']);
     });
 
     //
@@ -294,19 +294,25 @@ describe('the day details', () => {
     // Training graph says when its build ran and finished; the day panel says
     // which run published the day, and when that finished.
     //
-    it('ends with the run that published the day, and when that finished', async () => {
+    it('follows the day with the run that published it, and when that finished', async () => {
+        //
+        // directly under the Day, where the Training graph's panel has its
+        // build's Run and Built: one day shows the same Run on both pages.
+        //
         await setup();
 
-        expect([...document.querySelectorAll('.graph-details-row dt')].slice(-3).map((dt) => dt.textContent))
-            .toEqual(['Edge types', 'Run', 'Published']);
+        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 3).map((dt) => dt.textContent))
+            .toEqual(['Day', 'Run', 'Published']);
         expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
         expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
     });
 
-    it('reads both off the days, before the day\'s rows arrive', async () => {
+    it('reads both off the days, above the totals still on their way', async () => {
         //
         // they come with the picker, as a build's Run and Built come with the
-        // listing -- not a round trip later, with the totals.
+        // listing -- not a round trip later, with the totals. So what is filled
+        // in is one block at the top of the panel, and what waits is the block
+        // below it.
         //
         getTableDay.mockReturnValue(new Promise(() => {}));
 
@@ -314,7 +320,9 @@ describe('the day details', () => {
 
         expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
         expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
-        expect(detail('Entities')).toBe('');
+        expect([...document.querySelectorAll('.graph-details-row')]
+            .map((row) => Boolean(row.querySelector('.graph-pending-bar'))))
+            .toEqual([false, false, false, true, true, true, true, true, true]);
     });
 
     it('follows the picker to another day', async () => {
