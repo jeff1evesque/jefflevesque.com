@@ -40,7 +40,7 @@
 
 import React, { Component } from 'react';
 import * as d3 from 'd3';
-import { colors } from '../general/colors.js';
+import { themeColors } from '../general/colors.js';
 import {
     sourceNamespace,
     assignNamespaceColors,
@@ -92,8 +92,8 @@ const LINK_LIT = 0.95;
 const LINK_DIM = 0.06;
 
 // the ring around the node being pointed at, so it reads as the one the card is
-// about rather than as one more lit neighbor
-const RING = colors['gray-8'];
+// about rather than as one more lit neighbor. In the page's text color, and
+// every other node's edge in the page's own -- see ring and halo below.
 const RING_WIDTH = 2;
 
 /**
@@ -186,6 +186,17 @@ class GraphExplorer extends Component {
         })),
         // a click anywhere on the canvas, so whatever set `emphasis` can let go
         onClear: PropTypes.func,
+        //
+        // the page's theme, which the canvas's own neutrals follow: the edge
+        // a node is cut out of the lines behind it with is the page's color,
+        // the ring around a focused node is the text's, and a raw edge is the
+        // page's quiet gray. See paint.
+        //
+        theme: PropTypes.oneOf(['light', 'dark']),
+    }
+
+    static defaultProps = {
+        theme: 'light',
     }
 
     constructor(props) {
@@ -202,6 +213,8 @@ class GraphExplorer extends Component {
         this.state = { focus: null };
 
         this.buildGraph = this.buildGraph.bind(this);
+        this.nodeColor = this.nodeColor.bind(this);
+        this.paint = this.paint.bind(this);
         this.measure = this.measure.bind(this);
         this.renderD3 = this.renderD3.bind(this);
         this.draw = this.draw.bind(this);
@@ -262,6 +275,19 @@ class GraphExplorer extends Component {
         }
 
         //
+        // the page changed theme, or the palette changed with it. Recolor only,
+        // for the reason the legend's repaint below gives: the layout has not
+        // changed.
+        //
+        if (prevProps.palette !== this.props.palette || prevProps.theme !== this.props.theme) {
+            this.namespaceColors = this.props.palette
+                || assignNamespaceColors(this.nodes, TAIL, this.props.theme);
+            this.paint();
+            this.refocus();
+            return;
+        }
+
+        //
         // the legend asked for something different. Repaint only -- the layout
         // has not changed, and re-running it would move every node on screen
         // because the reader pointed at a word beside the canvas.
@@ -269,6 +295,40 @@ class GraphExplorer extends Component {
         if (prevProps.emphasis !== this.props.emphasis) {
             this.highlight(this.hoveredId != null ? this.hoveredId : this.pinnedId);
         }
+    }
+
+    // a namespace's color, and the page's quiet gray for one the palette lacks
+    nodeColor(namespace) {
+        return this.namespaceColors.get(namespace) || themeColors(this.props.theme)['gray-5'];
+    }
+
+    // the edge every node is cut out of the lines behind it with: the page's
+    halo() {
+        return themeColors(this.props.theme)['white-1'];
+    }
+
+    // and the focused node's, which is the text's
+    ring() {
+        return themeColors(this.props.theme)['gray-8'];
+    }
+
+    /**
+     * color every node and edge, for the palette and the theme in hand.
+     *
+     * Note: each node carries its color twice, as its fill and as '--node-fill'.
+     *       The dark theme's glint lightens a node by mixing that color with
+     *       white, where the light theme's lets the white page show through --
+     *       see graph-node-glint-dark in '_animation.scss' -- and an animation
+     *       cannot read the fill it is animating.
+     */
+    paint() {
+        this.nodeSel
+            .attr('fill', (d) => this.nodeColor(d.namespace))
+            .style('--node-fill', (d) => this.nodeColor(d.namespace));
+
+        this.linkSel.attr('stroke', (d) => originColor(d.origin, this.props.theme));
+
+        this.highlight(this.hoveredId != null ? this.hoveredId : this.pinnedId);
     }
 
     componentWillUnmount() {
@@ -454,7 +514,7 @@ class GraphExplorer extends Component {
 
                 return 1;
             })
-            .attr('stroke', (d) => (d.id === nodeId ? RING : '#ffffff'))
+            .attr('stroke', (d) => (d.id === nodeId ? this.ring() : this.halo()))
             .attr('stroke-width', (d) => (d.id === nodeId ? RING_WIDTH : 1))
             .classed('graph-explorer-node-lit', (d) => hovering && near.has(d.id));
 
@@ -567,7 +627,7 @@ class GraphExplorer extends Component {
         //       always did. It covers a caller holding only a slice -- the suite,
         //       and nothing that ships.
         //
-        this.namespaceColors = this.props.palette || assignNamespaceColors(nodes, TAIL);
+        this.namespaceColors = this.props.palette || assignNamespaceColors(nodes, TAIL, this.props.theme);
 
         const radius = nodeRadius(width);
         nodes.forEach((d) => { d.r = radius; });
@@ -592,7 +652,7 @@ class GraphExplorer extends Component {
         this.linkSel = gLinks.selectAll('line')
             .data(links)
             .join('line')
-            .attr('stroke', (d) => originColor(d.origin))
+            .attr('stroke', (d) => originColor(d.origin, this.props.theme))
             .attr('stroke-width', (d) => (d.origin === 'raw' ? 1 : 1.5))
             .attr('stroke-dasharray', (d) => ORIGIN_DASH[d.origin])
             .attr('opacity', LINK_REST);
@@ -609,8 +669,9 @@ class GraphExplorer extends Component {
             .join('circle')
             .attr('class', 'graph-explorer-node')
             .attr('r', (d) => d.r)
-            .attr('fill', (d) => this.namespaceColors.get(d.namespace) || colors['gray-5'])
-            .attr('stroke', '#ffffff')
+            .attr('fill', (d) => this.nodeColor(d.namespace))
+            .style('--node-fill', (d) => this.nodeColor(d.namespace))
+            .attr('stroke', this.halo())
             .attr('stroke-width', 1)
             .style('animation-delay', (d, index) => glintDelay(index));
 
