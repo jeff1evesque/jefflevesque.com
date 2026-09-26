@@ -31,15 +31,18 @@ which imports one partial per area of the site.
 
 ## Light and dark
 
-Every page is drawn in either theme. A script in the head of
+Every page is drawn in either theme, by the reader's own clock: light from 7 in the
+morning until 7 in the evening, local time, and dark the rest of the day. The switch in
+the header asks for the other theme until the clock's next switch, and the choice is
+kept in the browser's storage until then -- through reloads and in other tabs -- by
+[`jsx/import/general/theme-preference.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/theme-preference.js).
+
+A script in the head of
 [`index.html`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/index.html)
-puts the reader's choice on the root element as `data-theme` before anything is
-painted -- or the system's setting, where they have made none -- and
+puts that theme on the root element as `data-theme` before anything is painted, and
 [`jsx/import/general/theme-mode.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/theme-mode.jsx)
-changes it when the switch in the header is pressed. The choice is kept in the
-browser's storage by
-[`jsx/import/general/theme-preference.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/theme-preference.js),
-so the next visit opens in it.
+keeps it there: it changes it when the switch is pressed, and at 7 o'clock while the
+page is left open.
 
 The stylesheet follows the attribute through custom properties that
 [`scss/_theme.scss`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/scss/_theme.scss)
