@@ -5,20 +5,26 @@
     <meta http-equiv='X-UA-Compatible' content='IE=edge' />
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
     <script>
-      // the theme the reader chose, or the system's where they chose none, on
-      // the page before anything is painted -- so a dark page is never drawn
-      // light first. theme-preference.js keeps the choice under this key.
+      // the theme to draw, on the page before anything is painted -- so a dark
+      // page is never drawn light first: the reader's choice until it lapses,
+      // and otherwise their own clock's, light from 7 in the morning until 7 in
+      // the evening. theme-preference.js keeps the choice under this key.
       (function () {
         var theme = null;
 
         try {
-          theme = window.localStorage.getItem('jefflevesque.theme');
+          var stored = JSON.parse(window.localStorage.getItem('jefflevesque.theme'));
+
+          if (stored && (stored.theme === 'light' || stored.theme === 'dark')
+              && typeof stored.until === 'number' && stored.until > Date.now()) {
+            theme = stored.theme;
+          }
         } catch (e) {}
 
-        if (theme !== 'light' && theme !== 'dark') {
-          theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-            ? 'dark'
-            : 'light';
+        if (!theme) {
+          var hour = new Date().getHours();
+
+          theme = hour >= 7 && hour < 19 ? 'light' : 'dark';
         }
 
         document.documentElement.setAttribute('data-theme', theme);
