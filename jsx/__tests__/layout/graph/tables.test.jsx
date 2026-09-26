@@ -25,6 +25,7 @@ import GraphTables, {
     arrange,
     PENDING_ROWS,
 } from '../../../import/layout/graph/tables.jsx';
+import { originColor } from '../../../import/animation/encoding.js';
 
 //
 // `n` node types across two namespaces with descending counts, and one edge per
@@ -458,6 +459,25 @@ describe('agreeing with the graph above it', () => {
 
         expect(line).not.toBeNull();
         expect(line.getAttribute('stroke')).toBeTruthy();
+    });
+
+    it('draws a raw edge\'s line in the page\'s quiet gray, on either page', () => {
+        //
+        // the legend above draws it in the gray of the page it is on, and the
+        // canvas does too -- see originColor
+        //
+        const raw = () => [...document.querySelectorAll('tbody .graph-tables-origin line')]
+            .find((line) => !line.getAttribute('stroke-dasharray'));
+
+        const { unmount } = setup();
+        fireEvent.click(tab('Edge types'));
+        expect(raw().getAttribute('stroke')).toBe(originColor('raw'));
+        unmount();
+
+        setup({ theme: 'dark' });
+        fireEvent.click(tab('Edge types'));
+        expect(raw().getAttribute('stroke')).toBe(originColor('raw', 'dark'));
+        expect(originColor('raw', 'dark')).not.toBe(originColor('raw'));
     });
 
     it('prints a unification edge as owl:sameAs, the name the legend gives it', () => {
