@@ -472,6 +472,15 @@ describe('the api icons', () => {
         expect(screen.getByRole('link', { name: 'Edge types request' })).toHaveAttribute('href', String(edgeTypes));
     });
 
+    it('mark the two apart, N for the node types and E for the edge types', async () => {
+        await setup();
+
+        const icon = (name) => screen.getByRole('link', { name }).querySelector('svg');
+
+        expect(icon('Node types request')).toHaveAttribute('data-testid', 'DataObjectNIcon');
+        expect(icon('Edge types request')).toHaveAttribute('data-testid', 'DataObjectEIcon');
+    });
+
     it('link the days while no day is selected', async () => {
         getTableDays.mockResolvedValue(null);
 
