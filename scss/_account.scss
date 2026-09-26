@@ -1,0 +1,96 @@
+// _account.scss: what a signed-in reader changes through the account api -- the
+// alarm page's terms and switches, and Account Settings.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: every rule on a mui control carries a parent class. mui injects its own
+//       styles after this stylesheet at the same weight, and a rule of one class
+//       loses to them silently.
+//
+
+//
+// on: the green the header lights the page on screen in, and the tray's icons
+// take under the pointer -- rather than mui's blue, which this site uses for
+// nothing
+//
+.agreement .agreement-accept .MuiCheckbox-root.Mui-checked {
+  color: $green-5;
+}
+
+.alarm-subscriptions {
+  margin-top: 1.25rem;
+
+  .MuiSwitch-switchBase.Mui-checked {
+    color: $green-5;
+  }
+
+  .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track {
+    background-color: $green-5;
+  }
+}
+
+//
+// what the switches are waiting on, and what the api said when it refused
+//
+.alarm-hint,
+.alarm-status {
+  color: $gray-6;
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0;
+}
+
+.alarm-status {
+  margin-top: 1.25rem;
+}
+
+.alarm-problem {
+  color: $red-2;
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0;
+}
+
+//
+// Account Settings: a section per thing the reader keeps, and in the alarm
+// subscriptions, a row per subscription with its Unsubscribe at the end
+//
+.account {
+  .account-section {
+    margin-top: 1.5rem;
+    max-width: 48rem;
+  }
+
+  .account-subscriptions {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  //
+  // what it is at the left, and when it started and the way out at the right. A
+  // narrow screen wraps the second pair under the first, rather than squeezing
+  // the name.
+  //
+  .account-subscription {
+    align-items: center;
+    border-bottom: 1px solid $gray-2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    padding: 0.75rem 0;
+  }
+
+  .account-subscription-since {
+    color: $gray-6;
+    font-variant-numeric: tabular-nums;
+    margin-left: auto;
+  }
+
+  .account-status {
+    color: $gray-6;
+  }
+
+  .account-problem {
+    color: $red-2;
+  }
+}
