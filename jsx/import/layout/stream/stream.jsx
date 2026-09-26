@@ -11,6 +11,8 @@ import BeatLoader from 'react-spinners/BeatLoader';
 import PuffLoader from 'react-spinners/PuffLoader';
 import LoopIcon from '@mui/icons-material/Loop';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
+import Tooltip from '@mui/material/Tooltip';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import FormControl from '@mui/material/FormControl';
@@ -40,6 +42,7 @@ import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import streamName from '../../general/stream-name.js';
 import viewerTimeZone from '../../general/viewer-timezone.js';
 import { performanceUrl, API_DOCS } from '../../general/api-url.js';
+import { listSubscriptions } from '../../general/account-api.js';
 import ApiLinks from '../../general/api-links.jsx';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
 import { STOCK_MARKET, STOCK_SPLIT, STREAMS } from '../../general/stream-id.js';
@@ -335,7 +338,12 @@ class StreamLayout extends Component {
             tool_tip_color: '#777',
             performance_link: 'https://www.jefflevesque.com/artifact/performance',
             list_article: list_article,
-            chart_height: chartHeight()
+            chart_height: chartHeight(),
+            //
+            // how many of each stream's alarms the reader holds, by stream id --
+            // see loadSubscriptions. Empty signed out, and until they arrive.
+            //
+            subscriptions: {}
         }
 
         this.updateMetrics = this.updateMetrics.bind(this);
@@ -351,6 +359,7 @@ class StreamLayout extends Component {
         this.initializeChartScale = this.initializeChartScale.bind(this);
         this.reset_stream = this.reset_stream.bind(this);
         this.updateChartHeight = this.updateChartHeight.bind(this);
+        this.loadSubscriptions = this.loadSubscriptions.bind(this);
     }
 
     componentDidMount() {
@@ -359,6 +368,36 @@ class StreamLayout extends Component {
         });
 
         window.addEventListener('resize', this.updateChartHeight);
+        this.loadSubscriptions();
+    }
+
+    //
+    // how many of each stream's alarms the reader holds, for the bells in the
+    // listing -- see getControlTray. Signed out, subscribed to nothing, or asking a
+    // service that could not answer, every bell stays as it was: a bell that cannot
+    // say anything says nothing.
+    //
+    // Note: the listing's rows are built ahead of time, so the bells are redrawn by
+    //       rebuilding the listing once the counts are in.
+    //
+    loadSubscriptions() {
+        listSubscriptions()
+            .then((subscriptions) => {
+                if (!subscriptions || !subscriptions.length) {
+                    return;
+                }
+
+                const held = {};
+
+                subscriptions.forEach((subscription) => {
+                    held[subscription.stream] = (held[subscription.stream] || 0) + 1;
+                });
+
+                this.setState({ subscriptions: held }, () => this.updateStreamListing());
+            })
+            .catch((error) => {
+                console.log(`Error (account api): the subscriptions could not be listed, ${error.message}`);
+            });
     }
 
     componentWillUnmount() {
@@ -493,13 +532,40 @@ class StreamLayout extends Component {
 
                 <span className='border-circle-radius'>
                     <Link to={`/stream/${stream}/alarm`}>
-                        <NotificationsIcon
-                            className='control-icon notification'
-                            fontSize={font_size}
-                        />
+                        {this.alarmBell(stream, font_size)}
                     </Link>
                 </span>
             </div>
+        );
+    }
+
+    //
+    // the bell says whether the reader is subscribed to any of the stream's alarms:
+    // ringing, and held in green, when they are, with how many under the pointer.
+    // Either way it leads to the stream's alarm page, where they are changed.
+    //
+    // Note: the listing is first built in the constructor, before there is any state
+    //       to read -- every bell there is the plain one.
+    //
+    alarmBell(stream, font_size) {
+        const held = ((this.state && this.state.subscriptions) || {})[stream] || 0;
+
+        if (!held) {
+            return (
+                <NotificationsIcon
+                    className='control-icon notification'
+                    fontSize={font_size}
+                />
+            );
+        }
+
+        return (
+            <Tooltip title={`Subscribed to ${held} ${held === 1 ? 'alarm' : 'alarms'}`} arrow>
+                <NotificationsActiveIcon
+                    className='control-icon notification subscribed'
+                    fontSize={font_size}
+                />
+            </Tooltip>
         );
     }
 

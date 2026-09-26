@@ -5,7 +5,7 @@
 | UI | React 18, `react-router-dom` 6, Redux, MUI and react-bootstrap |
 | Charts | recharts for area, bar and line charts, D3 for the force-directed graphs |
 | Auth | AWS Amplify `Auth` against Cognito |
-| Data | three public APIs, read in web workers; see [APIs](../api/index.md) |
+| Data | three public APIs, read in web workers, and the account API; see [APIs](../api/index.md) |
 | Bundler | webpack, with `build:prod` and `build:dev` |
 | Styles | scss, compiled separately with `sass` |
 
@@ -14,7 +14,8 @@
 The application is a static bundle. It is compiled into `static/`, published to object
 storage and served through a CDN; there is no server-side rendering and no application
 server. Everything it displays comes from the three public APIs, called from the
-reader's browser at runtime.
+reader's browser at runtime. A signed-in reader's alarm subscriptions are kept by a
+fourth, the account API, whose requests carry the reader's sign-in token.
 
 The JavaScript is compiled from JSX by Babel, with the presets in
 [`jsx/.babelrc`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/.babelrc),

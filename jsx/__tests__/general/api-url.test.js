@@ -1,5 +1,6 @@
 /**
- * api-url.test.js: the requests to the three public apis, and where they are documented.
+ * api-url.test.js: the requests to the three public apis and the account api, and where
+ * they are documented.
  *
  * Two things are held here. The urls are built exactly as the pages have always built
  * them -- the page suites assert the same urls from the outside, through the loaders --
@@ -22,8 +23,12 @@ import {
     datalakeUrl,
     knowledgeGraphUrl,
     knowledgeGraphTablesUrl,
+    alarmsUrl,
+    subscriptionsUrl,
+    subscriptionUrl,
     API,
     ENDPOINTS,
+    ACCOUNT,
     DOCUMENTATION,
     API_DOCS,
     DATASETS,
@@ -327,6 +332,68 @@ describe('knowledgeGraphTablesUrl', () => {
     });
 });
 
+describe('alarmsUrl', () => {
+    it('asks for one stream\'s alarms, on the public path', () => {
+        expect(String(alarmsUrl('bls')))
+            .toBe('https://api.jefflevesque.com/v1/public/alarms?stream=bls');
+    });
+
+    it('names the stream in lower case, as the account api does', () => {
+        //
+        // 'stream', where the performance api takes 'Stream'. Each api's parameters
+        // are its own, and a capitalized one would be a stream it never reads.
+        //
+        expect([...alarmsUrl('stock-market').searchParams.keys()]).toEqual(['stream']);
+    });
+
+    it('encodes a stream rather than interpolating it', () => {
+        expect(alarmsUrl('a&b').searchParams.get('stream')).toBe('a&b');
+    });
+
+    it('can be pointed elsewhere', () => {
+        expect(String(alarmsUrl('sec', 'https://example.com/alarms')))
+            .toBe('https://example.com/alarms?stream=sec');
+    });
+});
+
+describe('the account api', () => {
+    it('lives under the private tier, apart from the public endpoints', () => {
+        //
+        // it answers only a signed-in reader. ENDPOINTS holds the public ones, which
+        // answer anyone -- see 'keeps every endpoint under the one public api'.
+        //
+        expect(ACCOUNT).toBe('https://api.jefflevesque.com/v1/private/account');
+        expect(Object.values(ENDPOINTS)).not.toContain(ACCOUNT);
+    });
+
+    it('lists the reader\'s subscriptions, naming no one', () => {
+        //
+        // who is asking is read from the token the request carries, so nothing in
+        // the url says it
+        //
+        expect(String(subscriptionsUrl()))
+            .toBe('https://api.jefflevesque.com/v1/private/account/subscriptions');
+    });
+
+    it('names one subscription by its stream and alarm, in the path', () => {
+        expect(String(subscriptionUrl('us-national-weather', 'ingest')))
+            .toBe('https://api.jefflevesque.com/v1/private/account/subscriptions/us-national-weather/ingest');
+    });
+
+    it('encodes both ids, so neither can name another path', () => {
+        const url = subscriptionUrl('a/b', 'c d');
+
+        expect(url.pathname).toBe('/v1/private/account/subscriptions/a%2Fb/c%20d');
+    });
+
+    it('can be pointed elsewhere', () => {
+        expect(String(subscriptionsUrl('https://example.com/account')))
+            .toBe('https://example.com/account/subscriptions');
+        expect(String(subscriptionUrl('bls', 'ingest', 'https://example.com/account')))
+            .toBe('https://example.com/account/subscriptions/bls/ingest');
+    });
+});
+
 describe('the endpoints and the documentation', () => {
     it('keeps every endpoint under the one public api', () => {
         Object.values(ENDPOINTS).forEach(endpoint => expect(endpoint.startsWith(`${API}/`)).toBe(true));
@@ -337,6 +404,7 @@ describe('the endpoints and the documentation', () => {
             performance: `${DOCUMENTATION}/api/performance/`,
             datalake: `${DOCUMENTATION}/api/datalake/`,
             knowledgeGraph: `${DOCUMENTATION}/api/knowledge-graph/`,
+            account: `${DOCUMENTATION}/api/account/`,
         });
     });
 

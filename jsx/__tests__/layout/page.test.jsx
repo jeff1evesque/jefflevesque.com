@@ -21,6 +21,11 @@
  *
  * Note: '@aws-amplify/auth' is mocked. Several containers reach for the current
  *       user on mount, and unmocked Amplify throws without configuration.
+ *
+ * Note: 'general/account-api.js' is mocked, every call pending. The alarm page, the
+ *       stream listing and Account Settings ask it on mount, and what they do with
+ *       an answer is held in their own suites -- here, an answer landing after the
+ *       assertions would be an update outside act().
  */
 
 import React from 'react';
@@ -39,6 +44,19 @@ jest.mock('@aws-amplify/auth', () => ({
         currentSession: jest.fn().mockRejectedValue(new Error('no session')),
     },
 }));
+
+jest.mock('../../import/general/account-api.js', () => {
+    const pending = () => new Promise(() => {});
+
+    return {
+        __esModule: true,
+        signedIn: jest.fn(pending),
+        listSubscriptions: jest.fn(pending),
+        subscribe: jest.fn(pending),
+        unsubscribe: jest.fn(pending),
+        streamAlarms: jest.fn(pending),
+    };
+});
 
 import user from '../../import/redux/reducer/login.jsx';
 import layout from '../../import/redux/reducer/layout.jsx';

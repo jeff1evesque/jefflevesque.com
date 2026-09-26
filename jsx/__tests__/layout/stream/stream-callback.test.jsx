@@ -16,6 +16,16 @@
  *       page merged and handed on, not what a date-dependent window kept of it.
  */
 
+//
+// signed out: the page asks the account api for the reader's subscriptions on
+// mount, for the bells, and the api's session reader imports Amplify, which jest
+// cannot load unmocked. The bells themselves are held in stream.test.jsx.
+//
+jest.mock('../../../import/general/account-api.js', () => ({
+    __esModule: true,
+    listSubscriptions: jest.fn(() => Promise.resolve(null)),
+}));
+
 import React from 'react';
 import { render, act, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';

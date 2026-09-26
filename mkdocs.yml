@@ -132,6 +132,7 @@ nav:
       - Performance: api/performance.md
       - Datalake: api/datalake.md
       - Knowledge graph: api/knowledge-graph.md
+      - Account: api/account.md
   - Application:
       - Routes: application/routes.md
       - Architecture: application/architecture.md
