@@ -35,7 +35,8 @@ import { Link } from 'react-router-dom';
 import SvgExit from '../../svg/svg-exit.jsx';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
-import { colors, colors_categorical } from '../../general/colors.js';
+import { colors_categorical, themeColors, translucent } from '../../general/colors.js';
+import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import streamName from '../../general/stream-name.js';
 import viewerTimeZone from '../../general/viewer-timezone.js';
 import { performanceUrl, API_DOCS } from '../../general/api-url.js';
@@ -186,6 +187,12 @@ function format_count(value) {
 
 
 class StreamLayout extends Component {
+    //
+    // the page's theme, which the loading chip's green is drawn in. See
+    // theme-mode.jsx.
+    //
+    static contextType = ThemeModeContext;
+
     constructor() {
         super();
 
@@ -1237,7 +1244,7 @@ class StreamLayout extends Component {
                         justifyContent: 'center',
                         padding: isMobile ? '14px 18px' : '18px 24px',
                         borderRadius: 999,
-                        background: 'rgba(255, 255, 255, 0.92)',
+                        background: translucent(themeColors(this.context.theme)['white-1'], 0.92),
                         boxShadow: '0 1px 6px rgba(0, 0, 0, 0.12)'
                     }}
                 >
@@ -1245,9 +1252,10 @@ class StreamLayout extends Component {
                         //
                         // the app's ui accent -- the same green as the selected
                         // row's left border -- rather than a series color, so
-                        // chrome and data do not share one value
+                        // chrome and data do not share one value. The dark
+                        // theme's lighter green on a dark page
                         //
-                        color={colors['green-6']}
+                        color={themeColors(this.context.theme)['green-6']}
                         margin={5}
                         size={isMobile ? 20 : 30}
                         speedMultiplier={0.75}
