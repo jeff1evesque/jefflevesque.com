@@ -228,6 +228,18 @@ function holds(marks, mark) {
 }
 
 //
+// the classes a details row is drawn with: whether it shares its line with its
+// partner, and whether a rule divides it from the rows below -- `pair` and
+// `ruled` in source.js. One function for the panel and its stand-in, which has
+// to lay its rows out as the panel will.
+//
+function detailsRow(row) {
+    return ['graph-details-row', row.pair && 'graph-details-pair', row.ruled && 'graph-details-ruled']
+        .filter(Boolean)
+        .join(' ');
+}
+
+//
 // the menu the picker opens: under the control, aligned with it, and bounded.
 //
 // Bounded is the point. A native <select> hands its options to the operating
@@ -907,10 +919,10 @@ class GraphLayout extends Component {
      *
      * A column changes height when the build changes, when it is dragged
      * narrower -- the namespace grid drops from two abreast to one below 18rem,
-     * which roughly doubles the legend -- when either column folds, and on a
-     * window resize. One observer answers all four the same way; four callers
-     * remembering to recalculate answers three of them until somebody adds a
-     * fifth.
+     * which roughly doubles the legend, and the details' pairs drop to one below
+     * 13.5rem -- when either column folds, and on a window resize. One observer
+     * answers all four the same way; four callers remembering to recalculate
+     * answers three of them until somebody adds a fifth.
      *
      * Note: the headings are watched as well as the bodies, because a column's
      *       height takes in its heading -- see measureColumns. A heading that
@@ -1243,6 +1255,13 @@ class GraphLayout extends Component {
     //       them but the day itself is totalled from the day's rows -- so all
     //       of those wait the way Sources does. See DAY_DETAILS in source.js.
     //
+    // Note: a row marked `pair` shares its line with its partner where the
+    //       column has room for two, which is every row below Sources: a day's
+    //       six totals, and a build's four rows. One marked `ruled` has a light
+    //       rule under it, which both panels draw under Sources. Which rows are
+    //       which is the source's to say, and how they look is the stylesheet's
+    //       -- see '.graph-details' in '_graph.scss'.
+    //
     details(build) {
         if (!build) {
             return null;
@@ -1253,7 +1272,7 @@ class GraphLayout extends Component {
         return (
             <dl className='graph-details'>
                 {this.props.source.rows.map((row, index) => (
-                    <div key={row.label} className='graph-details-row'>
+                    <div key={row.label} className={detailsRow(row)}>
                         <dt>{row.label}</dt>
                         <dd>
                             {row.schema && !whole && this.state.loading
@@ -1294,6 +1313,7 @@ class GraphLayout extends Component {
                 <PendingDetails
                     labels={rows.map((row) => row.label)}
                     widths={rows.map((row) => row.pending || null)}
+                    classes={rows.map(detailsRow)}
                 />
             )
             : <PendingLegend />;
