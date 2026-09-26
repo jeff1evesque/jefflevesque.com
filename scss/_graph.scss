@@ -23,10 +23,10 @@ $graph-columns: 992px;
 // the two reference columns flanking the graph.
 //
 // A clamp rather than a fixed width, so the namespace legend can run two abreast
-// where there is room for it. '.graph-legend-namespaces' auto-fills at an 8.5rem
-// minimum, which resolves to ONE column at 16rem and TWO at 18rem -- so a wide
-// window gets a legend half as tall, a narrow one gets the single column it has
-// room for, and no second media query has to decide which.
+// where there is room for it. '.graph-legend-namespaces' takes as many 8.5rem
+// columns as fit, which resolves to ONE column at 16rem and TWO at 18rem -- so a
+// wide window gets a legend half as tall, a narrow one gets the single column it
+// has room for, and no second media query has to decide which.
 //
 // Note: 24vw reaches 18rem at about 1200px. Below that the clamp holds at 16rem,
 //       which is what keeps the canvas from being squeezed at the breakpoint
@@ -41,6 +41,12 @@ $graph-side: clamp(16rem, 24vw, 18rem);
 // '$graph-side' stays the width the content actually gets.
 //
 $graph-rail-pad: 1.5rem;
+
+//
+// the gap between a reference column's text and the OUTER edge of its tint, the
+// side away from the graph. Added to the column's width as the rail's is.
+//
+$graph-panel-pad: 1rem;
 
 //
 // how much of the page BELOW the canvas is left on screen, and therefore how much
@@ -514,11 +520,20 @@ $graph-held-edge: $green-4;
 // across an opened panel on a phone, where a single column would run a dozen
 // lines long.
 //
+// The columns fill top to bottom, the way an index does, rather than row by row.
+// A name that wraps -- see below -- is two lines tall, and in a grid of rows it
+// made its whole ROW two lines tall: the name beside it sat over a blank line,
+// and the rows below stepped out of rhythm with the column next to them. Filled
+// a column at a time, a wrapped name lengthens only its own column, and every
+// entry keeps the same distance from the next. The ranked order reads down the
+// left column, then the right.
+//
 // Note: 8.5rem is measured against 'market-quotes', which with its swatch and gap
 //       wants about 8.25rem at the body font. Two of these plus the 0.75rem column
 //       gap need 17.75rem, which is why the side column's clamp tops out at 18rem
 //       and not at the 16rem it used to be fixed at: at 16rem the pair does not
-//       fit and auto-fill correctly falls back to one.
+//       fit and the list correctly falls back to one column. 'columns' counts
+//       from the same minimum the grid's auto-fill did.
 //
 // Note: a name longer than its column WRAPS, at its hyphen -- 'sec-' over
 //       'enrichment' -- rather than being cut off. Each namespace names its
@@ -535,13 +550,35 @@ $graph-held-edge: $green-4;
 //
 .graph-legend-namespaces {
   column-gap: 0.75rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  columns: 8.5rem;
 
+  //
+  // spaced with padding rather than the margin every other legend row takes. A
+  // margin at the foot of a column's last entry can be carried over the break --
+  // WebKit carries it -- and starts the next column that much lower than the
+  // first.
+  //
+  li {
+    break-inside: avoid;
+    margin-bottom: 0;
+    padding-bottom: 0.15rem;
+  }
+
+  //
+  // the swatch sits level with the FIRST line of its name. Centered on the whole
+  // name, a wrapped name's swatch dropped between its two lines while the swatch
+  // beside it sat on the first. 1.5em is the line height the body gives every
+  // line of the legend.
+  //
   .graph-legend-entry {
+    align-items: flex-start;
     flex-wrap: nowrap;
     min-width: 0;
     overflow-wrap: anywhere;
+
+    .graph-legend-swatch {
+      margin-top: calc((1.5em - 0.75rem) / 2);
+    }
   }
 }
 
@@ -1269,10 +1306,11 @@ $graph-held-edge: $green-4;
   //       to keep the width it was drawn at inside a canvas that had grown around
   //       it. graph-explorer.jsx watches the box itself -- see watchFrame.
   //
-  // Note: the width carries the padding as well as the rail, so the body inside
-  //       still measures '$graph-side'. Without that the legend loses the ~18rem
-  //       its two-column namespace grid is sized against and silently drops back
-  //       to one column.
+  // Note: the width carries the padding as well as the rail -- the rail's on the
+  //       side facing the graph, and '$graph-panel-pad' on the outer side of the
+  //       tint -- so the body inside still measures '$graph-side'. Without that
+  //       the legend loses the ~18rem its two-column namespace list is sized
+  //       against and silently drops back to one column.
   //
   // Note: the width is a custom property with the clamp as its FALLBACK, so the
   //       stylesheet keeps the default and a column the reader has dragged
@@ -1282,7 +1320,7 @@ $graph-held-edge: $green-4;
   //
   .graph-panel {
     position: relative;
-    width: var(--graph-panel-width, calc(#{$graph-side} + #{$graph-rail-pad}));
+    width: var(--graph-panel-width, calc(#{$graph-side} + #{$graph-rail-pad} + #{$graph-panel-pad}));
   }
 
   //
@@ -1427,10 +1465,10 @@ $graph-held-edge: $green-4;
   // what makes it read as a control rather than as a label, and the whole rail is
   // the target that opens it.
   //
-  // Note: stretched to the row, which is the canvas's height. 'align-items:
-  //       start' above leaves an OPEN panel at its content height on purpose --
-  //       see the rule below -- and a rail as tall as its own two words would be
-  //       a green sticker beside a 600px graph rather than a column that is shut.
+  // Note: stretched to the row, which is the canvas's height, as an open panel
+  //       is for its tint -- see below. A rail as tall as its own two words would
+  //       be a green sticker beside a 600px graph rather than a column that is
+  //       shut.
   //
   // Note: the flex here and on the heading are what let the button fill that
   //       height. The button is a grandchild -- panel, h6, button -- so it
@@ -1515,11 +1553,11 @@ $graph-held-edge: $green-4;
   //
   // the rule between two columns sits on the REFERENCE column, not on the canvas.
   //
-  // Drawn down the canvas it ran the full height of the graph, which is a couple
-  // of hundred pixels taller than the text beside it -- so each rule overhung its
-  // neighbor's last line and read as a line with nothing next to it. On the
-  // panel it ends where that panel's own content ends, and nothing needs its
-  // height matched to anything.
+  // It is the inner edge of the column's tint, and runs the tint's full height,
+  // which is the graph's. Down a bare page, a rule that tall overhung its
+  // column's last line by a couple of hundred pixels and read as a line with
+  // nothing next to it; beside a tint it is simply where the tint stops, and the
+  // drag strip and the fold arrow still live on it.
   //
   // Note: on the OPEN state specifically. A folded column is a green rail with no
   //       text column of its own, so the rail padding would widen it by 1.5rem of
@@ -1528,12 +1566,67 @@ $graph-held-edge: $green-4;
   //
   .graph-panel-build.graph-panel-open {
     border-right: 1px solid $gray-2;
+    padding-left: $graph-panel-pad;
     padding-right: $graph-rail-pad;
   }
 
   .graph-panel-legend.graph-panel-open {
     border-left: 1px solid $gray-2;
     padding-left: $graph-rail-pad;
+    padding-right: $graph-panel-pad;
+  }
+
+  //
+  // an open reference column, tinted a step off the page -- darker than white by
+  // day, lighter than the dark page by night -- so the graph between the two is
+  // the thing on the page to look at.
+  //
+  // Stretched to the row, so the two read as side panels either side of the
+  // graph rather than as cards parked beside it: a tint that stopped where its
+  // text did would end a couple of hundred pixels above the graph's foot. The
+  // top padding keeps the column's heading off the tint's top edge, as the outer
+  // padding keeps its text off the outer one.
+  //
+  // Note: no padding at the foot. measureColumns reads a column from the top of
+  //       its panel to the bottom of its body, and that reading is the canvas's
+  //       floor: padding under the body would be height the reading cannot see,
+  //       and the last stretch of a drag toward the floor would move nothing.
+  //
+  .graph-panel-open {
+    align-self: stretch;
+    background-color: $graph-panel;
+    padding-top: 0.75rem;
+
+    @include dark {
+      background-color: $dark-graph-panel;
+    }
+
+    //
+    // the column's gray labels, a shade darker on the tint by day -- see
+    // '$graph-panel-label'. By night the theme's own '$gray-6' is already 5.9:1
+    // on the dark tint.
+    //
+    // Note: not the heading's summary, which is drawn only while the column is
+    //       folded -- and a folded column is a green rail, with no tint.
+    //
+    .graph-details dt,
+    .graph-legend h6,
+    .graph-legend-note {
+      color: $graph-panel-label;
+
+      @include dark {
+        color: $gray-6;
+      }
+    }
+
+    //
+    // a legend row under the pointer, a step darker than it is on the page:
+    // '$gray-1' is all but the tint's own color in either theme. A held row keeps
+    // its green.
+    //
+    .graph-legend-entry:not([aria-pressed='true']):hover {
+      background-color: $gray-2;
+    }
   }
 
 }
