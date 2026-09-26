@@ -33,6 +33,7 @@ jest.mock('react-device-detect', () => ({
 }));
 
 import StockMarketFeatured from '../../../../import/layout/stream/featured/stock-market.jsx';
+import { ThemeModeContext } from '../../../../import/general/theme-mode.jsx';
 
 //
 // the fourteen series the api reports and get_filtered_data/candlestick.js zero
@@ -240,5 +241,34 @@ describe('the dots control', () => {
         setup();
 
         expect(document.querySelector('.alice-carousel__dots')).toBeNull();
+    });
+});
+
+//
+// the carousel's arrows sit on a shade of the page's ink: black on a light page,
+// and white on a dark one, where a black shade could not be seen
+//
+describe('the arrows', () => {
+    const arrows = () => [
+        document.querySelector('[data-testid="ArrowBackIosIcon"]'),
+        document.querySelector('[data-testid="ArrowForwardIosIcon"]'),
+    ];
+
+    it.each([
+        ['light', 'rgba(0, 0, 0, 0.1)'],
+        ['dark', 'rgba(255, 255, 255, 0.1)'],
+    ])('sit on a shade the %s page shows', (theme, shade) => {
+        render(
+            <ThemeModeContext.Provider value={{ theme: theme, toggle: () => {} }}>
+                <MemoryRouter>
+                    <StockMarketFeatured />
+                </MemoryRouter>
+            </ThemeModeContext.Provider>
+        );
+
+        arrows().forEach((arrow) => {
+            expect(arrow).not.toBeNull();
+            expect(arrow.style.backgroundColor).toBe(shade);
+        });
     });
 });
