@@ -1,16 +1,24 @@
 # APIs
 
 Every page that shows data reads it from one of three public APIs, called from the
-reader's browser at runtime. The application has no server of its own between them.
+reader's browser at runtime. A signed-in reader's alarm subscriptions are kept by a
+fourth, the account API, which answers only them. The application has no server of its
+own between any of them.
 
 | API | Endpoint | Read by |
 |---|---|---|
 | [Performance](performance.md) | `https://api.jefflevesque.com/v1/public/performance` | `/stream` |
-| [Datalake](datalake.md) | `https://api.jefflevesque.com/v1/public/datalake` | `/data`, `/stream/:stream/alarm` |
+| [Datalake](datalake.md) | `https://api.jefflevesque.com/v1/public/datalake` | `/data` |
 | [Knowledge graph](knowledge-graph.md) | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` |
 | [Knowledge graph tables](knowledge-graph.md#response-the-tables) | `https://api.jefflevesque.com/v1/public/knowledge-graph/tables/<question>` | `/graph/retrieval` — see below |
+| [Account](account.md) | `https://api.jefflevesque.com/v1/private/account` | `/stream/:stream/alarm`, `/stream`, `/:user/settings` |
 
 ## What they share
+
+The three public APIs share all of the below. The account API shares only the envelope
+and the errors inside it: it takes a CORS preflight, its requests carry a sign-in token,
+and it answers this site's origin alone. See [Account](account.md).
+
 
 - **GET, with a query string.** Each is a single endpoint read with a GET request, and
   every parameter the application sends goes in the query string.
@@ -29,7 +37,8 @@ reader's browser at runtime. The application has no server of its own between th
 
 Every URL the application fetches from these APIs is built in
 [`jsx/import/general/api-url.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/api-url.js),
-by `performanceUrl`, `datalakeUrl`, `knowledgeGraphUrl` and `knowledgeGraphTablesUrl`.
+by `performanceUrl`, `datalakeUrl`, `knowledgeGraphUrl` and `knowledgeGraphTablesUrl`,
+and for the account API by `alarmsUrl`, `subscriptionsUrl` and `subscriptionUrl`.
 
 The charts on `/stream` and `/data`, and the graphs on `/graph` and `/graph/retrieval`,
 carry icons built from the same functions: a book, which opens that API's page here,
@@ -64,7 +73,7 @@ facts.
 
 ## How these pages are kept true
 
-Each API's page renders an OpenAPI document from
+Each public API's page renders an OpenAPI document from
 [`documentation/api/openapi/`](https://github.com/jeff1evesque/jefflevesque.com/tree/master/documentation/api/openapi),
 and three test suites hold those documents to the application:
 
@@ -78,6 +87,9 @@ and three test suites hold those documents to the application:
 - [`jsx/__tests__/general/api-examples.test.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/__tests__/general/api-examples.test.js)
   feeds each documented example through the loader that reads the real response, so an
   example the application could not read fails there.
+
+The account API's page renders no OpenAPI document, since a private request needs a
+signed-in reader's token.
 
 These pages describe what a caller sends and receives. How each service is built is
 not documented here.
