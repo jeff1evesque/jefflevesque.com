@@ -21,7 +21,7 @@
  * page around underneath the reader.
  *
  * Note: nothing here invents a value. The build panel's stand-in carries the
- *       row LABELS, which are the same seven whatever build loads, and leaves
+ *       row LABELS, which are the same eight whatever build loads, and leaves
  *       every value blank; a placeholder that guessed '10.4M' would be a wrong
  *       answer on screen rather than an honest wait.
  *
@@ -87,25 +87,33 @@ PendingBar.propTypes = {
 };
 
 //
-// the build picker, before there is a listing to choose from. It wears the
-// control's own class so it takes the same border, height and font, and is
-// spaced by '.graph-pending-picker' -- the padding the real one carries is on
-// the element mui draws the value into, which is not this.
+// the picker, before there is a listing to choose from. It wears the control's
+// own class so it takes the same border, height and font, and is spaced by
+// '.graph-pending-picker' -- the padding the real one carries is on the element
+// mui draws the value into, which is not this.
 //
-export function PendingPicker() {
+// Note: `width` is the source's, as a details row's stand-in can take its own
+//       -- see PendingDetail. It was 11rem on both pages, sized for a build's
+//       run time, and both pickers now show a day, which is about half that.
+//
+export function PendingPicker({ width }) {
     return (
         <span className='graph-picker graph-pending graph-pending-picker' aria-hidden='true'>
-            <PendingBar width='11rem' />
+            <PendingBar width={width} />
         </span>
     );
 }
 
+PendingPicker.propTypes = {
+    width: PropTypes.string.isRequired,
+};
+
 //
-// what each of the build panel's seven values roughly measures, in the order
-// the panel lists them: two counts, a source list, two timestamps, a dataset
-// name and a variant.
+// what each of the build panel's eight values roughly measures, in the order
+// the panel lists them: a day, two counts, a source list, two timestamps, a
+// dataset name and a variant.
 //
-const DETAIL_WIDTHS = ['4.5rem', '5.5rem', '7rem', '9rem', '9rem', '6rem', '3.5rem'];
+const DETAIL_WIDTHS = ['6rem', '4.5rem', '5.5rem', '7rem', '9rem', '9rem', '6rem', '3.5rem'];
 
 /**
  * one of the build panel's values that has not arrived, by its row.
