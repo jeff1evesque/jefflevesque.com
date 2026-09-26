@@ -196,17 +196,20 @@ function buildDay(build, days) {
 // same labels -- see pending.jsx. Two copies of them drift apart the first time
 // a row is added to one of them.
 //
-// Note: 'Day' leads, and is the day the picker names the build by, which list()
-//       gives each choice. Every other row describes the BUILD, and Run still
-//       says when it ran -- which is not that day.
+// Note: the three dates lead. 'Day' is the day the picker names the build by,
+//       which list() gives each choice, and 'Run' and 'Built' are when the build
+//       ran and when it finished -- which is not that day: the build run on
+//       09-25 holds 09-24. The day panel opens with its Day and Run in the same
+//       place, and one day shows the same Run on both pages, so that is where
+//       the two line up. The rows below them describe what the build holds.
 //
 const DETAILS = [
     { label: 'Day', read: (build) => build.day },
+    { label: 'Run', read: (build) => when(build.run) },
+    { label: 'Built', read: (build) => when(build.built) },
     { label: 'Nodes', read: (build) => count(build.nodes) },
     { label: 'Edges', read: (build) => count(build.edges) },
     { label: 'Sources', read: graphSources, schema: true },
-    { label: 'Run', read: (build) => when(build.run) },
-    { label: 'Built', read: (build) => when(build.built) },
     { label: 'Dataset', read: (build) => build.dataset },
     { label: 'Variant', read: (build) => build.variant },
 ];
@@ -387,29 +390,35 @@ function total(types, measure = 'count') {
 // A build's listing entry describes the build before its schema arrives -- how
 // many nodes, when it ran. A day's describes the day and where it came from: the
 // run that published it, and when that finished. Those three rows fill in with
-// the picker, as a build's Run and Built do. Every other row is TOTALLED from the
-// day's own rows, and waits for them: `schema` on each.
+// the picker, as a build's Run and Built do, and lead the panel, so what is on
+// screen with the picker is one block and what waits is the block below it.
+// Every other row is TOTALLED from the day's own rows, and waits for them:
+// `schema` on each.
 //
 // `pending` is the width a row's value is drawn at while it waits, as pending.jsx
-// does for the build panel's: a date, totals in the thousands and the millions,
-// two counts of types in the hundreds, and two timestamps at the width the build
-// panel gives its own.
-//
-// Note: 'Entities' and 'Facts' lead, because they are what this graph is drawn
-//       by: the nodes that carry text, and so can be found by name, and the
-//       values held about them. 'Nodes' and 'Edges' are every node and every
-//       edge the day holds, the figures the build panel's first two rows give
-//       for a build. 'Node types' and 'Edge types' are what the canvas and the
-//       tables below it count.
+// does for the build panel's: a date, two timestamps at the width the build panel
+// gives its own, totals in the thousands and the millions, and two counts of
+// types in the hundreds.
 //
 // Note: 'Run' is the run that published the day, and it is the Run of the build
 //       the Training graph names by the same day: the two graphs of a day are
-//       one run's work. 'Published', not 'Built', because what the tables
-//       record is when a day finished publishing, which is when it became
-//       readable -- not when its tables were written, which nothing records.
+//       one run's work. Both panels put it directly under their Day, which is
+//       where a reader lines the two pages up. 'Published', not 'Built', because
+//       what the tables record is when a day finished publishing, which is when
+//       it became readable -- not when its tables were written, which nothing
+//       records.
+//
+// Note: 'Entities' and 'Facts' lead the totals, because they are what this graph
+//       is drawn by: the nodes that carry text, and so can be found by name, and
+//       the values held about them. 'Nodes' and 'Edges' are every node and every
+//       edge the day holds, the figures the build panel's rows of those names
+//       give for a build. 'Node types' and 'Edge types' are what the canvas and
+//       the tables below it count.
 //
 const DAY_DETAILS = [
     { label: 'Day', read: (day) => day.id, pending: '6rem' },
+    { label: 'Run', read: (day) => when(day.run), pending: '9rem' },
+    { label: 'Published', read: (day) => when(day.published), pending: '9rem' },
     {
         label: 'Entities',
         read: (day, whole) => whole && count(total(whole.node_types, 'entities')),
@@ -436,8 +445,6 @@ const DAY_DETAILS = [
         schema: true,
         pending: '2rem',
     },
-    { label: 'Run', read: (day) => when(day.run), pending: '9rem' },
-    { label: 'Published', read: (day) => when(day.published), pending: '9rem' },
 ];
 
 const DAYS = {
