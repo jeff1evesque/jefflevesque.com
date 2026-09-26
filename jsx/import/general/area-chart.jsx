@@ -28,8 +28,15 @@ import checkValidInt from '../validator/valid-int.js';
 import checkValidFloat from '../validator/valid-float.js';
 import checkValidBool from '../validator/valid-bool.js';
 import { colors_categorical, color_tail } from './colors.js';
+import { ThemeModeContext } from './theme-mode.jsx';
 
 class StackedAreaChart extends Component {
+    //
+    // the page's theme, which the long tail of series is shaded for. See
+    // color_tail.
+    //
+    static contextType = ThemeModeContext;
+
     // prob validation: static method, similar to class A {}; A.b = {};
     static propTypes = {
         data: PropTypes.array,
@@ -445,7 +452,8 @@ class StackedAreaChart extends Component {
                                 ? this.state.color[i]
                                 : color_tail(
                                     i - this.state.color.length,
-                                    Math.max(this.state.data_keys.length - this.state.color.length, 0)
+                                    Math.max(this.state.data_keys.length - this.state.color.length, 0),
+                                    this.context.theme
                                 );
 
                             {/*
