@@ -177,9 +177,17 @@
 }
 
 //
-// the light and dark switch -- see theme-toggle.jsx. An icon the size of the
-// header's own, gray at rest and green under the pointer, as the house and the
-// menu icons beside it are.
+// the light and dark switch -- see theme-toggle.jsx. Gray at rest and green under
+// the pointer, as the house and the menu icons beside it are.
+//
+// 1.5rem is the size of the site's other mui icons -- 21px at this site's 14px
+// root -- and the padding around it makes a 35px target. The right margin is the
+// one the phone's menu button keeps off the edge of the screen: the switch sits
+// that far from the button on a phone, and from 'Login in' on a wide screen.
+// Nearer than that it read as one of theirs -- beside 'Login in', which has no
+// outline of its own, the moon could pass for Login's icon.
+//
+// Under the pointer a wash rounds out the target, in the page's own ink.
 //
 // Note: the ink follows the page wherever the switch sits on the page, and is
 //       held '-fixed' where it sits on one of the black bars.
@@ -191,13 +199,14 @@
   border-radius: 50%;
   color: $gray-6;
   display: inline-flex;
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   justify-content: center;
-  margin-right: 0.5rem;
-  padding: 0.3rem;
+  margin-right: 1rem;
+  padding: 0.5rem;
   vertical-align: middle;
 
   &:hover {
+    background-color: rgba(var(--ink-rgb), 0.06);
     color: $green-5;
   }
 
@@ -210,11 +219,15 @@
 // on a black bar: the phone's header, and the signed-in one at every width,
 // pushed to the far end beside what ends the bar.
 //
+// Note: its wash is white in either theme, as the bar is black in either. The
+//       page's '--ink-rgb' is black by day, and would not show here.
+//
 .theme-toggle-bar {
   color: $header-font-color;
   margin-left: auto;
 
   &:hover {
+    background-color: rgba(255, 255, 255, 0.12);
     color: $header-font-color-hover;
   }
 }

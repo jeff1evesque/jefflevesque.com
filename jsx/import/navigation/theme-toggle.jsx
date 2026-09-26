@@ -5,6 +5,14 @@
  * light, and a sun while it is dark. That is the convention mui's own pages
  * keep, and the one a reader is most likely to have met.
  *
+ * Solid rather than outlined. The outlines were a line under 2px thick at this
+ * size, beside the header's solid house, and a reader could pass over them: their
+ * gray was never the trouble -- it clears 4.5:1 on every surface the switch sits
+ * on -- their weight was. The solid glyphs carry about twice the ink in the same
+ * grays. A disc behind the outline was the other way to add weight, and fails on
+ * one surface or another: black vanishes on the black bars, white on the white
+ * page, and yellow would read as part of the construction banner.
+ *
  * Its name says what it IS, 'Dark theme', and 'aria-pressed' says whether that
  * is on, so a screen reader hears one control with a state rather than a label
  * that changes under it. The tooltip says what pressing it will do, which is
@@ -23,15 +31,15 @@
 
 import React, { useContext } from 'react';
 import PropTypes from 'prop-types';
-import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
-import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
 import { ThemeModeContext } from '../general/theme-mode.jsx';
 
 function ThemeToggle({ className }) {
     const { theme, scheduled, toggle } = useContext(ThemeModeContext);
     const dark = theme === 'dark';
     const next = dark ? 'light' : 'dark';
-    const Icon = dark ? LightModeOutlinedIcon : DarkModeOutlinedIcon;
+    const Icon = dark ? LightModeIcon : DarkModeIcon;
     const title = next === scheduled
         ? `Switch to the ${next} theme`
         : `Switch to the ${next} theme for the rest of the ${scheduled === 'light' ? 'day' : 'night'}`;

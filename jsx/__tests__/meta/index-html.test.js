@@ -11,6 +11,10 @@
  *
  * Note: under meta/, beside the other suites that read a file of the repository
  *       rather than a module.
+ *
+ * Note: and one thing the page draws rather than runs: the construction banner,
+ *       straight onto the body, whose color is held by its rule in 'style.scss'.
+ *       See the last suite.
  */
 
 const fs = require('fs');
@@ -137,5 +141,25 @@ describe('the theme script', () => {
 
     it('draws the schedule where storage refuses', () => {
         expect(run(at('21:00'), new Error('denied'))[ATTRIBUTE]).toBe('dark');
+    });
+});
+
+describe('the construction banner', () => {
+    //
+    // drawn straight onto the body, outside the react container, so it takes the
+    // page's text color unless its rule gives it one -- and on a dark page that is
+    // a light gray, 1.1:1 on the banner's yellow
+    //
+    const STYLE = path.join(__dirname, '..', '..', '..', 'scss', 'style.scss');
+    const source = fs.readFileSync(STYLE, 'utf8').replace(/\/\/.*$/gm, '');
+    const rule = (source.match(/(^|\s)\.under-construction\s*\{([^}]*)\}/) || [])[2];
+
+    it('is drawn by the page', () => {
+        expect(html).toContain(`class='under-construction'`);
+    });
+
+    it('holds its text at the fixed near-black on its yellow, in either theme', () => {
+        expect(rule).toMatch(/background-color\s*:\s*#ffd733\s*;/);
+        expect(rule).toMatch(/(^|\s)color\s*:\s*\$gray-9-fixed\s*;/);
     });
 });

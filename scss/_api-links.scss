@@ -31,6 +31,22 @@
   &:focus-visible {
     color: $gray-9;
   }
+
+  //
+  // the refresh icon's own gray on a dark page, which is the color these take
+  // from it: '#555' is 2.2:1 on the dark page, under the 3:1 a control needs,
+  // and '$gray-6' is 6.4:1 there.
+  //
+  // Note: the hover is said again, because this rule outranks the one above.
+  //
+  @include dark {
+    color: $gray-6;
+
+    &:hover,
+    &:focus-visible {
+      color: $gray-9;
+    }
+  }
 }
 
 //

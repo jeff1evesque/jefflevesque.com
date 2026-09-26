@@ -93,6 +93,19 @@ $body-text: #212529;
 $dark-body-text: #e3e3e3;
 
 //
+// the graph pages' side columns, tinted a step off the page -- darker than white
+// by day, lighter than the dark page by night -- so the graph between them is the
+// thing to look at. See the reference columns in '_graph.scss'.
+//
+// And the gray their labels take on the tint by day. '$gray-6' is 4.1:1 on
+// '$graph-panel', under the 4.5:1 small text needs; this is 5.1:1. By night
+// '$gray-6' is already 5.9:1 on '$dark-graph-panel', and stays.
+//
+$graph-panel: #f6f6f6;
+$dark-graph-panel: #252525;
+$graph-panel-label: #696969;
+
+//
 // usermenu
 //
 $menu-border-left: 0.5rem;
