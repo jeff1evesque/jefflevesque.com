@@ -21,6 +21,8 @@ import { render, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import DataLayout from '../../../import/layout/data/data.jsx';
+import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
+import { colors, colors_dark, toRGB } from '../../../import/general/colors.js';
 
 function setup() {
     const held = React.createRef();
@@ -321,5 +323,94 @@ describe('the stock-split breakdown', () => {
         expect(page.state.distribution_detail_rows).toEqual([
             { name: 'splits', value: 3, color: '#0f0' },
         ]);
+    });
+});
+
+//
+// a distribution's bars carry both themes' colors -- they differ only in the
+// shaded tail -- and the page draws whichever its theme is. See barColor.
+//
+describe('on a dark page', () => {
+    function setupIn(theme) {
+        const held = React.createRef();
+
+        render(
+            <ThemeModeContext.Provider value={{ theme: theme, toggle: () => {} }}>
+                <MemoryRouter>
+                    <DataLayout ref={held} />
+                </MemoryRouter>
+            </ThemeModeContext.Provider>
+        );
+
+        return held.current;
+    }
+
+    const bars = {
+        'data_distribution_stock-market_bar': [
+            { data_key: 'biotechnology', color: '#111', color_dark: '#aaa' },
+            { data_key: 'semiconductors', color: '#222' },
+        ],
+    };
+
+    it('lists each series in its bar\'s dark color, where the bar has one', () => {
+        const page = primed(setupIn('dark'), bars);
+
+        open(page, { sector: 'healthcare', biotechnology: 10, semiconductors: 30 });
+
+        expect(page.state.distribution_detail_rows).toEqual([
+            { name: 'semiconductors', value: 30, color: '#222' },
+            { name: 'biotechnology', value: 10, color: '#aaa' },
+        ]);
+    });
+
+    it('lists each in its light color on a light page', () => {
+        const page = primed(setupIn('light'), bars);
+
+        open(page, { sector: 'healthcare', biotechnology: 10 });
+
+        expect(page.state.distribution_detail_rows).toEqual([
+            { name: 'biotechnology', value: 10, color: '#111' },
+        ]);
+    });
+
+    it.each([
+        ['light', colors],
+        ['dark', colors_dark],
+    ])('draws the open sheet\'s header and a colorless swatch in the %s page\'s colors', (theme, shade) => {
+        //
+        // the header sticks over the rows as they scroll, so it is a patch of the
+        // page; a series with no color of its own gets the page's gray swatch
+        //
+        const page = setupIn(theme);
+
+        act(() => {
+            page.setState({
+                distribution_detail_open: true,
+                distribution_detail_title: 'healthcare',
+                distribution_detail_rows: [{ name: 'biotechnology', value: 10 }],
+            });
+        });
+
+        const header = [...document.querySelectorAll('div')]
+            .find((div) => div.style.position === 'sticky');
+        const swatch = [...document.querySelectorAll('span')]
+            .find((span) => span.style.width === '12px' && span.style.height === '12px');
+
+        expect(header.style.background).toBe(toRGB(shade['white-1']));
+        expect(header.style.borderBottom).toBe(`1px solid ${shade['gray-1']}`);
+        expect(swatch.style.backgroundColor).toBe(toRGB(shade['gray-3']));
+    });
+
+    it.each([
+        ['light', 'rgba(255, 255, 255, 0.92)', colors['green-6']],
+        ['dark', 'rgba(30, 30, 30, 0.92)', colors_dark['green-6']],
+    ])('draws the loading chip in the %s page\'s own colors', (theme, chip, green) => {
+        setupIn(theme);
+
+        const patch = [...document.querySelectorAll('div')].find((div) => div.style.background === chip);
+
+        expect(patch).toBeDefined();
+        expect([...patch.querySelectorAll('span')].map((dot) => dot.style.backgroundColor))
+            .toContain(toRGB(green));
     });
 });
