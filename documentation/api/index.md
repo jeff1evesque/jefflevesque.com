@@ -35,7 +35,7 @@ The charts on `/stream` and `/data`, and the graphs on `/graph` and `/graph/retr
 carry icons built from the same functions: a book, which opens that API's page here,
 and a pair of braces for each request behind what is on screen, which opens it
 exactly. Because the page's fetch and the icon share one builder, the icon cannot name
-a request the page did not make. The Retrieval graph draws a day from two requests, and
+a request the page did not make. The Retrieval Graph draws a day from two requests, and
 carries a pair of braces for each.
 
 Each set sits with the thing it describes rather than with the page — in a chart's own
@@ -46,7 +46,7 @@ corner, and at the top of the column each graph page draws its graph in.
 Both graph pages show tables of every node type and edge type below the graph, and
 where those rows come from is what tells the two pages apart.
 
-The **Training graph**, `/graph`, reads them out of the selected build's schema, which
+The **Training Graph**, `/graph`, reads them out of the selected build's schema, which
 the page has already fetched in order to draw it, so they add no request and are exact
 for the build in the picker. Its picker names each build by the day of the tables it
 holds, but its rows are **not** that day's tables: those keep four node types every
@@ -55,7 +55,7 @@ It asks the tables API for one thing, its `days`, and only while its listing hol
 build too old to record its own day. See
 [Knowledge graph](knowledge-graph.md#response-a-builds-schema).
 
-The **Retrieval graph**, `/graph/retrieval`, reads them from that API — one day's
+The **Retrieval Graph**, `/graph/retrieval`, reads them from that API — one day's
 `node-types` and `edge-types` — under a picker of **days**, where every row is exact
 for the day selected. It chooses what it draws by what can be looked up rather than by
 how many nodes a type holds, so its node table leads with each type's entities and
