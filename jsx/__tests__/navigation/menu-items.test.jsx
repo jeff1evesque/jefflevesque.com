@@ -17,10 +17,10 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import HomeLink from '../../import/navigation/menu-items/home.jsx';
+import HomeLink, { HomeBrand } from '../../import/navigation/menu-items/home.jsx';
 import { ThemeModeContext } from '../../import/general/theme-mode.jsx';
 import { colors, colors_dark, toRGB } from '../../import/general/colors.js';
 import LoginLink from '../../import/navigation/menu-items/login.jsx';
@@ -85,6 +85,47 @@ describe('HomeLink', () => {
             .map((path) => toRGB(path.style.fill));
 
         expect(fills).toContain(toRGB(gray));
+    });
+});
+
+describe('HomeBrand', () => {
+    //
+    // the house on the header's bar. Its roof is the hover's green on the home
+    // page, and gray until pointed at on every other.
+    //
+    const roof = () => toRGB(screen.getByRole('link').querySelector('path').style.fill);
+
+    it('links to the site root', () => {
+        renderAt(<HomeBrand />, '/stream');
+
+        expect(screen.getByRole('link')).toHaveAttribute('href', '/');
+    });
+
+    it('holds its roof green on the home page, and says that is the page on screen', () => {
+        renderAt(<HomeBrand />, '/');
+
+        expect(roof()).toBe(toRGB(colors['green-3']));
+        expect(screen.getByRole('link')).toHaveAttribute('aria-current', 'page');
+
+        fireEvent.mouseOver(screen.getByRole('link').querySelector('svg'));
+        fireEvent.mouseOut(screen.getByRole('link').querySelector('svg'));
+
+        expect(roof()).toBe(toRGB(colors['green-3']));
+    });
+
+    it.each(['/stream', '/graph', '/graph/retrieval'])('keeps its roof gray on %s until it is pointed at', (path) => {
+        renderAt(<HomeBrand />, path);
+
+        const house = screen.getByRole('link').querySelector('svg');
+
+        expect(roof()).toBe(toRGB(colors['gray-5']));
+        expect(screen.getByRole('link')).not.toHaveAttribute('aria-current');
+
+        fireEvent.mouseOver(house);
+        expect(roof()).toBe(toRGB(colors['green-3']));
+
+        fireEvent.mouseOut(house);
+        expect(roof()).toBe(toRGB(colors['gray-5']));
     });
 });
 

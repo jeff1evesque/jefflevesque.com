@@ -9,10 +9,9 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { Navbar, Nav, NavDropdown } from 'react-bootstrap';
 import { BreakpointRender } from 'rearm/lib/Breakpoint';
-import SvgHome from '../svg/svg-home.jsx';
 import SvgUser from '../svg/svg-user.jsx';
 import SvgBooks from '../svg/svg-books.jsx';
-import { Link } from 'react-router-dom';
+import { HomeBrand } from './menu-items/home.jsx';
 import ThemeToggle from './theme-toggle.jsx';
 import setLogoutState from '../redux/action/logout.jsx';
 import { breakpoints } from '../general/breakpoints.js';
@@ -175,7 +174,7 @@ class UserMenu extends Component {
 
         return(
             <Navbar collapseOnSelect expand='lg' variant='light'>
-                <Navbar.Brand><Link to='/'><SvgHome /></Link></Navbar.Brand>
+                <Navbar.Brand><HomeBrand /></Navbar.Brand>
                 {/*
 
                     the theme switch sits on the bar beside the button that

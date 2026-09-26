@@ -5,12 +5,11 @@
  */
 
 import React, { Component } from 'react';
-import SvgHome from '../svg/svg-home.jsx';
 import SvgBooks from '../svg/svg-books.jsx';
 import SvgUser from '../svg/svg-user.jsx';
 import SvgPencilNote from '../svg/svg-pencil-note.jsx';
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import HomeLink from './menu-items/home.jsx';
+import HomeLink, { HomeBrand } from './menu-items/home.jsx';
 import ThemeToggle from './theme-toggle.jsx';
 import LoginLinkState from '../redux/container/login-link.jsx';
 import RegisterLinkState from '../redux/container/register-link.jsx';
@@ -93,7 +92,7 @@ class HeaderMenu extends Component {
             <Navbar collapseOnSelect expand='lg' className='main-navigation menu-home-desktop'>
                 <div className='row main-navigation-row'>
                     <div className='col-sm-2 home'>
-                        <Navbar.Brand><Link to='/'><SvgHome /></Link></Navbar.Brand>
+                        <Navbar.Brand><HomeBrand /></Navbar.Brand>
                     </div>
                     <div className='col'>
                         <div className='row'>
@@ -147,7 +146,7 @@ class HeaderMenu extends Component {
 
         return (
             <Navbar collapseOnSelect expand='lg' className='main-navigation menu-home menu-home-mobile'>
-                <Navbar.Brand><Link to='/'><SvgHome /></Link></Navbar.Brand>
+                <Navbar.Brand><HomeBrand /></Navbar.Brand>
                 {/*
 
                     on the bar itself, beside the button that opens the menu,

@@ -109,6 +109,29 @@ describe('the home icon', () => {
         expect(fills()).toContain('#111111');
         expect(fills()).not.toContain(colors['green-3']);
     });
+
+    it('holds its roof at the hover green while active, through a hover and after one', () => {
+        //
+        // the header's house on the home page -- see HomeBrand in
+        // menu-items/home.jsx. The pointer leaving must not take the green away.
+        //
+        render(<SvgHome active />);
+
+        expect(fills()).toContain(colors['green-3']);
+
+        fireEvent.mouseOver(iconBy('home'));
+        fireEvent.mouseOut(iconBy('home'));
+
+        expect(fills()).toContain(colors['green-3']);
+        expect(fills()).not.toContain(colors['gray-5']);
+    });
+
+    it('lets a caller\'s roof win over active', () => {
+        render(<SvgHome active roofColor='#111111' />);
+
+        expect(fills()).toContain('#111111');
+        expect(fills()).not.toContain(colors['green-3']);
+    });
 });
 
 describe('the exit icon', () => {

@@ -32,6 +32,7 @@ import { createStore, combineReducers } from 'redux';
 
 import user from '../../import/redux/reducer/login.jsx';
 import HeaderMenu from '../../import/navigation/header-menu.jsx';
+import { colors, toRGB } from '../../import/general/colors.js';
 
 const DESKTOP = 1024;
 const MOBILE = 375;
@@ -322,6 +323,26 @@ describe('the mobile header', () => {
 // theme-toggle.jsx. Beside the control that ends each one: left of Login where
 // there is a Login, and beside the menu button on a phone.
 //
+describe('the house on the bar', () => {
+    //
+    // green-roofed on the home page, and gray-roofed until pointed at on any
+    // other -- see HomeBrand in menu-items/home.jsx
+    //
+    const roof = () => toRGB(document.querySelector('.navbar-brand svg.home path').style.fill);
+
+    it.each([['desktop', DESKTOP], ['mobile', MOBILE]])('has a green roof on the home page, on a %s bar', (name, width) => {
+        renderHeader({ width: width, path: '/' });
+
+        expect(roof()).toBe(toRGB(colors['green-3']));
+    });
+
+    it.each([['desktop', DESKTOP], ['mobile', MOBILE]])('has a gray roof on any other page, on a %s bar', (name, width) => {
+        renderHeader({ width: width, path: '/stream' });
+
+        expect(roof()).toBe(toRGB(colors['gray-5']));
+    });
+});
+
 describe('the theme switch', () => {
     const toggle = () => screen.getByRole('button', { name: 'Dark theme' });
     const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);

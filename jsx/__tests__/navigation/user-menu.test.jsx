@@ -34,15 +34,16 @@ jest.mock('@aws-amplify/auth', () => ({
 
 import Auth from '@aws-amplify/auth';
 import UserMenu from '../../import/navigation/user-menu.jsx';
+import { colors, toRGB } from '../../import/general/colors.js';
 
 const DESKTOP = 1024;
 const MOBILE = 375;
 
-function renderMenu({ user, width = DESKTOP, dispatchLogout = jest.fn() } = {}) {
+function renderMenu({ user, width = DESKTOP, dispatchLogout = jest.fn(), path = '/' } = {}) {
     window.innerWidth = width;
 
     render(
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[path]}>
             <UserMenu user={user} dispatchLogout={dispatchLogout} />
         </MemoryRouter>
     );
@@ -266,6 +267,26 @@ describe('signing out', () => {
 // the light and dark switch in the signed-in header -- see theme-toggle.jsx. On
 // the black bar in either theme, beside what ends it.
 //
+describe('the house on the bar', () => {
+    //
+    // the signed-in bar's house behaves as the anonymous one does -- see
+    // HomeBrand in menu-items/home.jsx
+    //
+    const roof = () => toRGB(document.querySelector('.navbar-brand svg.home path').style.fill);
+
+    it('has a green roof on the home page', () => {
+        renderMenu({ user: { name: 'jeff' }, path: '/' });
+
+        expect(roof()).toBe(toRGB(colors['green-3']));
+    });
+
+    it('has a gray roof on any other page', () => {
+        renderMenu({ user: { name: 'jeff' }, path: '/stream' });
+
+        expect(roof()).toBe(toRGB(colors['gray-5']));
+    });
+});
+
 describe('the theme switch', () => {
     const toggle = () => screen.getByRole('button', { name: 'Dark theme' });
     const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);

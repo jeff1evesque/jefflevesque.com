@@ -16,6 +16,7 @@ class SvgHome extends Component {
     static propTypes = {
         houseColor: PropTypes.string,
         roofColor: PropTypes.string,
+        active: PropTypes.bool,
     }
 
     constructor() {
@@ -37,9 +38,14 @@ class SvgHome extends Component {
     }
 
     render() {
+        //
+        // the roof: a caller's own color, or -- where the house links to the page
+        // on screen, `active` -- the green it takes under the pointer, held there
+        // through a hover and after one. Otherwise it is gray until pointed at.
+        //
         const roof_color = this.props.roofColor
             ? this.props.roofColor
-            : this.state.roof_color;
+            : (this.props.active ? colors['green-3'] : this.state.roof_color);
 
         const house_color = this.props.houseColor
             ? this.props.houseColor
