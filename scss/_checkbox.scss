@@ -41,11 +41,19 @@
   height: 22px;
   width: 22px;
   background-color: #eee;
+
+  @include dark {
+    background-color: $gray-1;
+  }
 }
 
 /* On mouse-over, add a gray background color */
 .checkbox-container:hover input ~ .checkbox-checkmark {
   background-color: #ccc;
+
+  @include dark {
+    background-color: $gray-3;
+  }
 }
 
 /* When the checkbox is checked, add a blue background */
