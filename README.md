@@ -40,9 +40,10 @@ comes from three public APIs, called from the browser at runtime.
 | `/login`, `/logout`, `/register`, `/login/reset` | Cognito-backed authentication | |
 | `/:user`, `/:user/settings` | account and account settings | |
 
-Every page comes in a light and a dark theme. The sun and moon beside Login switches
-between them, and the choice is kept in the browser, so the next visit opens in it; until
-it is pressed, a page follows the system's own setting.
+Every page comes in a light and a dark theme: light from 7 in the morning until 7 in the
+evening on the reader's own clock, and dark the rest of the day. The sun and moon beside
+Login switches to the other one until the next 7 o'clock, through reloads, and then the
+schedule takes over again.
 <!-- --8<-- [end:routes] -->
 
 **Ingest coverage** is the figure on `/stream` worth knowing about: it is the only
