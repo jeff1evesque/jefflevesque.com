@@ -176,14 +176,15 @@ function number(n) {
  *
  * Note: the same color and dash the canvas uses for that origin, from
  *       encoding.js. A second opinion about what 'enrichment' looks like is
- *       exactly what that module exists to prevent.
+ *       exactly what that module exists to prevent. In the page's theme, as the
+ *       canvas's are.
  */
-function originMark(origin) {
+function originMark(origin, theme) {
     return (
         <svg className='graph-tables-origin' width='28' height='10' aria-hidden='true'>
             <line
                 x1='0' y1='5' x2='28' y2='5'
-                stroke={originColor(origin)}
+                stroke={originColor(origin, theme)}
                 strokeWidth={origin === 'raw' ? 1 : 1.5}
                 strokeDasharray={ORIGIN_DASH[origin] || undefined}
             />
@@ -321,6 +322,8 @@ class GraphTables extends Component {
         // the measure the node table opens sorted by: the one the canvas above
         // it was chosen by
         weight: PropTypes.string,
+        // the page's theme, which the Origin column's lines are drawn in
+        theme: PropTypes.oneOf(['light', 'dark']),
     }
 
     static defaultProps = {
@@ -328,6 +331,7 @@ class GraphTables extends Component {
         lookups: false,
         scope: 'in this build',
         weight: 'count',
+        theme: 'light',
     }
 
     constructor(props) {
@@ -527,7 +531,7 @@ class GraphTables extends Component {
                                 {number(row.count)}
                             </TableCell>
                             <TableCell>
-                                {originMark(row.schemaOrigin)}
+                                {originMark(row.schemaOrigin, this.props.theme)}
                                 {row.origin}
                             </TableCell>
                         </TableRow>
