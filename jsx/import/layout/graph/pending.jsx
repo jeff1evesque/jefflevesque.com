@@ -110,10 +110,15 @@ PendingPicker.propTypes = {
 
 //
 // what each of the build panel's eight values roughly measures, in the order
-// the panel lists them: a day, two counts, a source list, two timestamps, a
+// the panel lists them: a day, two timestamps, two counts, a source list, a
 // dataset name and a variant.
 //
-const DETAIL_WIDTHS = ['6rem', '4.5rem', '5.5rem', '7rem', '9rem', '9rem', '6rem', '3.5rem'];
+// Note: by position, so this follows DETAILS in source.js row for row. Out of
+//       step, every bar takes another row's width: when Run and Built moved
+//       up under Day, a list left as it was would have drawn them as counts,
+//       and the Sources row, which waits for the schema, as a timestamp.
+//
+const DETAIL_WIDTHS = ['6rem', '9rem', '9rem', '4.5rem', '5.5rem', '7rem', '6rem', '3.5rem'];
 
 /**
  * one of the build panel's values that has not arrived, by its row.
