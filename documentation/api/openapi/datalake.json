@@ -3,7 +3,7 @@
   "info": {
     "title": "Datalake",
     "version": "v1",
-    "description": "What one dataset holds for a month: how its records are distributed, and how many partitions they occupy. Read by the /data page and the stock market alarm page."
+    "description": "What one dataset holds for a month: how its records are distributed, and how many partitions they occupy. Read by the /data page."
   },
   "servers": [
     {
