@@ -55,6 +55,10 @@
   border-bottom: 1px solid rgb(229, 231, 235);
   color: rgb(107, 114, 128);
   padding: 0 0 1.25rem 0;
+
+  @include dark {
+    color: $gray-6;
+  }
 }
 
 .checkbox-vertical > div.row:first-child {
@@ -104,6 +108,10 @@
     border-bottom: 1px solid #f3f4f6;
     margin-bottom: 1rem;
     padding-bottom: 0.75rem;
+
+    @include dark {
+      border-bottom-color: $gray-1;
+    }
   }
 
   .general-list {
@@ -298,6 +306,10 @@
     .form-highlight {
       background-color: #f7f5f7 !important;
       border: 1px solid $gray-2 !important;
+
+      @include dark {
+        background-color: $white-2 !important;
+      }
     }
 
     .form-group-mui {
@@ -366,6 +378,10 @@
   border: 1px solid rgb(229, 231, 235);
   padding: 2rem;
 
+  @include dark {
+    border-color: $gray-2;
+  }
+
   .agreement-content {
     svg {
       margin: -0.2rem 0.65rem 0 0;
@@ -376,6 +392,10 @@
       border-top: 1px solid rgb(243, 244, 246);
       margin-top: 1.25rem;
       padding: 1.25rem 0;
+
+      @include dark {
+        border-color: $gray-1;
+      }
     }
   }
 
@@ -440,6 +460,10 @@ div.agreement-mobile {
       border-top: 1px solid rgb(243, 244, 246);
       margin: 1.25rem 1.25rem 0;
       padding-top: 1.25rem;
+
+      @include dark {
+        border-top-color: $gray-1;
+      }
     }
   }
 

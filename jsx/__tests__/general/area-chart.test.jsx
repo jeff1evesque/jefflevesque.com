@@ -55,8 +55,9 @@ jest.mock('recharts', () => {
 import React from 'react';
 import { render } from '@testing-library/react';
 
-import { colors_categorical } from '../../import/general/colors.js';
+import { colors_categorical, color_tail } from '../../import/general/colors.js';
 import StackedAreaChart from '../../import/general/area-chart.jsx';
+import { ThemeModeContext } from '../../import/general/theme-mode.jsx';
 
 //
 // 15:00Z is 10:00 EST, which the default '%I:%M%p' renders as '10:00AM'. See the TZ
@@ -197,6 +198,31 @@ describe('the palette', () => {
         const tail = fills().slice(colors_categorical.length);
         expect(tail.length).toBeGreaterThan(0);
         tail.forEach(fill => expect(fill).toMatch(/^hsl\(/));
+    });
+
+    it('shades the tail toward a dark page on a dark page, and keeps the named hues', () => {
+        //
+        // the tail fades toward the page it is on -- see color_tail -- and the
+        // categorical colors say the same thing on either page
+        //
+        const many = Array.from({ length: 10 }, (ignored, i) => `k${i}`);
+        const rows = DATA.map((base, r) => {
+            const row = { name: base.name };
+            many.forEach((k, i) => { row[k] = i + 1 + r; });
+            return row;
+        });
+
+        render(
+            <ThemeModeContext.Provider value={{ theme: 'dark', toggle: () => {} }}>
+                <StackedAreaChart data={rows} data_keys={many} />
+            </ThemeModeContext.Provider>
+        );
+
+        expect(fills().slice(0, colors_categorical.length)).toEqual(colors_categorical);
+        expect(fills().slice(colors_categorical.length)).toEqual([
+            color_tail(0, 2, 'dark'),
+            color_tail(1, 2, 'dark'),
+        ]);
     });
 });
 

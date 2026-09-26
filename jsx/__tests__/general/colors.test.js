@@ -32,10 +32,15 @@ import {
     color_tail,
     colors,
     colors_categorical,
-    toRGB
+    colors_dark,
+    ink,
+    themeColors,
+    toRGB,
+    translucent
 } from '../../import/general/colors.js';
 
 const VARIABLES_SCSS = path.resolve(__dirname, '../../../scss/_variables.scss');
+const THEME_SCSS = path.resolve(__dirname, '../../../scss/_theme.scss');
 
 //
 // OKLab, per Bjorn Ottosson's reference conversion. Distance is plain euclidean
@@ -231,6 +236,157 @@ describe('color_tail', () => {
         const hues = [0, 1, 2, 3].map(i => color_tail(i, 4).match(/hsl\((\d+)/)[1]);
 
         expect(new Set(hues).size).toBe(1);
+    });
+});
+
+describe('color_tail on a dark page', () => {
+    const lightness = (shade) => Number(shade.match(/([\d.]+)%\)/)[1]);
+
+    it('runs light to dark, so the tail still fades toward the page', () => {
+        expect(lightness(color_tail(0, 5, 'dark'))).toBeGreaterThan(lightness(color_tail(4, 5, 'dark')));
+    });
+
+    it('keeps each shade as far from the dark page as its twin keeps from white', () => {
+        //
+        // the dark page is '#1e1e1e', 11.8% lightness. The light tail runs from
+        // 45 points below white to 13 below it; the dark one from 45 above the
+        // page to 13 above it.
+        //
+        expect(color_tail(0, 5, 'dark')).toContain('57.0%');
+        expect(color_tail(4, 5, 'dark')).toContain('25.0%');
+    });
+
+    it('keeps the hue and saturation that make it one band', () => {
+        expect(color_tail(2, 5, 'dark')).toMatch(/^hsl\(210, 12%, [\d.]+%\)$/);
+    });
+
+    it('is the light tail for a theme that is not dark', () => {
+        expect(color_tail(1, 5, 'sepia')).toBe(color_tail(1, 5));
+    });
+});
+
+describe('colors_dark, against _variables.scss', () => {
+    const scss = fs.readFileSync(VARIABLES_SCSS, 'utf8');
+
+    it('matches every dark color to its scss variable', () => {
+        //
+        // the same guard as the light names get, for the same drift: the script
+        // that draws a dark graph and the stylesheet that draws a dark page have
+        // to agree about what 'gray-5' is on it.
+        //
+        const mismatched = [];
+
+        Object.keys(colors_dark).forEach(name => {
+            const found = scss.match(new RegExp(`^\\$dark-${name}:\\s*([^;]+);`, 'm'));
+
+            if (!found) {
+                mismatched.push(`${name}: absent from _variables.scss as $dark-${name}`);
+            } else if (found[1].trim().toLowerCase() !== colors_dark[name].toLowerCase()) {
+                mismatched.push(`${name}: js ${colors_dark[name]} vs scss ${found[1].trim()}`);
+            }
+        });
+
+        expect(mismatched).toEqual([]);
+    });
+
+    it('darkens only names the light theme has', () => {
+        Object.keys(colors_dark).forEach(name => expect(colors).toHaveProperty(name));
+    });
+
+    it('is a name the theme partial switches, for every one of them', () => {
+        //
+        // a dark value the stylesheet never puts in place is a color the script
+        // draws that the page around it does not
+        //
+        const theme = fs.readFileSync(THEME_SCSS, 'utf8');
+
+        Object.keys(colors_dark).forEach(name => {
+            expect(theme).toMatch(new RegExp(`'${name}':\\s*\\(\\$${name},\\s*\\$dark-${name}\\)`));
+        });
+    });
+});
+
+describe('themeColors', () => {
+    it('is the light colors for the light theme, and for anything else', () => {
+        expect(themeColors('light')).toBe(colors);
+        expect(themeColors(undefined)).toBe(colors);
+        expect(themeColors('sepia')).toBe(colors);
+    });
+
+    it('is the dark colors where there are dark ones, and the light elsewhere', () => {
+        const dark = themeColors('dark');
+
+        expect(dark['gray-5']).toBe(colors_dark['gray-5']);
+        expect(dark['green-3']).toBe(colors['green-3']);
+    });
+
+    it('keeps the ramp in order: further from the dark page as the numeral rises', () => {
+        //
+        // the order the partials rely on, so a rule written for the light theme
+        // draws the dark one: '$gray-6' is muted text and '$gray-1' a hairline in
+        // either theme
+        //
+        const six = (hex) => (hex.length === 4 ? `#${hex.slice(1).split('').map(d => d + d).join('')}` : hex);
+        const lightness = (hex) => linearToOklab(hexToLinear(six(hex)))[0];
+        const ramp = ['white-1', 'gray-1', 'gray-2', 'gray-4', 'gray-3', 'gray-5', 'gray-6', 'gray-7', 'gray-8']
+            .map(name => lightness(colors_dark[name]));
+
+        ramp.slice(1).forEach((value, index) => expect(value).toBeGreaterThan(ramp[index]));
+    });
+});
+
+describe('the dark page, read', () => {
+    //
+    // WCAG 2 contrast, from relative luminance
+    //
+    function contrast(a, b) {
+        const luminance = (hex) => {
+            const [r, g, b] = hexToLinear(hex);
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+
+        return (hi + 0.05) / (lo + 0.05);
+    }
+
+    const page = () => colors_dark['white-1'];
+
+    it('reads muted text at better than the 4.5:1 body text needs', () => {
+        //
+        // '#777' manages 4.48:1 on white, just short; the dark twin clears it
+        //
+        expect(contrast(colors_dark['gray-6'], page())).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('reads labels and text at better than 7:1', () => {
+        expect(contrast(colors_dark['gray-7'], page())).toBeGreaterThanOrEqual(7);
+        expect(contrast(colors_dark['gray-8'], page())).toBeGreaterThanOrEqual(7);
+    });
+
+    it('reads the lit green at better than 4.5:1', () => {
+        expect(contrast(colors_dark['green-6'], page())).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('is a dark gray rather than black', () => {
+        expect(page()).not.toBe('#000');
+        expect(contrast(page(), '#000000')).toBeGreaterThan(1.1);
+    });
+});
+
+describe('ink', () => {
+    it('is black on a light page and white on a dark one', () => {
+        expect(ink('light')).toBe('#000');
+        expect(ink('dark')).toBe('#fff');
+    });
+});
+
+describe('translucent', () => {
+    it('writes a six-digit color at an opacity as css', () => {
+        expect(translucent('#1e1e1e', 0.92)).toBe('rgba(30, 30, 30, 0.92)');
+    });
+
+    it('reads a three-digit color as the six-digit one', () => {
+        expect(translucent('#fff', 0.5)).toBe('rgba(255, 255, 255, 0.5)');
     });
 });
 

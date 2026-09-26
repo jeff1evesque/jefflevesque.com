@@ -221,16 +221,60 @@ describe('the pulse, as the stylesheet runs it', () => {
         });
     });
 
+    //
+    // a dark page has no white behind a node for fill-opacity to show, so there
+    // the glint mixes the node's own color with white -- the color fill-opacity
+    // makes of it over a white page.
+    //
+    describe('the glint on a dark page', () => {
+        const [keyframes] = blocks(animation, '@keyframes graph-node-glint-dark');
+
+        it('is there to be run', () => {
+            expect(keyframes).toBeDefined();
+        });
+
+        it('rests at the node\'s own color, which the drawing hands it', () => {
+            const ends = keyframes.body.match(/0%\s*,[^{]*100%\s*\{([^}]*)\}/);
+
+            expect(ends).not.toBeNull();
+            expect(ends[1]).toMatch(/fill\s*:\s*var\(--node-fill\)\s*;/);
+        });
+
+        it('lightens toward white by as much as the graph it runs on says', () => {
+            expect(keyframes.body).toMatch(
+                /fill\s*:\s*color-mix\(in srgb,\s*var\(--node-fill\),\s*white var\(--graph-node-glint-dark\)\)/
+            );
+        });
+
+        it('leaves opacity to the emphasis', () => {
+            expect(keyframes.body).not.toMatch(/(^|[^-])opacity\s*:/m);
+        });
+
+        it('is the one a dark page runs, by a name the theme swaps', () => {
+            //
+            // a dark rule naming it outright would outrank the ones that switch
+            // the glint off -- a lit neighborhood, and less motion -- where a
+            // swapped name leaves them their 'none'.
+            //
+            const light = blocks(animation, ':root').find((block) => block.body.includes('--graph-node-glint-name'));
+            const dark = blocks(animation, ":root[data-theme='dark']")
+                .find((block) => block.body.includes('--graph-node-glint-name'));
+
+            expect(light.body).toMatch(/--graph-node-glint-name:\s*graph-node-glint\s*;/);
+            expect(dark.body).toMatch(/--graph-node-glint-name:\s*graph-node-glint-dark\s*;/);
+        });
+    });
+
     describe.each([
         ['/graph', '_graph.scss', '.graph-explorer-node'],
         ['the front page', '_animation.scss', '.graph-cluster-node'],
     ])('on %s', (page, file, selector) => {
         const source = stylesheet(file);
-        const nodes = rule(source, selector, 'animation: graph-node-glint');
+        const nodes = rule(source, selector, 'animation: var(--graph-node-glint-name)');
 
-        it('glints every node, on the shared period', () => {
+        it('glints every node, on the shared period, in the theme\'s glint', () => {
             expect(nodes).toBeDefined();
-            expect(nodes.body).toMatch(/animation:\s*graph-node-glint\s+\$graph-node-breath\s/);
+            expect(nodes.body).toMatch(/animation:\s*var\(--graph-node-glint-name\)\s+\$graph-node-breath\s/);
         });
 
         it('lightens by a fraction, not by nothing and not out of sight', () => {
@@ -239,6 +283,14 @@ describe('the pulse, as the stylesheet runs it', () => {
             expect(depth).not.toBeNull();
             expect(Number(depth[1])).toBeGreaterThan(0.5);
             expect(Number(depth[1])).toBeLessThan(1);
+        });
+
+        it('lightens a dark page\'s node by a share of white, not by nothing and not out of sight', () => {
+            const depth = nodes.body.match(/--graph-node-glint-dark:\s*([\d.]+)%\s*;/);
+
+            expect(depth).not.toBeNull();
+            expect(Number(depth[1])).toBeGreaterThan(0);
+            expect(Number(depth[1])).toBeLessThan(50);
         });
 
         it('stops for a reader who asked for less motion', () => {

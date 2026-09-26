@@ -16,6 +16,7 @@ import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
 import PageLayoutState from './import/redux/container/page.jsx';
 import store from './import/redux/store.jsx';
+import ThemeMode from './import/general/theme-mode.jsx';
 
 // load react + amplify
 Amplify.configure(awsconfig);
@@ -46,7 +47,9 @@ root.render(
     <Provider store={store}>
         <React.StrictMode>
             <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                <PageLayoutState />
+                <ThemeMode>
+                    <PageLayoutState />
+                </ThemeMode>
             </BrowserRouter>
         </React.StrictMode>
     </Provider>

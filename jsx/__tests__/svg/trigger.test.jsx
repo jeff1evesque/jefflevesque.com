@@ -87,3 +87,24 @@ describe('the four as a family', () => {
         expect(new Set(defaults).size).toBe(defaults.length);
     });
 });
+
+//
+// the arrows between a diagram's steps are drawn straight onto the page, where the
+// steps carry their own colors. So the arrows take the page's ink -- '.workflow-
+// diagram' in style.scss sets it, black on a light page and the text's light gray
+// on a dark one -- rather than a black that would vanish into a dark page.
+//
+describe('the arrows between the steps', () => {
+    it.each(DIAGRAMS)('are drawn in the page\'s ink on %s', (name, Diagram) => {
+        const { container } = render(<Diagram />);
+        const svg = container.querySelector('svg');
+        const strokes = [...svg.querySelectorAll('[style]')]
+            .map((node) => node.style.stroke)
+            .filter(Boolean);
+
+        expect(svg).toHaveClass('workflow-diagram');
+        expect(strokes).toContain('currentColor');
+        expect(strokes).not.toContain('rgb(0, 0, 0)');
+        expect(strokes).not.toContain('rgb(0,0,0)');
+    });
+});

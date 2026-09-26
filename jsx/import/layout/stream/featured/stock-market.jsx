@@ -33,8 +33,16 @@ import MorningStar from '../../../svg/stock_market/morning-star.jsx';
 import EveningStar from '../../../svg/stock_market/evening-star.jsx';
 import { Link } from 'react-router-dom';
 import { STOCK_MARKET } from '../../../general/stream-id.js';
+import { ink, translucent } from '../../../general/colors.js';
+import { ThemeModeContext } from '../../../general/theme-mode.jsx';
 
 class StockMarketFeatured extends Component {
+    //
+    // the page's theme, which the carousel arrows' shade is mixed for. See
+    // arrowStyle.
+    //
+    static contextType = ThemeModeContext;
+
     constructor() {
         super();
 
@@ -57,7 +65,6 @@ class StockMarketFeatured extends Component {
                 left: 0,
                 top: `${card_height}px`,
                 fontSize: '2.5rem',
-                backgroundColor: 'rgba(0,0,0,0.10)',
                 padding:'0.2rem',
                 cursor: 'pointer'
             },
@@ -66,7 +73,6 @@ class StockMarketFeatured extends Component {
                 right: 0,
                 top: `${card_height}px`,
                 fontSize: '2.5rem',
-                backgroundColor: 'rgba(0,0,0,0.10)',
                 padding:'0.2rem',
                 cursor: 'pointer'
             },
@@ -234,12 +240,21 @@ class StockMarketFeatured extends Component {
             )
         });
 
+        //
+        // each arrow sits on a shade of the page's ink -- black on a light page
+        // and white on a dark one, where a black shade could not be seen
+        //
+        const arrowStyle = (style) => ({
+            ...style,
+            backgroundColor: translucent(ink(this.context.theme), 0.1),
+        });
+
         const renderNextButton = ({ isDisabled }) => {
-            return <ArrowForwardIosIcon style={this.state.arrow_style_next} />
+            return <ArrowForwardIosIcon style={arrowStyle(this.state.arrow_style_next)} />
         };
 
         const renderPrevButton = ({ isDisabled }) => {
-            return <ArrowBackIosIcon style={this.state.arrow_style_previous} />
+            return <ArrowBackIosIcon style={arrowStyle(this.state.arrow_style_previous)} />
         };
 
         if (

@@ -80,8 +80,17 @@ module.exports = {
     //
     // Fail the run if coverage drops, rather than only reporting it.
     //
-    // A flat 93% baseline on all four metrics. This is the mechanism that actually
+    // A flat 94% baseline on all four metrics. This is the mechanism that actually
     // holds coverage; the README badge only reports it.
+    //
+    // Note: raised from 93 alongside the dark theme, #115. Branches, the metric that
+    //       binds, had climbed from the 94.32 of the last raise to 95.24 at the
+    //       previous head, and #115 took them to 95.47 with the tests it brought:
+    //       the theme's own modules, every surface drawn in both themes, and the
+    //       paths the change added -- a system that cannot report a change, a
+    //       prefix no predicate names. Statements 98.70, functions 98.06, lines
+    //       98.72. That leaves branches about 1.5 above the floor, near the 1.3 it
+    //       has carried.
     //
     // Note: raised from 92 alongside the documentation site and its API pages.
     //       Measured against the previous head, every metric rose by more than a
@@ -164,10 +173,10 @@ module.exports = {
     //
     'coverageThreshold': {
         global: {
-            statements: 93,
-            branches: 93,
-            functions: 93,
-            lines: 93,
+            statements: 94,
+            branches: 94,
+            functions: 94,
+            lines: 94,
         },
     },
     //

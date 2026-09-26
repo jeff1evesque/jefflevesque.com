@@ -19,7 +19,8 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react';
 
-import { colors } from '../../import/general/colors.js';
+import { colors, colors_dark } from '../../import/general/colors.js';
+import { ThemeModeContext } from '../../import/general/theme-mode.jsx';
 
 import SvgBooks from '../../import/svg/svg-books.jsx';
 import SvgExit from '../../import/svg/svg-exit.jsx';
@@ -154,6 +155,23 @@ describe('the exit icon', () => {
 
         fireEvent.mouseOut(document.querySelector('svg'));
         expect(fills()).toContain(colors['gray-5']);
+    });
+
+    it('moves toward the text on a dark page too, which there is lighter', () => {
+        //
+        // it sits on the page, pale at rest -- a light page's '#333' on hover
+        // would all but vanish into a dark one
+        //
+        render(
+            <ThemeModeContext.Provider value={{ theme: 'dark', toggle: () => {} }}>
+                <SvgExit />
+            </ThemeModeContext.Provider>
+        );
+
+        expect(fills()).toContain(colors_dark['gray-5']);
+
+        fireEvent.mouseOver(document.querySelector('svg'));
+        expect(fills()).toContain(colors_dark['gray-7']);
     });
 });
 

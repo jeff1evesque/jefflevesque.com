@@ -65,6 +65,46 @@ $graph-node-breath: 1.8s;
 }
 
 //
+// the same glint on a dark page, where there is no white behind a node for its
+// fill-opacity to show. Lighter by mixing the node's own color with white
+// instead, which is the very color fill-opacity makes of it over a white page:
+// a node at 0.8 over white IS its color mixed 20% with white. So what changes
+// with the page is only how deep each graph's glint goes -- see
+// '--graph-node-glint-dark' where each graph sets its own.
+//
+// Note: the node's color comes from '--node-fill', which the drawing sets
+//       beside the fill itself. An animation cannot read the property it is
+//       animating.
+//
+@keyframes graph-node-glint-dark {
+  0%,
+  60%,
+  100% {
+    fill: var(--node-fill);
+  }
+
+  80% {
+    fill: color-mix(in srgb, var(--node-fill), white var(--graph-node-glint-dark));
+  }
+}
+
+//
+// which of the two a graph's nodes glint with, by theme.
+//
+// Note: a name the theme swaps, rather than a dark rule naming the other
+//       animation. Such a rule would outrank the ones that turn the glint OFF --
+//       a lit neighborhood, and a reader who asked for less motion -- where a
+//       swapped name leaves each of them to say 'none' as it always has.
+//
+:root {
+  --graph-node-glint-name: graph-node-glint;
+}
+
+:root[data-theme='dark'] {
+  --graph-node-glint-name: graph-node-glint-dark;
+}
+
+//
 // the front page's nodes, once its graph has arrived.
 //
 // Note: 0.6, deeper than /graph's 0.8, because these rest as pale tints -- see
@@ -78,9 +118,18 @@ $graph-node-breath: 1.8s;
 //       which is as deep as this goes while every node stays inside the
 //       placeholder's swing: 0.55 takes the deepest to 10.0, past it.
 //
+//
+// Note: 9.1% on a dark page, where these rest as dark tints -- mixed most of
+//       the way to the dark page rather than to white -- and so start much
+//       further from white than a light page's tints do. 9.1% is the depth that
+//       swings them 6.0 on average, as 0.6 does on a light page, measured the
+//       same way over the sixty nodes of the build published 2026-09-25; the
+//       most any node swings is 7.5, inside the light page's 8.9.
+//
 .graph-cluster-node {
   --graph-node-glint: 0.6;
-  animation: graph-node-glint $graph-node-breath ease-in-out infinite;
+  --graph-node-glint-dark: 9.1%;
+  animation: var(--graph-node-glint-name) $graph-node-breath ease-in-out infinite;
 }
 
 //

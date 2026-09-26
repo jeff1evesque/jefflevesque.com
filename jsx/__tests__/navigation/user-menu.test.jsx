@@ -261,3 +261,35 @@ describe('signing out', () => {
         expect(window.location.href).toBe('http://localhost/');
     });
 });
+
+//
+// the light and dark switch in the signed-in header -- see theme-toggle.jsx. On
+// the black bar in either theme, beside what ends it.
+//
+describe('the theme switch', () => {
+    const toggle = () => screen.getByRole('button', { name: 'Dark theme' });
+    const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    it('sits just left of the user\'s menu on a wide screen', () => {
+        renderMenu({ user: { name: 'jeff' } });
+
+        expect(toggle()).toHaveClass('theme-toggle-bar');
+        expect(before(toggle(), document.querySelector('.svg-dropdown-user'))).toBe(true);
+    });
+
+    it('sits on a phone\'s bar beside the menu button, not inside the menu', () => {
+        renderMenu({ user: { name: 'jeff' }, width: MOBILE });
+
+        expect(toggle().closest('.navbar-collapse')).toBeNull();
+        expect(before(toggle(), document.querySelector('.navbar-toggler'))).toBe(true);
+    });
+
+    it.each([
+        ['a wide screen', DESKTOP],
+        ['a phone', MOBILE],
+    ])('is drawn once on %s', (label, width) => {
+        renderMenu({ user: { name: 'jeff' }, width });
+
+        expect(screen.getAllByRole('button', { name: 'Dark theme' })).toHaveLength(1);
+    });
+});

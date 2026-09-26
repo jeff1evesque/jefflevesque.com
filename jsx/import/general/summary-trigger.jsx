@@ -379,7 +379,9 @@ class SummaryTrigger extends Component {
 
         const AccordionDetails = styled(MuiAccordionDetails)(({ theme }) => ({
             padding: theme.spacing(2),
-            borderTop: '1px solid rgba(0, 0, 0, .125)',
+            borderTop: theme.palette.mode === 'dark'
+                ? '1px solid rgba(255, 255, 255, .125)'
+                : '1px solid rgba(0, 0, 0, .125)',
         }));
 
         const summary_item = isMobile ? 'summary-item summary-item-mobile' : 'summary-item';

@@ -20,6 +20,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
 import SummaryTrigger from '../../import/general/summary-trigger.jsx';
+import { ThemeProvider } from '@mui/material/styles';
+import { MUI_THEMES } from '../../import/general/theme-mode.jsx';
 
 //
 // Note: 'rows_per_page_option' is supplied alongside a small page size. The default
@@ -216,6 +218,28 @@ describe('the hover anchor', () => {
 });
 
 describe('the accordions', () => {
+    //
+    // the rule over a panel's body, which mui draws from the theme it is handed:
+    // a black hairline on a light page, and a white one on a dark page, where a
+    // black one could not be seen
+    //
+    it.each([
+        ['light', 'rgba(0, 0, 0, .125)'],
+        ['dark', 'rgba(255, 255, 255, .125)'],
+    ])('rules a panel\'s body off in a hairline the %s page shows', (theme, color) => {
+        render(
+            <ThemeProvider theme={MUI_THEMES[theme]}>
+                <MemoryRouter>
+                    <SummaryTrigger accordion_summary={ACCORDIONS} />
+                </MemoryRouter>
+            </ThemeProvider>
+        );
+
+        const details = document.querySelector('.MuiAccordionDetails-root');
+
+        expect(window.getComputedStyle(details).borderTop).toBe(`1px solid ${color}`);
+    });
+
     it('renders one panel per entry', () => {
         setup({ accordion_summary: ACCORDIONS });
 

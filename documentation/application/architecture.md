@@ -29,6 +29,30 @@ The stylesheet is compiled separately from
 [`scss/style.scss`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/scss/style.scss),
 which imports one partial per area of the site.
 
+## Light and dark
+
+Every page is drawn in either theme. A script in the head of
+[`index.html`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/index.html)
+puts the reader's choice on the root element as `data-theme` before anything is
+painted -- or the system's setting, where they have made none -- and
+[`jsx/import/general/theme-mode.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/theme-mode.jsx)
+changes it when the switch in the header is pressed. The choice is kept in the
+browser's storage by
+[`jsx/import/general/theme-preference.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/theme-preference.js),
+so the next visit opens in it.
+
+The stylesheet follows the attribute through custom properties that
+[`scss/_theme.scss`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/scss/_theme.scss)
+sets for each theme. Every partial after it reads the neutral ramp -- `$gray-6`,
+`$white-1` -- as those properties, and the ramp keeps its order in both themes: a higher
+numeral is further from the page. So a rule written against the light theme's colors
+draws the dark one too. The ink on the header's black bars is held fixed.
+
+Whatever computes a color in script -- the two graphs, the charts, a tooltip -- reads
+the theme from `ThemeModeContext` and its colors from `themeColors` in
+[`jsx/import/general/colors.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/colors.js),
+and draws again when it changes. mui's components are handed a dark theme of their own.
+
 ## Web workers
 
 API responses are parsed off the main thread. Each page hands the response to a worker

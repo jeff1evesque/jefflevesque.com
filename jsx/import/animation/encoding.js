@@ -19,13 +19,13 @@
  *       groups the graph the way a reader expects: by where the data came from.
  */
 
-import { colors, colors_categorical, color_other, color_tail } from '../general/colors.js';
+import { colors_categorical, color_other, color_tail, themeColors } from '../general/colors.js';
 import filterSchema, { GRAPH_NODE_TYPES } from './filter-schema.js';
 
 //
 // the vocabulary a node type is published under: everything between
-// '/ontology/' and the type name, joined on hyphens. The id prefix is the
-// fallback for anything that does not match.
+// '/ontology/' and the type name, joined on hyphens. What stands in for a type
+// without a uri is in vocabulary, below.
 //
 // The WHOLE path, rather than its first segment, because the builder nests
 // vocabularies under their source -- 'ontology/bls/jolts/OpeningsRate' -- and
@@ -50,25 +50,109 @@ import filterSchema, { GRAPH_NODE_TYPES } from './filter-schema.js';
 //       has one, and taking the final vocabulary alone would pool them into a
 //       single 'enrichment' namespace belonging to nobody.
 //
-const NAMESPACE_FROM_URI = /\/ontology\/(.+)\/[^/]+$/;
+// Note: the term's own name is captured as well, for a reader of a predicate
+//       rather than of a type -- see ontologyTerm.
+//
+const NAMESPACE_FROM_URI = /\/ontology\/(.+)\/([^/]+)$/;
 
 /**
- * the namespace a node type belongs to.
+ * an ontology term's vocabulary and its own name, out of its uri, or null for a
+ * uri that is not one: '.../ontology/bls/jolts/Industry' is
+ * { vocabulary: 'bls/jolts', name: 'Industry' }.
  *
- * Note: the uri is the authority, but a schema is free to omit it, and the id
- *       prefix has to stand in without the caller noticing.
+ * Note: exported for get-graph-tables.js, which reads a day's predicates with
+ *       it. One reading of an ontology uri, so what a type's uri says and what a
+ *       predicate's says cannot come to disagree.
  */
-export function sourceNamespace(meta, id) {
-    const uri = meta && meta.source_type_uri ? String(meta.source_type_uri) : '';
-    const match = NAMESPACE_FROM_URI.exec(uri);
+export function ontologyTerm(uri) {
+    const match = NAMESPACE_FROM_URI.exec(uri ? String(uri) : '');
 
-    if (match) {
-        return match[1].replace(/\//g, '-');
+    return match ? { vocabulary: match[1], name: match[2] } : null;
+}
+
+/**
+ * the vocabulary a node type is published under, where what was published says,
+ * as its path's segments -- ['bls', 'jolts'] for a type of 'ontology/bls/jolts/'
+ * -- or null where it does not.
+ *
+ * Two things can say, and the first that does is taken:
+ *
+ *     its uri          the ontology term a build's schema gives every type
+ *     its vocabulary   the path a day of the tables names it under, which is
+ *                      read off the day's predicates -- see daySchema in
+ *                      get-graph-tables.js. A day's types carry no uri
+ */
+function namedVocabulary(meta) {
+    const term = ontologyTerm(meta && meta.source_type_uri);
+
+    if (term) {
+        return term.vocabulary.split('/');
     }
 
-    const underscore = id.indexOf('_');
+    return meta && typeof meta.vocabulary === 'string' && meta.vocabulary
+        ? meta.vocabulary.split('/')
+        : null;
+}
 
-    return underscore > 0 ? id.slice(0, underscore) : id;
+/**
+ * the vocabulary a node type is published under, as its path's segments, and
+ * its id's reading of it where nothing published says.
+ *
+ * The id reads as everything before the type's own name, split where the
+ * builder joins a path: 'market_quotes_EquitySnapshot' is ['market', 'quotes'].
+ *
+ * Note: the id is the weaker of the two, because it can leave the source out.
+ *       'jolts_Industry' is a type of 'bls/jolts', and its id says only 'jolts'.
+ *       Where the id does carry the whole path -- 'market_quotes', 'sec_common',
+ *       'bls_enrichment' -- it answers what the uri would. It used to answer the
+ *       first segment alone, which put a day's market quotes and its market
+ *       enrichment under one 'market' that no build has.
+ */
+export function vocabulary(meta, id) {
+    const named = namedVocabulary(meta);
+
+    if (named) {
+        return named;
+    }
+
+    const underscore = id.lastIndexOf('_');
+    const path = underscore > 0 ? id.slice(0, underscore).split('_').filter(Boolean) : [];
+
+    return path.length ? path : [id];
+}
+
+/**
+ * the namespace a node type belongs to: its vocabulary, joined on hyphens.
+ *
+ * Note: the uri is the authority, but a schema is free to omit it, and what
+ *       stands in has to do so without the caller noticing. See vocabulary.
+ */
+export function sourceNamespace(meta, id) {
+    return vocabulary(meta, id).join('-');
+}
+
+/**
+ * the source a node type came from, which is the first segment of a vocabulary
+ * published nested under one -- 'bls' for 'bls/jolts' -- or null.
+ *
+ * Null for a vocabulary nested under nothing, as the builder's shared
+ * 'temporal' is, and for a type whose vocabulary nothing published names. Its
+ * id is not asked: 'market_quotes' would answer 'market', and did so on days
+ * whose own predicates put market enrichment under no source at all.
+ *
+ * Note: this is the builder's own layout rather than a list kept here. It nests
+ *       every vocabulary under its source, and on the build published
+ *       2026-09-25 the sources those vocabularies sit under are exactly the
+ *       build's own `sources_in_graph`: bls, market and sec.
+ *
+ * Note: it has only done so since the run of 2026-09-22. What was published
+ *       before that is flat -- 'ontology/jolts/', 'ontology/sec-filings/' -- and
+ *       names no source for any type.
+ */
+export function typeSource(meta) {
+    const path = namedVocabulary(meta);
+
+    return path && path.length > 1 ? path[0] : null;
 }
 
 /**
@@ -107,8 +191,13 @@ export function rankNamespaces(nodes) {
  * Note: the palette is never cycled. Two unrelated sources sharing a color
  *       reads as a relationship that is not there, which is worse than a tail
  *       that reads as a tail.
+ *
+ * Note: `theme` is the page's, and moves only the shaded tail. The categorical
+ *       colors say which source a namespace is, which is the same on either
+ *       page; the tail says 'one of the rest', by fading toward the page, and a
+ *       dark page is the other way to fade. See color_tail.
  */
-export function assignNamespaceColors(nodes, tail = 'roll-up') {
+export function assignNamespaceColors(nodes, tail = 'roll-up', theme = 'light') {
     const ordered = rankNamespaces(nodes);
     const slots = colors_categorical.length;
     const overflow = Math.max(0, ordered.length - slots);
@@ -120,7 +209,7 @@ export function assignNamespaceColors(nodes, tail = 'roll-up') {
             return;
         }
         assigned.set(namespace, tail === 'shade'
-            ? color_tail(index - slots, overflow)
+            ? color_tail(index - slots, overflow, theme)
             : color_other);
     });
 
@@ -165,8 +254,12 @@ export function assignNamespaceColors(nodes, tail = 'roll-up') {
  *       day by its findable entities, so its canvas holds different types from
  *       a slice by count -- and a palette ranked over the slice by count would
  *       spend its colors on namespaces that page does not draw.
+ *
+ * Note: `theme` is the page's. Only the shaded tail differs between the two --
+ *       see assignNamespaceColors -- so every namespace with a color of its own
+ *       has the same one on either page.
  */
-export function buildPalette(schema, limit = GRAPH_NODE_TYPES, weight = 'count') {
+export function buildPalette(schema, limit = GRAPH_NODE_TYPES, weight = 'count', theme = 'light') {
     const drawn = filterSchema(schema, limit, weight);
 
     if (!drawn) {
@@ -178,7 +271,8 @@ export function buildPalette(schema, limit = GRAPH_NODE_TYPES, weight = 'count')
             id: id,
             namespace: sourceNamespace(drawn.node_types[id], id),
         })),
-        'shade'
+        'shade',
+        theme
     );
 }
 
@@ -197,7 +291,7 @@ export function buildPalette(schema, limit = GRAPH_NODE_TYPES, weight = 'count')
 export const ORIGIN_DASH = { raw: null, enrichment: '5 4', unification: '2 6' };
 
 export const ORIGIN_COLOR = {
-    raw: colors['gray-5'],
+    raw: themeColors('light')['gray-5'],
     enrichment: colors_categorical[0],
     unification: colors_categorical[1],
 };
@@ -205,9 +299,19 @@ export const ORIGIN_COLOR = {
 /**
  * the color for an edge origin, falling back to neutral gray for an origin
  * this codebase does not know about.
+ *
+ * Note: the gray is the page's, as `theme` draws it. A raw edge is the quiet
+ *       one, drawn in the pale gray a light page barely separates from itself,
+ *       and on a dark page that gray is the loudest line there -- so it is the
+ *       ramp's own '$gray-5' in either theme, as far from the page as the other.
+ *       The two derived origins keep their colors, which the legend names.
  */
-export function originColor(origin) {
-    return ORIGIN_COLOR[origin] || colors['gray-5'];
+export function originColor(origin, theme = 'light') {
+    if (origin !== 'raw' && ORIGIN_COLOR[origin]) {
+        return ORIGIN_COLOR[origin];
+    }
+
+    return themeColors(theme)['gray-5'];
 }
 
 //

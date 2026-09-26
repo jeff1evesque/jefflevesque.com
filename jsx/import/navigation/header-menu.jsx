@@ -11,6 +11,7 @@ import SvgUser from '../svg/svg-user.jsx';
 import SvgPencilNote from '../svg/svg-pencil-note.jsx';
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import HomeLink from './menu-items/home.jsx';
+import ThemeToggle from './theme-toggle.jsx';
 import LoginLinkState from '../redux/container/login-link.jsx';
 import RegisterLinkState from '../redux/container/register-link.jsx';
 import { Navbar, Nav, NavDropdown } from 'react-bootstrap';
@@ -28,8 +29,8 @@ import PropTypes from 'prop-types';
 //       main-route.jsx for why '/graph/retrieval' is never read as one.
 //
 const GRAPH_PAGES = [
-    { to: '/graph', label: 'Training graph' },
-    { to: '/graph/retrieval', label: 'Retrieval graph' },
+    { to: '/graph', label: 'Training Graph' },
+    { to: '/graph/retrieval', label: 'Retrieval Graph' },
 ];
 
 //
@@ -125,6 +126,7 @@ class HeaderMenu extends Component {
                                 </Nav>
                             </div>
                             <div className='col-sm-5'>
+                                <ThemeToggle />
                                 <LoginLinkState />
                                 <RegisterLinkState />
                             </div>
@@ -146,6 +148,15 @@ class HeaderMenu extends Component {
         return (
             <Navbar collapseOnSelect expand='lg' className='main-navigation menu-home menu-home-mobile'>
                 <Navbar.Brand><Link to='/'><SvgHome /></Link></Navbar.Brand>
+                {/*
+
+                    on the bar itself, beside the button that opens the menu,
+                    rather than in the menu. A reader changes it on the page
+                    they are reading, and should not have to open a menu that
+                    covers the page to do it.
+
+                */}
+                <ThemeToggle className='theme-toggle-bar' />
                 <Navbar.Toggle aria-controls='basic-navbar-nav' />
                 <Navbar.Collapse id='mr-auto'>
                     <NavDropdown
@@ -201,7 +212,10 @@ class HeaderMenu extends Component {
         ) {
             return (
                 <nav className='main-navigation menu-login'>
-                    <div className='col-sm-12'><HomeLink /></div>
+                    <div className='col-sm-12'>
+                        <HomeLink />
+                        <ThemeToggle className='theme-toggle-corner' />
+                    </div>
                 </nav>
             );
         } else if (
@@ -214,6 +228,7 @@ class HeaderMenu extends Component {
                 <nav className='main-navigation menu-register'>
                     <div className='col-sm-12'>
                         <HomeLink />
+                        <ThemeToggle />
                         <LoginLinkState />
                     </div>
                 </nav>

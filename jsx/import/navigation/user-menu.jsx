@@ -13,6 +13,7 @@ import SvgHome from '../svg/svg-home.jsx';
 import SvgUser from '../svg/svg-user.jsx';
 import SvgBooks from '../svg/svg-books.jsx';
 import { Link } from 'react-router-dom';
+import ThemeToggle from './theme-toggle.jsx';
 import setLogoutState from '../redux/action/logout.jsx';
 import { breakpoints } from '../general/breakpoints.js';
 
@@ -108,6 +109,7 @@ class UserMenu extends Component {
 
         return (
             <Navbar.Collapse className='justify-content-end'>
+                <ThemeToggle className='theme-toggle-bar' />
                 <Nav>
                     <NavDropdown
                         className='svg-dropdown-user'
@@ -174,6 +176,17 @@ class UserMenu extends Component {
         return(
             <Navbar collapseOnSelect expand='lg' variant='light'>
                 <Navbar.Brand><Link to='/'><SvgHome /></Link></Navbar.Brand>
+                {/*
+
+                    the theme switch sits on the bar beside the button that
+                    opens the menu, where a narrow screen has one. A wide one
+                    has no such button, and draws it beside the user's menu
+                    instead -- see showDesktopUserDropdown.
+
+                */}
+                <BreakpointRender breakpoints={breakpoints} type='viewport'>
+                    {bp => (bp.isGt('medium') ? null : <ThemeToggle className='theme-toggle-bar' />)}
+                </BreakpointRender>
                 <Navbar.Toggle aria-controls='basic-navbar-nav' />
                 <BreakpointRender breakpoints={breakpoints} type='viewport'>
                     {bp => (

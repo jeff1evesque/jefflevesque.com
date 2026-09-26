@@ -176,8 +176,8 @@ describe('the desktop header', () => {
 
         await openGraphMenu();
 
-        const training = screen.getByRole('link', { name: 'Training graph' });
-        const retrieval = screen.getByRole('link', { name: 'Retrieval graph' });
+        const training = screen.getByRole('link', { name: 'Training Graph' });
+        const retrieval = screen.getByRole('link', { name: 'Retrieval Graph' });
 
         expect(training).toHaveAttribute('href', '/graph');
         expect(retrieval).toHaveAttribute('href', '/graph/retrieval');
@@ -199,14 +199,14 @@ describe('the desktop header', () => {
         const menu = document.querySelector('.main-navigation-dropdown .dropdown-menu');
 
         expect([...menu.querySelectorAll('a')].map((a) => a.textContent))
-            .toEqual(['Training graph', 'Retrieval graph']);
+            .toEqual(['Training Graph', 'Retrieval Graph']);
     });
 
     it.each([
-        ['/graph', 'Training graph'],
-        ['/graph/all-sources.2026-09.20260924T050042Z.1024d', 'Training graph'],
-        ['/graph/retrieval', 'Retrieval graph'],
-        ['/graph/retrieval/2026-09-23', 'Retrieval graph'],
+        ['/graph', 'Training Graph'],
+        ['/graph/all-sources.2026-09.20260924T050042Z.1024d', 'Training Graph'],
+        ['/graph/retrieval', 'Retrieval Graph'],
+        ['/graph/retrieval/2026-09-23', 'Retrieval Graph'],
     ])('on %s, marks Graph and %s as where the reader is', async (path, page) => {
         //
         // '/graph' is a prefix of '/graph/retrieval', which is why the marking is
@@ -272,8 +272,8 @@ describe('the mobile header', () => {
         expect(screen.getByRole('link', { name: 'Data' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Stream' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Model' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Training graph' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Retrieval graph' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Training Graph' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Retrieval Graph' })).toBeInTheDocument();
     });
 
     it('lists the two graph pages under a Graph heading of their own', async () => {
@@ -293,12 +293,12 @@ describe('the mobile header', () => {
             'Stream',
             'Data',
             '# Graph',
-            'Training graph',
-            'Retrieval graph',
+            'Training Graph',
+            'Retrieval Graph',
             'Model',
         ]);
-        expect(screen.getByRole('link', { name: 'Training graph' })).toHaveAttribute('href', '/graph');
-        expect(screen.getByRole('link', { name: 'Retrieval graph' })).toHaveAttribute('href', '/graph/retrieval');
+        expect(screen.getByRole('link', { name: 'Training Graph' })).toHaveAttribute('href', '/graph');
+        expect(screen.getByRole('link', { name: 'Retrieval Graph' })).toHaveAttribute('href', '/graph/retrieval');
     });
 
     it('navigates the mobile sections with plain hrefs, not the router', async () => {
@@ -314,5 +314,43 @@ describe('the mobile header', () => {
         const data = screen.getByRole('link', { name: 'Data' });
         expect(data).toHaveAttribute('href', '/data');
         expect(data).toHaveAttribute('data-rr-ui-dropdown-item');
+    });
+});
+
+//
+// the light and dark switch, in every header an anonymous visitor sees -- see
+// theme-toggle.jsx. Beside the control that ends each one: left of Login where
+// there is a Login, and beside the menu button on a phone.
+//
+describe('the theme switch', () => {
+    const toggle = () => screen.getByRole('button', { name: 'Dark theme' });
+    const before = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    it('sits just left of Login on a wide screen', () => {
+        renderHeader();
+
+        expect(before(toggle(), screen.getByRole('link', { name: 'Login in' }))).toBe(true);
+        expect(toggle().parentNode).toBe(screen.getByRole('link', { name: 'Login in' }).parentNode);
+    });
+
+    it('sits on a phone\'s bar beside the menu button, not inside the menu', () => {
+        renderHeader({ width: MOBILE });
+
+        expect(toggle().closest('.navbar-collapse')).toBeNull();
+        expect(toggle()).toHaveClass('theme-toggle-bar');
+        expect(before(toggle(), document.querySelector('.navbar-toggler'))).toBe(true);
+    });
+
+    it('takes the corner of the sign-in page\'s header', () => {
+        const { container } = renderHeader({ layout: { type: 'login' } });
+
+        expect(container.querySelector('nav.menu-login')).toContainElement(toggle());
+        expect(toggle()).toHaveClass('theme-toggle-corner');
+    });
+
+    it('sits just left of Login on the sign-up page\'s header', () => {
+        renderHeader({ layout: { type: 'register' } });
+
+        expect(before(toggle(), screen.getByRole('link', { name: 'Login in' }))).toBe(true);
     });
 });

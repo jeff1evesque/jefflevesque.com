@@ -46,7 +46,9 @@ class AggregateModelWorkflow extends Component {
 
         const arrow_style = {
             fill:'none',
-            stroke:'rgb(0,0,0)',
+            // the page's ink: black on a light page and the text's light gray on
+            // a dark one -- see '.workflow-diagram' in style.scss
+            stroke:'currentColor',
             strokeWidth:'5.47px',
             strokeLinecap:'round',
             strokeLinejoin:'miter',
@@ -61,6 +63,7 @@ class AggregateModelWorkflow extends Component {
 
         return(
             <svg
+                className='workflow-diagram'
                 width='100%'
                 height='100%'
                 viewBox='0 0 1221 653'

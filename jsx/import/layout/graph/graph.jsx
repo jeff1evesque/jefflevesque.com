@@ -37,9 +37,10 @@
  * strip that drags it smaller. The two beside the canvas narrow a reference
  * column; the one above the tables shortens the canvas, and folds the whole
  * three-column row when it is pushed past the point where the columns beside it
- * are already the taller thing. Smaller only, in every direction -- the size the
- * stylesheet gives a box is the size its contents were designed against, so
- * there is nothing a bigger one would show that it is not showing already.
+ * are already the taller thing. A column goes narrower only -- the width the
+ * stylesheet gives it is the width its contents were designed against, so there
+ * is nothing a wider one would show that it is not showing already. The canvas
+ * goes a little taller as well; see CANVAS_BEYOND.
  *
  * Note: this draws the same slice the front page's backdrop does, out of the
  *       same build. The two used to differ -- 60 here against 24 there -- on
@@ -77,6 +78,7 @@ import GraphExplorer from '../../animation/graph-explorer.jsx';
 import { API_DOCS } from '../../general/api-url.js';
 import ApiLinks from '../../general/api-links.jsx';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
+import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import filterSchema, { GRAPH_NODE_TYPES } from '../../animation/filter-schema.js';
 import GraphTables from './tables.jsx';
 import { BUILDS, DAYS } from './source.js';
@@ -154,6 +156,18 @@ const RAIL_MIN = 176;
 const RAIL_FOLD = 40;
 
 //
+// how much taller than it opens at the canvas may be dragged, in px.
+//
+// Every other drag here only makes a box smaller, and for a column that is
+// still the rule. The canvas's height is not what its contents were designed
+// against: the graph is laid out again for whatever box it has, so a taller one
+// is more room between the same nodes. A little more, because the stylesheet
+// sizes the canvas to leave the tables below it peeking 10rem above the fold,
+// and 30px of that is a nudge rather than a different layout.
+//
+const CANVAS_BEYOND = 30;
+
+//
 // what each of the three dividers does, since they differ only in which way
 // they face and what gives way when they are pushed past their floor.
 //
@@ -170,6 +184,9 @@ const RAIL_FOLD = 40;
 //             right, the legend's on its left
 //   floor     a method naming the smallest the box may be dragged to, or absent
 //             for the columns, which share RAIL_MIN
+//   beyond    how far past the size the stylesheet gives it the box may be
+//             dragged, in px, or absent for not at all -- which is every box
+//             but the canvas. See CANVAS_BEYOND
 //   folds     what closes when the pointer goes past that floor. A column folds
 //             itself; the canvas folds the whole three-column row, because a
 //             canvas alone between two reference columns is not a layout
@@ -195,6 +212,7 @@ const DRAG = {
         axis: 'y',
         grow: 1,
         floor: 'canvasFloor',
+        beyond: CANVAS_BEYOND,
         folds: 'row',
     },
 };
@@ -229,6 +247,12 @@ const PICKER_MENU = {
 };
 
 class GraphLayout extends Component {
+    //
+    // the page's theme, which the palette's tail is shaded for and the canvas's
+    // neutrals follow. See theme-mode.jsx.
+    //
+    static contextType = ThemeModeContext;
+
     constructor() {
         super();
 
@@ -529,11 +553,14 @@ class GraphLayout extends Component {
 
         //
         // memoised on the schema OBJECT, which only changes when a build is
-        // selected. Recomputed per render it would hand the tables below a fresh
-        // color Map every time, and a table that caches its rows against that
-        // Map would rebuild all 976 of them on every keystroke in its filter box.
+        // selected, and on the theme, which changes the palette's shaded tail.
+        // Recomputed per render it would hand the tables below a fresh color
+        // Map every time, and a table that caches its rows against that Map
+        // would rebuild all 976 of them on every keystroke in its filter box.
         //
-        if (this.screenFor === schema) {
+        const theme = this.context.theme;
+
+        if (this.screenFor === schema && this.screenTheme === theme) {
             return this.screen;
         }
 
@@ -554,9 +581,10 @@ class GraphLayout extends Component {
         //       swatch can never come back undefined here.
         //
         this.screenFor = schema;
+        this.screenTheme = theme;
         this.screen = {
             namespaces: rankNamespaces(nodes),
-            painted: buildPalette(this.state.build, GRAPH_NODE_TYPES, this.props.source.weight),
+            painted: buildPalette(this.state.build, GRAPH_NODE_TYPES, this.props.source.weight, theme),
             origins: [...new Set(
                 Object.values(schema.edge_types).map((e) => e.origin).filter(Boolean)
             )].sort(),
@@ -665,12 +693,14 @@ class GraphLayout extends Component {
      * legend's namespace grid runs two abreast at 18rem and one below that --
      * so there is nothing a wider column would show that it is not showing
      * already, and the space it would take is the graph, which is the page.
+     * The canvas is the one box that goes past the size it opens at, by its
+     * `beyond` -- see CANVAS_BEYOND.
      *
      * Note: the ceiling is read back off the element with the inline width
      *       taken off, rather than written down here. '_graph.scss' clamps that
      *       width against the viewport, so a copy in this file would be both a
      *       second number to keep in step and the wrong one at most window
-     *       sizes.
+     *       sizes. The canvas's allowance goes on top of what is read.
      *
      * Note: the move and release listeners go on the window rather than on the
      *       strip. A pointer dragging a 14px target leaves it constantly, and a
@@ -694,7 +724,7 @@ class GraphLayout extends Component {
         const inline = box.style.getPropertyValue(rules.property);
 
         box.style.removeProperty(rules.property);
-        const ceiling = measure();
+        const ceiling = measure() + (rules.beyond || 0);
 
         if (inline) {
             box.style.setProperty(rules.property, inline);
@@ -798,14 +828,19 @@ class GraphLayout extends Component {
      * number, wherever the stored one cannot be honored: it is bigger than the
      * box's own default, so honoring it would make a column wider than the
      * layout ever intended; or it is below the floor a drag would have stopped
-     * at, in which case it came from a screen this is not.
+     * at, in which case it came from a screen this is not. The default itself
+     * comes back as null too, being what the stylesheet says already.
+     *
+     * `beyond` is how far past its default the box may go, which is nothing for
+     * a column and CANVAS_BEYOND for the canvas: a height dragged up to that is
+     * one this screen gives, and past it is one from a taller window.
      *
      * Note: a size under the floor is DROPPED and not folded. Folding somebody's
      *       column on page load, because of a number left over from another
      *       screen, is a page that opens broken to explain a preference.
      */
-    restoreSize(stored, natural, floor) {
-        if (!Number.isFinite(stored) || stored < floor || stored >= natural) {
+    restoreSize(stored, natural, floor, beyond) {
+        if (!Number.isFinite(stored) || stored < floor || stored === natural || stored > natural + beyond) {
             return null;
         }
 
@@ -837,7 +872,8 @@ class GraphLayout extends Component {
             size[key] = this.restoreSize(
                 stored[key],
                 rules.axis === 'x' ? box.offsetWidth : box.offsetHeight,
-                rules.floor ? this[rules.floor](box) : RAIL_MIN
+                rules.floor ? this[rules.floor](box) : RAIL_MIN,
+                rules.beyond || 0
             );
         });
 
@@ -866,8 +902,8 @@ class GraphLayout extends Component {
     }
 
     /**
-     * watch both column bodies, so the heights stay matched without anything
-     * having to remember to re-measure.
+     * watch both columns' headings and bodies, so the heights stay matched
+     * without anything having to remember to re-measure.
      *
      * A column changes height when the build changes, when it is dragged
      * narrower -- the namespace grid drops from two abreast to one below 18rem,
@@ -875,6 +911,11 @@ class GraphLayout extends Component {
      * window resize. One observer answers all four the same way; four callers
      * remembering to recalculate answers three of them until somebody adds a
      * fifth.
+     *
+     * Note: the headings are watched as well as the bodies, because a column's
+     *       height takes in its heading -- see measureColumns. A heading that
+     *       wraps moves the body below it down without resizing it, and a box
+     *       that moves is not one a ResizeObserver reports.
      *
      * Note: the same pattern the canvas uses in graph-explorer.jsx, and guarded
      *       the same way. Without ResizeObserver the columns are simply not
@@ -894,8 +935,8 @@ class GraphLayout extends Component {
         }
 
         this.columnObserver = new ResizeObserver(this.measureColumns);
-        this.layout.current.querySelectorAll('.graph-panel-body').forEach((body) => {
-            this.columnObserver.observe(body);
+        this.layout.current.querySelectorAll('.graph-panel-heading, .graph-panel-body').forEach((box) => {
+            this.columnObserver.observe(box);
         });
     }
 
@@ -907,10 +948,20 @@ class GraphLayout extends Component {
      * eight label/value rows and the legend is a namespace grid plus three edge
      * origins, and they are never the same height by accident.
      *
-     * The measurement is of the BODIES. The panels are what carry the height,
-     * so measuring those feeds the answer back into itself and the columns
-     * ratchet taller on every pass; a body is content-sized whatever its panel
-     * is doing.
+     * The measurement is of what each column HOLDS: from the top of its panel
+     * to the bottom of its body, which takes in the heading above the body. It
+     * used to be the body alone, and the height the shorter column was then
+     * held at was the taller one's body -- a heading short of the taller
+     * column, so its rule stopped short and the two never matched.
+     *
+     * The panel's own height is not what is measured, because it is what is
+     * being SET. Measuring it feeds the answer back into itself, and the columns
+     * ratchet taller on every pass and never come back down. A body ends where
+     * its contents do, whatever height its panel is held at.
+     *
+     * Note: read off the boxes as drawn, rather than added up from the heading's
+     *       height and its margin, so the sum cannot leave out a piece of
+     *       spacing the stylesheet adds later.
      *
      * Note: this is also where the canvas drag gets its floor -- see
      *       canvasFloor. The floor is a single number only because these two
@@ -931,7 +982,10 @@ class GraphLayout extends Component {
             const panel = root.querySelector(`.graph-panel-${key}.graph-panel-open`);
             const body = panel && panel.querySelector('.graph-panel-body');
 
-            return Math.max(most, body ? body.offsetHeight : 0);
+            return Math.max(
+                most,
+                body ? body.getBoundingClientRect().bottom - panel.getBoundingClientRect().top : 0
+            );
         }, 0);
 
         if (tallest === this.columnHeight) {
@@ -1247,10 +1301,10 @@ class GraphLayout extends Component {
 
     //
     // Note: headed 'Namespaces', not 'Sources'. These are the namespaces the
-    //       node types come from -- jolts, eci, laus -- which is not the same
-    //       list as the sources the graph holds (bls, market, sec). The panel
-    //       beside it lists the sources under that name, and two different
-    //       lists under one heading read as a contradiction.
+    //       node types come from -- bls-jolts, bls-eci, sec-filings -- which is
+    //       not the same list as the sources the graph holds (bls, market, sec).
+    //       The panel beside it lists the sources under that name, and two
+    //       different lists under one heading read as a contradiction.
     //
     legend(shown) {
         if (!shown) {
@@ -1279,7 +1333,7 @@ class GraphLayout extends Component {
                             <svg width='34' height='10' aria-hidden='true'>
                                 <line
                                     x1='0' y1='5' x2='34' y2='5'
-                                    stroke={originColor(origin)}
+                                    stroke={originColor(origin, this.context.theme)}
                                     strokeWidth={origin === 'raw' ? 1 : 1.5}
                                     strokeDasharray={ORIGIN_DASH[origin] || undefined}
                                 />
@@ -1363,6 +1417,7 @@ class GraphLayout extends Component {
                     palette={shown ? shown.painted : null}
                     emphasis={this.emphasis()}
                     onClear={this.clearMarks}
+                    theme={this.context.theme}
                 />
             );
         };
@@ -1405,10 +1460,11 @@ class GraphLayout extends Component {
                               picks a day of the tables, and the Training graph
                               a build by the day it holds.
 
-                        Note: the heading names WHICH graph -- 'Training graph'
-                              or 'Retrieval graph' -- rather than the 'Knowledge
+                        Note: the heading names WHICH graph -- 'Training Graph'
+                              or 'Retrieval Graph' -- rather than the 'Knowledge
                               graph' both of them are, since the two are one
-                              menu away from each other and look alike.
+                              menu away from each other and look alike. In
+                              title case, as every other page's heading is.
 
                     */}
                     <div
@@ -1529,6 +1585,7 @@ class GraphLayout extends Component {
                             lookups={source.lookups}
                             scope={source.scope}
                             weight={source.weight}
+                            theme={this.context.theme}
                         />
                     </div>
                 </div>

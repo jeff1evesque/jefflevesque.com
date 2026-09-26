@@ -37,9 +37,10 @@ import { render, screen, act, fireEvent } from '@testing-library/react';
 //
 jest.mock('../../import/animation/graph-explorer.jsx', () => ({
     __esModule: true,
-    default: ({ data, emphasis, onClear }) => (
+    default: ({ data, emphasis, onClear, theme }) => (
         <div
             data-testid='explorer'
+            data-theme={theme}
             data-types={data ? Object.keys(data.node_types).length : 'none'}
             data-emphasis={emphasis && emphasis.length
                 ? emphasis.map((m) => `${m.kind}:${m.value}`).join(' ')
@@ -57,9 +58,10 @@ jest.mock('../../import/animation/graph-explorer.jsx', () => ({
 //
 jest.mock('../../import/layout/graph/tables.jsx', () => ({
     __esModule: true,
-    default: ({ schema, drawn, painted, loading }) => (
+    default: ({ schema, drawn, painted, loading, theme }) => (
         <div
             data-testid='tables'
+            data-theme={theme}
             data-node-types={schema ? Object.keys(schema.node_types).length : 'none'}
             data-drawn={drawn ? Object.keys(drawn.node_types).length : 'none'}
             data-painted={painted ? painted.size : 'none'}
@@ -95,6 +97,8 @@ import { PENDING_NAMESPACES, PENDING_ORIGINS } from '../../import/layout/graph/p
 import { nodeRadius } from '../../import/animation/explorer-layout.js';
 import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
 import { writeLayout } from '../../import/general/layout-preference.js';
+import { ThemeModeContext } from '../../import/general/theme-mode.jsx';
+import { colors, colors_dark } from '../../import/general/colors.js';
 
 // the shim setup.js installs, kept so a test that replaces it can put it back
 const storage = window.localStorage;
@@ -1518,6 +1522,8 @@ describe('remembering how the page was arranged', () => {
     const width = (key) => panel(key).style.getPropertyValue('--graph-panel-width');
     const entry = (name) => screen.getByRole('button', { name: new RegExp(`^${name}`) });
     const real = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'offsetWidth');
+    const realHeight = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, 'offsetHeight');
+    const canvasHeight = () => document.querySelector('.graph-canvas').style.getPropertyValue('--graph-canvas-height');
 
     function pointer(type, target, init = {}) {
         fireEvent(target, new MouseEvent(type, { bubbles: true, cancelable: true, ...init }));
@@ -1547,6 +1553,7 @@ describe('remembering how the page was arranged', () => {
 
     afterEach(() => {
         Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', real);
+        Object.defineProperty(window.HTMLElement.prototype, 'offsetHeight', realHeight);
         delete window.matchMedia;
     });
 
@@ -1668,6 +1675,34 @@ describe('remembering how the page was arranged', () => {
         expect(width('build')).toBe('212px');
     });
 
+    it('brings back a canvas dragged a little taller than it opens at', async () => {
+        //
+        // up to 30px past the height this screen gives it, which is as far as a
+        // drag on this screen would have gone
+        //
+        Object.defineProperty(window.HTMLElement.prototype, 'offsetHeight', {
+            configurable: true,
+            get() { return 500; },
+        });
+        writeLayout('graph', 'wide', { fold: {}, size: { canvas: 530 } });
+
+        await setup();
+
+        expect(canvasHeight()).toBe('530px');
+    });
+
+    it('drops a canvas height from a taller window', async () => {
+        Object.defineProperty(window.HTMLElement.prototype, 'offsetHeight', {
+            configurable: true,
+            get() { return 500; },
+        });
+        writeLayout('graph', 'wide', { fold: {}, size: { canvas: 531 } });
+
+        await setup();
+
+        expect(canvasHeight()).toBe('');
+    });
+
     it('drops the width of a column that comes back folded', async () => {
         //
         // it cannot be checked against this screen while the box is closed, and
@@ -1762,8 +1797,9 @@ describe('the divider above the tables', () => {
 
     //
     // jsdom lays nothing out, so the canvas's own height and the floor under it
-    // are supplied. 500 is the height the page opens at and the ceiling a drag
-    // may not pass; 200 stands in for whichever reference column is taller.
+    // are supplied. 500 is the height the page opens at, which a drag may pass
+    // by 30px and no more; 200 stands in for whichever reference column is
+    // taller.
     //
     function sized(open = 500, floor = 200) {
         Object.defineProperty(canvas(), 'offsetHeight', { value: open, configurable: true });
@@ -1810,7 +1846,7 @@ describe('the divider above the tables', () => {
 
         fireEvent.click(fold());
 
-        expect(screen.getByRole('heading', { name: 'Training graph' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Training Graph' })).toBeTruthy();
         expect(picker()).toBeTruthy();
         expect(document.querySelector('[data-testid="tables"]')).not.toBeNull();
     });
@@ -1849,14 +1885,22 @@ describe('the divider above the tables', () => {
         expect(height()).toBe('400px');
     });
 
-    it('will not drag the canvas taller than it opens at', async () => {
+    it('drags the canvas a little taller than it opens at, and no further', async () => {
+        //
+        // 30px past it. The stylesheet leaves the tables peeking 10rem above
+        // the fold, and more than a nudge of that is a different layout.
+        //
         await setup();
         sized();
 
         pointer('pointerdown', grip(), { clientY: 600, button: 0 });
+        pointer('pointermove', window, { clientY: 620 });
+
+        expect(height()).toBe('520px');
+
         pointer('pointermove', window, { clientY: 900 });
 
-        expect(height()).toBe('500px');
+        expect(height()).toBe('530px');
     });
 
     it('stops at the height of the taller reference column', async () => {
@@ -1906,15 +1950,22 @@ describe('the two columns matching heights', () => {
     let observers;
 
     const panel = (key) => document.querySelector(`.graph-panel-${key}`);
+    const heading = (key) => panel(key).querySelector('.graph-panel-heading');
     const body = (key) => panel(key).querySelector('.graph-panel-body');
     const held = (key) => panel(key).style.getPropertyValue('--graph-panel-height');
 
+    //
+    // jsdom lays nothing out, so where a column's panel starts and where its
+    // body ends are supplied: `px` apart, which is the whole column, heading and
+    // body. The heading is the 48px above the body.
+    //
     function tall(key, px) {
-        Object.defineProperty(body(key), 'offsetHeight', { value: px, configurable: true });
+        panel(key).getBoundingClientRect = () => ({ top: 100, bottom: 100 + px });
+        body(key).getBoundingClientRect = () => ({ top: 148, bottom: 100 + px });
     }
 
     //
-    // one observer watches both bodies, so reporting once is enough
+    // one observer watches both columns, so reporting once is enough
     //
     function reflow() {
         observers.filter((o) => !o.disconnected).forEach((o) => o.callback());
@@ -1947,15 +1998,35 @@ describe('the two columns matching heights', () => {
         delete window.matchMedia;
     });
 
-    it('watches both column bodies', async () => {
+    it('watches both columns, their headings as well as their bodies', async () => {
         await setup();
 
         //
         // attached again once a build has loaded, because there are no panels
-        // to watch before that -- so the live one is the last one made.
+        // to watch before that -- so the live one is the last one made. The
+        // headings because a heading that wraps moves the body below it, which
+        // resizes nothing an observer of the body would hear about.
         //
-        expect(watching().targets).toEqual([body('build'), body('legend')]);
+        expect(watching().targets).toEqual([heading('build'), body('build'), heading('legend'), body('legend')]);
         expect(observers.slice(0, -1).every((o) => o.disconnected)).toBe(true);
+    });
+
+    it('holds the shorter at the taller column\'s whole height, not its body\'s', async () => {
+        //
+        // the body alone is a heading short of the column, and the shorter
+        // column's rule stopped that far above the taller one's -- the two never
+        // matched. The body's own height is supplied as well, so a measurement
+        // of it would be seen.
+        //
+        await setup();
+        tall('build', 325);
+        Object.defineProperty(body('build'), 'offsetHeight', { value: 277, configurable: true });
+        tall('legend', 180);
+
+        act(() => { reflow(); });
+
+        expect(held('legend')).toBe('325px');
+        expect(held('build')).toBe('325px');
     });
 
     it('holds both columns at the taller one, growing the shorter', async () => {
@@ -2440,5 +2511,73 @@ describe('the api icons', () => {
 
         expect(screen.getByRole('link', { name: 'This request' }))
             .toHaveAttribute('href', String(knowledgeGraphUrl()));
+    });
+});
+
+//
+// the page on a dark page -- see theme-mode.jsx. The layout itself is drawn by the
+// stylesheet, which follows the theme on its own; what the page has to hand on is
+// the theme, to whatever draws its colors in script.
+//
+describe('on a dark page', () => {
+    async function dark(path = '/graph') {
+        await act(async () => {
+            render(
+                <ThemeModeContext.Provider value={{ theme: 'dark', toggle: () => {} }}>
+                    <MemoryRouter initialEntries={[path]}>
+                        <Routes>
+                            <Route path='/graph' element={<GraphLayout />} />
+                        </Routes>
+                    </MemoryRouter>
+                </ThemeModeContext.Provider>
+            );
+        });
+    }
+
+    const rawLine = () => [...document.querySelectorAll('.graph-legend-origins line')]
+        .find((line) => !line.getAttribute('stroke-dasharray'));
+    const swatches = () => [...document.querySelectorAll('.graph-legend-namespaces .graph-legend-swatch')]
+        .map((swatch) => swatch.style.backgroundColor);
+
+    it('hands the canvas and the tables the page\'s theme', async () => {
+        await dark();
+
+        expect(explorer().dataset.theme).toBe('dark');
+        expect(screen.getByTestId('tables').dataset.theme).toBe('dark');
+    });
+
+    it('hands them the light theme on a light page', async () => {
+        await setup();
+
+        expect(explorer().dataset.theme).toBe('light');
+        expect(screen.getByTestId('tables').dataset.theme).toBe('light');
+    });
+
+    it('draws the legend\'s raw edge in the dark page\'s quiet gray', async () => {
+        await dark();
+
+        expect(rawLine().getAttribute('stroke')).toBe(colors_dark['gray-5']);
+    });
+
+    it('and in the light page\'s on a light page', async () => {
+        await setup();
+
+        expect(rawLine().getAttribute('stroke')).toBe(colors['gray-5']);
+    });
+
+    it('keeps every namespace with a color of its own the same color on either page', async () => {
+        //
+        // a color says which source a namespace is; only the shaded tail fades
+        // toward the page it is on
+        //
+        await setup();
+        const light = swatches();
+        document.body.innerHTML = '';
+
+        await dark();
+        const darkSwatches = swatches();
+
+        expect(darkSwatches).toHaveLength(light.length);
+        darkSwatches.slice(0, 8).forEach((color, index) => expect(color).toBe(light[index]));
     });
 });

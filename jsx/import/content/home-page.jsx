@@ -37,8 +37,9 @@ import { setLayout } from '../redux/action/page.jsx';
 import GraphCluster from '../animation/graph-cluster.jsx';
 import PropTypes from 'prop-types';
 import getGraphSchema from '../general/get-graph-schema.js';
-import filterSchema from '../animation/filter-schema.js';
+import filterSchema, { GRAPH_NODE_TYPES } from '../animation/filter-schema.js';
 import { buildPalette } from '../animation/encoding.js';
+import { ThemeModeContext } from '../general/theme-mode.jsx';
 
 class HomePage extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
@@ -46,16 +47,48 @@ class HomePage extends Component {
         dispatchLayout: PropTypes.func,
     }
 
+    //
+    // the page's theme, which the backdrop is drawn in and its palette's tail
+    // is shaded for. See theme-mode.jsx.
+    //
+    static contextType = ThemeModeContext;
+
     constructor() {
         super();
         this.currentUser = this.currentUser.bind(this);
+        this.palette = this.palette.bind(this);
 
         this.state = {
             graph_schema: null,
-            // namespace -> color for the WHOLE build, not for the slice drawn
-            // below it. See buildPalette, and the note in componentDidMount.
-            graph_palette: null
+            // the WHOLE build, not the slice drawn below it, which the palette
+            // is ranked over. See buildPalette, and the note in
+            // componentDidMount.
+            graph_build: null
         }
+    }
+
+    /**
+     * namespace -> color for the whole build, in the page's theme.
+     *
+     * Note: derived rather than kept in state, because it answers to two
+     *       things -- the build, and the theme a reader can change at any time
+     *       -- and a copy of it in state is a copy one of them can leave behind.
+     *       Kept per build and theme, so the backdrop is handed the same map
+     *       until one of those changes, and recolors only then.
+     */
+    palette() {
+        const build = this.state.graph_build;
+        const theme = this.context.theme;
+
+        if (!this.painted || this.painted.build !== build || this.painted.theme !== theme) {
+            this.painted = {
+                build: build,
+                theme: theme,
+                map: build ? buildPalette(build, GRAPH_NODE_TYPES, 'count', theme) : null,
+            };
+        }
+
+        return this.painted.map;
     }
 
     async currentUser() {
@@ -94,15 +127,16 @@ class HomePage extends Component {
                   ranks a different set from the one /graph ranks, so the same
                   namespace came out a different color on the two pages and
                   /graph's legend described this cluster incorrectly. Both are
-                  set in ONE setState so the cluster never redraws holding one
-                  build's nodes and another's colors.
+                  set in ONE setState -- the slice and the build its palette is
+                  drawn from -- so the cluster never redraws holding one build's
+                  nodes and another's colors.
 
         */}
 
         getGraphSchema().then((schema) => {
             this.setState({
                 graph_schema: filterSchema(schema),
-                graph_palette: buildPalette(schema),
+                graph_build: schema,
             });
         });
     }
@@ -124,7 +158,8 @@ class HomePage extends Component {
             <div className='main-full-span home'>
                 <GraphCluster
                     data={this.state.graph_schema}
-                    palette={this.state.graph_palette}
+                    palette={this.palette()}
+                    theme={this.context.theme}
                 />
             </div>
         );

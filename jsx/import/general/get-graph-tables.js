@@ -20,9 +20,10 @@
  * weighed by its node count is its own build again. See source.js.
  *
  * Note: what a day does NOT carry is the ontology term of each node type. The tables
- *       hold none, so a type's namespace is read off its name instead -- see
- *       sourceNamespace in encoding.js, which falls back to that already -- and the
- *       tables below the graph drop the column that would print it.
+ *       hold none, and the tables below the graph drop the column that would print
+ *       it. What a type's term would have said about its VOCABULARY -- which the
+ *       legend colors by, and which puts 'jolts' under 'bls' -- the day's own
+ *       predicates say instead. See vocabularies.
  *
  * Note: failures resolve to null, as get-graph-schema.js's do, and are logged with
  *       console.log rather than console.error for the reason it gives. A day with
@@ -33,6 +34,7 @@
 
 import { knowledgeGraphTablesUrl, ENDPOINTS } from './api-url.js';
 import { report } from './get-graph-schema.js';
+import { ontologyTerm } from '../animation/encoding.js';
 
 const TABLES = ENDPOINTS.knowledgeGraphTables;
 
@@ -89,18 +91,70 @@ export function dayRequests(day, base = TABLES) {
 }
 
 /**
+ * the vocabulary each prefix of a name is published under, as a day's own
+ * predicates say it: Map { 'jolts' => 'bls/jolts', ... }.
+ *
+ * A relation is named the way a node type is -- a prefix, then its own name --
+ * and its predicate is an ontology term, which names the whole vocabulary. So
+ * 'jolts_hasIndustry', whose predicate is '.../ontology/bls/jolts/hasIndustry', says
+ * that 'jolts' is 'bls/jolts', and 'jolts_Industry' is then a type of it. That is
+ * what a build's schema says of the same type in its own uri, and what the tables
+ * have no column for.
+ *
+ * Measured against the build published 2026-09-25, whose types carry their uris:
+ * every prefix both a type and a relation are named under is published under the
+ * one vocabulary. Four prefixes no relation is named under -- market_quotes,
+ * sec_common, temporal and weather, on every day published by then -- are left to
+ * their names, which for the first three answer what the uri would.
+ *
+ * Note: a predicate whose own name is not the end of its relation's name is
+ *       passed over, as is one that is not an ontology term -- owl:sameAs is the
+ *       W3C's, and every source uses it. Neither says what a prefix means.
+ *
+ * Note: a prefix named under two vocabularies is named under neither. Picking
+ *       one would be a guess made to look like the tables' answer.
+ */
+function vocabularies(edgeRows) {
+    const named = new Map();
+
+    edgeRows.forEach((row) => {
+        const term = ontologyTerm(row.predicate_uri);
+
+        if (!term || !row.relation.endsWith(`_${term.name}`)) {
+            return;
+        }
+
+        const prefix = row.relation.slice(0, -(term.name.length + 1));
+
+        if (prefix) {
+            named.set(prefix, (named.get(prefix) || new Set()).add(term.vocabulary));
+        }
+    });
+
+    return new Map([...named]
+        .filter(([, paths]) => paths.size === 1)
+        .map(([prefix, paths]) => [prefix, [...paths][0]]));
+}
+
+/**
  * one day's node and edge type rows, in the shape of a build's schema.
  *
  * Keyed as a schema is: node types by name, and edge types by a label naming
  * both ends and the relation, the way the builder writes a schema's keys. A day
  * holds each edge type once, so no two rows want the same label.
  *
+ * A node type carries the `vocabulary` its name's prefix is published under,
+ * where the day's predicates say -- see vocabularies. It stands in for the uri a
+ * build's type carries, and is read where that would be: see vocabulary in
+ * encoding.js.
+ *
  * Returns null for rows that are not the ones asked for, so the page has one
  * check to make, as filterSchema gives it for a build.
  *
  * Note: `predicate_uri` and `relation_group` are carried through when a row has
- *       them. Nothing on the page reads either yet; dropping them here would make
- *       a later reader fetch the day again for fields it already had.
+ *       them. The predicates are read here, for the vocabularies; nothing on the
+ *       page reads either one off an edge yet, and dropping them would make a
+ *       later reader fetch the day again for fields it already had.
  */
 export function daySchema(nodeRows, edgeRows) {
     if (!Array.isArray(nodeRows) || !Array.isArray(edgeRows)) {
@@ -149,6 +203,20 @@ export function daySchema(nodeRows, edgeRows) {
 
         edge_types[`(${row.src_type}, ${row.relation}, ${row.dst_type})`] = edge;
     }
+
+    //
+    // after both loops, so a day whose rows fail says nothing about any of them
+    //
+    const named = vocabularies(edgeRows);
+
+    Object.keys(node_types).forEach((id) => {
+        const underscore = id.lastIndexOf('_');
+        const path = underscore > 0 ? named.get(id.slice(0, underscore)) : null;
+
+        if (path) {
+            node_types[id].vocabulary = path;
+        }
+    });
 
     return { node_types: node_types, edge_types: edge_types };
 }

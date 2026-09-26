@@ -36,10 +36,12 @@ jest.mock('@aws-amplify/auth', () => ({
 
 jest.mock('../../import/animation/graph-cluster.jsx', () => ({
     __esModule: true,
-    default: ({ data }) => (
+    default: ({ data, palette, theme }) => (
         <div
             data-testid='graph-cluster'
             data-types={data ? Object.keys(data.node_types).length : 'none'}
+            data-palette={palette ? JSON.stringify([...palette]) : 'none'}
+            data-theme={theme}
         />
     ),
 }));
@@ -53,6 +55,8 @@ import Auth from '@aws-amplify/auth';
 import getGraphSchema from '../../import/general/get-graph-schema.js';
 import HomePage from '../../import/content/home-page.jsx';
 import { GRAPH_NODE_TYPES } from '../../import/animation/filter-schema.js';
+import { buildPalette } from '../../import/animation/encoding.js';
+import { ThemeModeContext } from '../../import/general/theme-mode.jsx';
 
 //
 // Note: async, and the render is awaited inside act(). componentDidMount fires the
@@ -174,12 +178,14 @@ describe('what the front page no longer shows', () => {
 
         //
         // both are read on the way into GraphCluster: the slice it draws, and the
-        // palette it draws it in. The palette is built from the UNFILTERED schema
-        // so this page and /graph paint a namespace the same color -- see
-        // buildPalette -- which is why it is kept here rather than derived from
-        // 'graph_schema' below.
+        // whole build its palette is drawn from. The palette is built from the
+        // UNFILTERED schema so this page and /graph paint a namespace the same
+        // color -- see buildPalette -- which is why the build is kept here
+        // rather than derived from 'graph_schema' below. The palette itself is
+        // not kept: it answers to the page's theme as well, and is drawn for
+        // whichever one is showing -- see palette in home-page.jsx.
         //
-        expect(Object.keys(page.state)).toEqual(['graph_schema', 'graph_palette']);
+        expect(Object.keys(page.state)).toEqual(['graph_schema', 'graph_build']);
     });
 
     it('asks for no csv on mount', async () => {
@@ -312,5 +318,89 @@ describe('the session lookup', () => {
         expect(quiet).toHaveBeenCalled();
 
         quiet.mockRestore();
+    });
+});
+
+//
+// the backdrop on a dark page -- see theme-mode.jsx. The page hands it the theme,
+// and a palette whose shaded tail fades toward the page it is on.
+//
+describe('on a dark page', () => {
+    //
+    // a build of twelve namespaces, so four of them fall past the eight
+    // categorical colors into the shaded tail
+    //
+    function build() {
+        const node_types = {};
+        for (let i = 0; i < 12; i++) {
+            node_types[`ns${String(i).padStart(2, '0')}_Type`] = { count: 100 - i, category: 'entity' };
+        }
+
+        return { version: '1.4', node_types: node_types, edge_types: {} };
+    }
+
+    function holder(theme) {
+        const value = { theme: theme, toggle: () => {} };
+
+        return ({ children }) => (
+            <ThemeModeContext.Provider value={value}>{children}</ThemeModeContext.Provider>
+        );
+    }
+
+    async function show(theme) {
+        const held = React.createRef();
+        const Holder = holder(theme);
+        let utils;
+
+        await act(async () => {
+            utils = render(<Holder><HomePage ref={held} dispatchLayout={jest.fn()} /></Holder>);
+        });
+
+        return { ...utils, page: held.current, Holder: Holder, held: held };
+    }
+
+    const cluster = () => document.querySelector('[data-testid="graph-cluster"]');
+    const palette = () => new Map(JSON.parse(cluster().getAttribute('data-palette')));
+
+    it('hands the backdrop the page\'s theme', async () => {
+        await show('dark');
+
+        expect(cluster().dataset.theme).toBe('dark');
+    });
+
+    it('hands it the light theme on a light page', async () => {
+        await setup();
+
+        expect(cluster().dataset.theme).toBe('light');
+    });
+
+    it('hands it the whole build\'s palette, shaded for the dark page', async () => {
+        const schema = build();
+        getGraphSchema.mockReturnValue(Promise.resolve(schema));
+
+        await show('dark');
+
+        expect([...palette()]).toEqual([...buildPalette(schema, GRAPH_NODE_TYPES, 'count', 'dark')]);
+    });
+
+    it('hands it the light palette on a light page, as it always has', async () => {
+        const schema = build();
+        getGraphSchema.mockReturnValue(Promise.resolve(schema));
+
+        await setup();
+
+        expect([...palette()]).toEqual([...buildPalette(schema)]);
+    });
+
+    it('hands it the same palette until the build or the theme changes', async () => {
+        //
+        // a fresh map every render would recolor the backdrop on every render
+        //
+        getGraphSchema.mockReturnValue(Promise.resolve(build()));
+
+        const { page } = await show('dark');
+        const first = page.palette();
+
+        expect(page.palette()).toBe(first);
     });
 });

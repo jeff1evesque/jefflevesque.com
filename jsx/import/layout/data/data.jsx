@@ -59,7 +59,8 @@ import {
     US_NATIONAL_WEATHER,
     STREAMS,
 } from '../../general/stream-id.js';
-import { toRGB, colors, colors_categorical, color_tail } from '../../general/colors.js';
+import { toRGB, colors_categorical, color_tail, themeColors, translucent } from '../../general/colors.js';
+import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import chartHeight, {
     CHART_X_AXIS_HEIGHT,
     CHART_X_AXIS_HEIGHT_MOBILE,
@@ -352,6 +353,9 @@ export function splitTickerPairs(tickers) {
 
 
 export function DistributionTooltip({ active, payload, label }) {
+    // read before anything returns, as every hook has to be
+    const shade = themeColors(React.useContext(ThemeModeContext).theme);
+
     if (!active || !checkValidArray(payload)) {
         return null;
     }
@@ -391,18 +395,23 @@ export function DistributionTooltip({ active, payload, label }) {
 
     return (
         <div
+            //
+            // in the page's own colors -- '#fff', '#ccc', '#333' on a light
+            // page -- so the tooltip follows the theme with the page. See
+            // themeColors.
+            //
             style={{
-                background: '#fff',
-                border: '1px solid #ccc',
+                background: shade['white-1'],
+                border: `1px solid ${shade['gray-3']}`,
                 borderRadius: 4,
                 padding: '8px 10px',
                 boxShadow: '0 1px 4px rgba(0, 0, 0, 0.15)',
                 fontSize: 12,
                 lineHeight: 1.5,
-                color: '#333'
+                color: shade['gray-7']
             }}
         >
-            <div style={{ fontWeight: 600, marginBottom: 4, color: '#1a1a1a' }}>{label}</div>
+            <div style={{ fontWeight: 600, marginBottom: 4, color: shade['gray-8'] }}>{label}</div>
             {visible.map((entry, index) => (
                 <div
                     key={`tooltip-row-${index}`}
@@ -425,29 +434,29 @@ export function DistributionTooltip({ active, payload, label }) {
                         for the streams that are not ranked per bar
 
                     */}
-                    <span style={{ flex: '1 1 auto', color: '#333' }}>
+                    <span style={{ flex: '1 1 auto', color: shade['gray-7'] }}>
                         {(entry.payload && entry.payload[`${entry.dataKey}_name`]) || entry.name}
                     </span>
-                    <span style={{ marginLeft: 12, fontVariantNumeric: 'tabular-nums', color: '#333' }}>
+                    <span style={{ marginLeft: 12, fontVariantNumeric: 'tabular-nums', color: shade['gray-7'] }}>
                         {Number(entry.value).toLocaleString()}
                     </span>
                 </div>
             ))}
             {ticker_visible.length > 0 && (
-                <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid #eee' }}>
+                <div style={{ marginTop: 4, paddingTop: 4, borderTop: `1px solid ${shade['gray-1']}` }}>
                     {ticker_visible.map((entry, index) => (
                         <div
                             key={`tooltip-ticker-${index}`}
                             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                         >
-                            <span style={{ flex: '1 1 auto', color: '#333' }}>{entry.ticker}</span>
-                            <span style={{ marginLeft: 12, fontVariantNumeric: 'tabular-nums', color: '#333' }}>
+                            <span style={{ flex: '1 1 auto', color: shade['gray-7'] }}>{entry.ticker}</span>
+                            <span style={{ marginLeft: 12, fontVariantNumeric: 'tabular-nums', color: shade['gray-7'] }}>
                                 {entry.ratio}
                             </span>
                         </div>
                     ))}
                     {ticker_hidden > 0 && (
-                        <div style={{ marginTop: 2, color: '#777', fontStyle: 'italic' }}>
+                        <div style={{ marginTop: 2, color: shade['gray-6'], fontStyle: 'italic' }}>
                             {`+${ticker_hidden} more · click bar for all`}
                         </div>
                     )}
@@ -461,8 +470,8 @@ export function DistributionTooltip({ active, payload, label }) {
                         gap: 6,
                         marginTop: 4,
                         paddingTop: 4,
-                        borderTop: '1px solid #eee',
-                        color: '#777',
+                        borderTop: `1px solid ${shade['gray-1']}`,
+                        color: shade['gray-6'],
                         fontStyle: 'italic'
                     }}
                 >
@@ -477,6 +486,12 @@ export function DistributionTooltip({ active, payload, label }) {
 }
 
 class DataLayout extends Component {
+    //
+    // the page's theme, which the long tail of a distribution's series is
+    // shaded for, and the loading chip's green is drawn in. See theme-mode.jsx.
+    //
+    static contextType = ThemeModeContext;
+
     constructor() {
         super();
 
@@ -1063,13 +1078,22 @@ class DataLayout extends Component {
                     */}
                     const tail_length = Math.max(data_keys.length - colors_categorical.length, 0);
 
-                    let data_distribution_bar = data_keys.map((key, index) => {
-                        const color = index < colors_categorical.length
-                            ? colors_categorical[index]
-                            : color_tail(index - colors_categorical.length, tail_length);
+                    {/*
 
-                        return { data_key: key, color: to_rgb_parts(color) };
-                    });
+                        both themes' colors, since the page can change theme with the
+                        bars on it and the tail is shaded toward whichever page it is
+                        on. See barColor, which picks.
+
+                    */}
+                    const shade = (index, theme) => (index < colors_categorical.length
+                        ? colors_categorical[index]
+                        : color_tail(index - colors_categorical.length, tail_length, theme));
+
+                    let data_distribution_bar = data_keys.map((key, index) => ({
+                        data_key: key,
+                        color: to_rgb_parts(shade(index, 'light')),
+                        color_dark: to_rgb_parts(shade(index, 'dark')),
+                    }));
 
 
                     {/*
@@ -1187,6 +1211,14 @@ class DataLayout extends Component {
         this.setState({ bottom_sheet_open: ! this.state.bottom_sheet_open });
     }
 
+    //
+    // a bar's color, as the page's theme draws it: the dark theme's where the
+    // page is dark and the bar has one. See where the bars are built.
+    //
+    barColor(bar) {
+        return this.context.theme === 'dark' && bar.color_dark ? bar.color_dark : bar.color;
+    }
+
     /*
 
         the hover tooltip is pinned to the cursor and cannot hold interactive
@@ -1244,7 +1276,7 @@ class DataLayout extends Component {
             const color_map = {};
             bars.forEach((bar) => {
                 const series_name = payload[`${bar.data_key}_name`] || bar.data_key;
-                color_map[series_name] = bar.color;
+                color_map[series_name] = this.barColor(bar);
             });
 
             {/*
@@ -1531,7 +1563,7 @@ class DataLayout extends Component {
                         justifyContent: 'center',
                         padding: isMobile ? '14px 18px' : '18px 24px',
                         borderRadius: 999,
-                        background: 'rgba(255, 255, 255, 0.92)',
+                        background: translucent(themeColors(this.context.theme)['white-1'], 0.92),
                         boxShadow: '0 1px 6px rgba(0, 0, 0, 0.12)'
                     }}
                 >
@@ -1543,9 +1575,10 @@ class DataLayout extends Component {
                         // data were sharing one value: a legend swatch and a
                         // loading state meant different things in the same blue.
                         // it also measures better on the chip below, 5.72:1
-                        // against the old 4.42:1
+                        // against the old 4.42:1 -- and on a dark page it is the
+                        // dark theme's lighter green, for the same reason
                         //
-                        color={colors['green-6']}
+                        color={themeColors(this.context.theme)['green-6']}
                         margin={5}
                         size={isMobile ? 20 : 30}
                         speedMultiplier={0.75}
@@ -1672,7 +1705,7 @@ class DataLayout extends Component {
                                     this.state[`data_distribution_${stream}_bar`].map((entry, index) => (
                                         <Bar
                                               key={`bar-${index}`}
-                                              fill={`rgb(${entry.color.r}, ${entry.color.g}, ${entry.color.b})`}
+                                              fill={((color) => `rgb(${color.r}, ${color.g}, ${color.b})`)(this.barColor(entry))}
                                               dataKey={entry.data_key}
                                               stackId='a'
                                               cursor='pointer'
@@ -1843,10 +1876,10 @@ class DataLayout extends Component {
                                                 position: 'sticky',
                                                 top: 0,
                                                 zIndex: 2,
-                                                background: '#fff',
+                                                background: themeColors(this.context.theme)['white-1'],
                                                 margin: '0 -20px 12px',
                                                 padding: '4px 20px 8px',
-                                                borderBottom: '1px solid #eee',
+                                                borderBottom: `1px solid ${themeColors(this.context.theme)['gray-1']}`,
                                                 display: 'flex',
                                                 alignItems: 'flex-start',
                                                 justifyContent: 'space-between',
@@ -1865,7 +1898,7 @@ class DataLayout extends Component {
                                                 a series/record total
 
                                             */}
-                                            <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>
+                                            <div style={{ fontSize: 12, color: themeColors(this.context.theme)['gray-6'], marginTop: 2 }}>
                                                 {this.state.distribution_detail_rows.every(
                                                     (row) => typeof row.value === 'number'
                                                 )
@@ -1913,7 +1946,7 @@ class DataLayout extends Component {
                                                         borderRadius: 2,
                                                         backgroundColor: row.color
                                                             ? `rgb(${row.color.r}, ${row.color.g}, ${row.color.b})`
-                                                            : '#ccc',
+                                                            : themeColors(this.context.theme)['gray-3'],
                                                         flex: '0 0 auto'
                                                     }}
                                                 />

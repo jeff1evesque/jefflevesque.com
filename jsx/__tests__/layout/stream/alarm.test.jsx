@@ -47,6 +47,8 @@ import getData from '../../../import/general/get-data/distribution/stock-market.
 import StreamAlarm from '../../../import/layout/stream/alarm.jsx';
 import CanonicalStream from '../../../import/route/canonical-stream.jsx';
 import { STREAMS } from '../../../import/general/stream-id.js';
+import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
+import { colors_dark } from '../../../import/general/colors.js';
 
 //
 // alarm.jsx builds the archive list as an array of <a> elements carrying no key
@@ -849,5 +851,29 @@ describe('the archive help tooltip', () => {
         await userEvent.unhover(document.querySelector('.help-icon'));
 
         expect(document.querySelector('.help-icon')).toHaveStyle({ color: '#777' });
+    });
+
+    it('is drawn in the dark page\'s grays on a dark page', async () => {
+        //
+        // the page's muted gray and its body text, which on a dark page are the
+        // light ones -- see themeColors
+        //
+        window.history.pushState({}, '', '/stream/bls/alarm');
+
+        render(
+            <ThemeModeContext.Provider value={{ theme: 'dark', toggle: () => {} }}>
+                <MemoryRouter initialEntries={['/stream/bls/alarm']}>
+                    <Routes>
+                        <Route path='/stream/:stream/alarm' element={<StreamAlarm />} />
+                    </Routes>
+                </MemoryRouter>
+            </ThemeModeContext.Provider>
+        );
+
+        expect(document.querySelector('.help-icon')).toHaveStyle({ color: colors_dark['gray-6'] });
+
+        await userEvent.hover(document.querySelector('.help-icon'));
+
+        expect(document.querySelector('.help-icon')).toHaveStyle({ color: colors_dark['gray-7'] });
     });
 });

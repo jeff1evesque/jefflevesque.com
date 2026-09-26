@@ -41,6 +41,7 @@ import GraphExplorer, {
     LINK_REST,
 } from '../../import/animation/graph-explorer.jsx';
 import { glintDelay } from '../../import/animation/breath.js';
+import { colors, colors_dark } from '../../import/general/colors.js';
 
 const schema = {
     version: '1',
@@ -257,6 +258,109 @@ describe('color at rest', () => {
             .map(l => l.getAttribute('stroke-dasharray'));
 
         expect(dashes.filter(Boolean)).toHaveLength(1);
+    });
+});
+
+//
+// the canvas's own neutrals follow the page -- see theme-mode.jsx. A namespace's
+// color does not: it says which source a node is, which is the same on either page.
+//
+describe('on a dark page', () => {
+    const lines = () => [...document.querySelectorAll('line')];
+    const raw = () => lines().find(l => !l.getAttribute('stroke-dasharray'));
+
+    it('cuts every node out of the lines behind it in the page\'s own color', () => {
+        setup({ theme: 'dark' });
+
+        circles().forEach(c => expect(c.getAttribute('stroke')).toBe(colors_dark['white-1']));
+    });
+
+    it('rings the focused node in the page\'s text color', () => {
+        const { page } = setup({ theme: 'dark' });
+
+        page.highlight('bls_B');
+
+        const ringed = circles().find(c => Number(c.getAttribute('stroke-width')) > 1);
+        expect(ringed.getAttribute('stroke')).toBe(colors_dark['gray-8']);
+    });
+
+    it('draws a raw edge in the page\'s quiet gray', () => {
+        setup({ theme: 'dark' });
+
+        expect(raw().getAttribute('stroke')).toBe(colors_dark['gray-5']);
+    });
+
+    it('keeps every namespace\'s own color', () => {
+        setup();
+        const light = circles().map(c => c.getAttribute('fill'));
+        document.body.innerHTML = '';
+
+        setup({ theme: 'dark' });
+
+        expect(circles().map(c => c.getAttribute('fill'))).toEqual(light);
+    });
+
+    it('hands each node its own color, for the glint the dark page runs', () => {
+        //
+        // it mixes that color with white, and cannot read the fill it animates
+        //
+        setup({ theme: 'dark' });
+
+        circles().forEach(c => expect(c.style.getPropertyValue('--node-fill')).toBe(c.getAttribute('fill')));
+    });
+
+    it('recolors where it stands when the page changes theme', () => {
+        //
+        // a reader pressed a button in the header; nothing on the canvas moves
+        //
+        const { page, rerender } = setup();
+        const where = page.nodes.map(n => [n.x, n.y]);
+
+        rerender(<GraphExplorer data={schema} theme='dark' />);
+
+        expect(circles()[0].getAttribute('stroke')).toBe(colors_dark['white-1']);
+        expect(raw().getAttribute('stroke')).toBe(colors_dark['gray-5']);
+        expect(page.nodes.map(n => [n.x, n.y])).toEqual(where);
+
+        rerender(<GraphExplorer data={schema} theme='light' />);
+
+        expect(circles()[0].getAttribute('stroke')).toBe(colors['white-1']);
+        expect(raw().getAttribute('stroke')).toBe(colors['gray-5']);
+    });
+
+    it('draws a namespace the palette lacks in the page\'s quiet gray', () => {
+        //
+        // a palette handed down from the page covers every namespace the page
+        // draws; one that did not would leave a node with no color at all
+        //
+        setup({ palette: new Map([['bls', '#123456']]), theme: 'dark' });
+
+        const fill = (id) => circles()[TYPES.indexOf(id)].getAttribute('fill');
+
+        expect(fill('bls_A')).toBe('#123456');
+        expect(fill('sec_C')).toBe(colors_dark['gray-5']);
+    });
+
+    it('keeps the ring on the node under the pointer through the change', () => {
+        const { page, rerender } = setup();
+
+        pointAt(page, 'bls_B');
+        rerender(<GraphExplorer data={schema} theme='dark' />);
+
+        const ringed = circles().filter(c => Number(c.getAttribute('stroke-width')) > 1);
+        expect(ringed).toEqual([circles()[TYPES.indexOf('bls_B')]]);
+        expect(ringed[0].getAttribute('stroke')).toBe(colors_dark['gray-8']);
+    });
+
+    it('keeps the focus ring through the change', () => {
+        const { page, rerender } = setup();
+
+        act(() => { page.pin('bls_B'); });
+        rerender(<GraphExplorer data={schema} theme='dark' />);
+
+        const ringed = circles().filter(c => Number(c.getAttribute('stroke-width')) > 1);
+        expect(ringed).toHaveLength(1);
+        expect(ringed[0].getAttribute('stroke')).toBe(colors_dark['gray-8']);
     });
 });
 

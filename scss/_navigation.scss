@@ -6,6 +6,10 @@
 //
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
+//
+// Note: the ink on the header's black bars and menus is held '-fixed' -- they
+//       are black in either theme. What sits on the page, the desktop header's
+//       own links among them, follows the theme. See '_theme.scss'.
 
 #bootstrap-override {
   .small-viewport {
@@ -74,7 +78,7 @@
 
     .navbar {
       a {
-        color: $white-1;
+        color: $white-1-fixed;
         height: 4rem;
         text-decoration: none;
       }
@@ -133,13 +137,13 @@
       }
 
       .nav-item:hover {
-        background-color: $gray-9;
+        background-color: $gray-9-fixed;
       }
 
       .navbar-toggler {
         padding: 0.1rem 0.5rem;
-        background-color: $gray-4;
-        border-color: $gray-6;
+        background-color: $gray-4-fixed;
+        border-color: $gray-6-fixed;
         margin-right: 1rem;
       }
     }
@@ -169,5 +173,63 @@
       color: $green-6;
       text-decoration: none;
     }
+  }
+}
+
+//
+// the light and dark switch -- see theme-toggle.jsx. An icon the size of the
+// header's own, gray at rest and green under the pointer, as the house and the
+// menu icons beside it are.
+//
+// Note: the ink follows the page wherever the switch sits on the page, and is
+//       held '-fixed' where it sits on one of the black bars.
+//
+.theme-toggle {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  color: $gray-6;
+  display: inline-flex;
+  font-size: 1.4rem;
+  justify-content: center;
+  margin-right: 0.5rem;
+  padding: 0.3rem;
+  vertical-align: middle;
+
+  &:hover {
+    color: $green-5;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+}
+
+//
+// on a black bar: the phone's header, and the signed-in one at every width,
+// pushed to the far end beside what ends the bar.
+//
+.theme-toggle-bar {
+  color: $header-font-color;
+  margin-left: auto;
+
+  &:hover {
+    color: $header-font-color-hover;
+  }
+}
+
+//
+// the sign-in page's header is only the house, in the middle, so the switch
+// takes the far corner of it rather than standing beside the house.
+//
+.menu-login {
+  position: relative;
+
+  .theme-toggle-corner {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
   }
 }

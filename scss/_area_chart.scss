@@ -19,6 +19,10 @@
     top: 2rem;
     cursor: pointer;
     z-index: 1;
+
+    @include dark {
+      color: $gray-6;
+    }
   }
 
   .refresh-disabled {
@@ -28,5 +32,9 @@
     top: 2rem;
     cursor: auto;
     z-index: 1;
+
+    @include dark {
+      color: $gray-5;
+    }
   }
 }
