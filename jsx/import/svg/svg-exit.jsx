@@ -7,15 +7,23 @@
  * Note: this script implements jsx (reactjs) syntax.
  */
 
-import { colors } from '../general/colors.js';
+import { themeColors } from '../general/colors.js';
 import React, { Component } from 'react';
 import checkValidString from '../validator/valid-string.js';
+import { ThemeModeContext } from '../general/theme-mode.jsx';
 
 class SvgExit extends Component {
+    //
+    // the page's theme: the icon sits on the page, pale at rest and toward the
+    // text under the pointer, which on a dark page is the other way round. See
+    // themeColors.
+    //
+    static contextType = ThemeModeContext;
+
     constructor() {
         super();
         this.state = {
-            body_color: colors['gray-5'],
+            hover: false,
             height: '36px',
             width: '36px',
             view_box: '0 0 32 32'
@@ -25,11 +33,11 @@ class SvgExit extends Component {
     }
 
     handleMouseOver(event) {
-        this.setState({ body_color: colors['gray-7'] });
+        this.setState({ hover: true });
     }
 
     handleMouseOut(event) {
-        this.setState({ body_color: colors['gray-5'] });
+        this.setState({ hover: false });
     }
 
     componentDidMount() {
@@ -56,6 +64,8 @@ class SvgExit extends Component {
     }
 
     render() {
+        const shade = themeColors(this.context.theme);
+
         return(
             <svg
                 height={this.state.height}
@@ -69,7 +79,7 @@ class SvgExit extends Component {
             >
                 <path
                     d={`M24 9.4L22.6 8L16 14.6L9.4 8L8 9.4l6.6 6.6L8 22.6L9.4 24l6.6-6.6l6.6 6.6l1.4-1.4l-6.6-6.6L24 9.4z`}
-                    fill={this.state.body_color}
+                    fill={this.state.hover ? shade['gray-7'] : shade['gray-5']}
                 />
             </svg>
         );
