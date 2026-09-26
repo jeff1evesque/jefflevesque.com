@@ -45,8 +45,15 @@ import {
     US_NATIONAL_WEATHER,
     STREAMS,
 } from '../../general/stream-id.js';
+import { themeColors } from '../../general/colors.js';
+import { ThemeModeContext } from '../../general/theme-mode.jsx';
 
 class StreamAlarm extends Component {
+    //
+    // the page's theme, which the help icon's grays follow. See theme-mode.jsx.
+    //
+    static contextType = ThemeModeContext;
+
     constructor() {
         super();
 
@@ -60,7 +67,9 @@ class StreamAlarm extends Component {
             mm: mm,
             yyyy: yyyy,
             stream: STOCK_MARKET,
-            tool_tip_color: '#777',
+            // whether the pointer is on the help icon, which is drawn in the
+            // page's muted gray and in its body text under the pointer
+            tool_tip_hover: false,
             artifact_link: 'https://www.jefflevesque.com/artifact',
             current_accordion: false,
             total_tickers: 0,
@@ -449,12 +458,16 @@ class StreamAlarm extends Component {
                     arrow
                 >
                     <IconButton
-                        onMouseEnter={() => this.setState({ tool_tip_color: '#333' })}
-                        onMouseLeave={() => this.setState({ tool_tip_color: '#777' })}
+                        onMouseEnter={() => this.setState({ tool_tip_hover: true })}
+                        onMouseLeave={() => this.setState({ tool_tip_hover: false })}
                     >
                         <HelpOutlineIcon
                             className='help-icon'
-                            style={{ color: this.state.tool_tip_color }}
+                            style={{
+                                color: themeColors(this.context.theme)[
+                                    this.state.tool_tip_hover ? 'gray-7' : 'gray-6'
+                                ],
+                            }}
                         />
                     </IconButton>
                 </Tooltip>
