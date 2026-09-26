@@ -368,6 +368,13 @@ describe('while the build is still on its way', () => {
     const rowLabels = (root) => [...root.querySelectorAll('.graph-details-row dt')]
         .map((dt) => dt.textContent);
 
+    //
+    // the width of each waiting row's bar, by the row's label
+    //
+    const barWidths = () => Object.fromEntries([...document.querySelectorAll('.graph-details-row')]
+        .filter((row) => row.querySelector('.graph-pending-bar'))
+        .map((row) => [row.querySelector('dt').textContent, row.querySelector('.graph-pending-bar').style.width]));
+
     it('holds the picker\'s place before there is a listing', async () => {
         //
         // the field is a whole line of the page on a phone, so a control that
@@ -469,6 +476,28 @@ describe('while the build is still on its way', () => {
 
         expect(detail('Sources')).toBe('');
         expect(document.querySelectorAll('.graph-panel-build .graph-pending-bar')).toHaveLength(1);
+    });
+
+    it('draws each row\'s stand-in at that row\'s own width', async () => {
+        //
+        // the stand-in takes its widths by position, so a row that moves has to
+        // take its width with it. Run and Built are timestamps, and Sources a
+        // list of names -- drawn at any other width, each would change size when
+        // the listing landed.
+        //
+        getGraphListing.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(barWidths()).toMatchObject({ Day: '6rem', Run: '9rem', Built: '9rem', Sources: '7rem' });
+    });
+
+    it('keeps the Sources row\'s bar that width while the schema is on its way', async () => {
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(barWidths()).toEqual({ Sources: '7rem' });
     });
 
     it('stands in for a legend of about the size the build will need', async () => {
@@ -909,6 +938,20 @@ describe('the build details', () => {
         expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
     });
 
+    it('puts when the build ran and when it finished directly under its day', async () => {
+        //
+        // the three dates together, where the Retrieval graph's panel has its
+        // own: one day shows the same Run on both pages, and a reader lines the
+        // two up by it.
+        //
+        await setup();
+
+        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 3).map((dt) => dt.textContent))
+            .toEqual(['Day', 'Run', 'Built']);
+        expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
+        expect(detail('Built')).toBe('2026-09-15 06:37 UTC');
+    });
+
     it('reads the same day off the published days for a build too old to record one', async () => {
         getGraphListing.mockResolvedValue(OLDER_LISTING);
 
@@ -1050,7 +1093,7 @@ describe('the build details', () => {
 
         expect(detail('Period')).toBeUndefined();
         expect([...document.querySelectorAll('.graph-details-row dt')].map(d => d.textContent))
-            .toEqual(['Day', 'Nodes', 'Edges', 'Sources', 'Run', 'Built', 'Dataset', 'Variant']);
+            .toEqual(['Day', 'Run', 'Built', 'Nodes', 'Edges', 'Sources', 'Dataset', 'Variant']);
     });
 
     it('marks the run and build times as UTC', async () => {
