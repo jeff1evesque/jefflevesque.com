@@ -6,8 +6,10 @@
  * suites assert that it is the url the page fetched.
  */
 
+import fs from 'fs';
+import path from 'path';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 import ApiLinks from '../../import/general/api-links.jsx';
 
@@ -93,6 +95,88 @@ describe('a page drawn from more than one request', () => {
         render(<ApiLinks docs={DOCS} requests={[{ url: REQUEST, label: 'This request' }]} />);
 
         expect(screen.getByRole('link', { name: 'This request' })).toHaveAttribute('href', REQUEST);
+    });
+});
+
+describe('requests marked apart', () => {
+    //
+    // the Retrieval graph's two icons were the same braces side by side, told
+    // apart only by hovering each one. A mark draws a letter between them.
+    //
+    const NODES = 'https://api.jefflevesque.com/v1/public/knowledge-graph/tables/node-types?Day=2026-09-23&Limit=1000';
+    const EDGES = 'https://api.jefflevesque.com/v1/public/knowledge-graph/tables/edge-types?Day=2026-09-23&Limit=1000';
+
+    const marked = [
+        { url: NODES, label: 'Node types request', mark: 'N' },
+        { url: EDGES, label: 'Edge types request', mark: 'E' },
+    ];
+
+    const icon = (name) => screen.getByRole('link', { name }).querySelector('svg');
+
+    it('draws each request\'s letter inside its braces', () => {
+        render(<ApiLinks docs={DOCS} requests={marked} />);
+
+        expect(icon('Node types request')).toHaveAttribute('data-testid', 'DataObjectNIcon');
+        expect(icon('Edge types request')).toHaveAttribute('data-testid', 'DataObjectEIcon');
+    });
+
+    it('draws the letter as a stroke over the braces, so it waits on no font', () => {
+        render(<ApiLinks docs={DOCS} requests={marked} />);
+
+        const svg = icon('Node types request');
+        const [braces, letter] = svg.querySelectorAll('path');
+
+        expect(svg.querySelector('text')).toBeNull();
+        expect(braces).not.toHaveAttribute('fill');
+        expect(letter).toHaveAttribute('fill', 'none');
+        expect(letter).toHaveAttribute('stroke', 'currentColor');
+    });
+
+    it('draws a different letter for each, so the two differ before either is pointed at', () => {
+        render(<ApiLinks docs={DOCS} requests={marked} />);
+
+        const letter = (name) => icon(name).querySelectorAll('path')[1].getAttribute('d');
+
+        expect(letter('Node types request')).not.toBe(letter('Edge types request'));
+    });
+
+    it('still says the whole name in the tooltip', async () => {
+        render(<ApiLinks docs={DOCS} requests={marked} />);
+
+        fireEvent.mouseOver(screen.getByRole('link', { name: 'Edge types request' }));
+
+        expect(await screen.findByRole('tooltip')).toHaveTextContent('Edge types request');
+    });
+
+    it('draws a marked icon at the size asked for', () => {
+        render(<ApiLinks docs={DOCS} requests={marked} size='large' />);
+
+        expect(icon('Node types request')).toHaveClass('MuiSvgIcon-fontSizeLarge');
+    });
+
+    it('leaves a request with no mark its plain braces', () => {
+        render(<ApiLinks docs={DOCS} request={REQUEST} />);
+
+        expect(icon('This request')).toHaveAttribute('data-testid', 'DataObjectIcon');
+    });
+});
+
+describe('on a dark page', () => {
+    //
+    // the icons take their color from the chart's refresh icon, which turns
+    // '$gray-6' on a dark page. Left at '#555' they are 2.2:1 there, under the
+    // 3:1 a control needs.
+    //
+    const SCSS = path.resolve(__dirname, '../../../scss/_api-links.scss');
+    const source = fs.readFileSync(SCSS, 'utf8').replace(/\/\/.*$/gm, '');
+    const dark = source.slice(source.indexOf('@include dark'));
+
+    it('takes the refresh icon\'s gray', () => {
+        expect(dark).toMatch(/^@include dark\s*\{\s*color\s*:\s*\$gray-6\s*;/);
+    });
+
+    it('still darkens toward the text under the pointer', () => {
+        expect(dark).toMatch(/&:hover,\s*&:focus-visible\s*\{\s*color\s*:\s*\$gray-9\s*;/);
     });
 });
 
