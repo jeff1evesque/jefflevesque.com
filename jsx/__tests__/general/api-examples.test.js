@@ -21,6 +21,7 @@ import getData from '../../import/general/get-data.js';
 import getBlsDistribution from '../../import/general/get-data/distribution/bls.js';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import { getTableDays, getTableDay } from '../../import/general/get-graph-tables.js';
+import { buildDay } from '../../import/layout/graph/source.js';
 import filterSchema from '../../import/animation/filter-schema.js';
 import { sourceNamespace } from '../../import/animation/encoding.js';
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
@@ -167,6 +168,33 @@ describe('knowledge graph, as the /graph page loads it', () => {
 
         expect(listing.graphs.length).toBeGreaterThan(1);
         expect(listing.graphs.map(g => g.id)).toContain(listing.default);
+    });
+
+    it('reads each build\'s schema version, and a day of its own only from 1.5', async () => {
+        //
+        // the Training graph names a build by the day it holds. From 1.5 that is
+        // the listing's `day`; an older build's is null, and the page reads its
+        // day off the published days instead. A documented day the page would
+        // not take as the build's own would document a listing it reads wrong.
+        //
+        answering(listingMedia.example);
+
+        const listing = await getGraphListing();
+
+        listing.graphs.forEach((build) => {
+            expect({ id: build.id, version: typeof build.schema_version })
+                .toEqual({ id: build.id, version: 'string' });
+            expect({ id: build.id, day: build.day })
+                .toEqual({ id: build.id, day: buildDay({ ...build, run: null }, null) });
+        });
+    });
+
+    it('documents a build older than 1.5, whose day is null', async () => {
+        answering(listingMedia.example);
+
+        const listing = await getGraphListing();
+
+        expect(listing.graphs.some((build) => build.day === null)).toBe(true);
     });
 
     it('reads a build\'s schema and cuts it to a drawable slice', async () => {
