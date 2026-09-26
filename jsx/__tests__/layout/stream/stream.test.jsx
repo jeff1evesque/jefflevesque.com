@@ -20,10 +20,22 @@
  *       wraps it -- so it renders standalone with no Provider.
  */
 
+//
+// the reader's subscriptions, for the bells. Signed out unless a case says
+// otherwise -- and the api's session reader imports Amplify, which jest cannot load
+// unmocked.
+//
+jest.mock('../../../import/general/account-api.js', () => ({
+    __esModule: true,
+    listSubscriptions: jest.fn(),
+}));
+
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
+import { listSubscriptions } from '../../../import/general/account-api.js';
+import { STREAMS } from '../../../import/general/stream-id.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { colors, colors_dark, toRGB } from '../../../import/general/colors.js';
@@ -202,6 +214,87 @@ describe('the rate selector', () => {
         setup();
 
         expect(bodyText()).not.toContain('Seconds');
+    });
+});
+
+beforeEach(() => {
+    listSubscriptions.mockReset();
+    listSubscriptions.mockResolvedValue(null);
+});
+
+describe('each row\'s bell', () => {
+    //
+    // it leads to the stream's alarm page either way, and says whether the reader
+    // is subscribed to any of the stream's alarms: ringing, and green, when they
+    // are -- see '.control-icon.subscribed' in _article.scss
+    //
+    const bell = (stream) => document.querySelector(`a[href="/stream/${stream}/alarm"] svg`);
+    const HELD = { alarm: 'ingest', since: '2026-09-26T12:00:00Z', terms: '2026-09' };
+
+    it('is the plain bell for a reader who is signed out', async () => {
+        setup();
+
+        await waitFor(() => expect(listSubscriptions).toHaveBeenCalled());
+
+        STREAMS.forEach((stream) => {
+            expect(bell(stream)).toHaveAttribute('data-testid', 'NotificationsIcon');
+            expect(bell(stream)).not.toHaveClass('subscribed');
+        });
+    });
+
+    it('rings for a stream the reader is subscribed to, saying how many', async () => {
+        listSubscriptions.mockResolvedValue([{ ...HELD, stream: 'bls' }]);
+
+        setup();
+
+        expect(await screen.findByLabelText('Subscribed to 1 alarm')).toBe(bell('bls'));
+        expect(bell('bls')).toHaveAttribute('data-testid', 'NotificationsActiveIcon');
+        expect(bell('bls')).toHaveClass('control-icon', 'notification', 'subscribed');
+    });
+
+    it('counts every alarm the reader holds on the stream', async () => {
+        listSubscriptions.mockResolvedValue([
+            { ...HELD, stream: 'sec' },
+            { ...HELD, stream: 'sec', alarm: 'another' },
+        ]);
+
+        setup();
+
+        expect(await screen.findByLabelText('Subscribed to 2 alarms')).toBe(bell('sec'));
+    });
+
+    it('leaves the bell of every other stream as it was', async () => {
+        listSubscriptions.mockResolvedValue([{ ...HELD, stream: 'bls' }]);
+
+        setup();
+
+        await screen.findByLabelText('Subscribed to 1 alarm');
+
+        STREAMS.filter((stream) => stream !== 'bls').forEach((stream) => {
+            expect(bell(stream)).toHaveAttribute('data-testid', 'NotificationsIcon');
+        });
+    });
+
+    it('still leads to the stream\'s alarm page when it rings', async () => {
+        listSubscriptions.mockResolvedValue([{ ...HELD, stream: 'bls' }]);
+
+        setup();
+
+        expect((await screen.findByLabelText('Subscribed to 1 alarm')).closest('a'))
+            .toHaveAttribute('href', '/stream/bls/alarm');
+    });
+
+    it('stays plain when the subscriptions could not be listed', async () => {
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+        listSubscriptions.mockRejectedValue(new Error('busy, try again'));
+
+        setup();
+
+        await waitFor(() => expect(quiet).toHaveBeenCalledWith(expect.stringContaining('busy, try again')));
+        expect(bell('bls')).toHaveAttribute('data-testid', 'NotificationsIcon');
+
+        quiet.mockRestore();
     });
 });
 
