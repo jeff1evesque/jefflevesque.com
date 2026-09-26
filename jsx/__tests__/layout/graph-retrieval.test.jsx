@@ -7,8 +7,9 @@
  *
  *   - what the picker offers: the published days, newest first, with the newest
  *     the default and a day the tables no longer list falling back to it
- *   - how a day is loaded, and what its details panel says about it -- every row
- *     but the day itself is totalled from the day's own rows, and waits for them
+ *   - how a day is loaded, and what its details panel says about it -- the day and
+ *     the run that published it come with the picker, and every other row is
+ *     totalled from the day's own rows, and waits for them
  *   - which types the canvas draws: a day weighed by its node count is its own
  *     build again, so it is weighed by what can be found by name
  *   - that the page says so, and links both of the requests it was drawn from
@@ -69,7 +70,16 @@ import { RetrievalGraph } from '../../import/layout/graph/graph.jsx';
 import { API_DOCS } from '../../import/general/api-url.js';
 import { readLayout } from '../../import/general/layout-preference.js';
 
-const DAYS = ['2026-09-23', '2026-09-22', '2026-09-21'];
+//
+// the published days as getTableDays answers them: each with the run that
+// published it, which is the run of the build that holds the day, and when that
+// finished.
+//
+const DAYS = [
+    { day: '2026-09-23', run: '2026-09-24T05:00:42Z', published: '2026-09-24T06:41:18Z' },
+    { day: '2026-09-22', run: '2026-09-23T05:00:25Z', published: '2026-09-23T06:43:55Z' },
+    { day: '2026-09-21', run: '2026-09-22T05:00:25Z', published: '2026-09-22T06:40:12Z' },
+];
 
 //
 // a day shaped as the loader answers one: nine million market snapshots that
@@ -191,7 +201,8 @@ describe('choosing a day', () => {
             fireEvent.mouseDown(picker());
         });
 
-        expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(DAYS);
+        expect(screen.getAllByRole('option').map((option) => option.textContent))
+            .toEqual(DAYS.map((row) => row.day));
     });
 
     it('labels its picker Day', async () => {
@@ -275,7 +286,59 @@ describe('the day details', () => {
         await setup();
 
         expect([...document.querySelectorAll('.graph-details-row dt')].map((dt) => dt.textContent))
-            .toEqual(['Day', 'Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types']);
+            .toEqual(['Day', 'Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types', 'Run', 'Published']);
+    });
+
+    //
+    // the two graphs of one day are one run's work. The build panel on the
+    // Training graph says when its build ran and finished; the day panel says
+    // which run published the day, and when that finished.
+    //
+    it('ends with the run that published the day, and when that finished', async () => {
+        await setup();
+
+        expect([...document.querySelectorAll('.graph-details-row dt')].slice(-3).map((dt) => dt.textContent))
+            .toEqual(['Edge types', 'Run', 'Published']);
+        expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
+        expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
+    });
+
+    it('reads both off the days, before the day\'s rows arrive', async () => {
+        //
+        // they come with the picker, as a build's Run and Built come with the
+        // listing -- not a round trip later, with the totals.
+        //
+        getTableDay.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
+        expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
+        expect(detail('Entities')).toBe('');
+    });
+
+    it('follows the picker to another day', async () => {
+        await setup();
+
+        await chooseDay('2026-09-21');
+
+        expect(detail('Run')).toBe('2026-09-22 05:00 UTC');
+        expect(detail('Published')).toBe('2026-09-22 06:40 UTC');
+    });
+
+    it('reads n/a for both when the days say nothing of them', async () => {
+        //
+        // every day's row carried only the day before the api said where each
+        // came from. The rest of the panel is as it was.
+        //
+        getTableDays.mockResolvedValue(DAYS.map((row) => ({ day: row.day, run: null, published: null })));
+
+        await setup();
+
+        expect(detail('Run')).toBe('n/a');
+        expect(detail('Published')).toBe('n/a');
+        expect(detail('Day')).toBe('2026-09-23');
+        expect(detail('Entities')).toBe('4,934');
     });
 });
 
