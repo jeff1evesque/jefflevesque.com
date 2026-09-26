@@ -7,19 +7,20 @@
 
 import React, { Component } from 'react';
 import Tumbling from '../../svg/window/tumbling.jsx';
-import is_local from '../../../is_local.js';
-import WorkerBuilder from '../../worker/web-worker.js';
-import workerDataDistribution from '../../worker/data/distribution/stock-market.js';
-import NoticeTerms from '../../general/notice-terms.jsx';
+import NoticeTerms, { TERMS_VERSION } from '../../general/notice-terms.jsx';
 import SummaryTrigger from '../../general/summary-trigger.jsx';
 import BreadCrumbs from '../../navigation/breadcrumbs.jsx';
 import { isMobile } from 'react-device-detect';
-import trim from '../../general/trim-object.js';
-import { default as getStockMarketDistribution } from '../../general/get-data/distribution/stock-market.js';
-import checkValidObject from '../../validator/valid-object.js';
-import checkValidInt from '../../validator/valid-int.js';
-import checkValidString from '../../validator/valid-string.js';
-import checkValidArray from '../../validator/valid-array.js';
+import {
+    signedIn,
+    listSubscriptions,
+    subscribe,
+    unsubscribe,
+    streamAlarms,
+} from '../../general/account-api.js';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import FormGroup from '@mui/material/FormGroup';
+import Switch from '@mui/material/Switch';
 import List from '@mui/material/List';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemButton from '@mui/material/ListItemButton';
@@ -36,7 +37,6 @@ import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName from '../../general/stream-name.js';
 import { loadArchiveListing, archiveFiles } from '../../general/archive-links.js';
-import { datalakeUrl, DATASETS } from '../../general/api-url.js';
 import {
     STOCK_MARKET,
     STOCK_SPLIT,
@@ -57,23 +57,34 @@ class StreamAlarm extends Component {
     constructor() {
         super();
 
-        const now = new Date();
-        const today = new Date(now.toLocaleString('en-US', {timeZone: 'America/New_York'}));
-        const mm = String(today.getMonth() + 1).padStart(2, '0'); // january is 0
-        const yyyy = today.getFullYear();
-
         this.state = {
-            local: is_local,
-            mm: mm,
-            yyyy: yyyy,
             stream: STOCK_MARKET,
             // whether the pointer is on the help icon, which is drawn in the
             // page's muted gray and in its body text under the pointer
             tool_tip_hover: false,
             artifact_link: 'https://www.jefflevesque.com/artifact',
             current_accordion: false,
-            total_tickers: 0,
-            total_source: 1,
+            //
+            // the stream's alarms, each { id, name }: null until the list
+            // arrives, then the list -- or 'failed'. See loadAlarms.
+            //
+            alarms: null,
+            //
+            // whether a reader is signed in: null until the session has been
+            // looked at. See loadReader.
+            //
+            signed_in: null,
+            //
+            // the stream's alarms the reader holds, by id: null until their
+            // subscriptions arrive, and while they could not be had
+            //
+            subscribed: null,
+            // whether the reader has ticked the terms
+            accepted: false,
+            // the alarms with a subscribe or an unsubscribe on its way, by id
+            busy: {},
+            // what the account api said about the last request it refused
+            problem: null,
             window_1_purple: true,
             window_1_green: true,
             window_2_blue: true,
@@ -89,11 +100,15 @@ class StreamAlarm extends Component {
             archive: {}
         }
 
-        this.callbackGetData = this.callbackGetData.bind(this);
-        this.downloadData = this.downloadData.bind(this);
         this.handleArchiveClick = this.handleArchiveClick.bind(this);
         this.loadArchive = this.loadArchive.bind(this);
         this.selectedStream = this.selectedStream.bind(this);
+        this.loadAlarms = this.loadAlarms.bind(this);
+        this.loadReader = this.loadReader.bind(this);
+        this.loadSubscriptions = this.loadSubscriptions.bind(this);
+        this.toggleAlarm = this.toggleAlarm.bind(this);
+        this.acceptTerms = this.acceptTerms.bind(this);
+        this.alarmSwitches = this.alarmSwitches.bind(this);
     }
 
     //
@@ -114,7 +129,8 @@ class StreamAlarm extends Component {
         const stream = this.selectedStream();
 
         this.setState({ stream: stream });
-        this.downloadData(stream);
+        this.loadAlarms(stream);
+        this.loadReader(stream);
     }
 
     handleArchiveClick(stream=null) {
@@ -161,92 +177,148 @@ class StreamAlarm extends Component {
     }
 
     //
-    // the partition count behind the alarm listing.
+    // the stream's alarms, from the account api's public list: what the count beside
+    // the heading counts, and what a signed-in reader switches -- one list for both,
+    // so the number and the switches cannot disagree.
     //
-    // this asked a static artifact for it, and did so through three faults that
-    // hid each other, so the count silently stayed at its initial 0:
+    // Note: 'failed' when the list could not be had, and the count is then left off
+    //       rather than guessed. It used to be worked out here -- one per source, one
+    //       per ticker, and three for stock splits -- from a datalake request made
+    //       for nothing else, and it counted alarms there was no way to subscribe to.
     //
-    //   - the loader was called as 'stock-market-distribution', which
-    //     'get-data.js' does not dispatch. It fell out of the type chain, logged
-    //     'not a valid choice' and returned undefined, so no request was ever
-    //     issued and the two faults below could never be reached.
+    loadAlarms(stream) {
+        streamAlarms(stream)
+            .then((alarms) => this.setState({ alarms: alarms }))
+            .catch(() => this.setState({ alarms: 'failed' }));
+    }
+
     //
-    //   - the month was 'mm - 1', naming the month BEFORE the one state.mm
-    //     holds, and underflowing to '00' every january -- a partition that
-    //     cannot exist.
+    // whether there is a reader, from the session alone, so the notice shows the
+    // right one of its two faces at once -- and then, for a reader, which alarms
+    // they hold. See signedIn in account-api.js.
     //
-    //   - the artifact itself, 'artifact/stock-market/data-distribution/
-    //     YYYY/MM.csv', is written by nothing. The distribution moved to the
-    //     public datalake api.
+    loadReader(stream) {
+        signedIn().then((signed_in) => {
+            this.setState({ signed_in: signed_in });
+
+            if (signed_in) {
+                this.loadSubscriptions(stream);
+            }
+        });
+    }
+
     //
-    // it now asks the datalake api for the same dataset and scale the /data page
-    // asks for, over the same loader and the same worker, so the two pages cannot
-    // disagree about how many partitions a month holds.
+    // the reader's subscriptions to this stream's alarms. Null from the api is a
+    // session that has ended, which is the signed-out view rather than an error;
+    // a list that could not be had leaves every switch unknown, and says why.
     //
-    // Note: the dataset is the one /data sends, read from DATASETS. This asked
-    //       for 'stockmarket' -- the stream's name at the time, not its dataset --
-    //       which the api does not recognize and answers with a 400, so the count
-    //       never arrived even after the three faults above were fixed. Both pages
-    //       now build the url with api-url.js, which is what the api's documented
-    //       'Data' values are checked against.
-    //
-    downloadData(type) {
-        if (type !== STOCK_MARKET) {
+    loadSubscriptions(stream) {
+        listSubscriptions()
+            .then((subscriptions) => {
+                if (subscriptions === null) {
+                    this.setState({ signed_in: false });
+                    return;
+                }
+
+                this.setState({
+                    subscribed: Object.fromEntries(subscriptions
+                        .filter((held) => held.stream === stream)
+                        .map((held) => [held.alarm, true])),
+                });
+            })
+            .catch((problem) => this.setState({ problem: problem.message }));
+    }
+
+    acceptTerms(accepted) {
+        this.setState({ accepted: accepted });
+    }
+
+    /**
+     * subscribe to one of the stream's alarms, or unsubscribe from it.
+     *
+     * A subscribe sends the version of the terms the reader accepted, which the api
+     * keeps with the subscription. The switch shows what the api answered, not what
+     * was asked for: it moves only once the request has succeeded.
+     *
+     * Note: null from the api is a session that has ended, and puts the page in its
+     *       signed-out view. Any other refusal -- an email address not yet verified,
+     *       a service too busy -- leaves the switch where it was, and the api's own
+     *       message says why.
+     */
+    toggleAlarm(alarm, on) {
+        //
+        // a switch is drawn disabled until the terms are accepted, and while its
+        // request is on its way. The rule is held here too, whatever reaches it.
+        //
+        if ((on && !this.state.accepted) || this.state.busy[alarm]) {
             return;
         }
 
-        const url = datalakeUrl(DATASETS[STOCK_MARKET], this.state.yyyy, this.state.mm);
+        const stream = this.selectedStream();
+        const settle = (change) => this.setState((state) => ({
+            ...change(state),
+            busy: { ...state.busy, [alarm]: false },
+        }));
 
-        getStockMarketDistribution(
-            'data-distribution',
-            this.state.local ? null : url,
-            (item) => this.callbackGetData(item),
-            true,
-            STOCK_MARKET,
-            STOCK_MARKET
-        );
+        this.setState((state) => ({ busy: { ...state.busy, [alarm]: true }, problem: null }));
+
+        (on ? subscribe(stream, alarm, TERMS_VERSION) : unsubscribe(stream, alarm))
+            .then((answered) => {
+                if (answered === null) {
+                    settle(() => ({ signed_in: false }));
+                    return;
+                }
+
+                settle((state) => ({ subscribed: { ...state.subscribed, [alarm]: on } }));
+            })
+            .catch((problem) => settle(() => ({ problem: problem.message })));
     }
 
-    callbackGetData(item) {
-        const worker = new WorkerBuilder(workerDataDistribution);
+    /**
+     * the stream's alarms, each with a switch, for a signed-in reader.
+     *
+     * A switch cannot be turned on until the terms are accepted, and can always be
+     * turned off. While the reader's subscriptions are on their way, or could not be
+     * had, every switch is held still: its position would be a guess.
+     */
+    alarmSwitches() {
+        const { alarms, subscribed, accepted, busy, problem } = this.state;
 
-        worker.onerror = (err) => {
-            console.log('Error (web-worker): could not process data-distribution data');
-            console.log(err);
-        };
+        if (alarms === 'failed') {
+            return <p className='alarm-status'>The alarms could not be listed right now.</p>;
+        }
 
-        {/*
+        if (!Array.isArray(alarms)) {
+            return null;
+        }
 
-            the worker posts two different shapes for the two halves of the
-            response: the distribution as a 'detail' object, and the partition
-            count as { count, selected_stream }. This read 'event.data.partitions',
-            which neither carries, so the count resolved to undefined -- the third
-            of the faults described above 'downloadData', and the one that would
-            have survived fixing the other two.
+        return (
+            <div className='alarm-subscriptions'>
+                <FormGroup>
+                    {alarms.map((alarm) => {
+                        const held = Boolean(subscribed && subscribed[alarm.id]);
 
-        */}
-        worker.onmessage = (event) => {
-            if (event && event.data && checkValidInt(event.data.count)) {
-                this.setState({ 'total_tickers': event.data.count });
-            }
-        };
-
-        {/*
-
-            web-worker cannot accept functions as postMessage arguments:
-
-              - https://stackoverflow.com/a/47804656
-
-        */}
-
-        worker.postMessage({
-            item: item,
-            stringifiedTrim: trim.toString(),
-            stringifiedCheckValidInt: checkValidInt.toString(),
-            stringifiedCheckValidObject: checkValidObject.toString(),
-            stringifiedCheckValidArray: checkValidArray.toString(),
-            stringifiedCheckValidString: checkValidString.toString()
-        });
+                        return (
+                            <FormControlLabel
+                                key={alarm.id}
+                                control={(
+                                    <Switch
+                                        checked={held}
+                                        disabled={!subscribed || Boolean(busy[alarm.id]) || (!held && !accepted)}
+                                        onChange={(event) => this.toggleAlarm(alarm.id, event.target.checked)}
+                                    />
+                                )}
+                                label={alarm.name}
+                            />
+                        );
+                    })}
+                </FormGroup>
+                {accepted
+                    ? null
+                    : <p className='alarm-hint'>Accept the terms and conditions above to turn an alarm on.</p>}
+                {problem ? <p className='alarm-problem' role='alert'>{problem}</p> : null}
+            </div>
+        );
     }
 
     render() {
@@ -397,13 +469,11 @@ class StreamAlarm extends Component {
             </>
         );
 
-        if (stream === STOCK_MARKET) {
-            var alarm_count = parseInt(this.state.total_source) + parseInt(this.state.total_tickers);
-        } else if (stream === STOCK_SPLIT) {
-            var alarm_count = 3;
-        } else {
-            var alarm_count = parseInt(this.state.total_source);
-        }
+        //
+        // the alarms the stream has, counted from the list the switches are drawn
+        // from, and left off until that list has arrived -- see loadAlarms
+        //
+        const alarm_count = Array.isArray(this.state.alarms) ? this.state.alarms.length : null;
 
         //
         // the archive column: the files this stream published, as the listing
@@ -572,10 +642,19 @@ class StreamAlarm extends Component {
                         <div className='right-column col-lg-10 order-12 order-sm-first'>
                             <div className='header-featured center-text'>
                                 <h4>Ingest Alarms</h4>
-                                <span className='title-count'>{alarm_count}</span>
+                                {alarm_count === null
+                                    ? null
+                                    : <span className='title-count'>{alarm_count}</span>}
                                 <BreadCrumbs />
                             </div>
-                            <NoticeTerms notice={notice} subject={term} />
+                            <NoticeTerms
+                                notice={notice}
+                                subject={term}
+                                signed_in={this.state.signed_in === true}
+                                accepted={this.state.accepted}
+                                onAccept={this.acceptTerms}
+                            />
+                            {this.state.signed_in ? this.alarmSwitches() : null}
                             <SummaryTrigger
                                 header='How It Works'
                                 header_summary='Performance Metrics'
