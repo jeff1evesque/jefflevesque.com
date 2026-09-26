@@ -1,9 +1,10 @@
 /**
- * current-user.test.js: the amplify current-user helper.
+ * current-user.test.js: the signed-in reader's ID token, from the Amplify session.
  *
- * Sixteen lines, and it does not do what its name says. Covered because
- * redux/store.jsx uses it to decide the initial username, and the way it does
- * that is wrong in a way no test would otherwise catch.
+ * The account api reads a reader from this token and from nothing else, so it is the
+ * one proof of who is signed in that a request can carry -- see account-api.js. It
+ * used to log the session and resolve to undefined whether or not there was one,
+ * which this suite recorded as a defect.
  */
 
 jest.mock('@aws-amplify/auth', () => ({
@@ -13,6 +14,13 @@ jest.mock('@aws-amplify/auth', () => ({
 
 import Auth from '@aws-amplify/auth';
 import amplifyCurrentUser from '../../import/general/currentUser.js';
+
+//
+// a session as Amplify answers one, holding an ID token
+//
+function sessionWith(token) {
+    return { getIdToken: () => ({ getJwtToken: () => token }) };
+}
 
 let quiet;
 
@@ -27,49 +35,68 @@ afterEach(() => {
 
 describe('amplifyCurrentUser', () => {
     it('asks amplify for the current session', async () => {
-        Auth.currentSession.mockResolvedValue({ idToken: 'x' });
+        Auth.currentSession.mockResolvedValue(sessionWith('x.y.z'));
 
         await amplifyCurrentUser();
 
         expect(Auth.currentSession).toHaveBeenCalled();
     });
 
-    it('resolves to undefined even when a session exists', async () => {
+    it('resolves to the session\'s ID token', async () => {
         //
-        // DOCUMENTS A DEFECT.
+        // FIXED. It resolved to undefined even with a session, because the chain
+        // ended in .then(data => console.log(data)) -- it could log the reader and
+        // never return one.
         //
-        // The chain is:
-        //
-        //     Auth.currentSession().then(data => console.log(data)).catch(...)
-        //
-        // console.log returns undefined, so the promise resolves to undefined
-        // whether or not a session was found. The function is named for getting the
-        // current user and cannot return one -- it only logs it.
-        //
-        Auth.currentSession.mockResolvedValue({ idToken: 'a-real-session' });
+        Auth.currentSession.mockResolvedValue(sessionWith('header.payload.signature'));
 
-        await expect(amplifyCurrentUser()).resolves.toBeUndefined();
+        await expect(amplifyCurrentUser()).resolves.toBe('header.payload.signature');
     });
 
-    it('resolves to undefined when there is no session', async () => {
+    it('resolves to null when there is no session', async () => {
         //
-        // so the two outcomes are indistinguishable to a caller: signed in and
-        // signed out both resolve to undefined.
+        // so signed in and signed out are told apart, which they were not: both
+        // resolved to undefined
         //
-        Auth.currentSession.mockRejectedValue(new Error('no session'));
+        Auth.currentSession.mockRejectedValue(new Error('No current user'));
 
-        await expect(amplifyCurrentUser()).resolves.toBeUndefined();
+        await expect(amplifyCurrentUser()).resolves.toBeNull();
     });
 
-    it('never rejects, so a caller cannot detect the failure either', async () => {
-        Auth.currentSession.mockRejectedValue(new Error('no session'));
+    it('resolves to null when amplify throws rather than rejecting', async () => {
+        //
+        // an unconfigured Amplify, as under test, throws from the call itself
+        //
+        Auth.currentSession.mockImplementation(() => {
+            throw new Error('not configured');
+        });
 
-        await expect(amplifyCurrentUser()).resolves.not.toThrow;
+        await expect(amplifyCurrentUser()).resolves.toBeNull();
+    });
+
+    it('resolves to null for a session with no token in it', async () => {
+        Auth.currentSession.mockResolvedValue(sessionWith(''));
+
+        await expect(amplifyCurrentUser()).resolves.toBeNull();
+    });
+
+    it('logs nothing, signed in or out', async () => {
+        //
+        // being signed out is the ordinary case, not an error -- and a token is not
+        // something to write to a console
+        //
+        Auth.currentSession.mockResolvedValue(sessionWith('header.payload.signature'));
+        await amplifyCurrentUser();
+
+        Auth.currentSession.mockRejectedValue(new Error('No current user'));
+        await amplifyCurrentUser();
+
+        expect(quiet).not.toHaveBeenCalled();
     });
 
     it('is a function, which is what store.jsx actually tests', () => {
         //
-        // DOCUMENTS A SECOND DEFECT, in the consumer.
+        // DOCUMENTS A DEFECT, in the consumer.
         //
         // redux/store.jsx reads:
         //
@@ -82,7 +109,8 @@ describe('amplifyCurrentUser', () => {
         // takes the first branch and the 'anonymous' fallback is unreachable. The
         // initial username is whatever sessionStorage holds, including null.
         //
-        // Calling it would not help either, since it resolves to undefined.
+        // The function now resolves to a token, but store.jsx does not call it, and
+        // the account pages ask it themselves rather than trusting the username.
         //
         expect(typeof amplifyCurrentUser).toBe('function');
         expect(Boolean(amplifyCurrentUser)).toBe(true);
