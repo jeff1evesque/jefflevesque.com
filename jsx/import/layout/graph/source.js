@@ -204,13 +204,19 @@ function buildDay(build, days) {
 //       place, and one day shows the same Run on both pages, so that is where
 //       the two line up. The rows below them describe what the build holds.
 //
+// Note: 'Sources' comes straight after the dates, where the day panel has its
+//       own under Published: what the run brought in is read with when it ran,
+//       ahead of how much it came to. It is the one row read off the schema, so
+//       for the round trip the schema takes it holds its bar between rows the
+//       listing has already filled -- see details in graph.jsx.
+//
 const DETAILS = [
     { label: 'Day', read: (build) => build.day },
     { label: 'Run', read: (build) => when(build.run) },
     { label: 'Built', read: (build) => when(build.built) },
+    { label: 'Sources', read: graphSources, schema: true },
     { label: 'Nodes', read: (build) => count(build.nodes) },
     { label: 'Edges', read: (build) => count(build.edges) },
-    { label: 'Sources', read: graphSources, schema: true },
     { label: 'Dataset', read: (build) => build.dataset },
     { label: 'Variant', read: (build) => build.variant },
 ];
@@ -422,8 +428,8 @@ function daySources(types) {
 //
 // `pending` is the width a row's value is drawn at while it waits, as pending.jsx
 // does for the build panel's: a date, two timestamps at the width the build panel
-// gives its own, totals in the thousands and the millions, two counts of types in
-// the hundreds, and four sources.
+// gives its own, four sources, totals in the thousands and the millions, and two
+// counts of types in the hundreds.
 //
 // Note: 'Run' is the run that published the day, and it is the Run of the build
 //       the Training graph names by the same day: the two graphs of a day are
@@ -440,14 +446,21 @@ function daySources(types) {
 //       give for a build. 'Node types' and 'Edge types' are what the canvas and
 //       the tables below it count.
 //
-// Note: 'Sources' closes the panel, after every count, where the build panel's
-//       own comes after all of its counts. It waits for the day's rows like the
-//       totals do, because it is read off them -- see daySources.
+// Note: 'Sources' comes straight after Published, where the build panel has
+//       its own under Built. It waits for the day's rows like the totals below
+//       it do, because it is read off them -- see daySources -- so it heads the
+//       block that waits.
 //
 const DAY_DETAILS = [
     { label: 'Day', read: (day) => day.id, pending: '6rem' },
     { label: 'Run', read: (day) => when(day.run), pending: '9rem' },
     { label: 'Published', read: (day) => when(day.published), pending: '9rem' },
+    {
+        label: 'Sources',
+        read: (day, whole) => whole && daySources(whole.node_types),
+        schema: true,
+        pending: '8.5rem',
+    },
     {
         label: 'Entities',
         read: (day, whole) => whole && count(total(whole.node_types, 'entities')),
@@ -473,12 +486,6 @@ const DAY_DETAILS = [
         read: (day, whole) => whole && count(Object.keys(whole.edge_types).length),
         schema: true,
         pending: '2rem',
-    },
-    {
-        label: 'Sources',
-        read: (day, whole) => whole && daySources(whole.node_types),
-        schema: true,
-        pending: '8.5rem',
     },
 ];
 

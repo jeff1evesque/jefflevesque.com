@@ -8,9 +8,12 @@
  * Its name says what it IS, 'Dark theme', and 'aria-pressed' says whether that
  * is on, so a screen reader hears one control with a state rather than a label
  * that changes under it. The tooltip says what pressing it will do, which is
- * the question a sighted reader has of an icon.
+ * the question a sighted reader has of an icon -- and, where pressing it asks
+ * for the theme the clock does not give, for how long: the rest of the day, or
+ * of the night.
  *
- * Note: what it changes is kept, as the reader's choice from then on -- see
+ * Note: what it changes is kept until the clock's next switch, and pressing it
+ *       back to the clock's theme puts the page back on the clock -- see
  *       theme-preference.js, and theme-mode.jsx, which does the changing.
  *
  * Note: drawn in every header -- the phone's and the wide one, signed in or
@@ -25,9 +28,13 @@ import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
 import { ThemeModeContext } from '../general/theme-mode.jsx';
 
 function ThemeToggle({ className }) {
-    const { theme, toggle } = useContext(ThemeModeContext);
+    const { theme, scheduled, toggle } = useContext(ThemeModeContext);
     const dark = theme === 'dark';
+    const next = dark ? 'light' : 'dark';
     const Icon = dark ? LightModeOutlinedIcon : DarkModeOutlinedIcon;
+    const title = next === scheduled
+        ? `Switch to the ${next} theme`
+        : `Switch to the ${next} theme for the rest of the ${scheduled === 'light' ? 'day' : 'night'}`;
 
     return (
         <button
@@ -35,7 +42,7 @@ function ThemeToggle({ className }) {
             className={className ? `theme-toggle ${className}` : 'theme-toggle'}
             aria-label='Dark theme'
             aria-pressed={dark}
-            title={dark ? 'Switch to the light theme' : 'Switch to the dark theme'}
+            title={title}
             onClick={toggle}
         >
             <Icon fontSize='inherit' />

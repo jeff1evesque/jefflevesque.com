@@ -1097,7 +1097,7 @@ describe('the build details', () => {
 
         expect(detail('Period')).toBeUndefined();
         expect([...document.querySelectorAll('.graph-details-row dt')].map(d => d.textContent))
-            .toEqual(['Day', 'Run', 'Built', 'Nodes', 'Edges', 'Sources', 'Dataset', 'Variant']);
+            .toEqual(['Day', 'Run', 'Built', 'Sources', 'Nodes', 'Edges', 'Dataset', 'Variant']);
     });
 
     it('marks the run and build times as UTC', async () => {

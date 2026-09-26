@@ -242,7 +242,8 @@ day: every node type the two hold is named alike. The days published before 2026
 name flat vocabularies — `ontology/jolts/` — and so do their builds, so both pages draw
 those days' types under `jolts`.
 
-Its Day details end with **Sources**, the sources the day's vocabularies are filed under:
+Its Day details carry **Sources** directly under Published, where `/graph`'s Build details
+carry theirs under Built: the sources the day's vocabularies are filed under,
 `bls, market, noaa, sec` on every day from 2026-09-21, which is what the run that
 published each one read. `/graph`'s Sources row for the build of the same run says
 `bls, market, sec`, because the build leaves out the four `noaa` node types, and the

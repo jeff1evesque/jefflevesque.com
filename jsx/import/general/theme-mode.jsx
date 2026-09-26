@@ -15,6 +15,11 @@
  *     charts', a node mixed toward the page, a line drawn in the page's gray.
  *     These read `theme` from ThemeModeContext, and draw again when it changes.
  *
+ * The theme follows the reader's own clock -- light by day, dark in the evening
+ * -- and a choice they make with the switch holds until the clock's next switch.
+ * See theme-preference.js. While the page is open it keeps time itself, and
+ * looks again at each switch without being asked.
+ *
  * Note: a class with a context rather than a hook, like the rest of this
  *       codebase's stateful components. The page's classes read it as their
  *       static contextType.
@@ -31,17 +36,22 @@ import { colors_dark } from './colors.js';
 import {
     applyTheme,
     currentTheme,
-    readTheme,
-    systemQuery,
+    nextSwitch,
+    scheduledTheme,
     writeTheme,
 } from './theme-preference.js';
 
 //
 // what a component reads when nothing above it provides a theme: the light one,
-// with nothing to toggle. Every page is drawn under the provider; this is for a
-// component drawn on its own, as the test suites draw them.
+// on the schedule, with nothing to toggle. Every page is drawn under the
+// provider; this is for a component drawn on its own, as the test suites draw
+// them.
 //
-const ThemeModeContext = React.createContext({ theme: 'light', toggle: () => {} });
+// `scheduled` is the theme the clock gives now, which the switch reads to say
+// whether pressing it asks for the rest of the day, or of the night, or goes back
+// to the schedule.
+//
+const ThemeModeContext = React.createContext({ theme: 'light', scheduled: 'light', toggle: () => {} });
 
 //
 // mui's two themes. The light one is mui's own default, which is what every mui
@@ -63,6 +73,20 @@ const MUI_THEMES = {
     }),
 };
 
+//
+// how long after a change is due the page looks again, in ms. A timer can fire a
+// moment early, and one that did would find the old theme still due and wait out
+// another twelve hours.
+//
+const SWITCH_SLACK = 1000;
+
+//
+// the theme, what the schedule gives, and when both could next change, at `now`
+//
+function standing(now) {
+    return { theme: currentTheme(now), scheduled: scheduledTheme(now), until: nextSwitch(now) };
+}
+
 class ThemeMode extends Component {
     static propTypes = {
         children: PropTypes.node,
@@ -71,82 +95,77 @@ class ThemeMode extends Component {
     constructor(props) {
         super(props);
 
-        this.state = { theme: currentTheme() };
+        this.state = standing(new Date());
 
         this.toggle = this.toggle.bind(this);
-        this.followSystem = this.followSystem.bind(this);
+        this.recheck = this.recheck.bind(this);
         this.value = this.value.bind(this);
     }
 
     //
-    // the system can change its mind while the page is open -- an evening
-    // schedule, a reader flipping it in their settings -- and a page that is
-    // following it should follow it then too. A page following the READER's
-    // choice ignores it.
-    //
-    // Note: 'addListener' where 'addEventListener' is missing, which is Safari
-    //       before 14 on a MediaQueryList.
+    // Note: a page left open in a tab the browser has put to sleep, or on a
+    //       laptop that was closed, hears its timer late or not at all. It looks
+    //       again whenever it is shown, as well as at the switch.
     //
     componentDidMount() {
         applyTheme(this.state.theme);
-
-        this.query = systemQuery();
-
-        if (this.query) {
-            if (typeof this.query.addEventListener === 'function') {
-                this.query.addEventListener('change', this.followSystem);
-            } else if (typeof this.query.addListener === 'function') {
-                this.query.addListener(this.followSystem);
-            }
-        }
+        this.schedule();
+        document.addEventListener('visibilitychange', this.recheck);
     }
 
     componentWillUnmount() {
-        if (this.query) {
-            if (typeof this.query.removeEventListener === 'function') {
-                this.query.removeEventListener('change', this.followSystem);
-            } else if (typeof this.query.removeListener === 'function') {
-                this.query.removeListener(this.followSystem);
-            }
-        }
+        clearTimeout(this.timer);
+        document.removeEventListener('visibilitychange', this.recheck);
     }
 
-    followSystem(event) {
-        if (readTheme()) {
-            return;
+    //
+    // wake when the theme could next change, which is the schedule's next switch:
+    // a choice lapses there too
+    //
+    schedule() {
+        clearTimeout(this.timer);
+        this.timer = setTimeout(this.recheck, Math.max(0, this.state.until.getTime() - Date.now()) + SWITCH_SLACK);
+    }
+
+    //
+    // the theme as it stands now, put on the page where it has changed
+    //
+    recheck() {
+        const now = standing(new Date());
+
+        if (now.theme !== this.state.theme) {
+            applyTheme(now.theme);
         }
 
-        this.show(event.matches ? 'dark' : 'light');
+        this.setState(now, () => this.schedule());
     }
 
     /**
-     * the other theme, kept as the reader's choice from now on.
+     * the other theme, until the schedule's next switch -- or back to the
+     * schedule, where the other theme is the one it gives.
      *
      * Note: the page changes whether or not the choice could be stored. Storage
-     *       that refuses is a reader who will be asked again next visit, which is
-     *       no reason to refuse them this one.
+     *       that refuses is a reader whose choice lasts only as long as this
+     *       page, which is no reason to refuse them this one.
      */
     toggle() {
+        const now = new Date();
         const next = this.state.theme === 'dark' ? 'light' : 'dark';
 
-        writeTheme(next);
-        this.show(next);
-    }
-
-    show(theme) {
-        applyTheme(theme);
-        this.setState({ theme: theme });
+        writeTheme(next, now);
+        applyTheme(next);
+        this.setState({ theme: next });
     }
 
     //
-    // one object per theme, so a component reading the context draws again when
-    // the theme changes and not on every render of this one.
+    // one object per theme and schedule, so a component reading the context
+    // draws again when either changes and not on every render of this one.
     //
     value() {
-        const { theme } = this.state;
+        const { theme, scheduled } = this.state;
 
-        if (!this.provided || this.provided.theme !== theme) {
-            this.provided = { theme: theme, toggle: this.toggle };
+        if (!this.provided || this.provided.theme !== theme || this.provided.scheduled !== scheduled) {
+            this.provided = { theme: theme, scheduled: scheduled, toggle: this.toggle };
         }
 
         return this.provided;
@@ -165,4 +184,4 @@ class ThemeMode extends Component {
 
 export default ThemeMode;
 
-export { ThemeModeContext, MUI_THEMES };
+export { ThemeModeContext, MUI_THEMES, SWITCH_SLACK };
