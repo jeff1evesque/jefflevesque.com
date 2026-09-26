@@ -30,8 +30,18 @@ html {
   font-size: 14px;
 }
 
+//
+// the notice across the top of every page, dark on a caution yellow in either
+// theme.
+//
+// It is drawn straight onto the body, outside the react container, so without a
+// color of its own it takes the page's text color -- which on a dark page is a
+// light gray, 1.1:1 on this yellow. Held at '$gray-9-fixed' it is 13.5:1 in both
+// themes, as the ink on the header's black bars is held.
+//
 .under-construction {
   background-color: #ffd733;
+  color: $gray-9-fixed;
   font-weight: 700;
   margin: 0 var(--bs-gutter-x, 0.75rem);
   padding: 0.2rem 0;
