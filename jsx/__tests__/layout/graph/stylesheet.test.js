@@ -133,6 +133,131 @@ describe('the reference columns beside the graph', () => {
     });
 });
 
+describe('a day\'s totals, in the side column', () => {
+    //
+    // two abreast, a pair to a line, where the column has room for two -- and one
+    // to a line where it has been dragged too narrow. No suite can drag a column,
+    // so what is held is the rule that decides it. See the note above
+    // '.graph-details' in the three-column layout.
+    //
+    const [wide] = blocks(source, '@media (min-width: $graph-columns)');
+    const [details] = wide ? blocks(wide, '.graph-details') : [];
+    const [value] = details ? blocks(details, 'dd') : [];
+    const [row] = wide ? blocks(wide, '.graph-details-row') : [];
+    const [pair] = wide ? blocks(wide, '.graph-details-pair') : [];
+
+    it('lie on a grid of two columns at most, each at least 6.25rem', () => {
+        //
+        // a 6.25rem track, or half the list where that is wider: two halves fit
+        // exactly, and where they are narrower than 6.25rem only one track does
+        //
+        expect(details).toMatch(/display\s*:\s*grid\s*;/);
+        expect(details).toMatch(
+            /grid-template-columns\s*:\s*repeat\(auto-fill, minmax\(max\(6\.25rem, calc\(\(100% - [\d.]+rem\) \/ 2\)\), 1fr\)\)\s*;/
+        );
+    });
+
+    it('halve the list less the gap between its columns', () => {
+        //
+        // a half that left the gap in would never fit twice, and the totals would
+        // never sit two abreast at all
+        //
+        const [, gap] = details.match(/column-gap\s*:\s*([\d.]+rem)\s*;/) || [];
+        const [, halved] = details.match(/calc\(\(100% - ([\d.]+rem)\) \/ 2\)/) || [];
+
+        expect(gap).toBeDefined();
+        expect(halved).toBe(gap);
+    });
+
+    it('give a row the whole width unless it pairs', () => {
+        expect(row).toMatch(/grid-column\s*:\s*1 \/ -1\s*;/);
+        expect(pair).toMatch(/grid-column\s*:\s*auto\s*;/);
+
+        // the two weigh the same, so a row that pairs takes the later of them
+        expect(wide.indexOf('.graph-details-pair')).toBeGreaterThan(wide.indexOf('.graph-details-row'));
+    });
+
+    it('space their rows by the grid, leaving no margin at the foot over the body\'s padding', () => {
+        expect(details).toMatch(/row-gap\s*:\s*0\.6rem\s*;/);
+        expect(value).toMatch(/margin-bottom\s*:\s*0\s*;/);
+    });
+
+    it('pair only in the side column, and keep a row to a line below the breakpoint', () => {
+        //
+        // a row there is its label at the left and its value at the right, and
+        // two abreast would set a value nearer the next label than its own
+        //
+        const [base] = blocks(source, '.graph-details');
+
+        expect(base).not.toMatch(/display\s*:\s*grid/);
+        expect(source.replace(wide, '')).not.toMatch(/graph-details-pair/);
+    });
+});
+
+//
+// a block's value for one property, in rem, as a number
+//
+function rem(block, property) {
+    const [, value] = (block || '').match(new RegExp(`(?:^|[\\s;{])${property}\\s*:\\s*([\\d.]+)rem\\s*;`)) || [];
+
+    return value === undefined ? undefined : Number(value);
+}
+
+describe('the foot of each side column', () => {
+    //
+    // room under each column's last line, for when the column is the tallest
+    // thing in the row and would otherwise end flush with its text
+    //
+    const [wide] = blocks(source, '@media (min-width: $graph-columns)');
+    const [body] = wide ? blocks(wide, '.graph-panel-open > .graph-panel-body') : [];
+    const [last] = wide ? blocks(wide, '.graph-legend ul:last-child') : [];
+
+    it('is the body\'s own padding, which measureColumns reads down to', () => {
+        expect(body).toMatch(/padding-bottom\s*:\s*0\.75rem\s*;/);
+    });
+
+    it('is the same in both columns, the legend\'s last list giving up its margin', () => {
+        expect(last).toMatch(/margin-bottom\s*:\s*0\s*;/);
+    });
+});
+
+describe('the rule dividing each side column', () => {
+    //
+    // under Sources in either page's details, and between the legend's
+    // namespaces and its edges: an accent hairline that fades out toward both
+    // ends, 1rem clear either side
+    //
+    const [wide] = blocks(source, '@media (min-width: $graph-columns)');
+    const [ruled] = wide ? blocks(wide, '.graph-details-ruled') : [];
+    const [legend] = wide ? blocks(wide, '.graph-legend .graph-legend-namespaces') : [];
+    const [details] = wide ? blocks(wide, '.graph-details') : [];
+    const [heading] = wide ? blocks(wide, '.graph-panel-open > .graph-panel-heading') : [];
+    const [namespaces] = blocks(source, '.graph-legend-namespaces');
+    const [entry] = namespaces ? blocks(namespaces, 'li') : [];
+
+    it('fades out toward both ends, in the gray of the rule under the column\'s heading', () => {
+        expect(wide).toMatch(
+            /\$graph-divider\s*:\s*linear-gradient\(to right, transparent, \$gray-2 20%, \$gray-2 80%, transparent\)\s*;/
+        );
+        expect(heading).toMatch(/border-bottom\s*:\s*1px solid \$gray-2\s*;/);
+    });
+
+    it.each([['details', ruled], ['legend', legend]])('closes the first part of the %s with it, as a hairline', (name, block) => {
+        expect(block).toMatch(/border-bottom\s*:\s*1px solid\s*;/);
+        expect(block).toMatch(/border-image\s*:\s*\$graph-divider 1\s*;/);
+    });
+
+    it('stands 1rem clear of the details either side, the row gap giving most of the room below', () => {
+        expect(rem(ruled, 'padding-bottom')).toBe(1);
+        expect(rem(ruled, 'margin-bottom') + rem(details, 'row-gap')).toBeCloseTo(1);
+    });
+
+    it('stands 1rem clear of the legend either side, each namespace\'s padding giving some of the room above', () => {
+        expect(rem(legend, 'padding-bottom') + rem(entry, 'padding-bottom')).toBeCloseTo(1);
+        expect(rem(legend, 'margin-bottom')).toBe(1);
+    });
+});
+
 describe('the tint, against the labels on it', () => {
     //
     // small text wants 4.5:1. The page's own '$gray-6' falls short of it on the
