@@ -254,6 +254,10 @@
   .control-icon {
     color: #555;
     margin: 0 0.75rem;
+
+    @include dark {
+      color: $gray-6;
+    }
   }
 
   // the icon greens on hover of the surrounding oval rather than of the glyph
@@ -314,6 +318,10 @@
       color: #212529;
       border-left: 0.75rem solid $gray-1;
       width: 100%;
+
+      @include dark {
+        color: var(--body-text);
+      }
 
       div {
         color: $gray-7;
