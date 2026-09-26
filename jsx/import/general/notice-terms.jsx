@@ -10,11 +10,28 @@
 
 import React, { Component } from 'react';
 import PrivacyTipIcon from '@mui/icons-material/PrivacyTip';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import LoginLink from '../navigation/menu-items/login.jsx';
 import PropTypes from 'prop-types';
 import { isMobile } from 'react-device-detect';
 import checkValidString from '../validator/valid-string.js';
 
+//
+// the version of the terms this notice shows. A subscribe sends it as the terms the
+// reader accepted, and the account api keeps it with the subscription -- so it has
+// to change whenever the terms text below does. See account-api.js.
+//
+export const TERMS_VERSION = '2026-09';
+
+/**
+ * the terms a reader accepts before subscribing, and what they do about it.
+ *
+ * Signed out, the way to sign in or sign up. Signed in -- `signed_in`, which only the
+ * alarm page passes -- a checkbox accepting the terms in its place, held by the page
+ * as `accepted` and reported through `onAccept`, since what the page lets a reader
+ * turn on depends on it.
+ */
 class NoticeTerms extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
     static propTypes = {
@@ -22,7 +39,10 @@ class NoticeTerms extends Component {
         header: PropTypes.string,
         notice: PropTypes.element,
         terms: PropTypes.string,
-        icon_color: PropTypes.string
+        icon_color: PropTypes.string,
+        signed_in: PropTypes.bool,
+        accepted: PropTypes.bool,
+        onAccept: PropTypes.func,
     }
 
     constructor(props) {
@@ -158,10 +178,42 @@ class NoticeTerms extends Component {
 
     render() {
         const class_name = isMobile ? 'agreement agreement-mobile' : 'agreement';
+        const signed_in = Boolean(this.props.signed_in);
+
+        //
+        // signed in, the heading says what the notice is for rather than asking the
+        // reader to sign in, and the footer takes their acceptance
+        //
+        const header = signed_in
+            ? (isMobile ? 'Subscribe' : `Subscribe to ${this.state.subject}`)
+            : this.state.header;
+
+        const footer = signed_in
+            ? (
+                <FormControlLabel
+                    className='agreement-accept'
+                    control={(
+                        <Checkbox
+                            checked={Boolean(this.props.accepted)}
+                            onChange={(event) => {
+                                if (this.props.onAccept) {
+                                    this.props.onAccept(event.target.checked);
+                                }
+                            }}
+                        />
+                    )}
+                    label='I accept the terms and conditions'
+                />
+            ) : (
+                <>
+                    <LoginLink/> or <LoginLink path='/register' text='Sign up'/>{this.state.footer_suffix}
+                </>
+            );
+
         return (
             <div className={class_name}>
                 <div className='agreement-content'>
-                    <h4><PrivacyTipIcon style={{ color: this.state.icon_color }} />{this.state.header}</h4>
+                    <h4><PrivacyTipIcon style={{ color: this.state.icon_color }} />{header}</h4>
                     {/*
 
                         rendered bare, not wrapped in a <p>.
@@ -179,7 +231,7 @@ class NoticeTerms extends Component {
                     <div className='border-bottom'>{this.state.terms}</div>
                 </div>
                 <div className='agreement-button'>
-                    <LoginLink/> or <LoginLink path='/register' text='Sign up'/>{this.state.footer_suffix}
+                    {footer}
                 </div>
             </div>
         )
