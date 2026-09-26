@@ -904,7 +904,7 @@ class GraphLayout extends Component {
      *
      * Two rules of visibly different lengths, starting level and stopping in
      * different places, is what frames the graph otherwise -- the build panel is
-     * seven label/value rows and the legend is a namespace grid plus three edge
+     * eight label/value rows and the legend is a namespace grid plus three edge
      * origins, and they are never the same height by accident.
      *
      * The measurement is of the BODIES. The panels are what carry the height,
@@ -1180,6 +1180,11 @@ class GraphLayout extends Component {
     //       its place with the bar the whole panel's stand-in draws in that
     //       row, and reads 'n/a' once there is no schema coming.
     //
+    // Note: Day does not wait. It is the day the listing's entry names, or, for
+    //       a build too old to name one, the day list() read off the published
+    //       days before handing the choice over -- the day the picker shows.
+    //       See buildDay in source.js.
+    //
     // Note: a DAY's panel is the same panel with other rows, and every one of
     //       them but the day itself is totalled from the day's rows -- so all
     //       of those wait the way Sources does. See DAY_DETAILS in source.js.
@@ -1392,11 +1397,13 @@ class GraphLayout extends Component {
                         duplicated and no heading is hidden from a reader who
                         navigates by them.
 
-                        Note: the visible 'Build' is what a sighted reader was
-                              missing -- the accessible name has always been
-                              'Published build', which screen readers got and
-                              nobody else did. A day is 'Day' and 'Published
-                              day', from its source, for the same reason.
+                        Note: the visible label is what a sighted reader was
+                              missing -- the accessible name was there long
+                              before it, which screen readers got and nobody
+                              else did. Both pages read 'Day' and 'Published
+                              day' now, from their source: the Retrieval graph
+                              picks a day of the tables, and the Training graph
+                              a build by the day it holds.
 
                         Note: the heading names WHICH graph -- 'Training graph'
                               or 'Retrieval graph' -- rather than the 'Knowledge
@@ -1428,7 +1435,7 @@ class GraphLayout extends Component {
                             {listing || loading ? (
                                 <div className='graph-picker-field'>
                                     <span className='graph-picker-label'>{source.picker.label}</span>
-                                    {listing ? this.picker() : <PendingPicker />}
+                                    {listing ? this.picker() : <PendingPicker width={source.picker.pending} />}
                                 </div>
                             ) : null}
                         </div>
