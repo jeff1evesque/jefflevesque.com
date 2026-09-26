@@ -4,7 +4,7 @@
 
 What one dataset holds for a month: how its records are distributed, and how many
 partitions they occupy. `/data` charts the distribution for the stream and month a
-reader chooses, and `/stream/stock-market/alarm` reads the partition count.
+reader chooses.
 
 ## Parameters
 
@@ -44,7 +44,7 @@ whole; the application always sends one.
 | `us-weather-alert` | `severity`, `event`, `total_events` |
 
 `/data` stacks the distribution into bars, one per group, and lists the partition
-count against the stream. The alarm page reads only the partition count.
+count against the stream.
 
 ## Errors
 
@@ -59,9 +59,7 @@ count against the stream. The alarm page reads only the partition count.
   [`jsx/import/general/api-url.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/api-url.js),
   which also holds each stream's dataset name as `DATASETS`.
 - Fetched by `downloadData`, in
-  [`jsx/import/layout/data/data.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/data/data.jsx)
-  and
-  [`jsx/import/layout/stream/alarm.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/stream/alarm.jsx),
+  [`jsx/import/layout/data/data.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/data/data.jsx),
   through one loader per dataset under
   [`jsx/import/general/get-data/distribution/`](https://github.com/jeff1evesque/jefflevesque.com/tree/master/jsx/import/general/get-data/distribution).
 - Read in a web worker per dataset, under
