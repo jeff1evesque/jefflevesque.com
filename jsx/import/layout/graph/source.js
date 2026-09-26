@@ -532,8 +532,9 @@ const DAYS = {
     summary: (day, whole) => (whole ? `${COMPACT.format(total(whole.node_types, 'entities'))} entities` : null),
 
     //
-    // both of the day's requests, named apart -- or the listing of days, before
-    // one is selected
+    // both of the day's requests, named apart and marked apart -- N and E inside
+    // their braces, so the two icons differ before either is pointed at -- or the
+    // listing of days, before one is selected
     //
     requests: (day) => {
         if (!day) {
@@ -543,8 +544,8 @@ const DAYS = {
         const { nodeTypes, edgeTypes } = dayRequests(day);
 
         return [
-            { url: nodeTypes, label: 'Node types request' },
-            { url: edgeTypes, label: 'Edge types request' },
+            { url: nodeTypes, label: 'Node types request', mark: 'N' },
+            { url: edgeTypes, label: 'Edge types request', mark: 'E' },
         ];
     },
 };
