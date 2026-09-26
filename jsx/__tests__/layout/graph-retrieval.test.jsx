@@ -334,8 +334,51 @@ describe('the day details', () => {
 
         expect([...document.querySelectorAll('.graph-details-row dt')].map((dt) => dt.textContent))
             .toEqual([
-                'Day', 'Run', 'Published', 'Sources', 'Entities', 'Facts', 'Nodes', 'Edges', 'Node types', 'Edge types',
+                'Day', 'Run', 'Published', 'Sources', 'Entities', 'Facts', 'Node types', 'Nodes', 'Edge types', 'Edges',
             ]);
+    });
+
+    //
+    // the six totals sit two abreast where the column has room for two, and one
+    // to a line where it has been dragged too narrow. Which of those applies is
+    // the stylesheet's to decide, and jsdom lays nothing out -- what is held here
+    // is which rows pair, and that each pair is listed together, left then
+    // right, which is the order a narrow column reads them in.
+    //
+    it('pairs its totals: Entities beside Facts, and each count of types beside what those types hold', async () => {
+        await setup();
+
+        const rows = [...document.querySelectorAll('.graph-details-row')];
+        const labels = (paired) => rows
+            .filter((row) => row.classList.contains('graph-details-pair') === paired)
+            .map((row) => row.querySelector('dt').textContent);
+
+        expect(labels(true)).toEqual(['Entities', 'Facts', 'Node types', 'Nodes', 'Edge types', 'Edges']);
+        expect(labels(false)).toEqual(['Day', 'Run', 'Published', 'Sources']);
+    });
+
+    it('rules off Sources, where the rows that take a line each give way to the pairs', async () => {
+        await setup();
+
+        expect([...document.querySelectorAll('.graph-details-ruled dt')].map((dt) => dt.textContent))
+            .toEqual(['Sources']);
+    });
+
+    it('pairs and rules the same rows while the days are on their way', async () => {
+        //
+        // a stand-in giving each total its own row would be three rows taller
+        // than the panel that replaces it
+        //
+        getTableDays.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        const labels = (selector) => [...document.querySelectorAll(`.graph-details.graph-pending ${selector} dt`)]
+            .map((dt) => dt.textContent);
+
+        expect(labels('.graph-details-pair'))
+            .toEqual(['Entities', 'Facts', 'Node types', 'Nodes', 'Edge types', 'Edges']);
+        expect(labels('.graph-details-ruled')).toEqual(['Sources']);
     });
 
     //
