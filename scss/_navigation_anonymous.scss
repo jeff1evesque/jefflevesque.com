@@ -6,6 +6,10 @@
 //
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
+//
+// Note: the ink on the header's black bars and menus is held '-fixed' -- they
+//       are black in either theme. What sits on the page, the desktop header's
+//       own links among them, follows the theme. See '_theme.scss'.
 
 #bootstrap-override {
   .small-viewport {
@@ -38,7 +42,7 @@
         .main-navigation {
           .dropdown-header {
             padding: 1rem $anon-dropdown-item-side 0.25rem;
-            color: $gray-5;
+            color: $gray-5-fixed;
             font-size: 0.8rem;
             letter-spacing: 0.05em;
             text-transform: uppercase;
@@ -159,7 +163,7 @@
 
           .dropdown-item:hover,
           .dropdown-item:focus-visible {
-            background-color: rgba(0, 0, 0, 0.04);
+            background-color: rgba(var(--ink-rgb), 0.04);
           }
 
           .dropdown-item:hover,
@@ -246,7 +250,7 @@
 
       .navbar-collapse {
         > .show {
-          background-color: $gray-9;
+          background-color: $gray-9-fixed;
         }
       }
 
@@ -256,7 +260,7 @@
 
       #basic-nav-dropdown:hover,
       .navbar-brand:hover {
-        color: $white-1;
+        color: $white-1-fixed;
       }
 
       .dropdown-toggle {
@@ -267,7 +271,7 @@
       // @session, @nav_item are the same level
       //
       .nav-item {
-        border-bottom: 1px solid $gray-7;
+        border-bottom: 1px solid $gray-7-fixed;
       }
 
       .nav-item:last-of-type {
