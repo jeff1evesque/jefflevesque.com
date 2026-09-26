@@ -10,8 +10,9 @@
 
     ---
 
-    The three public APIs every page draws from, what each accepts and what it
-    answers, with a Swagger UI to try each one.
+    The three public APIs every page draws from, and the account API that keeps a
+    signed-in reader's alarm subscriptions: what each accepts and what it answers,
+    with a Swagger UI to try each public one.
 
     [:octicons-arrow-right-24: Overview](api/index.md)
 
