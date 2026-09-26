@@ -36,7 +36,8 @@ carry icons built from the same functions: a book, which opens that API's page h
 and a pair of braces for each request behind what is on screen, which opens it
 exactly. Because the page's fetch and the icon share one builder, the icon cannot name
 a request the page did not make. The Retrieval Graph draws a day from two requests, and
-carries a pair of braces for each.
+carries a pair of braces for each, marked N for its node types and E for its edge types
+so the two differ before either is pointed at.
 
 Each set sits with the thing it describes rather than with the page — in a chart's own
 corner, and at the top of the column each graph page draws its graph in.
