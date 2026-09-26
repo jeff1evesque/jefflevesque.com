@@ -496,6 +496,22 @@ describe('while the build is still on its way', () => {
         expect(barWidths()).toMatchObject({ Day: '6rem', Run: '9rem', Built: '9rem', Sources: '7rem' });
     });
 
+    it('pairs and rules the same rows the build panel will', async () => {
+        //
+        // a stand-in giving each pair's rows a line apiece would be two rows
+        // taller than the panel that replaces it
+        //
+        getGraphListing.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        const labels = (selector) => [...document.querySelectorAll(`.graph-details.graph-pending ${selector} dt`)]
+            .map((dt) => dt.textContent);
+
+        expect(labels('.graph-details-pair')).toEqual(['Nodes', 'Edges', 'Dataset', 'Variant']);
+        expect(labels('.graph-details-ruled')).toEqual(['Sources']);
+    });
+
     it('keeps the Sources row\'s bar that width while the schema is on its way', async () => {
         getGraphById.mockReturnValue(new Promise(() => {}));
 
@@ -1098,6 +1114,34 @@ describe('the build details', () => {
         expect(detail('Period')).toBeUndefined();
         expect([...document.querySelectorAll('.graph-details-row dt')].map(d => d.textContent))
             .toEqual(['Day', 'Run', 'Built', 'Sources', 'Nodes', 'Edges', 'Dataset', 'Variant']);
+    });
+
+    it('pairs what the build holds, Nodes beside Edges and Dataset beside Variant', async () => {
+        //
+        // below Sources both panels run two abreast where the column has room --
+        // a day's six totals in three pairs, and a build's four rows in two. The
+        // dates and Sources keep a line each.
+        //
+        await setup();
+
+        const rows = [...document.querySelectorAll('.graph-details-row')];
+        const labels = (paired) => rows
+            .filter((row) => row.classList.contains('graph-details-pair') === paired)
+            .map((row) => row.querySelector('dt').textContent);
+
+        expect(labels(true)).toEqual(['Nodes', 'Edges', 'Dataset', 'Variant']);
+        expect(labels(false)).toEqual(['Day', 'Run', 'Built', 'Sources']);
+    });
+
+    it('rules off Sources from what the build holds, where the day panel rules off its own', async () => {
+        //
+        // when the build ran and what it read, over how much it came to and what
+        // it is -- the same two blocks the day panel's rule divides
+        //
+        await setup();
+
+        expect([...document.querySelectorAll('.graph-details-ruled dt')].map((dt) => dt.textContent))
+            .toEqual(['Sources']);
     });
 
     it('marks the run and build times as UTC', async () => {

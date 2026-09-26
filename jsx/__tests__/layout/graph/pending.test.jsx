@@ -479,3 +479,29 @@ describe('PendingDetail', () => {
         });
     });
 });
+
+describe('PendingDetails', () => {
+    //
+    // the panel it stands in for sets a day's totals two abreast and rules off
+    // its Sources, and hands the stand-in each row's classes so it lays its rows
+    // out the same way -- see detailsRow in graph.jsx
+    //
+    const classes = (container) => [...container.querySelectorAll('dt')].map((dt) => dt.parentElement.className);
+
+    it('draws each row with the classes it is handed', () => {
+        const handed = [
+            'graph-details-row graph-details-ruled',
+            'graph-details-row graph-details-pair',
+            'graph-details-row graph-details-pair',
+        ];
+        const { container } = render(<PendingDetails labels={['Sources', 'Entities', 'Facts']} classes={handed} />);
+
+        expect(classes(container)).toEqual(handed);
+    });
+
+    it('draws a plain row where it is handed none', () => {
+        const { container } = render(<PendingDetails labels={['Day', 'Nodes', 'Edges']} />);
+
+        expect(classes(container)).toEqual(['graph-details-row', 'graph-details-row', 'graph-details-row']);
+    });
+});

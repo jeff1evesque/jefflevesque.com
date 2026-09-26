@@ -155,12 +155,17 @@ PendingDetail.propTypes = {
  * them for the panel itself -- see DETAILS there. A second copy would drift
  * apart from the first the day a row was added. So are the widths, where the
  * panel's rows name their own -- see PendingDetail.
+ *
+ * And so are the classes each row is drawn with, so the stand-in sets its rows
+ * two abreast, and rules them off, where the panel will. A stand-in giving each
+ * pair's rows a line apiece would be taller than the panel that replaces it,
+ * and the column would shrink under the reader as the data arrived.
  */
-export function PendingDetails({ labels, widths = [] }) {
+export function PendingDetails({ labels, widths = [], classes = [] }) {
     return (
         <dl className='graph-details graph-pending' aria-hidden='true'>
             {labels.map((label, index) => (
-                <div key={label} className='graph-details-row'>
+                <div key={label} className={classes[index] || 'graph-details-row'}>
                     <dt>{label}</dt>
                     <dd>
                         <PendingDetail index={index} width={widths[index] || null} />
@@ -174,6 +179,7 @@ export function PendingDetails({ labels, widths = [] }) {
 PendingDetails.propTypes = {
     labels: PropTypes.arrayOf(PropTypes.string).isRequired,
     widths: PropTypes.arrayOf(PropTypes.string),
+    classes: PropTypes.arrayOf(PropTypes.string),
 };
 
 //
