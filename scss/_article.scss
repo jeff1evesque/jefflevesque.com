@@ -268,6 +268,22 @@
   .border-circle-radius:hover .control-icon {
     color: $green-5;
   }
+
+  // the bell of a stream the reader is subscribed to rings, and holds the green
+  // the tray's icons take under the pointer, as the chart icon holds it for the
+  // row on screen. The ringing glyph says so too, so the green is not all that
+  // does -- see alarmBell in layout/stream/stream.jsx.
+  //
+  // Note: repeated under '@include dark', whose rule above outweighs this one
+  //       otherwise.
+  //
+  .control-icon.subscribed {
+    color: $green-5;
+
+    @include dark {
+      color: $green-5;
+    }
+  }
 }
 
 // the chart control holds the hover green while its row is the one the chart
