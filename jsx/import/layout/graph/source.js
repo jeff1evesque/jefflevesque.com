@@ -171,10 +171,10 @@ function runDate(run) {
  *       hold the run's own date by the time anyone reads the listing -- the
  *       09-16 17:15 run holds 09-15 -- and they hold no day for a weekend.
  *
- * Note: `days` are the published days, as getTableDays answers them, or null
- *       when they could not be had. Then an older build has no day, and keeps
- *       the label its run gave it: the Training graph never fails because the
- *       tables did.
+ * Note: `days` are the published days, as the rows getTableDays answers name
+ *       them, or null when they could not be had. Then an older build has no
+ *       day, and keeps the label its run gave it: the Training graph never fails
+ *       because the tables did.
  */
 function buildDay(build, days) {
     if (atLeast(build.schema_version, DAY_RECORDED)) {
@@ -353,10 +353,14 @@ const BUILDS = {
 
         const older = listing.graphs.some((build) => !atLeast(build.schema_version, DAY_RECORDED));
 
-        return (older ? getTableDays() : Promise.resolve(null)).then((days) => ({
-            default: listing.default,
-            choices: listing.graphs.map((build) => ({ ...build, day: buildDay(build, days) })),
-        }));
+        return (older ? getTableDays() : Promise.resolve(null)).then((rows) => {
+            const days = rows && rows.map((row) => row.day);
+
+            return {
+                default: listing.default,
+                choices: listing.graphs.map((build) => ({ ...build, day: buildDay(build, days) })),
+            };
+        });
     }),
     load: (id) => getGraphById(id),
     labels: pickerLabels,
@@ -381,12 +385,15 @@ function total(types, measure = 'count') {
 // the day panel's rows, as DETAILS is the build panel's.
 //
 // A build's listing entry describes the build before its schema arrives -- how
-// many nodes, when it ran. A day's describes nothing but the day, so every other
-// row is TOTALLED from the day's own rows, and waits for them: `schema` on each.
+// many nodes, when it ran. A day's describes the day and where it came from: the
+// run that published it, and when that finished. Those three rows fill in with
+// the picker, as a build's Run and Built do. Every other row is TOTALLED from the
+// day's own rows, and waits for them: `schema` on each.
 //
 // `pending` is the width a row's value is drawn at while it waits, as pending.jsx
 // does for the build panel's: a date, totals in the thousands and the millions,
-// and two counts of types in the hundreds.
+// two counts of types in the hundreds, and two timestamps at the width the build
+// panel gives its own.
 //
 // Note: 'Entities' and 'Facts' lead, because they are what this graph is drawn
 //       by: the nodes that carry text, and so can be found by name, and the
@@ -394,6 +401,12 @@ function total(types, measure = 'count') {
 //       edge the day holds, the figures the build panel's first two rows give
 //       for a build. 'Node types' and 'Edge types' are what the canvas and the
 //       tables below it count.
+//
+// Note: 'Run' is the run that published the day, and it is the Run of the build
+//       the Training graph names by the same day: the two graphs of a day are
+//       one run's work. 'Published', not 'Built', because what the tables
+//       record is when a day finished publishing, which is when it became
+//       readable -- not when its tables were written, which nothing records.
 //
 const DAY_DETAILS = [
     { label: 'Day', read: (day) => day.id, pending: '6rem' },
@@ -423,6 +436,8 @@ const DAY_DETAILS = [
         schema: true,
         pending: '2rem',
     },
+    { label: 'Run', read: (day) => when(day.run), pending: '9rem' },
+    { label: 'Published', read: (day) => when(day.published), pending: '9rem' },
 ];
 
 const DAYS = {
@@ -447,8 +462,15 @@ const DAYS = {
     // the newest day is the default, the way the listing's default build is: it
     // is the one a reader arriving with no day in mind wants.
     //
+    // Note: each choice carries the run that published its day and when that
+    //       finished, as a build's listing entry carries its run and built --
+    //       so both are on the panel as soon as the picker is.
+    //
     list: () => getTableDays().then((days) => (days && days.length
-        ? { default: days[0], choices: days.map((day) => ({ id: day })) }
+        ? {
+            default: days[0].day,
+            choices: days.map((row) => ({ id: row.day, run: row.run, published: row.published })),
+        }
         : null)),
     load: (day) => getTableDay(day),
     labels: (choices) => choices.map((choice) => choice.id),

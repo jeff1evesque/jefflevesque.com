@@ -561,7 +561,7 @@
       "get": {
         "operationId": "listKnowledgeGraphDays",
         "summary": "Every published day",
-        "description": "The days the tables hold, newest first -- every day the other tables paths may name as a Day. Takes no value at all, a Limit included: the answer is every published day, a year of them at most. Answered from the list the service resolves on every request, so it runs no query.",
+        "description": "The days the tables hold, newest first -- every day the other tables paths may name as a Day -- each with the run that published it and when that finished. Takes no value at all, a Limit included: the answer is every published day, a year of them at most. Answered from the list the service resolves on every request, and from the marker each day's publishing writes last, so it runs no query.",
         "responses": {
           "200": {
             "description": "Every published day, newest first. Empty when none has finished publishing.",
@@ -600,6 +600,20 @@
                               "day": {
                                 "type": "string",
                                 "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                              },
+                              "run": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The run that published the day, in UTC, written as the listing writes a build's run. It is the run of the build that holds the day."
+                              },
+                              "published": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "When the day finished publishing, in UTC, which is when it became readable. Not when its tables were written, which nothing records."
                               }
                             }
                           }

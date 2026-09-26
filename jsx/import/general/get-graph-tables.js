@@ -5,7 +5,7 @@
  * Three calls, because a caller picks a day from a listing rather than naming
  * one, and a day's picture is two questions asked side by side:
  *
- *     GET <tables>/days                                -> { report: { rows: [{ day }, ...] } }
+ *     GET <tables>/days                                -> { report: { rows: [{ day, run, published }, ...] } }
  *     GET <tables>/node-types?Day=<day>&Limit=1000     -> { report: { rows: [{ node_type, count, entities, facts }, ...] } }
  *     GET <tables>/edge-types?Day=<day>&Limit=1000     -> { report: { rows: [{ src_type, relation, dst_type, count, origin, ... }] } }
  *
@@ -154,20 +154,29 @@ export function daySchema(nodeRows, edgeRows) {
 }
 
 /**
- * every published day, newest first, as 'YYYY-MM-DD'.
+ * every published day, newest first, as { day, run, published }: the day as
+ * 'YYYY-MM-DD', the run that published it, and when that finished publishing.
  *
  * Resolves to the list, which may be empty, or to null if it cannot be had.
  *
  * Note: a row that is not a day is dropped rather than failing the list. The list
  *       is what the picker offers, and one row nobody could name is no reason to
  *       offer none of the rest.
+ *
+ * Note: `run` and `published` are null unless they are strings. A day's rows
+ *       carried neither before the api said where each day came from, and one
+ *       that still says nothing is read as a build's missing run is: 'n/a'.
  */
 export function getTableDays(base = TABLES) {
     return report(daysRequest(base))
         .then(rowsOf)
         .then((rows) => rows
-            .map((row) => (row ? row.day : null))
-            .filter((day) => typeof day === 'string' && DAY.test(day)))
+            .filter((row) => row && typeof row.day === 'string' && DAY.test(row.day))
+            .map((row) => ({
+                day: row.day,
+                run: typeof row.run === 'string' ? row.run : null,
+                published: typeof row.published === 'string' ? row.published : null,
+            })))
         .catch((e) => logged(`${base}/days`, e));
 }
 

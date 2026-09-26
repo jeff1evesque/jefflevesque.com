@@ -250,10 +250,27 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
     it('reads the documented days, newest first', async () => {
         answering(days.example);
 
-        const listed = await getTableDays();
+        const listed = (await getTableDays()).map((row) => row.day);
 
         expect(listed.length).toBeGreaterThan(1);
         expect(listed).toEqual([...listed].sort().reverse());
+    });
+
+    it('reads each documented day with the run that published it, and when', async () => {
+        //
+        // the Retrieval graph's Run and Published rows read these. A documented
+        // row that gives neither reads null for both, which the page shows as
+        // 'n/a', the way it shows a build's missing run.
+        //
+        answering(days.example);
+
+        const listed = await getTableDays();
+
+        expect(listed).toEqual(days.example.report.rows.map((row) => ({
+            day: row.day,
+            run: typeof row.run === 'string' ? row.run : null,
+            published: typeof row.published === 'string' ? row.published : null,
+        })));
     });
 
     it('reads the documented node and edge types as one day', async () => {

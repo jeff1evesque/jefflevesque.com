@@ -30,7 +30,7 @@ is held about one of them, and the day's stock quotes. The **Retrieval graph**,
 |---|---|---|
 | `/knowledge-graph` | the listing of builds | on every Training graph load, to find out which builds exist |
 | `/knowledge-graph/<id>` | that build's schema | the build selected in the picker, or named in the address |
-| `/knowledge-graph/tables/days` | every published day | on every Retrieval graph load, to find out which days exist; and on a Training graph load while its listing holds a build older than schema `1.5`, to find the day that build holds |
+| `/knowledge-graph/tables/days` | every published day, with the run that published it | on every Retrieval graph load, to find out which days exist; and on a Training graph load while its listing holds a build older than schema `1.5`, to find the day that build holds |
 | `/knowledge-graph/tables/node-types` | a day's node types, with what can be looked up in each | the day selected, and a `Limit` of 1000 |
 | `/knowledge-graph/tables/edge-types` | the relation catalog | the same `Day`, and a `Limit` of 1000 |
 | `/knowledge-graph/tables/find` | entities matching some text | nothing yet |
@@ -170,7 +170,7 @@ answer — it was asked and nothing matched.
 
 | Path | Takes | Answers |
 |---|---|---|
-| `tables/days` | nothing | every published day, newest first: the days the rest may name |
+| `tables/days` | nothing | every published day, newest first, with the `run` that published it and when it was `published`: the days the rest may name |
 | `tables/node-types` | `Day` | one row per node type that day: its `count` of nodes, its `entities` — the nodes that carry text, and so can be found by name — and its `facts`, the values held about them |
 | `tables/edge-types` | optionally `Day` | the relation catalog: which links exist between which node types, how many of each, and whether each came from a source or was derived |
 | `tables/find` | `Text`, optionally `Day` | entities whose text matches, as a case-insensitive substring |
@@ -178,6 +178,13 @@ answer — it was asked and nothing matched.
 | `tables/neighborhood` | `Uri`, `Day` | the edges touching one entity, within that day |
 | `tables/quotes` | `Symbol`, `Day` | one stock's snapshots that day, oldest first — about 19, every 20 minutes from 9:40 AM to 3:40 PM Eastern |
 | `tables/last-quotes` | `Day` | every stock's last snapshot that day, one row each |
+
+**A day says which run published it.** Each `days` row carries a `run`, written as the
+listing writes a build's, and it is the `run` of the build that holds the day: 2026-09-24
+names the run of 2026-09-25 at 05:00 UTC, whose build the Training graph names by
+2026-09-24. `published` is when the day finished publishing, which is when it became
+readable, not when its tables were written: nothing records that. Either is `null` for a
+day that does not say.
 
 **`Limit`** is taken by every path but `days`, which takes nothing at all. It is 100
 when left out and 1000 at most, and a larger one is refused with a `400` rather than
@@ -216,6 +223,11 @@ a day is its own build again — on 2026-09-23, 56 of the same 60 node types, le
 nine million market snapshots that carry no name and no value to look up. Weighed by
 what can be found by name, it draws the day's 49 named types and the 11 that join
 them, and shares 21 of the 60 with its build.
+
+Its Day details end with the day's **Run** and **Published**, read from `days`, so both
+are on screen with the picker rather than a round trip later with the day's totals. They
+stand where a build's Run and Built stand on `/graph`, and the Run is the one `/graph`
+shows for the build of the same day.
 
 ## Caching
 

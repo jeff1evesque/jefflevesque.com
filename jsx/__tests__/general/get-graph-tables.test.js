@@ -108,10 +108,41 @@ describe('the requests', () => {
 });
 
 describe('the published days', () => {
-    it('answers them newest first, as the api lists them', async () => {
-        answering({ days: () => ok([{ day: '2026-09-23' }, { day: '2026-09-22' }]) });
+    //
+    // two days as the api answers them: each names the run that published it and
+    // when that finished.
+    //
+    const PUBLISHED = [
+        { day: '2026-09-23', run: '2026-09-24T05:00:42Z', published: '2026-09-24T06:41:18Z' },
+        { day: '2026-09-22', run: '2026-09-23T05:00:25Z', published: '2026-09-23T06:43:55Z' },
+    ];
 
-        await expect(getTableDays()).resolves.toEqual(['2026-09-23', '2026-09-22']);
+    it('answers them newest first, as the api lists them', async () => {
+        answering({ days: () => ok(PUBLISHED) });
+
+        const days = await getTableDays();
+
+        expect(days.map((row) => row.day)).toEqual(['2026-09-23', '2026-09-22']);
+    });
+
+    it('keeps the run that published each day, and when that finished', async () => {
+        answering({ days: () => ok(PUBLISHED) });
+
+        await expect(getTableDays()).resolves.toEqual(PUBLISHED);
+    });
+
+    it.each([
+        ['missing', {}],
+        ['null', { run: null, published: null }],
+        ['not a string', { run: 20260924050042, published: { at: '06:41' } }],
+    ])('reads a run and a published that are %s as null', async (_, fields) => {
+        //
+        // every day's row carried neither before the api said where a day came
+        // from. The page reads null as a build's missing run, 'n/a'.
+        //
+        answering({ days: () => ok([{ day: '2026-09-23', ...fields }]) });
+
+        await expect(getTableDays()).resolves.toEqual([{ day: '2026-09-23', run: null, published: null }]);
     });
 
     it('answers an empty list as an empty list', async () => {
@@ -123,11 +154,18 @@ describe('the published days', () => {
     it('drops a row that is not a day rather than failing the list', async () => {
         //
         // the list is what the picker offers, and one row nobody could name is no
-        // reason to offer none of the rest.
+        // reason to offer none of the rest -- whatever run it names.
         //
-        answering({ days: () => ok([{ day: '2026-09-23' }, { day: 'today' }, null, { nope: 1 }]) });
+        answering({
+            days: () => ok([
+                PUBLISHED[0],
+                { day: 'today', run: '2026-09-24T05:00:42Z', published: '2026-09-24T06:41:18Z' },
+                null,
+                { nope: 1 },
+            ]),
+        });
 
-        await expect(getTableDays()).resolves.toEqual(['2026-09-23']);
+        await expect(getTableDays()).resolves.toEqual([PUBLISHED[0]]);
     });
 
     it('resolves null when the days cannot be had', async () => {
