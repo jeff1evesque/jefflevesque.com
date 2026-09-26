@@ -48,9 +48,12 @@ where those rows come from is what tells the two pages apart.
 
 The **Training graph**, `/graph`, reads them out of the selected build's schema, which
 the page has already fetched in order to draw it, so they add no request and are exact
-for the build in the picker. They are **not** the knowledge graph tables API above,
-whose paths take no build id: under a build picker, their rows would read as the
-build's when they are not.
+for the build in the picker. Its picker names each build by the day of the tables it
+holds, but its rows are **not** that day's tables: those keep four node types every
+build leaves out, so only the build's own rows are exact for the graph drawn above them.
+It asks the tables API for one thing, its `days`, and only while its listing holds a
+build too old to record its own day. See
+[Knowledge graph](knowledge-graph.md#response-a-builds-schema).
 
 The **Retrieval graph**, `/graph/retrieval`, reads them from that API — one day's
 `node-types` and `edge-types` — under a picker of **days**, where every row is exact
