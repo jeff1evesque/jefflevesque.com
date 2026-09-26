@@ -224,10 +224,10 @@ nine million market snapshots that carry no name and no value to look up. Weighe
 what can be found by name, it draws the day's 49 named types and the 11 that join
 them, and shares 21 of the 60 with its build.
 
-Its Day details end with the day's **Run** and **Published**, read from `days`, so both
-are on screen with the picker rather than a round trip later with the day's totals. They
-stand where a build's Run and Built stand on `/graph`, and the Run is the one `/graph`
-shows for the build of the same day.
+Its Day details put the day's **Run** and **Published** directly under the Day, read
+from `days`, so the three are on screen with the picker, above the totals that arrive a
+round trip later. `/graph`'s Build details put a build's Run and Built in the same place,
+under its Day, and the Run is the one `/graph` shows for the build of the same day.
 
 ## Caching
 
