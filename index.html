@@ -4,6 +4,26 @@
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge' />
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <script>
+      // the theme the reader chose, or the system's where they chose none, on
+      // the page before anything is painted -- so a dark page is never drawn
+      // light first. theme-preference.js keeps the choice under this key.
+      (function () {
+        var theme = null;
+
+        try {
+          theme = window.localStorage.getItem('jefflevesque.theme');
+        } catch (e) {}
+
+        if (theme !== 'light' && theme !== 'dark') {
+          theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light';
+        }
+
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
     <link rel='stylesheet' href='/static/css/style.css'>
     <link rel='shortcut icon' href='#'>
   </head>
