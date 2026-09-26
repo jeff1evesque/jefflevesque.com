@@ -74,9 +74,22 @@ jest.mock('../../import/general/get-graph-schema.js', () => ({
     getGraphById: jest.fn(),
 }));
 
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+//
+// Note: the published days are mocked as the builds are. The page asks for them
+//       only while its listing holds a build too old to record the day it holds
+//       -- see buildDay in source.js -- and the rest of the module stays real.
+//
+jest.mock('../../import/general/get-graph-tables.js', () => ({
+    __esModule: true,
+    ...jest.requireActual('../../import/general/get-graph-tables.js'),
+    getTableDays: jest.fn(),
+}));
+
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
+import { getTableDays } from '../../import/general/get-graph-tables.js';
 import GraphLayout from '../../import/layout/graph/graph.jsx';
+import { BUILDS } from '../../import/layout/graph/source.js';
 import { GRAPH_NODE_TYPES } from '../../import/animation/filter-schema.js';
 import { PENDING_NAMESPACES, PENDING_ORIGINS } from '../../import/layout/graph/pending.jsx';
 import { nodeRadius } from '../../import/animation/explorer-layout.js';
@@ -86,6 +99,11 @@ import { writeLayout } from '../../import/general/layout-preference.js';
 // the shim setup.js installs, kept so a test that replaces it can put it back
 const storage = window.localStorage;
 
+//
+// Note: a 1.5 build, which records the day of the tables it holds, so the page
+//       reads that day off the listing and asks nothing of the tables. OLDER,
+//       below, holds builds that record none.
+//
 const BUILD_A = {
     id: 'build-a',
     label: 'September 2026 (a)',
@@ -97,6 +115,8 @@ const BUILD_A = {
     nodes: 9_884_064,
     edges: 73_967_362,
     sources: ['bls', 'sec'],
+    schema_version: '1.5',
+    day: '2026-09-14',
     error: null,
 };
 
@@ -116,6 +136,23 @@ const BUILD_B = {
 const BUILD_BROKEN = { ...BUILD_A, id: 'build-broken', label: 'Broken build', error: 'malformed' };
 
 const LISTING = { default: 'build-a', graphs: [BUILD_A, BUILD_B] };
+
+//
+// three builds as the listing held them on 2026-09-25, too old to record their
+// day, and the days published then. The newest was run on 09-25 and holds 09-24;
+// the other two are the two runs of 09-09, the only day that names two builds.
+//
+const OLDER = [
+    { ...BUILD_A, id: 'run-0925', label: 'run 0925', run: '2026-09-25T05:00:29Z', schema_version: '1.4', day: null },
+    { ...BUILD_A, id: 'run-0913', label: 'run 0913', run: '2026-09-13T15:04:28Z', schema_version: '1.3', day: null },
+    { ...BUILD_A, id: 'run-0910', label: 'run 0910', run: '2026-09-10T21:45:53Z', schema_version: '1.3', day: null },
+];
+const OLDER_LISTING = { default: 'run-0925', graphs: OLDER };
+
+const DAYS = [
+    '2026-09-24', '2026-09-23', '2026-09-22', '2026-09-21', '2026-09-18',
+    '2026-09-17', '2026-09-16', '2026-09-15', '2026-09-14', '2026-09-09',
+];
 
 //
 // a schema with `n` node types across two namespaces, so the legend has something
@@ -157,6 +194,16 @@ function saying(version, in_graph = ['bls']) {
 }
 
 //
+// where the router is, so a test can read the address the picker moved to.
+//
+// Note: a span, not the <output> the Retrieval graph's suite uses. An <output> is
+//       a live region, role='status', and this page's wait is announced by one.
+//
+function Where() {
+    return <span data-testid='where'>{useLocation().pathname}</span>;
+}
+
+//
 // rendered inside a router at a real address: the page reads its build from the
 // path, so a bare render would be testing it without the input it takes.
 //
@@ -170,6 +217,7 @@ async function setup(path = '/graph') {
                     <Route path='/graph' element={<GraphLayout />} />
                     <Route path='/graph/:graph' element={<GraphLayout />} />
                 </Routes>
+                <Where />
             </MemoryRouter>
         );
     });
@@ -178,7 +226,8 @@ async function setup(path = '/graph') {
 }
 
 const explorer = () => document.querySelector('[data-testid="explorer"]');
-const picker = () => screen.getByRole('combobox', { name: 'Published build' });
+const picker = () => screen.getByRole('combobox', { name: 'Published day' });
+const optionLabels = (options) => options.map((option) => option.textContent);
 const toggle = (name) => screen.getByRole('button', { name: new RegExp(name) });
 
 //
@@ -228,6 +277,7 @@ beforeEach(() => {
     window.localStorage.clear();
     getGraphListing.mockResolvedValue(LISTING);
     getGraphById.mockResolvedValue(schemaOf(4));
+    getTableDays.mockResolvedValue(DAYS);
 });
 
 describe('loading the page', () => {
@@ -327,6 +377,34 @@ describe('while the build is still on its way', () => {
 
         expect(document.querySelector('.graph-picker-field')).not.toBeNull();
         expect(document.querySelector('.graph-pending-picker')).not.toBeNull();
+    });
+
+    it('holds it at the width of a day, which is what the picker will show', async () => {
+        //
+        // it was sized for a run time, twice as wide as the day that replaces it
+        // now, and the Retrieval graph's was too wide for the same reason.
+        //
+        getGraphListing.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(document.querySelector('.graph-pending-picker .graph-pending-bar').style.width)
+            .toBe(BUILDS.picker.pending);
+    });
+
+    it('keeps holding both while an older build waits for the published days', async () => {
+        //
+        // a build too old to record its day is named by one the days imply, so
+        // the picker and the panel's Day row have nothing to say until they
+        // arrive.
+        //
+        getGraphListing.mockResolvedValue(OLDER_LISTING);
+        getTableDays.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(document.querySelector('.graph-pending-picker')).not.toBeNull();
+        expect(document.querySelector('.graph-panel-build .graph-details.graph-pending')).not.toBeNull();
     });
 
     it('names the same rows the build panel it stands in for will', async () => {
@@ -548,7 +626,8 @@ describe('the tables below the graph', () => {
     it('cost the page no extra request', async () => {
         //
         // the listing, and the build the picker selected. Adding the tables added
-        // neither a third call nor a second copy of either.
+        // neither a third call nor a second copy of either -- and nor did naming
+        // the builds by day, on a listing whose builds record their own.
         //
         getGraphById.mockResolvedValue(schemaOf(200));
 
@@ -556,6 +635,7 @@ describe('the tables below the graph', () => {
 
         expect(getGraphListing).toHaveBeenCalledTimes(1);
         expect(getGraphById).toHaveBeenCalledTimes(1);
+        expect(getTableDays).not.toHaveBeenCalled();
     });
 
     it('are cleared when a build fails to load', async () => {
@@ -590,6 +670,20 @@ describe('the picker', () => {
         expect(await openPicker()).toHaveLength(2);
     });
 
+    it('is labeled Day, and named Published day, as the Retrieval graph\'s is', async () => {
+        //
+        // the two pages pick the same thing now -- a day of the tables, or the
+        // build that holds one -- so they call it by the same words. The Training
+        // graph's 'Build' named something a reader could not line up with the
+        // other page.
+        //
+        await setup();
+
+        expect(document.querySelector('.graph-picker-label').textContent).toBe('Day');
+        expect(picker()).toBeTruthy();
+        expect(screen.queryByRole('combobox', { name: 'Published build' })).toBeNull();
+    });
+
     //
     // the listing labels a build with a sentence -- 'September 2026
     // (all-sources, 1024d, run 2026-09-19 05:00 UTC)' -- and the builds it
@@ -599,30 +693,93 @@ describe('the picker', () => {
     // identical until their end. Every constant part of that sentence is in the
     // build panel directly below the picker.
     //
-    it('labels a build by the run time that tells it from the others', async () => {
+    it('labels a build by the day it holds, asking nothing of the tables for a 1.5 build', async () => {
         getGraphListing.mockResolvedValue({
             default: 'build-a',
-            graphs: [BUILD_A, { ...BUILD_A, id: 'build-c', run: '2026-09-18T05:00:00Z' }],
+            graphs: [BUILD_A, { ...BUILD_A, id: 'build-c', run: '2026-09-18T05:00:00Z', day: '2026-09-17' }],
         });
 
         await setup();
-        await openPicker();
 
-        expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC' })).toBeTruthy();
-        expect(screen.getByRole('option', { name: '2026-09-18 05:00 UTC' })).toBeTruthy();
+        expect(optionLabels(await openPicker())).toEqual(['2026-09-14', '2026-09-17']);
+        expect(getTableDays).not.toHaveBeenCalled();
     });
 
-    it('adds the field that varies when the run time is not the whole difference', async () => {
+    it('names the run only of the two builds that hold one day', async () => {
         //
-        // the two builds in the listing were run at the same time and differ by
-        // variant, so the variant is part of what an option has to say. Neither
-        // is named when every build is the same, which is the published case.
+        // the listing of 2026-09-25 as it stood: the 09-13 run wrote 09-09 again
+        // three days after the 09-10 run had, so that day names two builds. Only
+        // those two say which run they are; every other option stays a day. Under
+        // the old rule, that one pair turned every option back into the listing's
+        // sentence.
+        //
+        getGraphListing.mockResolvedValue(OLDER_LISTING);
+
+        await setup();
+
+        expect(optionLabels(await openPicker())).toEqual([
+            '2026-09-24',
+            '2026-09-09 · run 2026-09-13 15:04 UTC',
+            '2026-09-09 · run 2026-09-10 21:45 UTC',
+        ]);
+    });
+
+    it('asks for the published days once, for a listing holding a build too old to say', async () => {
+        //
+        // the newest published day before the run's UTC date, which is how every
+        // build older than 1.5 was run. A 1.5 build beside it keeps its own.
+        //
+        getGraphListing.mockResolvedValue({ default: 'build-a', graphs: [BUILD_A, OLDER[0]] });
+
+        await setup();
+
+        expect(getTableDays).toHaveBeenCalledTimes(1);
+        expect(optionLabels(await openPicker())).toEqual(['2026-09-14', '2026-09-24']);
+    });
+
+    it('labels by run time, and draws the build, when the published days cannot be had', async () => {
+        //
+        // the Training graph never fails because the tables did. A build with no
+        // day is labeled as every build was before, and its Day row says so.
+        //
+        getGraphListing.mockResolvedValue(OLDER_LISTING);
+        getTableDays.mockResolvedValue(null);
+
+        await setup();
+
+        expect(getGraphById).toHaveBeenCalledWith('run-0925');
+        expect(explorer()).toBeTruthy();
+        expect(detail('Day')).toBe('n/a');
+        expect(optionLabels(await openPicker())).toEqual([
+            '2026-09-25 05:00 UTC',
+            '2026-09-13 15:04 UTC',
+            '2026-09-10 21:45 UTC',
+        ]);
+    });
+
+    it('labels a 1.5 build that records no day by its run time, guessing none', async () => {
+        getGraphListing.mockResolvedValue({
+            default: 'build-a',
+            graphs: [{ ...BUILD_A, day: '' }, { ...BUILD_A, id: 'build-c', run: '2026-09-18T05:00:00Z', day: '2026-09-17' }],
+        });
+
+        await setup();
+
+        expect(getTableDays).not.toHaveBeenCalled();
+        expect(optionLabels(await openPicker())).toEqual(['2026-09-15 05:00 UTC', '2026-09-17']);
+    });
+
+    it('adds the field that varies when the day is not the whole difference', async () => {
+        //
+        // the two builds in the listing hold one day and differ by variant, so
+        // the variant is part of what an option has to say -- and is all it has
+        // to add: the two were run together, and a run would tell them apart from
+        // nothing. Neither is named when every build is the same, which is the
+        // published case.
         //
         await setup();
-        await openPicker();
 
-        expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC · 1024d' })).toBeTruthy();
-        expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC · 512d' })).toBeTruthy();
+        expect(optionLabels(await openPicker())).toEqual(['2026-09-14 · 1024d', '2026-09-14 · 512d']);
     });
 
     it('says nothing about the period, which is a partition key', async () => {
@@ -639,9 +796,10 @@ describe('the picker', () => {
 
     it('keeps the listing labels when the short ones would name two builds', async () => {
         //
-        // two builds run in the same minute, of the same dataset and variant,
-        // derive one label between them. A shorter label is worth having; one
-        // that names two different builds is not.
+        // two builds of one day, run in the same minute, of the same dataset and
+        // variant, derive one label between them even with their runs added. A
+        // shorter label is worth having; one that names two different builds is
+        // not.
         //
         getGraphListing.mockResolvedValue({
             default: 'build-a',
@@ -649,23 +807,19 @@ describe('the picker', () => {
         });
 
         await setup();
-        await openPicker();
 
-        expect(screen.getByRole('option', { name: 'September 2026 (a)' })).toBeTruthy();
-        expect(screen.getByRole('option', { name: 'September 2026 (c)' })).toBeTruthy();
+        expect(optionLabels(await openPicker())).toEqual(['September 2026 (a)', 'September 2026 (c)']);
     });
 
-    it('falls back to the listing label for a build with no run time', async () => {
+    it('falls back to the listing label for a build with neither a day nor a run', async () => {
         getGraphListing.mockResolvedValue({
             default: 'build-a',
-            graphs: [BUILD_A, { ...BUILD_A, id: 'build-c', label: 'Run unrecorded', run: null }],
+            graphs: [BUILD_A, { ...BUILD_A, id: 'build-c', label: 'Run unrecorded', run: null, day: null }],
         });
 
         await setup();
-        await openPicker();
 
-        expect(screen.getByRole('option', { name: 'Run unrecorded' })).toBeTruthy();
-        expect(screen.getByRole('option', { name: '2026-09-15 05:00 UTC' })).toBeTruthy();
+        expect(optionLabels(await openPicker())).toEqual(['2026-09-14', 'Run unrecorded']);
     });
 
     it('swaps the graph when another build is chosen', async () => {
@@ -727,12 +881,48 @@ describe('the build details', () => {
         // no address: nothing to share, and the back button did not move between
         // builds.
         //
+        // Note: by its id, though the picker names it by its day. A day can name
+        //       two builds, and every link to a build from before kept working.
+        //
         await setup();
 
         await chooseBuild('build-b');
 
+        expect(screen.getByTestId('where')).toHaveTextContent('/graph/build-b');
         expect(getGraphById).toHaveBeenLastCalledWith('build-b');
-        expect(picker()).toHaveTextContent('2026-09-15 05:00 UTC · 512d');
+        expect(picker()).toHaveTextContent('2026-09-14 · 512d');
+    });
+
+    it('leads with the day the picker names the build by', async () => {
+        //
+        // the panel is still the build's: every other row describes the build,
+        // and Run still says when it ran, which is not the day it holds.
+        //
+        await setup();
+
+        expect(document.querySelector('.graph-details-row dt').textContent).toBe('Day');
+        expect(detail('Day')).toBe('2026-09-14');
+        expect(picker()).toHaveTextContent(/^2026-09-14\b/);
+        expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
+    });
+
+    it('reads the same day off the published days for a build too old to record one', async () => {
+        getGraphListing.mockResolvedValue(OLDER_LISTING);
+
+        await setup('/graph/run-0913');
+
+        expect(detail('Day')).toBe('2026-09-09');
+        expect(picker()).toHaveTextContent('2026-09-09 · run 2026-09-13 15:04 UTC');
+        expect(detail('Run')).toBe('2026-09-13 15:04 UTC');
+    });
+
+    it('reads n/a for the day of a build that records none', async () => {
+        getGraphListing.mockResolvedValue({ default: 'build-a', graphs: [{ ...BUILD_A, day: null }] });
+
+        await setup();
+
+        expect(detail('Day')).toBe('n/a');
+        expect(picker()).toHaveTextContent('2026-09-15 05:00 UTC');
     });
 
     //
@@ -857,7 +1047,7 @@ describe('the build details', () => {
 
         expect(detail('Period')).toBeUndefined();
         expect([...document.querySelectorAll('.graph-details-row dt')].map(d => d.textContent))
-            .toEqual(['Nodes', 'Edges', 'Sources', 'Run', 'Built', 'Dataset', 'Variant']);
+            .toEqual(['Day', 'Nodes', 'Edges', 'Sources', 'Run', 'Built', 'Dataset', 'Variant']);
     });
 
     it('marks the run and build times as UTC', async () => {
