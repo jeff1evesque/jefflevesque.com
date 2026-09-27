@@ -6,6 +6,15 @@
 
 <div class="grid cards" markdown>
 
+-   :material-bell-outline:{ .lg .middle } **Guides**
+
+    ---
+
+    For readers: subscribing to a stream's alarm, seeing and removing your
+    subscriptions, and what arrives when a stream goes quiet.
+
+    [:octicons-arrow-right-24: Alarms](guide/alarms.md)
+
 -   :material-api:{ .lg .middle } **APIs**
 
     ---
