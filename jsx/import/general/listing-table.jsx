@@ -154,6 +154,11 @@ class ListingTable extends Component {
         //
         this.controls = new Map();
 
+        //
+        // the table's body, which a dragged row is held inside -- see row()
+        //
+        this.body = React.createRef();
+
         this.reorder = this.reorder.bind(this);
         this.search = this.search.bind(this);
         this.choose = this.choose.bind(this);
@@ -425,6 +430,15 @@ class ListingTable extends Component {
 
         const className = row.name === selected ? 'listing-table-selected' : undefined;
 
+        {/*
+
+            a dragged row is held inside the table's body, with no give past its
+            edges. The frame around the table scrolls sideways where a window is
+            too narrow for it, which makes it a scroll box both ways -- and Chrome
+            counts a row dragged out past the table as more to scroll, so the table
+            grew a scrollbar of its own, longer the further the row went.
+
+        */}
         return draggable ? (
             <Reorder.Item
                 as='tr'
@@ -432,6 +446,8 @@ class ListingTable extends Component {
                 value={row.name}
                 dragListener={false}
                 dragControls={this.control(row.name)}
+                dragConstraints={this.body}
+                dragElastic={0}
                 className={className}
             >
                 {cells}
@@ -544,6 +560,7 @@ class ListingTable extends Component {
                         {draggable ? (
                             <Reorder.Group
                                 as='tbody'
+                                ref={this.body}
                                 axis='y'
                                 values={rows.map((row) => row.name)}
                                 onReorder={this.reorder}
