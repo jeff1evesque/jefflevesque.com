@@ -109,6 +109,18 @@ $dark-graph-panel: #252525;
 $graph-panel-label: #696969;
 
 //
+// the panel the sign-in, reset and register forms sit in, tinted a step off the
+// page, with each text box on it the page again. By night the step is as far off
+// the page as '#f7f5f7' is by day, about 1.09:1, so a text box stands off its
+// panel as far in either theme.
+//
+// Note: '#252525' by night, and it was '$white-2'. That panel stood half as far
+//       off the page, and a text box on it read as little more than its border.
+//
+$form-panel: #f7f5f7;
+$dark-form-panel: #252525;
+
+//
 // usermenu
 //
 $menu-border-left: 0.5rem;
