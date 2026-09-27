@@ -21,6 +21,8 @@
 
 jest.mock('../../../import/general/account-api.js', () => ({
     __esModule: true,
+    signedIn: jest.fn(),
+    readerToken: jest.fn(),
     listSubscriptions: jest.fn(),
     unsubscribe: jest.fn(),
 }));
@@ -29,9 +31,9 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import { listSubscriptions, unsubscribe } from '../../../import/general/account-api.js';
+import { signedIn, readerToken, listSubscriptions, unsubscribe } from '../../../import/general/account-api.js';
 import AccountLayout from '../../../import/layout/user/account.jsx';
-import SettingsLayout from '../../../import/layout/user/settings.jsx';
+import SettingsLayout, { expiryOf } from '../../../import/layout/user/settings.jsx';
 
 const pending = () => new Promise(() => {});
 
@@ -39,6 +41,8 @@ const HELD = { stream: 'bls', alarm: 'ingest', since: '2026-09-26T12:00:00Z', te
 
 beforeEach(() => {
     jest.clearAllMocks();
+    signedIn.mockImplementation(pending);
+    readerToken.mockImplementation(pending);
     listSubscriptions.mockImplementation(pending);
     unsubscribe.mockImplementation(pending);
 });
@@ -190,6 +194,209 @@ describe('the alarm subscriptions', () => {
         renderSettings();
 
         expect(await screen.findByRole('alert')).toHaveTextContent('busy, try again');
+    });
+});
+
+//
+// an ID token as the sign-in issues one: three base64url parts, the middle one its
+// claims. The page reads 'exp' from it, and nothing else.
+//
+function tokenExpiring(exp) {
+    const part = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+
+    return `${part({ alg: 'RS256', kid: 'key' })}.${part({ sub: 'a-reader', exp: exp })}.signature`;
+}
+
+// 2026-09-27T01:00:00Z
+const EXPIRES = 1790470800;
+const TOKEN = tokenExpiring(EXPIRES);
+
+describe('API access', () => {
+    //
+    // the reader's ID token, for calling the account api from a script. Hidden until
+    // asked for, read fresh when it is, held only while it shows, and offered only to
+    // a reader who is signed in.
+    //
+    const heading = () => screen.queryByRole('heading', { level: 4, name: 'API access' });
+    const shown = () => document.querySelector('.account-token');
+
+    //
+    // the page for a signed-in reader, with the section drawn
+    //
+    async function renderSignedIn() {
+        signedIn.mockResolvedValue(true);
+        listSubscriptions.mockResolvedValue([]);
+        readerToken.mockResolvedValue(TOKEN);
+
+        renderSettings();
+
+        await screen.findByRole('heading', { level: 4, name: 'API access' });
+        await screen.findByRole('link', { name: 'Stream' });
+    }
+
+    async function showToken() {
+        fireEvent.click(screen.getByRole('button', { name: 'Show token' }));
+        await waitFor(() => expect(shown()).not.toBeNull());
+    }
+
+    afterEach(() => {
+        delete navigator.clipboard;
+    });
+
+    it('is not offered to a reader who is signed out', async () => {
+        signedIn.mockResolvedValue(false);
+        listSubscriptions.mockResolvedValue(null);
+
+        renderSettings();
+
+        await screen.findByRole('link', { name: 'Sign in' });
+        expect(heading()).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Show token' })).toBeNull();
+    });
+
+    it('keeps the token hidden until it is asked for', async () => {
+        await renderSignedIn();
+
+        expect(shown()).toBeNull();
+        expect(document.body.textContent).not.toContain(TOKEN);
+        expect(readerToken).not.toHaveBeenCalled();
+    });
+
+    it('reads a current token when asked, and shows it', async () => {
+        await renderSignedIn();
+        await showToken();
+
+        expect(shown()).toHaveTextContent(TOKEN);
+        expect(readerToken).toHaveBeenCalledTimes(1);
+    });
+
+    it('warns that the token is as good as a password', async () => {
+        await renderSignedIn();
+
+        expect(within(heading().parentElement).getByText(/Treat it like a password/))
+            .toHaveTextContent('anyone holding it can act as you on the account API until it expires');
+    });
+
+    it('links the account api\'s page, which says how to use it', async () => {
+        await renderSignedIn();
+
+        expect(within(heading().parentElement).getByRole('link', { name: 'account API' }))
+            .toHaveAttribute('href', 'https://jeff1evesque.github.io/jefflevesque.com/api/account/');
+    });
+
+    it('copies the token to the clipboard', async () => {
+        const writeText = jest.fn(() => Promise.resolve());
+
+        navigator.clipboard = { writeText: writeText };
+
+        await renderSignedIn();
+        await showToken();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Copied.');
+        expect(writeText).toHaveBeenCalledWith(TOKEN);
+    });
+
+    it.each([
+        ['a clipboard that refuses', () => { navigator.clipboard = { writeText: () => Promise.reject(new Error('denied')) }; }],
+        ['no clipboard at all', () => {}],
+    ])('says to copy it by hand, with %s', async (name, arrange) => {
+        arrange();
+
+        await renderSignedIn();
+        await showToken();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Select it, and copy it yourself.');
+    });
+
+    it('says when it expires, in local time, read from the token itself', async () => {
+        await renderSignedIn();
+        await showToken();
+
+        const local = new Date(EXPIRES * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+        expect(document.querySelector('.account-token-expiry')).toHaveTextContent(`Expires ${local}`);
+    });
+
+    it('says so when it cannot read the expiry from the token', async () => {
+        await renderSignedIn();
+        readerToken.mockResolvedValue('not-a-token');
+        await showToken();
+
+        expect(document.querySelector('.account-token-expiry'))
+            .toHaveTextContent('When it expires could not be read from it.');
+    });
+
+    it('hides it again, and reads a fresh one the next time it is asked for', async () => {
+        await renderSignedIn();
+        await showToken();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
+
+        expect(shown()).toBeNull();
+        expect(document.body.textContent).not.toContain(TOKEN);
+
+        await showToken();
+
+        expect(readerToken).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps it in no storage', async () => {
+        await renderSignedIn();
+        await showToken();
+
+        const stored = [localStorage, sessionStorage].flatMap((storage) => Object.keys(storage)
+            .map((key) => `${key}=${storage.getItem(key)}`));
+
+        stored.forEach((entry) => expect(entry).not.toContain(TOKEN));
+    });
+
+    it('is taken away when the session has ended by the time the token is asked for', async () => {
+        await renderSignedIn();
+        readerToken.mockResolvedValue(null);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show token' }));
+
+        await waitFor(() => expect(heading()).toBeNull());
+    });
+
+    it('is taken away when the subscriptions come back signed out', async () => {
+        signedIn.mockResolvedValue(true);
+        listSubscriptions.mockResolvedValue(null);
+
+        renderSettings();
+
+        await screen.findByRole('link', { name: 'Sign in' });
+        await waitFor(() => expect(heading()).toBeNull());
+    });
+});
+
+describe('expiryOf', () => {
+    it('reads the expiry from the token\'s claims', () => {
+        expect(expiryOf(TOKEN)).toEqual(new Date(EXPIRES * 1000));
+    });
+
+    it('reads claims whose base64url needs padding, and holds - and _', () => {
+        //
+        // base64url drops the padding and swaps '+' and '/' for '-' and '_'
+        //
+        const claims = { exp: EXPIRES, name: '>>>???' };
+        const part = Buffer.from(JSON.stringify(claims)).toString('base64url');
+
+        expect(part).toMatch(/[-_]/);
+        expect(expiryOf(`header.${part}.signature`)).toEqual(new Date(EXPIRES * 1000));
+    });
+
+    it.each([
+        ['no claims at all', 'no-dots'],
+        ['claims that are not json', 'a.bm90IGpzb24.c'],
+        ['claims with no expiry', `a.${Buffer.from('{"sub":"x"}').toString('base64url')}.c`],
+        ['nothing', undefined],
+    ])('is null for %s', (name, token) => {
+        expect(expiryOf(token)).toBeNull();
     });
 });
 
