@@ -93,4 +93,35 @@
   .account-problem {
     color: $red-2;
   }
+
+  //
+  // the reader's ID token, once they have asked to see it: a thousand characters
+  // with no space in them, so it breaks anywhere rather than running off the page,
+  // and one click selects all of it, for a reader who copies by hand
+  //
+  .account-token {
+    background-color: $gray-1;
+    border-radius: 0.25rem;
+    color: $gray-8;
+    display: block;
+    font-size: 0.8rem;
+    margin: 0.75rem 0 0.5rem;
+    max-height: 8rem;
+    overflow-y: auto;
+    padding: 0.5rem 0.75rem;
+    user-select: all;
+    word-break: break-all;
+  }
+
+  .account-token-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+  }
+
+  .account-token-expiry {
+    color: $gray-6;
+    font-variant-numeric: tabular-nums;
+  }
 }
