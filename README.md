@@ -42,7 +42,7 @@ them.
 | `/model` | model article listing, with filters and performance | |
 | `/login`, `/logout`, `/register`, `/login/reset` | Cognito-backed authentication | |
 | `/:user` | the reader's profile, a placeholder | |
-| `/:user/settings` | account settings: the alarms the reader is subscribed to, each with a way to unsubscribe, and their ID token to copy, for calling the account API from a script | account |
+| `/:user/settings` | account settings: the reader's email address, which alarms go to, and a code to verify it with; the alarms the reader is subscribed to, each with a way to unsubscribe; and their ID token to copy, for calling the account API from a script | account |
 
 Every page comes in a light and a dark theme: light from 7 in the morning until 7 in the
 evening on the reader's own clock, and dark the rest of the day. The sun and moon beside

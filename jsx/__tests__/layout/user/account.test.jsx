@@ -27,10 +27,25 @@ jest.mock('../../../import/general/account-api.js', () => ({
     unsubscribe: jest.fn(),
 }));
 
+//
+// the sign-in library, which keeps the email address and verifies it -- see
+// general/email-address.js, which is real here
+//
+jest.mock('@aws-amplify/auth', () => ({
+    __esModule: true,
+    default: {
+        currentAuthenticatedUser: jest.fn(),
+        currentSession: jest.fn(),
+        verifyCurrentUserAttribute: jest.fn(),
+        verifyCurrentUserAttributeSubmit: jest.fn(),
+    },
+}));
+
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
+import Auth from '@aws-amplify/auth';
 import { signedIn, readerToken, listSubscriptions, unsubscribe } from '../../../import/general/account-api.js';
 import AccountLayout from '../../../import/layout/user/account.jsx';
 import SettingsLayout, { expiryOf } from '../../../import/layout/user/settings.jsx';
@@ -45,6 +60,10 @@ beforeEach(() => {
     readerToken.mockImplementation(pending);
     listSubscriptions.mockImplementation(pending);
     unsubscribe.mockImplementation(pending);
+    Auth.currentAuthenticatedUser.mockImplementation(pending);
+    Auth.currentSession.mockImplementation(pending);
+    Auth.verifyCurrentUserAttribute.mockImplementation(pending);
+    Auth.verifyCurrentUserAttributeSubmit.mockImplementation(pending);
 });
 
 //
@@ -194,6 +213,313 @@ describe('the alarm subscriptions', () => {
         renderSettings();
 
         expect(await screen.findByRole('alert')).toHaveTextContent('busy, try again');
+    });
+});
+
+describe('the email address', () => {
+    //
+    // alarms go by email, so the account api subscribes only a reader whose address
+    // is verified -- and reads that from the ID token. This section shows the address
+    // and whether it is verified, verifies it with a code where it is not, and
+    // refreshes the session afterwards, so the token says so too.
+    //
+    const heading = () => screen.queryByRole('heading', { level: 4, name: 'Email address' });
+    const section = () => heading().parentElement;
+
+    //
+    // the sign-in as it answers for a reader with these attributes, holding a session
+    // that refreshes -- or, with `refreshes` false, one that cannot
+    //
+    function readerWith(attributes, { refreshes = true } = {}) {
+        const user = {
+            attributes: attributes,
+            refreshSession: jest.fn((token, done) => (refreshes ? done(null, {}) : done(new Error('refresh failed')))),
+        };
+
+        Auth.currentAuthenticatedUser.mockResolvedValue(user);
+        Auth.currentSession.mockResolvedValue({ getRefreshToken: () => 'the-refresh-token' });
+
+        return user;
+    }
+
+    async function renderReader(attributes, options) {
+        const user = readerWith(attributes, options);
+
+        signedIn.mockResolvedValue(true);
+        listSubscriptions.mockResolvedValue([]);
+
+        renderSettings();
+
+        await screen.findByRole('heading', { level: 4, name: 'Email address' });
+        await waitFor(() => expect(section()).not.toHaveTextContent('Checking your email address'));
+
+        return user;
+    }
+
+    const UNVERIFIED = { sub: 'a-reader', email: 'reader@example.com', email_verified: false };
+    const VERIFIED = { ...UNVERIFIED, email_verified: true };
+
+    async function sendCode() {
+        fireEvent.click(within(section()).getByRole('button', { name: 'Send a code' }));
+        await within(section()).findByLabelText('Code');
+    }
+
+    async function submit(code) {
+        fireEvent.change(within(section()).getByLabelText('Code'), { target: { value: code } });
+        fireEvent.click(within(section()).getByRole('button', { name: 'Verify' }));
+    }
+
+    it('is not shown to a reader who is signed out', async () => {
+        signedIn.mockResolvedValue(false);
+        listSubscriptions.mockResolvedValue(null);
+
+        renderSettings();
+
+        await screen.findByRole('link', { name: 'Sign in' });
+        expect(heading()).toBeNull();
+        expect(Auth.currentAuthenticatedUser).not.toHaveBeenCalled();
+    });
+
+    it('comes first, ahead of the subscriptions it is needed for', async () => {
+        await renderReader(VERIFIED);
+
+        expect(screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent))
+            .toEqual(['Email address', 'Alarm subscriptions', 'API access']);
+    });
+
+    it('is the section the alarm page links to', async () => {
+        await renderReader(VERIFIED);
+
+        expect(section()).toHaveAttribute('id', 'email');
+    });
+
+    describe('reached by a link to it', () => {
+        //
+        // the section draws once the session has been read: after the browser has
+        // looked for '#email' as the page loaded, and the browser does not look at all
+        // when the site moves to the page itself. So the page scrolls to it. jsdom
+        // scrolls nothing, and has no scrollIntoView to call, so one is put in.
+        //
+        const scrolled = jest.fn();
+        const unscrolled = Element.prototype.scrollIntoView;
+
+        beforeEach(() => {
+            Element.prototype.scrollIntoView = function () {
+                scrolled(this);
+            };
+        });
+
+        afterEach(() => {
+            Element.prototype.scrollIntoView = unscrolled;
+            window.history.pushState({}, '', '/');
+        });
+
+        it('lands on it once it has drawn, and leaves the page be after', async () => {
+            Auth.verifyCurrentUserAttribute.mockResolvedValue(undefined);
+            window.history.pushState({}, '', '/reader/settings#email');
+
+            await renderReader(UNVERIFIED);
+
+            expect(scrolled).toHaveBeenCalledTimes(1);
+            expect(scrolled).toHaveBeenCalledWith(section());
+
+            //
+            // each keystroke in the code is an update too, and none may pull the page
+            // back to the section
+            //
+            await sendCode();
+            fireEvent.change(within(section()).getByLabelText('Code'), { target: { value: '12' } });
+
+            expect(scrolled).toHaveBeenCalledTimes(1);
+        });
+
+        it('stays at the top for a link to the page alone', async () => {
+            window.history.pushState({}, '', '/reader/settings');
+
+            await renderReader(UNVERIFIED);
+
+            expect(scrolled).not.toHaveBeenCalled();
+        });
+
+        it('has nothing to land on for a reader who is signed out', async () => {
+            window.history.pushState({}, '', '/reader/settings#email');
+            signedIn.mockResolvedValue(false);
+            listSubscriptions.mockResolvedValue(null);
+
+            renderSettings();
+
+            await screen.findByRole('link', { name: 'Sign in' });
+            expect(scrolled).not.toHaveBeenCalled();
+        });
+    });
+
+    it('reads the address from the sign-in, rather than from a token that may be older', async () => {
+        await renderReader(VERIFIED);
+
+        expect(Auth.currentAuthenticatedUser).toHaveBeenCalledWith({ bypassCache: true });
+    });
+
+    it('shows a verified address as verified, with nothing to do', async () => {
+        await renderReader(VERIFIED);
+
+        expect(section()).toHaveTextContent('reader@example.com');
+        expect(within(section()).getByText('Verified')).toBeInTheDocument();
+        expect(within(section()).queryByRole('button')).toBeNull();
+        expect(within(section()).queryByLabelText('Code')).toBeNull();
+    });
+
+    it('sends a code to an address that is not verified', async () => {
+        Auth.verifyCurrentUserAttribute.mockResolvedValue(undefined);
+
+        await renderReader(UNVERIFIED);
+
+        expect(within(section()).getByText('Not verified')).toBeInTheDocument();
+
+        await sendCode();
+
+        expect(Auth.verifyCurrentUserAttribute).toHaveBeenCalledWith('email');
+        expect(section()).toHaveTextContent('A code is on its way to reader@example.com.');
+    });
+
+    it('verifies it with the code, and turns verified', async () => {
+        Auth.verifyCurrentUserAttribute.mockResolvedValue(undefined);
+        Auth.verifyCurrentUserAttributeSubmit.mockResolvedValue('SUCCESS');
+
+        await renderReader(UNVERIFIED);
+        await sendCode();
+        await submit(' 123456 ');
+
+        expect(await within(section()).findByText('Verified')).toBeInTheDocument();
+        expect(Auth.verifyCurrentUserAttributeSubmit).toHaveBeenCalledWith('email', '123456');
+        expect(within(section()).queryByText('Not verified')).toBeNull();
+        expect(within(section()).queryByRole('button')).toBeNull();
+    });
+
+    it('refreshes the session after a verify, so the reader can subscribe at once', async () => {
+        //
+        // the account api reads 'email_verified' from the ID token, and the token in
+        // hand says unverified until the session is refreshed
+        //
+        Auth.verifyCurrentUserAttribute.mockResolvedValue(undefined);
+        Auth.verifyCurrentUserAttributeSubmit.mockResolvedValue('SUCCESS');
+
+        const user = await renderReader(UNVERIFIED);
+
+        await sendCode();
+        await submit('123456');
+
+        await within(section()).findByText('Verified');
+        expect(user.refreshSession).toHaveBeenCalledWith('the-refresh-token', expect.any(Function));
+        expect(section()).not.toHaveTextContent('Sign out and in again');
+    });
+
+    it('says to sign out and in again when the session could not be refreshed', async () => {
+        Auth.verifyCurrentUserAttribute.mockResolvedValue(undefined);
+        Auth.verifyCurrentUserAttributeSubmit.mockResolvedValue('SUCCESS');
+
+        await renderReader(UNVERIFIED, { refreshes: false });
+        await sendCode();
+        await submit('123456');
+
+        expect(await within(section()).findByText(/Sign out and in again before you subscribe/)).toBeInTheDocument();
+        expect(within(section()).getByText('Verified')).toBeInTheDocument();
+    });
+
+    it.each(['CodeMismatchException', 'ExpiredCodeException'])(
+        'says a code refused as %s is wrong or has expired, and offers another',
+        async (code) => {
+            Auth.verifyCurrentUserAttribute.mockResolvedValue(undefined);
+            Auth.verifyCurrentUserAttributeSubmit.mockRejectedValue(Object.assign(new Error('no'), { code: code }));
+
+            await renderReader(UNVERIFIED);
+            await sendCode();
+            await submit('000000');
+
+            expect(await within(section()).findByRole('alert'))
+                .toHaveTextContent('That code isn\'t right, or it has expired.');
+            expect(within(section()).getByText('Not verified')).toBeInTheDocument();
+
+            fireEvent.click(within(section()).getByRole('button', { name: 'Send another code' }));
+
+            await waitFor(() => expect(Auth.verifyCurrentUserAttribute).toHaveBeenCalledTimes(2));
+        }
+    );
+
+    it('says so when too many codes have been asked for', async () => {
+        Auth.verifyCurrentUserAttribute.mockRejectedValue(Object.assign(new Error('no'), { code: 'LimitExceededException' }));
+
+        await renderReader(UNVERIFIED);
+
+        fireEvent.click(within(section()).getByRole('button', { name: 'Send a code' }));
+
+        expect(await within(section()).findByRole('alert')).toHaveTextContent('Too many codes have been asked for.');
+    });
+
+    it('says so when a code could not be sent', async () => {
+        Auth.verifyCurrentUserAttribute.mockRejectedValue(new Error('network'));
+
+        await renderReader(UNVERIFIED);
+
+        fireEvent.click(within(section()).getByRole('button', { name: 'Send a code' }));
+
+        expect(await within(section()).findByRole('alert')).toHaveTextContent('A code could not be sent right now.');
+    });
+
+    it('explains an account with no address, and offers nothing', async () => {
+        await renderReader({ sub: 'a-reader' });
+
+        expect(section()).toHaveTextContent('Your account has no email address.');
+        expect(section()).toHaveTextContent('can\'t be added or changed afterwards');
+        expect(within(section()).queryByRole('button')).toBeNull();
+    });
+
+    it('does not take a verified flag without an address for a verified address', async () => {
+        await renderReader({ sub: 'a-reader', email_verified: true });
+
+        expect(section()).toHaveTextContent('Your account has no email address.');
+    });
+
+    it('says so when the address could not be read', async () => {
+        signedIn.mockResolvedValue(true);
+        listSubscriptions.mockResolvedValue([]);
+        Auth.currentAuthenticatedUser.mockRejectedValue(new Error('network'));
+
+        renderSettings();
+
+        expect(await screen.findByText('Your email address could not be read right now.')).toBeInTheDocument();
+    });
+
+    it('does not take a sign-in that read no attributes for an account with no address', async () => {
+        await renderReader(undefined);
+
+        expect(section()).toHaveTextContent('Your email address could not be read right now.');
+        expect(section()).not.toHaveTextContent('Your account has no email address.');
+    });
+
+    it('sends no code that is empty, as when the field is left blank and Enter pressed', async () => {
+        Auth.verifyCurrentUserAttribute.mockResolvedValue(undefined);
+
+        await renderReader(UNVERIFIED);
+        await sendCode();
+
+        fireEvent.change(within(section()).getByLabelText('Code'), { target: { value: '   ' } });
+        fireEvent.submit(within(section()).getByLabelText('Code').closest('form'));
+
+        expect(within(section()).getByRole('button', { name: 'Verify' })).toBeDisabled();
+        expect(Auth.verifyCurrentUserAttributeSubmit).not.toHaveBeenCalled();
+    });
+
+    it('sends no second code while the first is being checked', async () => {
+        Auth.verifyCurrentUserAttribute.mockResolvedValue(undefined);
+
+        await renderReader(UNVERIFIED);
+        await sendCode();
+        await submit('123456');
+
+        fireEvent.submit(within(section()).getByLabelText('Code').closest('form'));
+
+        expect(Auth.verifyCurrentUserAttributeSubmit).toHaveBeenCalledTimes(1);
+        expect(within(section()).getByRole('button', { name: 'Verify' })).toBeDisabled();
     });
 });
 

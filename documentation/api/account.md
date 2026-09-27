@@ -8,7 +8,8 @@ A signed-in reader's own data, starting with the ingest alarms they subscribe to
   a switch for each.
 - The bell on each `/stream` row shows whether the reader holds any of that stream's
   alarms.
-- Account Settings, `/:user/settings`, lists every subscription with a way out.
+- Account Settings, `/:user/settings`, verifies the reader's email address, and lists
+  every subscription with a way out.
 
 It is unlike the three public APIs in the ways that matter here:
 
@@ -65,7 +66,9 @@ A signed-in reader can copy their own token from Account Settings, under API acc
 lasts an hour.
 
 Subscribing also needs the reader's email address to be verified, since that address is
-where the alarms will go.
+where the alarms will go. The reader verifies it in Account Settings, under Email address,
+with a code sent to it. The token carries whether it is verified, so one copied before
+that still says it isn't: copy a fresh one.
 
 ## Answers
 
@@ -123,7 +126,8 @@ and `null`. When one is refused, the status says why:
 
 - **401:** the token has expired. An ID token lasts an hour, so copy a fresh one from
   Account Settings.
-- **403:** verify your email address first, since that is where alarms go.
+- **403:** your email address isn't verified yet, and alarms go to it. Verify it in
+  Account Settings, under Email address, then copy a fresh token.
 - **404:** an unknown stream or alarm. `/v1/public/alarms?stream=` lists a stream's
   alarms.
 - **429:** too many requests in a short time. Wait a moment, then repeat.
@@ -141,6 +145,8 @@ and `null`. When one is refused, the status says why:
   - Signed out, it makes no request at all.
   - A 401 is read as the session having ended, and a page then shows its signed-out view
     rather than an error.
+  - A subscribe's 403 is an email address to verify. The alarm page says so, and links to
+    the Email address section of Account Settings.
   - Any other refusal carries the API's own message, which the page shows as it is.
 - **The token:** read from the sign-in session by
   [`jsx/import/general/currentUser.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/currentUser.js).
@@ -148,6 +154,11 @@ and `null`. When one is refused, the status says why:
   in
   [`jsx/import/layout/user/settings.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/user/settings.jsx).
   It is hidden until they ask for it, read fresh when they do, and says when it expires.
+- **The email address:** Account Settings shows the reader's address and whether it is
+  verified, and verifies one that isn't with a code sent to it, through
+  [`jsx/import/general/email-address.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/email-address.js).
+  A verify refreshes the session, so the reader can subscribe at once, without signing out
+  and in again.
 - **The terms version:** a subscribe sends `TERMS_VERSION`, from
   [`jsx/import/general/notice-terms.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/notice-terms.jsx),
   which holds the terms text the version names.
