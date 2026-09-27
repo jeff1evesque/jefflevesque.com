@@ -86,11 +86,35 @@ $graph-held-edge: $green-4;
   padding-top: 1rem;
 }
 
+//
+// under the header a signed-out reader gets, the page adds no room of its own
+// over the title. That header leaves room under itself: 1.5rem under its black
+// bar on a phone, and 0.75rem wider -- see '_navigation_anonymous.scss'. The
+// page's 1rem was stacked on top of it, so a phone drew 35px of white over the
+// title, and the title read as floating free of the page it names.
+//
+// The signed-in header is a black bar at every width and leaves nothing under
+// itself, so there the page keeps its 1rem.
+//
+// Note: '.anonymous' is the class page.jsx wraps a signed-out reader's page in,
+//       and the one that header's own margins are written against.
+//
+.anonymous .graph-page {
+  padding-top: 0;
+}
+
+//
+// Note: the row gap is the room between the title and the picker on a phone,
+//       where the picker takes a line to itself -- see the phone rules at the
+//       foot of this file. At 0.5rem it left the title 7px over the control it
+//       heads. 1rem is the room the header leaves under the picker, so the
+//       picker stands as far from the title as from the panels below.
+//
 .graph-header {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  gap: 1rem;
   margin-bottom: 1rem;
 
   h4 {
