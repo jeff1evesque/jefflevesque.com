@@ -60,6 +60,7 @@ import {
     STREAMS,
 } from '../../general/stream-id.js';
 import { toRGB, colors_categorical, color_tail, themeColors, translucent } from '../../general/colors.js';
+import { readChart, writeChart, readOrder, writeOrder } from '../../general/listing-preference.js';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import chartHeight, {
     CHART_X_AXIS_HEIGHT,
@@ -238,6 +239,23 @@ const DETAIL_HEADER_HEIGHT = 40;
 
 */}
 const LOADER_FADE_MS = 450;
+
+
+{/*
+
+    the listing's columns: each dataset's fields, as the table lays them out --
+    see listing-table.jsx. Its counts sort; what it is and where it is stored
+    only name it.
+
+*/}
+const LISTING_COLUMNS = [
+    { key: 'Type', pill: true },
+    { key: 'Coverage' },
+    { key: 'Lag' },
+    { key: 'Records', numeric: true, sortable: true },
+    { key: 'Partitions', numeric: true, sortable: true },
+    { key: 'RDF', on: 'Available' },
+];
 
 
 const SEVERITY_ORDER = ['extreme', 'severe', 'moderate', 'minor', 'unknown'];
@@ -525,9 +543,21 @@ class DataLayout extends Component {
             selected.setDate(selected.getDate() - 2);
         }
 
-        const dd = String(selected.getDate()).padStart(2, '0');
-        const mm = String(selected.getMonth() + 1).padStart(2, '0'); // january is 0
-        const yyyy = selected.getFullYear();
+        {/*
+
+            the stream the page opens on: the one this reader last charted here,
+            and otherwise the first -- see listing-preference.js. bls opens a step
+            back off the current month, as choosing it from the listing does, since
+            its current month never holds a row -- see blsLandingDate.
+
+        */}
+        const opening = readChart('data', STREAMS) || STOCK_MARKET;
+        const landing = opening === BLS ? blsLandingDate(today, today) : null;
+        const opened = landing || selected;
+
+        const dd = String(opened.getDate()).padStart(2, '0');
+        const mm = String(opened.getMonth() + 1).padStart(2, '0'); // january is 0
+        const yyyy = opened.getFullYear();
         {/*
 
             each stream by its id, which is also its name everywhere on this
@@ -588,6 +618,7 @@ class DataLayout extends Component {
         this.reset_stream = this.reset_stream.bind(this);
         this.openDistributionDetail = this.openDistributionDetail.bind(this);
         this.updateChartHeight = this.updateChartHeight.bind(this);
+        this.reorderListing = this.reorderListing.bind(this);
 
         this.state = {
             local: is_local,
@@ -617,10 +648,19 @@ class DataLayout extends Component {
             mm: mm,
             yyyy: yyyy,
             now: today,
-            min_date: new Date(new Date(yyyy - 3, 0, 1).toLocaleString('en-US', {timeZone: 'America/New_York'})),
-            selected_date: today,
+            //
+            // Note: from the year it is, not the year the page opens on, which bls
+            //       can step back into the last one -- see `landing` above.
+            //
+            min_date: new Date(new Date(selected.getFullYear() - 3, 0, 1).toLocaleString('en-US', {timeZone: 'America/New_York'})),
+            selected_date: landing || today,
             streams: streams,
-            selected_stream: STOCK_MARKET,
+            selected_stream: opening,
+            //
+            // the order this reader dragged the listing into, or null for the
+            // page's own -- see listing-preference.js
+            //
+            listing_order: readOrder('data', STREAMS),
             list_article: list_article,
             //
             // each stream's datalake dataset, which is its own name for the data
@@ -647,7 +687,7 @@ class DataLayout extends Component {
             data_distribution_bls_bar: [],
             data_distribution_sec_bar: [],
             'data_distribution_us-national-weather_bar': [],
-            listing_graphic_title: STOCK_MARKET,
+            listing_graphic_title: opening,
             artifact_link: 'https://www.jefflevesque.com/artifact',
             chart_height: chartHeight()
         }
@@ -663,6 +703,15 @@ class DataLayout extends Component {
 
     componentWillUnmount() {
         window.removeEventListener('resize', this.updateChartHeight);
+    }
+
+    //
+    // the reader's new order of the listing, kept for their next visit; null puts
+    // the page's own order back
+    //
+    reorderListing(order) {
+        this.setState({ listing_order: order });
+        writeOrder('data', order);
     }
 
     //
@@ -725,20 +774,35 @@ class DataLayout extends Component {
     getControlTray(stream) {
         const font_size = isMobile ? 'medium' : 'large';
 
+        {/*
+
+            Note: the listing is first built in the constructor, before there is
+                  any state to read -- no chart button there is pressed yet.
+
+        */}
+        const charted = !!this.state && this.state.selected_stream === stream;
+
         return(
             <div className='control-tray'>
                 {/*
 
-                    the handler sits on the oval, not on the glyph inside it. the
-                    oval is '.border-circle-radius', whose ':before' both shades
-                    and greens on hover across the full span -- so hanging the
-                    click on the icon alone would light up a target larger than
-                    the one that actually responds to a click
+                    a button named for what it does to which stream, so a keyboard
+                    reaches it and a screen reader says it. It was a span with a
+                    click handler, which did neither.
 
                 */}
-                <span
-                    className='border-circle-radius'
+                <button
+                    type='button'
+                    className='border-circle-radius control-button'
+                    aria-label={`Chart ${streamName(stream)}`}
+                    aria-pressed={charted}
                     onClick={() => {
+                        //
+                        // kept, so the page opens on this chart next time -- see
+                        // listing-preference.js
+                        //
+                        writeChart('data', stream);
+
                         {/*
 
                             selecting bls steps the date back off the current
@@ -780,7 +844,7 @@ class DataLayout extends Component {
                         className='control-icon chart'
                         fontSize={font_size}
                     />
-                </span>
+                </button>
             </div>
         );
     }
@@ -1472,6 +1536,10 @@ class DataLayout extends Component {
                     left_column={false}
                     list_article={this.state.list_article}
                     stream_labels={true}
+                    columns={LISTING_COLUMNS}
+                    name_label='Dataset'
+                    order={this.state.listing_order}
+                    onReorder={this.reorderListing}
                     name='data'
                     selected_identifier={this.state.selected_stream}
                 />
