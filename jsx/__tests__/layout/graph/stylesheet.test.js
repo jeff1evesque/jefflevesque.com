@@ -1,6 +1,6 @@
 /**
- * stylesheet.test.js: what the graph page's stylesheet promises about the legend
- * and the reference columns, read out of '_graph.scss'.
+ * stylesheet.test.js: what the graph page's stylesheet promises about the legend,
+ * the reference columns and the page's title, read out of '_graph.scss'.
  *
  * jsdom lays nothing out, so no suite can see a name run past the edge of its
  * column. What can be held is the rule that decides it: a namespace's name wraps
@@ -298,5 +298,47 @@ describe('the tint, against the labels on it', () => {
 
     it('is where the page\'s own gray falls short by day', () => {
         expect(contrast(value('gray-6'), value('graph-panel'))).toBeLessThan(4.5);
+    });
+});
+
+describe('the page\'s title', () => {
+    //
+    // on a phone it stood 35px under the signed-out header and 7px over the
+    // picker under it. No suite can see either gap, so what is held is where
+    // each comes from -- see the notes above '.anonymous .graph-page' and
+    // '.graph-header'.
+    //
+    const NAVIGATION = path.resolve(__dirname, '../../../../scss/_navigation_anonymous.scss');
+    const navigation = fs.readFileSync(NAVIGATION, 'utf8').replace(/\/\/.*$/gm, '');
+
+    const [page] = blocks(source, '.graph-page');
+    const [signedOut] = blocks(source, '.anonymous .graph-page');
+    const header = blocks(source, '.graph-header').find((block) => /display\s*:\s*flex/.test(block));
+
+    const [phone] = blocks(navigation, '.small-viewport');
+    const [wide] = blocks(navigation, '.large-viewport');
+    const underPhone = phone ? blocks(phone, '.main-navigation').find((block) => /margin-bottom/.test(block)) : undefined;
+    const [underWide] = wide ? blocks(wide, '.main-navigation') : [];
+
+    it('keeps 1rem over it under the signed-in header, which leaves no room of its own', () => {
+        expect(rem(page, 'padding-top')).toBe(1);
+    });
+
+    it('takes no room of the page\'s own under the signed-out header', () => {
+        expect(signedOut).toMatch(/padding-top\s*:\s*0\s*;/);
+    });
+
+    it('is left room by the signed-out header itself, on a phone and wider', () => {
+        //
+        // the rule above holds only while this does: without it, a signed-out
+        // reader's title would sit against the header
+        //
+        expect(rem(underPhone, 'margin-bottom')).toBe(1.5);
+        expect(underWide).toMatch(/margin\s*:\s*0\.75rem 0\s*;/);
+    });
+
+    it('stands as far over the picker on a phone as the picker stands over the panels', () => {
+        expect(rem(header, 'gap')).toBe(1);
+        expect(rem(header, 'gap')).toBe(rem(header, 'margin-bottom'));
     });
 });
