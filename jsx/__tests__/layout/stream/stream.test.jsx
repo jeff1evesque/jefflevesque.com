@@ -31,10 +31,11 @@ jest.mock('../../../import/general/account-api.js', () => ({
 }));
 
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { listSubscriptions } from '../../../import/general/account-api.js';
+import { KEY, VERSION } from '../../../import/general/listing-preference.js';
 import { STREAMS } from '../../../import/general/stream-id.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
@@ -295,6 +296,131 @@ describe('each row\'s bell', () => {
         expect(bell('bls')).toHaveAttribute('data-testid', 'NotificationsIcon');
 
         quiet.mockRestore();
+    });
+});
+
+describe('the listing as a table', () => {
+    it('names each figure once, in a column header', () => {
+        //
+        // the cards said every label again on every row; the table says each once
+        //
+        setup();
+
+        const headers = [...document.querySelectorAll('.listing-table thead th')]
+            .map((cell) => cell.textContent.trim());
+
+        expect(headers).toEqual(expect.arrayContaining(['Stream', 'Health', 'Coverage', 'Rate', 'Total Records']));
+        expect(screen.getAllByText('Total Records')).toHaveLength(1);
+    });
+
+    it('names every row\'s controls for the stream they act on', () => {
+        setup();
+
+        expect(screen.getByRole('button', { name: 'Chart SEC Filings' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Triggers for S&P 500' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Alarms for SEC Filings' }))
+            .toHaveAttribute('href', '/stream/sec/alarm');
+    });
+});
+
+describe('opening on the stream last charted', () => {
+    //
+    // a chart click keeps its stream for the next visit, in localStorage, which
+    // lasts the whole of this file. Each case starts from an empty one, and from an
+    // address that names no stream.
+    //
+    beforeEach(() => {
+        window.localStorage.clear();
+        window.history.replaceState({}, '', '/');
+    });
+
+    afterAll(() => {
+        window.localStorage.clear();
+        window.history.replaceState({}, '', '/');
+    });
+
+    const keep = (stream) => window.localStorage.setItem(
+        KEY,
+        JSON.stringify({ v: VERSION, stream: { chart: stream } })
+    );
+    const kept = () => JSON.parse(window.localStorage.getItem(KEY)).stream.chart;
+    const charted = () => document.querySelector('.listing-table-selected th').textContent;
+    const rate = (label) => screen.getAllByLabelText(label)[0].checked;
+
+    it('opens on the S&P 500 when nothing is kept', () => {
+        setup();
+
+        expect(charted()).toBe('S&P 500');
+    });
+
+    it('opens on the stream kept from the last visit', () => {
+        keep('sec');
+        setup();
+
+        expect(charted()).toBe('SEC Filings');
+    });
+
+    it('opens on the stream a link names, and leaves the kept one as it was', () => {
+        keep('sec');
+        window.history.replaceState({}, '', '/?item=bls');
+        setup();
+
+        expect(charted()).toBe('Bureau of Labor Statistics');
+        expect(kept()).toBe('sec');
+    });
+
+    it('opens on the S&P 500 when the kept stream is not one it lists', () => {
+        keep('retired-stream');
+        setup();
+
+        expect(charted()).toBe('S&P 500');
+    });
+
+    it('keeps the stream a click charts', () => {
+        setup();
+        fireEvent.click(screen.getByRole('button', { name: 'Chart SEC Filings' }));
+
+        expect(kept()).toBe('sec');
+    });
+
+    it('opens a kept stream by the day while the market is open', () => {
+        //
+        // only the S&P 500 moves to minutes during the session. A kept SEC opens by
+        // the day, as it does when it is chosen from the listing.
+        //
+        keep('sec');
+        setupAt(DURING_THE_SESSION);
+
+        expect(rate('Daily')).toBe(true);
+        expect(rate('Minutes')).toBe(false);
+    });
+
+    it('still opens the S&P 500 by the minute while the market is open', () => {
+        setupAt(DURING_THE_SESSION);
+
+        expect(rate('Minutes')).toBe(true);
+        expect(rate('Daily')).toBe(false);
+    });
+
+    it('lists the rows in the order kept, and keeps a new one', () => {
+        window.localStorage.setItem(KEY, JSON.stringify({
+            v: VERSION,
+            stream: { order: ['sec', 'bls'] },
+        }));
+        setup();
+
+        const names = () => [...document.querySelectorAll('.listing-table tbody th')]
+            .map((cell) => cell.textContent);
+
+        expect(names()).toEqual([
+            'SEC Filings', 'Bureau of Labor Statistics', 'S&P 500', 'Stock Splits', 'US Weather Alerts',
+        ]);
+
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Move S&P 500' }), { key: 'ArrowUp' });
+
+        expect(names().slice(0, 3)).toEqual(['SEC Filings', 'S&P 500', 'Bureau of Labor Statistics']);
+        expect(JSON.parse(window.localStorage.getItem(KEY)).stream.order.slice(0, 3))
+            .toEqual(['sec', 'stock-market', 'bls']);
     });
 });
 

@@ -31,10 +31,10 @@ them.
 | Route | | API |
 |---|---|---|
 | `/` | landing page: a D3 force-directed cluster of the default knowledge graph build, and nothing over it | knowledge graph |
-| `/stream` | every stream's throughput, success rate and ingest coverage, at a chosen minute / hour / day / month rate. Each row's bell rings, in green, for a signed-in reader subscribed to the stream's alarm | performance, account |
+| `/stream` | every stream's throughput, success rate and ingest coverage, at a chosen minute / hour / day / month rate. Each row's bell rings, in green, for a signed-in reader subscribed to the stream's alarm. The page reopens on the stream last charted, with the rows in the order the reader dragged them into, in that browser | performance, account |
 | `/stream/:stream/trigger` | trigger conditions for one stream, charted against its history | |
 | `/stream/:stream/alarm` | a stream's ingest alarms, which a signed-in reader switches on and off once they have accepted the terms | account |
-| `/data` | each stream's data as it is stored, with its distribution for a chosen month | datalake |
+| `/data` | each stream's data as it is stored, with its distribution for a chosen month. Like `/stream`, it reopens on the stream last charted, in the reader's own order | datalake |
 | `/graph` | the **Training Graph**: every published knowledge graph build — the graph a graph neural network trains on — with a picker of the days its builds hold, a legend that lights what it names on the graph, and tables of every node and edge type it holds. Its columns fold and narrow, and the graph drags shorter or a little taller, and it opens the way it was last left | knowledge graph |
 | `/graph/:graph` | the same page, opened on one build, so a build can be linked to | knowledge graph |
 | `/graph/retrieval` | the **Retrieval Graph**: the same layout, drawn from one published day of the query tables — the graph an LLM's retrieval step reads — with a picker of days, the run that published each and when it finished, the sources the day holds, the day's node types chosen by what can be found by name and named by the vocabularies its predicates file them under, and tables of their entities, facts and edges. Arranged apart from the Training Graph | knowledge graph tables |

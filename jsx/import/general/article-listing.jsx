@@ -17,14 +17,25 @@ import checkValidArray from '../validator/valid-array.js';
 import checkValidFloat from '../validator/valid-float.js';
 import streamName from './stream-name.js';
 import SvgOrder from '../svg/svg-order.jsx';
+import SearchIcon from '@mui/icons-material/Search';
+import ListingTable from './listing-table.jsx';
 
 class ArticleListing extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
+    //
+    // `columns`, `name_label`, `order` and `onReorder` are the table's -- see
+    // listing-table.jsx. A caller that passes `columns` gets its rows as a
+    // table; one that does not, /model's, gets the cards below.
+    //
     static propTypes = {
         title: PropTypes.string,
         section_tags: PropTypes.array,
         stream_labels: PropTypes.bool,
-        dispatchArticleProp: PropTypes.func
+        dispatchArticleProp: PropTypes.func,
+        columns: PropTypes.array,
+        name_label: PropTypes.string,
+        order: PropTypes.arrayOf(PropTypes.string),
+        onReorder: PropTypes.func
     }
 
     constructor() {
@@ -605,15 +616,22 @@ class ArticleListing extends Component {
                             </div>
                             <div className='col-sm-6 article-heading'>
                                 <div className='input-group flex-nowrap'>
-                                    <span className='input-group-text' id='addon-wrapping'>@</span>
+                                    {/*
+
+                                        a magnifying glass, where there was an '@' -- which
+                                        read as a field for an email address or a username
+
+                                    */}
+                                    <span className='input-group-text' aria-hidden='true'>
+                                        <SearchIcon fontSize='small' />
+                                    </span>
                                     <input
                                         type='text'
                                         className='form-control'
                                         placeholder={`Filter by ${this.state.search_column}`}
                                         onChange={ (text) => this.search(text.target.value) }
                                         value={this.state.search_text}
-                                        aria-label='Name'
-                                        aria-describedby='addon-wrapping'
+                                        aria-label={`Filter by ${this.state.search_column}`}
                                     />
                                 </div>
                             </div>
@@ -648,6 +666,25 @@ class ArticleListing extends Component {
     }
 
     render() {
+        if (Array.isArray(this.props.columns) && this.props.columns.length) {
+            //
+            // the charted row: /data names it as `selected_identifier`, and
+            // /stream as `name`
+            //
+            return (
+                <ListingTable
+                    title={'title' in this.props ? this.props.title : 'Listing'}
+                    name_label={this.props.name_label}
+                    columns={this.props.columns}
+                    rows={this.props.list_article}
+                    selected={this.props.selected_identifier || this.props.name || null}
+                    order={this.props.order || null}
+                    onReorder={this.props.onReorder || null}
+                    label={this.props.stream_labels ? streamName : (name) => name}
+                />
+            );
+        }
+
         const content = this.layout();
         return (
             <div className='articles'>{content}</div>

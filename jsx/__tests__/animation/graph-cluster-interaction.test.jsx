@@ -1094,6 +1094,27 @@ describe('the per-tick work', () => {
         expect(page.links.some(l => (l.source.x - n.hx) * (l.target.x - n.hx) < 0)).toBe(true);
     }
 
+    //
+    // every other gray node parked in a row well off the view, still and clear of one
+    // another, so nothing but the cluster can move `n`.
+    //
+    // Note: the field is laid out at random, and the gray nodes keep apart from each
+    //       other every tick. Left where they were, a neighbor shoved by the same edge
+    //       landed close enough to nudge `n` sideways in about one layout in seventy.
+    //
+    function alone(page, n) {
+        page.background.nodes.forEach((m, i) => {
+            if (m !== n) {
+                m.wobble = 0;
+                m.hx = m.x = -1000 - i * 20;
+                m.hy = m.y = -1000;
+            }
+        });
+
+        // the premise: no other gray node anywhere near
+        expect(page.background.nodes.every(m => m === n || Math.hypot(m.x - n.x, m.y - n.y) > 1000)).toBe(true);
+    }
+
     it('slides a gray node drawn across a cluster edge off it', () => {
         //
         // 1px from the edge, its glide toward a clear spot still leaves it overlapping
@@ -1102,6 +1123,7 @@ describe('the per-tick work', () => {
         //
         const { page } = setup();
         const n = stillAtHome(page);
+        alone(page, n);
         straddled(page, n, 1);
 
         tick(page);

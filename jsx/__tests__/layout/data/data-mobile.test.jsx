@@ -19,9 +19,32 @@ import React from 'react';
 
 jest.mock('react-device-detect', () => ({ isMobile: true }));
 
-const { render, fireEvent } = require('@testing-library/react');
+const { render, fireEvent, screen } = require('@testing-library/react');
 const { MemoryRouter } = require('react-router-dom');
 const DataLayout = require('../../../import/layout/data/data.jsx').default;
+const { KEY, VERSION } = require('../../../import/general/listing-preference.js');
+
+//
+// a click keeps the stream it charts for the next visit, in localStorage, which
+// lasts the whole of this file. Each case starts from an empty one.
+//
+beforeEach(() => {
+    window.localStorage.clear();
+});
+
+//
+// the chart button of the stream whose name starts `label`
+//
+function chartButton(label) {
+    return screen.getByRole('button', { name: new RegExp(`^Chart ${label}`) });
+}
+
+//
+// the stream the chart's own header names, over the chart on a phone
+//
+function chartHeader() {
+    return document.querySelector('.listing-graphic-title h5').textContent;
+}
 
 function setup() {
     return render(
@@ -61,17 +84,13 @@ describe('the listing on mobile', () => {
          * the date shift lives in the control tray, which mobile renders too --
          * a phone reader lands on the same empty month otherwise.
          */
-        const tray = () => [...document.querySelectorAll('.control-tray')].find(
-            (t) => (t.closest('li') || t.parentElement).textContent.includes('Bureau of Labor')
-        );
-
         setup();
 
         const before = [...document.querySelectorAll('input[type="text"]')].find(
             (e) => /\w+\s+\d{4}/.test(e.value)
         ).value;
 
-        fireEvent.click(tray().querySelector('.border-circle-radius'));
+        fireEvent.click(chartButton('Bureau of Labor'));
 
         const after = [...document.querySelectorAll('input[type="text"]')].find(
             (e) => /\w+\s+\d{4}/.test(e.value)
@@ -87,12 +106,19 @@ describe('the listing on mobile', () => {
          */
         setup();
 
-        const tray = [...document.querySelectorAll('.control-tray')].find(
-            (t) => (t.closest('li') || t.parentElement).textContent.includes('SEC Filings')
-        );
+        fireEvent.click(chartButton('SEC Filings'));
 
-        fireEvent.click(tray.querySelector('.border-circle-radius'));
+        expect(chartHeader()).toBe('SEC Filings');
+    });
 
-        expect(bodyText()).toContain('SEC Filings');
+    it('names the stream the page opens on in the chart header', () => {
+        //
+        // a page opening on the stream charted last time says so over the chart,
+        // rather than the S&P 500 it used to open on
+        //
+        window.localStorage.setItem(KEY, JSON.stringify({ v: VERSION, data: { chart: 'sec' } }));
+        setup();
+
+        expect(chartHeader()).toBe('SEC Filings');
     });
 });

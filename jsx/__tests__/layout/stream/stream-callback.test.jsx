@@ -118,6 +118,12 @@ function reply(page, item, data) {
 beforeEach(() => {
     jest.clearAllMocks();
     mockWorkers.length = 0;
+
+    //
+    // a chart click keeps its stream for the next visit, in localStorage, which
+    // lasts the whole of this file -- see listing-preference.js
+    //
+    window.localStorage.clear();
 });
 
 describe('handing a response to the worker', () => {
@@ -291,13 +297,12 @@ describe('the controls that ask again', () => {
         expect(lastUrl().searchParams.get('Stream')).toBe(page.state.selected_stream);
     });
 
-    it('asks for a stream whose chart icon is chosen in the listing', () => {
+    it('asks for a stream whose chart button is chosen in the listing', () => {
         const { page } = setup();
         getData.mockClear();
-        const row = screen.getByText('Bureau of Labor Statistics').closest('.article-link');
 
         act(() => {
-            fireEvent.click(row.querySelector('.control-icon.chart').closest('.border-circle-radius'));
+            fireEvent.click(screen.getByRole('button', { name: 'Chart Bureau of Labor Statistics' }));
         });
 
         expect(page.state.selected_stream).toBe('bls');

@@ -85,6 +85,7 @@ import chartHeight, {
     CHART_X_AXIS_ANGLE,
     CHART_X_AXIS_ANCHOR
 } from '../../general/chart-height.js';
+import { readChart, writeChart, readOrder, writeOrder } from '../../general/listing-preference.js';
 
 
 {/*
@@ -95,6 +96,21 @@ import chartHeight, {
 
 */}
 const LOADER_FADE_MS = 450;
+
+
+{/*
+
+    the listing's columns: each stream's figures, as the table lays them out --
+    see listing-table.jsx. The rate is a word, and sorting by it would put the
+    rates in the alphabet's order rather than their own.
+
+*/}
+const LISTING_COLUMNS = [
+    { key: 'Health', numeric: true, sortable: true },
+    { key: 'Coverage', numeric: true, sortable: true },
+    { key: 'Rate', pill: true },
+    { key: 'Total Records', numeric: true, sortable: true },
+];
 
 
 {/*
@@ -224,6 +240,19 @@ class StreamLayout extends Component {
 
         {/*
 
+            the stream the page opens on: the one a link names, when it names one
+            -- callbackGetData keeps to it as each response lands -- and otherwise
+            the one this reader last charted here, and otherwise the first. See
+            listing-preference.js.
+
+        */}
+        const linked = new URLSearchParams(document.location.search).get('item');
+        const opening = STREAMS.includes(linked)
+            ? linked
+            : (readChart('stream', STREAMS) || STOCK_MARKET);
+
+        {/*
+
             deliberately still eastern: 09:30-16:00 is a fact about the
             exchange, not about the reader. a viewer in london gets the intraday
             rate while new york is open, not while london is
@@ -258,6 +287,15 @@ class StreamLayout extends Component {
             var x_ticker_format_stockmarket = x_ticker_format;
             var label_format_stockmarket = label_format;
         }
+
+        {/*
+
+            the chart opens at its own stream's rate. Only the S&P 500 moves to
+            minutes while the market is open; any other stream opens by the day,
+            as it does when it is chosen from the listing.
+
+        */}
+        const opens_on_market = opening === STOCK_MARKET;
 
         let list_article = [];
         streams.forEach((v, i) => {
@@ -295,14 +333,19 @@ class StreamLayout extends Component {
             display_apply_filter_button: false,
             time_map: {'Month': 'Monthly', 'Day': 'Daily', 'Hour': 'Hourly', 'Minute': 'Minutes'},
             scale_chart_monthly: false,
-            scale_chart_daily: scale_chart_daily_stockmarket,
+            scale_chart_daily: opens_on_market ? scale_chart_daily_stockmarket : scale_chart_daily,
             scale_chart_hourly: false,
-            scale_chart_minutes: scale_chart_minutes_stockmarket,
+            scale_chart_minutes: opens_on_market ? scale_chart_minutes_stockmarket : scale_chart_minutes,
             hide_all: false,
-            x_ticker_format: x_ticker_format_stockmarket,
-            label_format: label_format_stockmarket,
-            selected_stream: STOCK_MARKET,
-            selected_stream_rate: stream_rate_stockmarket,
+            x_ticker_format: opens_on_market ? x_ticker_format_stockmarket : x_ticker_format,
+            label_format: opens_on_market ? label_format_stockmarket : label_format,
+            selected_stream: opening,
+            selected_stream_rate: opens_on_market ? stream_rate_stockmarket : stream_rate,
+            //
+            // the order this reader dragged the listing into, or null for the
+            // page's own -- see listing-preference.js
+            //
+            listing_order: readOrder('stream', STREAMS),
             'stream_source_stock-market': ['options', 'price'],
             'stream_source_stock-split': ['alpha', 'beta', 'gamma'],
             stream_source_bls: ['bls'],
@@ -360,6 +403,16 @@ class StreamLayout extends Component {
         this.reset_stream = this.reset_stream.bind(this);
         this.updateChartHeight = this.updateChartHeight.bind(this);
         this.loadSubscriptions = this.loadSubscriptions.bind(this);
+        this.reorderListing = this.reorderListing.bind(this);
+    }
+
+    //
+    // the reader's new order of the listing, kept for their next visit; null puts
+    // the page's own order back
+    //
+    reorderListing(order) {
+        this.setState({ listing_order: order });
+        writeOrder('stream', order);
     }
 
     componentDidMount() {
@@ -470,11 +523,20 @@ class StreamLayout extends Component {
         const font_size = isMobile ? 'medium' : 'large';
         {/*
 
-            click handlers hang off the surrounding oval rather than the glyph,
-            so the area that responds to a click is the same area that shades
-            and greens on hover -- see '.border-circle-radius' in style.scss
+            each control is a button, or a link where it leads to another page,
+            named for what it does to which stream -- so a keyboard reaches it,
+            and a screen reader says it. They were spans with click handlers,
+            which did neither.
+
+            Note: the listing is first built in the constructor, before there is
+                  any state to read -- no chart button there is pressed yet, and
+                  every bell is the plain one.
 
         */}
+        const name = streamName(stream);
+        const charted = !!this.state && this.state.selected_stream === stream;
+        const held = ((this.state && this.state.subscriptions) || {})[stream] || 0;
+
         //
         // Note: the query stats control is only offered for the stock-market
         //       stream; every other stream renders the tray without it
@@ -483,17 +545,21 @@ class StreamLayout extends Component {
             ? null
             : url_trigger
             ? (
-                <span className='border-circle-radius'>
-                    <Link to={`/stream/${stream}/trigger`}>
-                        <QueryStatsIcon
-                            className='control-icon pattern'
-                            fontSize={font_size}
-                        />
-                    </Link>
-                </span>
+                <Link
+                    className='border-circle-radius control-button'
+                    to={`/stream/${stream}/trigger`}
+                    aria-label={`Triggers for ${name}`}
+                >
+                    <QueryStatsIcon
+                        className='control-icon pattern'
+                        fontSize={font_size}
+                    />
+                </Link>
             ) : (
-                <span
-                    className='border-circle-radius'
+                <button
+                    type='button'
+                    className='border-circle-radius control-button'
+                    aria-label={`Triggers for ${name}`}
                     onClick={() => {
                         this.toggleSetOpen();
                         this.setState({ bottom_sheet_open: true });
@@ -503,16 +569,25 @@ class StreamLayout extends Component {
                         className='control-icon pattern'
                         fontSize={font_size}
                     />
-                </span>
+                </button>
             );
 
         return(
             <div className='control-tray'>
                 {trigger_button}
 
-                <span
-                    className='border-circle-radius'
+                <button
+                    type='button'
+                    className='border-circle-radius control-button'
+                    aria-label={`Chart ${name}`}
+                    aria-pressed={charted}
                     onClick={() => {
+                        //
+                        // kept, so the page opens on this chart next time -- see
+                        // listing-preference.js
+                        //
+                        writeChart('stream', stream);
+
                         this.setState({
                             selected_stream: stream,
                             [`promise_get_data_${stream}`]: false
@@ -528,13 +603,17 @@ class StreamLayout extends Component {
                         className='control-icon chart'
                         fontSize={font_size}
                     />
-                </span>
+                </button>
 
-                <span className='border-circle-radius'>
-                    <Link to={`/stream/${stream}/alarm`}>
-                        {this.alarmBell(stream, font_size)}
-                    </Link>
-                </span>
+                <Link
+                    className='border-circle-radius control-button'
+                    to={`/stream/${stream}/alarm`}
+                    aria-label={held
+                        ? `Alarms for ${name}: subscribed to ${held} ${held === 1 ? 'alarm' : 'alarms'}`
+                        : `Alarms for ${name}`}
+                >
+                    {this.alarmBell(stream, font_size)}
+                </Link>
             </div>
         );
     }
@@ -1244,7 +1323,10 @@ class StreamLayout extends Component {
                     left_column={false}
                     list_article={this.state.list_article}
                     stream_labels={true}
-                    list_drop={['None', 'A-Z', 'Health', 'Coverage']}
+                    columns={LISTING_COLUMNS}
+                    name_label='Stream'
+                    order={this.state.listing_order}
+                    onReorder={this.reorderListing}
                     name={this.state.selected_stream ? this.state.selected_stream : null}
                 />
             </div>

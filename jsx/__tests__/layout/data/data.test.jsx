@@ -10,8 +10,9 @@
  *     ties the unit-tested module to its consumer.
  *
  *   - streamCoverage() returns a note for the two stock streams and null for the
- *     rest, and the layout is expected to render a Coverage row only where there
- *     is one. That asymmetry is invisible from either side alone.
+ *     rest, and the listing is expected to fill a Coverage cell only where there
+ *     is one, and leave the rest blank. That asymmetry is invisible from either
+ *     side alone.
  *
  * Note: no network is mocked. setup.js provides a fetch resolving not-ok, and every
  *       loader logs and carries on, so this is the genuine pre-data state.
@@ -21,10 +22,11 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import DataLayout from '../../../import/layout/data/data.jsx';
+import { KEY, VERSION } from '../../../import/general/listing-preference.js';
 
 function setup(props = {}) {
     return render(
@@ -36,6 +38,20 @@ function setup(props = {}) {
 
 function bodyText() {
     return document.body.textContent.replace(/\s+/g, ' ');
+}
+
+//
+// each stream's cell in the listing's `label` column, by the stream's name as the
+// row shows it
+//
+function column(label) {
+    const cells = {};
+
+    document.querySelectorAll('.listing-table tbody tr').forEach((row) => {
+        cells[row.querySelector('th').textContent] = row.querySelector(`td[data-label="${label}"]`);
+    });
+
+    return cells;
 }
 
 describe('the listing', () => {
@@ -89,31 +105,42 @@ describe('the coverage row', () => {
         expect(screen.getAllByText('S&P 500').length).toBeGreaterThanOrEqual(2);
     });
 
-    it('renders exactly two coverage rows, not one per stream', () => {
+    it('fills the Coverage column for the two stock streams alone', () => {
         //
-        // streamCoverage() returns null for bls, sec and weather, and the layout is
-        // expected to render no row at all rather than an empty one. Five rows here
-        // would mean the null is being rendered.
+        // streamCoverage() returns null for bls, sec and weather, and the listing is
+        // expected to leave their cells blank rather than render the null. A filled
+        // cell on any of the three would mean it is being rendered.
         //
         setup();
 
-        const labels = screen.getAllByText('Coverage');
-        expect(labels).toHaveLength(2);
+        const coverage = column('Coverage');
+
+        expect(coverage['S&P 500']).toHaveTextContent('S&P 500');
+        expect(coverage['Stock Splits']).toHaveTextContent('Market-wide');
+
+        ['Bureau of Labor Statistics', 'SEC Filings', 'US Weather Alerts'].forEach((name) => {
+            expect(coverage[name]).toHaveClass('listing-table-blank');
+        });
     });
 
     it('states the publication lag on bls alone', () => {
         //
         // bls is the one feed whose current month is always empty, so its row lands
-        // on 'Records 0' against a populated table. The bullet is what separates an
+        // on 'Records 0' against a populated table. The lag is what separates an
         // unpublished month from an unpopulated stream.
         //
-        // One label, not five: stream_lag() returns null for the other four, and a
-        // count here is what distinguishes a per-stream bullet from a page-level one.
+        // On bls's row alone: stream_lag() returns null for the other four, and a
+        // lag on every row would read as a page-level note rather than bls's own.
         //
         setup();
 
-        expect(screen.getAllByText('Lag')).toHaveLength(1);
-        expect(screen.getByText('1-2 months')).toBeInTheDocument();
+        const lag = column('Lag');
+
+        expect(lag['Bureau of Labor Statistics']).toHaveTextContent('1-2 months');
+
+        ['S&P 500', 'Stock Splits', 'SEC Filings', 'US Weather Alerts'].forEach((name) => {
+            expect(lag[name]).toHaveClass('listing-table-blank');
+        });
     });
 });
 
@@ -173,6 +200,37 @@ describe('the scale controls', () => {
         setup();
 
         expect(document.querySelectorAll('button').length).toBeGreaterThan(0);
+    });
+});
+
+describe('the reader\'s order', () => {
+    //
+    // an order moved into is kept for the next visit, in localStorage, which lasts
+    // the whole of this file
+    //
+    afterEach(() => {
+        window.localStorage.clear();
+    });
+
+    const names = () => [...document.querySelectorAll('.listing-table tbody th')]
+        .map((cell) => cell.textContent);
+
+    it('lists the rows in the order kept, and keeps a new one, apart from /stream\'s', () => {
+        window.localStorage.setItem(KEY, JSON.stringify({
+            v: VERSION,
+            stream: { order: ['us-national-weather'] },
+            data: { order: ['bls'] },
+        }));
+        setup();
+
+        expect(names()[0]).toBe('Bureau of Labor Statistics');
+
+        fireEvent.keyDown(screen.getByRole('button', { name: 'Move SEC Filings' }), { key: 'ArrowUp' });
+
+        const kept = JSON.parse(window.localStorage.getItem(KEY));
+
+        expect(kept.data.order).toEqual(['bls', 'stock-market', 'sec', 'stock-split', 'us-national-weather']);
+        expect(kept.stream.order).toEqual(['us-national-weather']);
     });
 });
 
