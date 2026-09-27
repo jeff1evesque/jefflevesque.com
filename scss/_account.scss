@@ -124,4 +124,42 @@
     color: $gray-6;
     font-variant-numeric: tabular-nums;
   }
+
+  //
+  // the email address, and beside it whether it is verified: gray until it is, and
+  // green once it is -- the green the switches take when an alarm is on
+  //
+  .account-email-address {
+    overflow-wrap: anywhere;
+  }
+
+  .account-email-state {
+    border: 1px solid $gray-3;
+    border-radius: 1rem;
+    color: $gray-6;
+    font-size: 0.8rem;
+    margin-left: 0.75rem;
+    padding: 0.1rem 0.6rem;
+    white-space: nowrap;
+  }
+
+  .account-email-verified {
+    border-color: $green-5;
+    color: $green-5;
+  }
+
+  .account-email-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+  }
+
+  //
+  // a code that was wrong, or could not be sent: under the button or the field it
+  // is about, with room between them
+  //
+  .account-email .account-problem {
+    margin-top: 0.75rem;
+  }
 }
