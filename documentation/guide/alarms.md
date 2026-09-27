@@ -19,9 +19,11 @@ Each stream has one alarm, its ingest alarm.
 ## Subscribing
 
 1. **Sign in.** If you have no account, sign up from the header.
-2. **Verify your email address,** with the code the site sends it when you sign up. The
-   login page asks for the code, and can send another. Alarms go by email, so an
-   address that isn't verified can't subscribe.
+2. **Verify your email address,** under Email address in Account Settings, which is in
+   the menu behind the person icon in the header. It shows your address, and whether it
+   is verified. If it isn't, choose "Send a code", then enter the code from the email
+   and choose "Verify". Alarms go by email, so an address that isn't verified can't
+   subscribe, and an account made without one can't add it afterwards.
 3. **Open a stream from [Stream](https://www.jefflevesque.com/stream),** and follow its
    bell to the stream's alarm page.
 4. **Read the terms and conditions,** and tick "I accept the terms and conditions".
