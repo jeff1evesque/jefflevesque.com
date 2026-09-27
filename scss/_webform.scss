@@ -177,7 +177,16 @@
       content: ' *';
     }
 
+    //
+    // a text box on the sign-in, reset and register forms, filled with the
+    // page's own color in either theme, as '.form-control' and mui's are.
+    //
+    // Note: filled here rather than left to the browser, which fills a text
+    //       box on a dark page with a color of its own choosing: a mid gray
+    //       in Chrome on a desktop, and black in Safari on an iPhone.
+    //
     .input-block {
+      background-color: $white-1;
       border: 1px solid $gray-4;
       border-radius: .1875rem;
       box-shadow: inset 0 1px 2px $gray-1;
@@ -304,11 +313,11 @@
     }
 
     .form-highlight {
-      background-color: #f7f5f7 !important;
+      background-color: $form-panel !important;
       border: 1px solid $gray-2 !important;
 
       @include dark {
-        background-color: $white-2 !important;
+        background-color: $dark-form-panel !important;
       }
     }
 
