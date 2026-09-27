@@ -263,6 +263,47 @@ describe('the page body', () => {
     });
 });
 
+describe('what an alarm is', () => {
+    //
+    // a stream gone quiet: no new records for longer than its usual gap, and back
+    // once they arrive -- as the account api watches for, and as its page and the
+    // reader's guide say. The page said an alarm fired when a window's records fell
+    // below a threshold, which is not what is watched for.
+    //
+    const text = () => document.body.textContent.replace(/\s+/g, ' ');
+
+    it('is a stream with no new records for longer than its usual gap', () => {
+        renderAlarm('bls');
+
+        expect(text()).toContain(
+            'A stream goes into alarm when it has had no new records for longer than its usual gap, '
+            + 'and recovers when records arrive again.'
+        );
+        expect(text()).toContain('you get an email when it goes into alarm, and one when it recovers');
+    });
+
+    it('is no longer a count of records falling below a threshold', () => {
+        renderAlarm('bls');
+
+        expect(text()).not.toMatch(/fall below (a )?threshold/);
+        expect(text()).not.toContain('late-2024');
+    });
+
+    it('is what the basic workflow follows, and the aggregate one is not offered yet', () => {
+        renderAlarm('bls');
+
+        expect(text()).toContain('no new records for longer than its usual gap (T), you get notified (N)');
+        expect(text()).toContain('The aggregate workflow, not offered yet');
+    });
+
+    it('is explained under Alarm Integration, not the trigger pages\' heading', () => {
+        renderAlarm('bls');
+
+        expect(screen.getByText('Alarm Integration')).toBeInTheDocument();
+        expect(screen.queryByText('Trigger Integration')).toBeNull();
+    });
+});
+
 describe('naming the stream', () => {
     //
     // by its label, in every sentence the page says it in. The page renamed
@@ -503,6 +544,97 @@ describe('signed in', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('verify your email address to subscribe');
         expect(alarmSwitch()).not.toBeChecked();
         expect(alarmSwitch()).toBeEnabled();
+        expect(screen.queryByRole('link', { name: 'Verify it in Account Settings' })).toBeNull();
+    });
+
+    describe('refused for an address that is not verified', () => {
+        //
+        // a subscribe's only 403: alarms go by email, and the reader's address is not
+        // verified yet. The page says so, and links to where they verify it -- the
+        // email section of Account Settings, by the name the header's own link uses.
+        //
+        const refusal = (status = 403) => Object.assign(new Error('email address not verified'), { status: status });
+        const settingsLink = () => screen.queryByRole('link', { name: 'Verify it in Account Settings' });
+
+        async function turnOn() {
+            fireEvent.click(acceptBox());
+            await waitFor(() => expect(alarmSwitch()).toBeEnabled());
+
+            fireEvent.click(alarmSwitch());
+        }
+
+        afterEach(() => {
+            sessionStorage.removeItem('username');
+            jest.restoreAllMocks();
+        });
+
+        it('says so, and links to the email section of Account Settings', async () => {
+            sessionStorage.setItem('username', 'reader');
+            subscribe.mockRejectedValue(refusal());
+
+            await renderSignedIn();
+            await turnOn();
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('Your email address isn\'t verified yet');
+            expect(settingsLink()).toHaveAttribute('href', '/reader/settings#email');
+            expect(alarmSwitch()).not.toBeChecked();
+        });
+
+        it.each([
+            ['no name in session storage', () => {}],
+            ['session storage refused', () => jest.spyOn(Object.getPrototypeOf(sessionStorage), 'getItem')
+                .mockImplementation(() => {
+                    throw new Error('blocked');
+                })],
+        ])('links by "account" with %s', async (_, storage) => {
+            subscribe.mockRejectedValue(refusal());
+
+            await renderSignedIn();
+
+            storage();
+            await turnOn();
+
+            expect(await screen.findByRole('link', { name: 'Verify it in Account Settings' }))
+                .toHaveAttribute('href', '/account/settings#email');
+        });
+
+        it('turns the alarm on once the address has been verified', async () => {
+            subscribe.mockRejectedValueOnce(refusal()).mockResolvedValueOnce(HELD);
+
+            await renderSignedIn();
+            await turnOn();
+
+            await screen.findByRole('alert');
+            await waitFor(() => expect(alarmSwitch()).toBeEnabled());
+
+            fireEvent.click(alarmSwitch());
+
+            await waitFor(() => expect(alarmSwitch()).toBeChecked());
+            expect(screen.queryByRole('alert')).toBeNull();
+        });
+
+        it('says what the api said for any other refusal, with no link', async () => {
+            subscribe.mockRejectedValue(refusal(503));
+
+            await renderSignedIn();
+            await turnOn();
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('email address not verified');
+            expect(settingsLink()).toBeNull();
+        });
+
+        it('does not take a refused unsubscribe for an address to verify', async () => {
+            unsubscribe.mockRejectedValue(refusal());
+
+            await renderSignedIn({ held: [HELD] });
+            await waitFor(() => expect(alarmSwitch()).toBeEnabled());
+
+            fireEvent.click(alarmSwitch());
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('email address not verified');
+            expect(settingsLink()).toBeNull();
+            expect(alarmSwitch()).toBeChecked();
+        });
     });
 
     it('is shown the signed-out view once the session has ended', async () => {
