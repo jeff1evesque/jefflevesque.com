@@ -5,9 +5,10 @@
 [![docs](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/docs.yml/badge.svg)](https://github.com/jeff1evesque/jefflevesque.com/actions/workflows/docs.yml)
 [![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/jeff1evesque/jefflevesque.com/badges/coverage.json)](jsx/jest.config.js)
 
-**[Documentation](https://jeff1evesque.github.io/jefflevesque.com/)** — the APIs the
-site is built on, how the application is put together, and how to develop, test and
-deploy it. This file is the short version.
+**[Documentation](https://jeff1evesque.github.io/jefflevesque.com/)** — a
+[guide to alarms](https://jeff1evesque.github.io/jefflevesque.com/guide/alarms/) for
+readers, the APIs the site is built on, how the application is put together, and how to
+develop, test and deploy it. This file is the short version.
 
 <!-- --8<-- [start:overview] -->
 A React single-page application for watching data-ingestion pipelines. It charts how
@@ -41,7 +42,7 @@ them.
 | `/model` | model article listing, with filters and performance | |
 | `/login`, `/logout`, `/register`, `/login/reset` | Cognito-backed authentication | |
 | `/:user` | the reader's profile, a placeholder | |
-| `/:user/settings` | account settings: the alarms the reader is subscribed to, each with a way to unsubscribe | account |
+| `/:user/settings` | account settings: the alarms the reader is subscribed to, each with a way to unsubscribe, and their ID token to copy, for calling the account API from a script | account |
 
 Every page comes in a light and a dark theme: light from 7 in the morning until 7 in the
 evening on the reader's own clock, and dark the rest of the day. The sun and moon beside

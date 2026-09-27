@@ -3,6 +3,7 @@
  *                 subscriptions, and the alarms there are to subscribe to.
  *
  *     signedIn()                        whether there is a reader at all, asking no one
+ *     readerToken()                     the reader's own ID token, for them to copy
  *     listSubscriptions()               the reader's subscriptions, every stream's
  *     subscribe(stream, alarm, terms)   subscribe, having accepted that version of the terms
  *     unsubscribe(stream, alarm)        unsubscribe
@@ -130,6 +131,19 @@ async function asReader(url, method, body) {
  */
 export async function signedIn() {
     return Boolean(await amplifyCurrentUser());
+}
+
+/**
+ * the reader's own ID token, for Account Settings to show them and copy, so a script
+ * can call the api as they do. Read through the session as every call here reads it,
+ * so it is always a current one -- see currentUser.js. Null signed out, and no
+ * request is made. Never rejects.
+ *
+ * Note: asked for when the reader asks to see it, and not before. A page holding the
+ *       token only while it shows it is a page that cannot leak it anywhere else.
+ */
+export async function readerToken() {
+    return amplifyCurrentUser();
 }
 
 /**

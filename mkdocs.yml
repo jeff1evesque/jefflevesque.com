@@ -127,6 +127,8 @@ plugins:
 
 nav:
   - Home: index.md
+  - Guides:
+      - Alarms: guide/alarms.md
   - APIs:
       - Overview: api/index.md
       - Performance: api/performance.md

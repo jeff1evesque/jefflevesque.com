@@ -25,6 +25,7 @@ import {
     AccountError,
     UNREACHABLE,
     signedIn,
+    readerToken,
     listSubscriptions,
     subscribe,
     unsubscribe,
@@ -83,6 +84,25 @@ describe('signedIn', () => {
         amplifyCurrentUser.mockResolvedValue(null);
 
         await expect(signedIn()).resolves.toBe(false);
+    });
+});
+
+describe('readerToken', () => {
+    //
+    // the reader's own token, for Account Settings to show them and copy -- read
+    // through the session as every call here reads it
+    //
+    it('is the session\'s ID token, and asks the api nothing', async () => {
+        const fetcher = answering(200, []);
+
+        await expect(readerToken()).resolves.toBe(TOKEN);
+        expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it('is null without a session', async () => {
+        amplifyCurrentUser.mockResolvedValue(null);
+
+        await expect(readerToken()).resolves.toBeNull();
     });
 });
 
