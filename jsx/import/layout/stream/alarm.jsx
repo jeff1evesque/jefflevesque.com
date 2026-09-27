@@ -32,7 +32,7 @@ import IconButton from '@mui/material/IconButton';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import BasicWorkflow from '../../svg/trigger/basic-workflow.jsx';
 import AggregateWorkflow from '../../svg/trigger/aggregate-workflow.jsx';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName from '../../general/stream-name.js';
@@ -47,6 +47,26 @@ import {
 } from '../../general/stream-id.js';
 import { themeColors } from '../../general/colors.js';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
+
+/**
+ * Account Settings' email section, where a reader verifies their address.
+ *
+ * Settings reads its reader from the session, never from the url, so the name in the
+ * path is only the one the header's own link carries -- the username the sign-in put
+ * in session storage, see user-menu.jsx -- and 'account' where there is none, as in a
+ * tab opened after signing in.
+ */
+function emailSettingsPath() {
+    let name = null;
+
+    try {
+        name = sessionStorage.getItem('username');
+    } catch (error) {
+        name = null;
+    }
+
+    return `/${encodeURIComponent(name || 'account')}/settings#email`;
+}
 
 class StreamAlarm extends Component {
     //
@@ -85,6 +105,11 @@ class StreamAlarm extends Component {
             busy: {},
             // what the account api said about the last request it refused
             problem: null,
+            //
+            // whether that was a subscribe refused because the reader's email
+            // address is not verified, which has a place to go -- see alarmSwitches
+            //
+            unverified: false,
             window_1_purple: true,
             window_1_green: true,
             window_2_blue: true,
@@ -260,7 +285,7 @@ class StreamAlarm extends Component {
             busy: { ...state.busy, [alarm]: false },
         }));
 
-        this.setState((state) => ({ busy: { ...state.busy, [alarm]: true }, problem: null }));
+        this.setState((state) => ({ busy: { ...state.busy, [alarm]: true }, problem: null, unverified: false }));
 
         (on ? subscribe(stream, alarm, TERMS_VERSION) : unsubscribe(stream, alarm))
             .then((answered) => {
@@ -271,7 +296,14 @@ class StreamAlarm extends Component {
 
                 settle((state) => ({ subscribed: { ...state.subscribed, [alarm]: on } }));
             })
-            .catch((problem) => settle(() => ({ problem: problem.message })));
+            //
+            // a subscribe's only 403 is an email address that is not verified. See
+            // the account api's page.
+            //
+            .catch((problem) => settle(() => ({
+                problem: problem.message,
+                unverified: on && problem.status === 403,
+            })));
     }
 
     /**
@@ -282,7 +314,7 @@ class StreamAlarm extends Component {
      * had, every switch is held still: its position would be a guess.
      */
     alarmSwitches() {
-        const { alarms, subscribed, accepted, busy, problem } = this.state;
+        const { alarms, subscribed, accepted, busy, problem, unverified } = this.state;
 
         if (alarms === 'failed') {
             return <p className='alarm-status'>The alarms could not be listed right now.</p>;
@@ -316,7 +348,19 @@ class StreamAlarm extends Component {
                 {accepted
                     ? null
                     : <p className='alarm-hint'>Accept the terms and conditions above to turn an alarm on.</p>}
-                {problem ? <p className='alarm-problem' role='alert'>{problem}</p> : null}
+                {problem
+                    ? (
+                        <p className='alarm-problem' role='alert'>
+                            {unverified
+                                ? (
+                                    <>
+                                        Your email address isn&apos;t verified yet, and alarms go
+                                        to it. <Link to={emailSettingsPath()}>Verify it in Account
+                                        Settings</Link>, then turn the alarm on.
+                                    </>
+                                ) : problem}
+                        </p>
+                    ) : null}
             </div>
         );
     }
@@ -591,16 +635,26 @@ class StreamAlarm extends Component {
             'content': summary_graphic
         }];
 
+        //
+        // what an alarm is, as the account api watches for one: a stream gone quiet,
+        // with no new records for longer than its usual gap, and back once records
+        // arrive. This said an alarm fired when a window's records fell below a
+        // threshold, which is not what is watched for -- see the account api's page
+        // and the reader's guide to alarms, which say the same.
+        //
         const summary_integration = (
             <div>
-                You select alarms from a desired modality. When we detect the number
-                of records in a window fall below threshold, you get notified. You
-                can choose and customize workflows using basic triggers, and trigger
-                aggregate. More advanced workflows will become available late-2024
-                (stay tuned).
+                Each stream has one alarm, its ingest alarm. A stream goes into alarm
+                when it has had no new records for longer than its usual gap, and
+                recovers when records arrive again. Subscribed, you get an email when
+                it goes into alarm, and one when it recovers.
             </div>
         );
 
+        //
+        // Note: the aggregate workflow is not offered, and says so. It was promised
+        //       for late 2024, beside alarms that counted records in a window.
+        //
         const accordion_integration = [{
             'id': 'integration_panel1',
             'title': 'Basic Workflow',
@@ -608,8 +662,8 @@ class StreamAlarm extends Component {
                 <>
                     <BasicWorkflow />
                     <div className='accordion-description'>
-                        The <i>basic workflow</i> allows you to select a specific
-                        performance modality. When records fall below a threshold
+                        The <i>basic workflow</i> is the one an alarm follows. When a
+                        stream has had no new records for longer than its usual gap
                         (T), you get notified (N).
                     </div>
                 </>
@@ -621,10 +675,10 @@ class StreamAlarm extends Component {
                 <>
                     <AggregateWorkflow />
                     <div className='accordion-description'>
-                        The <i>aggregate workflow</i> allows you to define custom logic
-                        within a threshold aggregate (TA). For example, you can specify if
-                        two of three threshold alarm (T) occur, then your threshold aggregate
-                        (TA) should notify (N) you.
+                        The <i>aggregate workflow</i>, not offered yet, would combine
+                        alarms within a threshold aggregate (TA). For example, you could
+                        ask to be notified (N) only when two of three streams go into
+                        alarm (T).
                     </div>
                 </>
             )
@@ -655,9 +709,17 @@ class StreamAlarm extends Component {
                                 onAccept={this.acceptTerms}
                             />
                             {this.state.signed_in ? this.alarmSwitches() : null}
+                            {/*
+
+                                headed 'Alarm Integration', where the section fell
+                                back to the trigger pages' 'Trigger Integration' --
+                                this page explains alarms
+
+                            */}
                             <SummaryTrigger
                                 header='How It Works'
                                 header_summary='Performance Metrics'
+                                header_integration='Alarm Integration'
                                 summary={summary}
                                 summary_integration={summary_integration}
                                 accordion_summary={isMobile ? accordion_summary : null}
