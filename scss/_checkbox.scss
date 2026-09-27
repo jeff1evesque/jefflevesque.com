@@ -56,9 +56,13 @@
   }
 }
 
-/* When the checkbox is checked, add a blue background */
+/* When the checkbox is checked, add the site's green background */
+//
+// '$green-5', the green of the site's switches and buttons. It was '#2196F3', a
+// blue the site uses for nothing else.
+//
 .checkbox-container input:checked ~ .checkbox-checkmark {
-  background-color: #2196F3;
+  background-color: $green-5;
 }
 
 /* Create the checkbox-checkmark/indicator (hidden when not checked) */
