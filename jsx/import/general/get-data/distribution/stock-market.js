@@ -258,11 +258,10 @@ function get(type, url, callback, worker, source, stream) {
             } else if (stream === STOCK_SPLIT) {
                 {/*
 
-                    production stock-split rows carry no sector/industry: api-datalake
-                    returns one row per split_date with the tickers that split on it,
-                    since the listings the enrichment merged against are large-cap while
-                    splits are overwhelmingly micro-cap. mirror that shape here so
-                    localhost reflects what production actually renders
+                    production stock-split rows carry no sector/industry: the
+                    datalake api answers one row per split_date, with the tickers
+                    that split on it. mirror that shape here so localhost reflects
+                    what production actually renders
 
                 */}
                 var csv_data_distribution = `split_date,total_tickers,tickers,total_records

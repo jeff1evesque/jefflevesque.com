@@ -1,7 +1,7 @@
 /**
  * get-data.test.js: the data loader every chart goes through.
  *
- * One 431 line function dispatching on a 'type' string. Each branch has the same
+ * One 394 line function dispatching on a 'type' string. Each branch has the same
  * shape: given a url it calls a real loader, and given no url it falls back to a
  * hardcoded sample csv embedded in the module. That fallback is most of the
  * file's length, and it means a caller that forgets a url gets plausible-looking
@@ -95,7 +95,6 @@ describe('an unrecognised type', () => {
 
 describe('dispatch, given a url', () => {
     it.each([
-        ['stock-split-report'],
         ['ticker-custom'],
         ['ticker-nasdaq'],
         ['stock-market-candlestick-triggers'],
@@ -105,39 +104,11 @@ describe('dispatch, given a url', () => {
         expect(parseCsv).toHaveBeenCalled();
         expect(parseCsv.mock.calls[0][0]).toBe(URL);
     });
-
-    it('stock-split reads through papaParseCsv, with the callback and tags', () => {
-        //
-        // papaParseCsv rather than parseCsv because this branch is callback
-        // driven: the split chart is fed asynchronously and tagged so a caller
-        // firing several loads at once can tell the results apart.
-        //
-        const callback = jest.fn();
-
-        getData('stock-split', URL, callback, false, 'stockmarket', 'split');
-
-        expect(papaParseCsv).toHaveBeenCalled();
-        const [csv, cb, worker, , header, source, stream] = papaParseCsv.mock.calls[0];
-        expect(csv).toBe(URL);
-        expect(cb).toBe(callback);
-        expect(worker).toBe(false);
-        expect(header).toBe(true);
-        expect(source).toBe('stockmarket');
-        expect(stream).toBe('split');
-    });
-
-    it('forwards the worker flag', () => {
-        getData('stock-split', URL, () => {}, true);
-
-        expect(papaParseCsv.mock.calls[0][2]).toBe(true);
-    });
 });
 
 describe('dispatch, given no url: the embedded sample data', () => {
     it.each([
-        ['stock-split', 'parseCsv'],
         ['bls-ingest', 'papaParseCsv'],
-        ['stock-split-report', 'parseCsv'],
         ['ticker-custom', 'parseCsv'],
     ])('%s silently falls back to a hardcoded csv', (type, loader) => {
         //
@@ -169,35 +140,6 @@ describe('dispatch, given no url: the embedded sample data', () => {
         getData('bls-ingest', null, () => {});
 
         expect(global.fetch).not.toHaveBeenCalled();
-    });
-
-    it('stock-split changes delivery mechanism between its two paths', () => {
-        //
-        // DOCUMENTS AN INCONSISTENCY.
-        //
-        // With a url this branch calls papaParseCsv, which is CALLBACK driven and
-        // returns nothing useful. Without one it calls parseCsv, which is PROMISE
-        // driven and never invokes the callback at all:
-        //
-        //     if (url) { papaParseCsv(url, callback, ...) }
-        //     else     { parseCsv(csv, false) }
-        //
-        // So how a caller receives the data depends on whether a url was
-        // supplied. Code written against the callback silently receives nothing
-        // in the fallback path, and code written against the promise receives
-        // nothing in the real one.
-        //
-        const callback = jest.fn();
-
-        getData('stock-split', URL, callback);
-        expect(papaParseCsv).toHaveBeenCalled();
-        expect(parseCsv).not.toHaveBeenCalled();
-
-        jest.clearAllMocks();
-
-        getData('stock-split', null, callback);
-        expect(parseCsv).toHaveBeenCalled();
-        expect(papaParseCsv).not.toHaveBeenCalled();
     });
 });
 
@@ -475,9 +417,13 @@ describe('argument forwarding', () => {
         // forwarding. This one is written correctly, which is the contrast that
         // makes the other clearly a mistake.
         //
+        // Note: through the sample path, which hands all four to papaParseCsv.
+        //       Given a url, the ingest types go through get_promise, which
+        //       takes no worker flag.
+        //
         const callback = jest.fn();
 
-        getData('stock-split', URL, callback, true, 'src', 'stm');
+        getData('bls-ingest', null, callback, true, 'src', 'stm');
 
         const call = papaParseCsv.mock.calls[0];
         expect(call[1]).toBe(callback);
@@ -487,7 +433,7 @@ describe('argument forwarding', () => {
     });
 
     it('defaults source and stream to null', () => {
-        getData('stock-split', URL, () => {});
+        getData('bls-ingest', null, () => {});
 
         expect(papaParseCsv.mock.calls[0][5]).toBeNull();
         expect(papaParseCsv.mock.calls[0][6]).toBeNull();

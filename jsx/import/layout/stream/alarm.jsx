@@ -379,18 +379,15 @@ class StreamAlarm extends Component {
 
                 var ingest_interval = 'daily at 12am EDT (M-F)';
                 var ingest_content_1 = `
-                    Any detected stock-split ticker matching our list of tickers,
-                    will start a refactor job on partitions in the ${streamName(STOCK_MARKET)}
-                    datalake. Jobs will be bounded between the beginning of time
-                    and split date. Metrics are analyzed on two modalities: health
-                    of stock-split detection, and job runtime for detected tickers
-                    using tumbling windows`;
+                    Three split calendars are read every weekday, and their
+                    listings are merged into one table of scheduled splits.
+                    Metrics are analyzed per calendar (Alpha, Beta and Gamma):
+                    the splits each one listed on a run, using tumbling windows`;
                 var ingest_content_2_mobile = `
-                    Performance ingest actually delivers single record per window`;
+                    Each calendar delivers a single record per daily run`;
                 var ingest_content_2 = `
-                    The above figure shows four unique records per window. However,
-                    actual ingest consists of a single record per window, passed to
-                    downstream processes that split the attributes as needed`;
+                    The above figure shows one record per calendar in each window:
+                    the splits that calendar listed on its daily run`;
                 var late_arrival = false;
                 var x_unit = 'day';
                 var x_increment = 1;
