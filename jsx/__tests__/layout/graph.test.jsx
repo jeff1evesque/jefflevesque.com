@@ -2384,6 +2384,57 @@ describe('the legend', () => {
         expect(explorer().getAttribute('data-emphasis')).toBe('origin:unification');
     });
 
+    it('names a nested namespace by its path, and breaks it only after a slash', async () => {
+        //
+        // 'noaa/cap-model', as the uri spells it, rather than 'noaa-cap-model',
+        // which could not say where the source ends. A name too long for its
+        // column breaks between its parts -- 'noaa/' over 'cap-model' -- and at
+        // no hyphen inside one. See namespaceName.
+        //
+        const schema = schemaOf(4);
+        Object.keys(schema.node_types).forEach((id) => {
+            const [prefix, name] = id.split('_');
+            const path = prefix === 'bls' ? 'bls/cpi' : 'noaa/cap-model';
+
+            schema.node_types[id].source_type_uri = `https://example.com/ontology/${path}/${name}`;
+        });
+        getGraphById.mockResolvedValue(schema);
+
+        await setup();
+
+        const names = [...document.querySelectorAll('.graph-legend-namespaces .graph-legend-name')];
+        const parts = (name) => [...name.children].map((child) => (child.tagName === 'WBR' ? '<wbr>' : child.textContent));
+
+        expect(names.map((name) => name.textContent)).toEqual(['bls/cpi', 'noaa/cap-model']);
+        expect(parts(names[1])).toEqual(['noaa/', '<wbr>', 'cap-model']);
+
+        fireEvent.click(names[1].closest('button'));
+
+        expect(explorer().getAttribute('data-emphasis')).toBe('namespace:noaa/cap-model');
+    });
+
+    it('prints a single-part name whole, hyphen and all', async () => {
+        //
+        // a flat build's 'sec-filings' is one vocabulary, and has no slash to
+        // break after
+        //
+        const schema = schemaOf(4);
+        Object.keys(schema.node_types).forEach((id) => {
+            const [prefix, name] = id.split('_');
+            const path = prefix === 'bls' ? 'jolts' : 'sec-filings';
+
+            schema.node_types[id].source_type_uri = `https://example.com/ontology/${path}/${name}`;
+        });
+        getGraphById.mockResolvedValue(schema);
+
+        await setup();
+
+        const names = [...document.querySelectorAll('.graph-legend-namespaces .graph-legend-name')];
+
+        expect(names.map((name) => [...name.children].map((child) => child.textContent)))
+            .toEqual([['jolts'], ['sec-filings']]);
+    });
+
     it('gives each namespace its own swatch', async () => {
         await setup();
 

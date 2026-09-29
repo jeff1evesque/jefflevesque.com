@@ -148,6 +148,14 @@ function vocabularies(edgeRows) {
  * build's type carries, and is read where that would be: see vocabulary in
  * encoding.js.
  *
+ * Note: on a FLAT day -- one whose predicates file no vocabulary under a source,
+ *       as every day published before 2026-09-21 is -- a prefix no predicate
+ *       names carries one as well: its words joined on hyphens, which is how the
+ *       builder spelled a flat vocabulary then. 'market_quotes' is
+ *       'ontology/market-quotes/' in the build of the same run. Left to its
+ *       name, it reads as the path 'market/quotes', as it does on a nested day,
+ *       and the one type would go by two names on two pages drawn from one run.
+ *
  * Returns null for rows that are not the ones asked for, so the page has one
  * check to make, as filterSchema gives it for a build.
  *
@@ -209,9 +217,18 @@ export function daySchema(nodeRows, edgeRows) {
     //
     const named = vocabularies(edgeRows);
 
+    // a day none of whose predicates names a vocabulary is not known to be flat
+    const flat = named.size > 0 && ![...named.values()].some((path) => path.includes('/'));
+
     Object.keys(node_types).forEach((id) => {
         const underscore = id.lastIndexOf('_');
-        const path = underscore > 0 ? named.get(id.slice(0, underscore)) : null;
+
+        if (underscore <= 0) {
+            return;
+        }
+
+        const prefix = id.slice(0, underscore);
+        const path = named.get(prefix) || (flat ? prefix.split('_').join('-') : null);
 
         if (path) {
             node_types[id].vocabulary = path;

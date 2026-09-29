@@ -24,8 +24,8 @@ import filterSchema, { GRAPH_NODE_TYPES } from './filter-schema.js';
 
 //
 // the vocabulary a node type is published under: everything between
-// '/ontology/' and the type name, joined on hyphens. What stands in for a type
-// without a uri is in vocabulary, below.
+// '/ontology/' and the type name, as the uri spells it -- 'bls/jolts'. What
+// stands in for a type without a uri is in vocabulary, below.
 //
 // The WHOLE path, rather than its first segment, because the builder nests
 // vocabularies under their source -- 'ontology/bls/jolts/OpeningsRate' -- and
@@ -41,10 +41,6 @@ import filterSchema, { GRAPH_NODE_TYPES } from './filter-schema.js';
 //       first-segment rule gave it. Verified across all 151 types in the
 //       published build: 17 namespaces before, the same 17 after. So this can
 //       ship ahead of the builder and change nothing until its output moves.
-//
-// Note: the hyphen join is not a new convention. Published builds already carry
-//       'market-quotes', 'sec-filings' and 'sec-common', so 'bls-jolts' reads
-//       as one of the same family.
 //
 // Note: enrichment is why the LAST segment is not enough either. Every source
 //       has one, and taking the final vocabulary alone would pool them into a
@@ -107,6 +103,11 @@ function namedVocabulary(meta) {
  *       'bls_enrichment' -- it answers what the uri would. It used to answer the
  *       first segment alone, which put a day's market quotes and its market
  *       enrichment under one 'market' that no build has.
+ *
+ * Note: a day published before the builder nested its vocabularies does not
+ *       reach this reading. There 'market_quotes' is one flat vocabulary,
+ *       'market-quotes', and the day names it so -- see daySchema in
+ *       get-graph-tables.js.
  */
 export function vocabulary(meta, id) {
     const named = namedVocabulary(meta);
@@ -122,13 +123,20 @@ export function vocabulary(meta, id) {
 }
 
 /**
- * the namespace a node type belongs to: its vocabulary, joined on hyphens.
+ * the namespace a node type belongs to: its vocabulary, as the uri spells it --
+ * 'bls/jolts'.
+ *
+ * Note: joined on slashes, as the uri joins it. It was joined on hyphens, and a
+ *       hyphen is part of a vocabulary's own name as well -- 'cap-model', and
+ *       the flat 'sec-filings' -- so 'noaa-cap-model' could not say where its
+ *       source ended. 'noaa/cap-model' can, and it is the path a reader finds in
+ *       the uri.
  *
  * Note: the uri is the authority, but a schema is free to omit it, and what
  *       stands in has to do so without the caller noticing. See vocabulary.
  */
 export function sourceNamespace(meta, id) {
-    return vocabulary(meta, id).join('-');
+    return vocabulary(meta, id).join('/');
 }
 
 /**

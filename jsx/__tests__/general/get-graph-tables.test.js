@@ -317,15 +317,42 @@ describe('the vocabulary a day names each node type under', () => {
         });
     });
 
-    it('is nothing for a prefix no predicate is named under', () => {
+    it('is nothing for a prefix no predicate is named under, on a day that nests', () => {
         //
         // market_quotes, sec_common, temporal and weather, on every day published
-        // so far. Their names stand in -- see vocabulary in encoding.js.
+        // so far. Their names stand in, read as a path -- see vocabulary in
+        // encoding.js.
         //
         expect(named(
             ['market_quotes_EquitySnapshot'],
             [edge('jolts_hasIndustry', 'https://jefflevesque.com/ontology/bls/jolts/hasIndustry')]
         )).toEqual({ market_quotes_EquitySnapshot: undefined });
+    });
+
+    it('is the name\'s words joined on hyphens for a prefix no predicate names, on a flat day', () => {
+        //
+        // before 2026-09-21 the builder filed no vocabulary under a source, and a
+        // flat one's words were joined on hyphens: 'market_quotes' is
+        // 'ontology/market-quotes/' in the build of the same run. Read as a path,
+        // it would be 'market/quotes' -- one type under two names on two pages
+        // drawn from one run.
+        //
+        expect(named(
+            ['jolts_Industry', 'market_quotes_EquitySnapshot', 'temporal_SourceDay', 'Standalone'],
+            [edge('jolts_hasIndustry', 'https://jefflevesque.com/ontology/jolts/hasIndustry')]
+        )).toEqual({
+            jolts_Industry: 'jolts',
+            market_quotes_EquitySnapshot: 'market-quotes',
+            temporal_SourceDay: 'temporal',
+            Standalone: undefined,
+        });
+    });
+
+    it('is nothing for a prefix no predicate names, on a day no predicate says the shape of', () => {
+        //
+        // with no vocabulary named at all, the day is not known to be flat
+        //
+        expect(named(['market_quotes_EquitySnapshot'], [])).toEqual({ market_quotes_EquitySnapshot: undefined });
     });
 
     it('is nothing for a prefix named under two vocabularies', () => {

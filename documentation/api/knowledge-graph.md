@@ -233,14 +233,15 @@ under its Day, and the Run is the one `/graph` shows for the build of the same d
 ontology term, and a type's name can leave its source out: `jolts_Industry` is a type of
 `bls/jolts`. The `edge-types` rows carry each relation's `predicate_uri`, which names the
 whole vocabulary — `jolts_hasIndustry`'s is `https://jefflevesque.com/ontology/bls/jolts/hasIndustry`
-— so every `jolts_` type is drawn and listed under `bls-jolts`, which is what `/graph`
+— so every `jolts_` type is drawn and listed under `bls/jolts`, which is what `/graph`
 reads off a build's `source_type_uri` for the same type. A prefix no predicate is named
 under — `market_quotes`, `sec_common`, `temporal` and `weather`, on every day published
 so far — is named by its types' names, and for the first three that is what the uri
-says too. Measured on 2026-09-26 against the build of the same run, for every published
+says too. Measured on 2026-09-29 against the build of the same run, for every published
 day: every node type the two hold is named alike. The days published before 2026-09-21
 name flat vocabularies — `ontology/jolts/` — and so do their builds, so both pages draw
-those days' types under `jolts`.
+those days' types under `jolts`. Their `market_quotes` types are named `market-quotes`,
+the one flat vocabulary their builds' uris name, where a later day's are `market/quotes`.
 
 Its Day details carry **Sources** directly under Published, where `/graph`'s Build details
 carry theirs under Built: the sources the day's vocabularies are filed under,

@@ -214,7 +214,7 @@ describe('knowledge graph, as the /graph page loads it', () => {
         // front page and /graph. A documented uri the namespace rule disagrees
         // with is a documented api this site would draw wrong.
         //
-        // 'bls-cpi' rather than 'bls': the builder nests a vocabulary under the
+        // 'bls/cpi' rather than 'bls': the builder nests a vocabulary under the
         // source that publishes it, and one source publishes ten of them. The
         // first segment alone would pool them into one color.
         //
@@ -224,7 +224,7 @@ describe('knowledge graph, as the /graph page loads it', () => {
         const drawn = Object.entries(schema.node_types)
             .map(([id, meta]) => sourceNamespace(meta, id));
 
-        expect([...new Set(drawn)]).toEqual(['bls-cpi']);
+        expect([...new Set(drawn)]).toEqual(['bls/cpi']);
     });
 });
 

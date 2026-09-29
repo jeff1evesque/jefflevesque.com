@@ -992,7 +992,7 @@ describe('shortName', () => {
     });
 
     it('keeps a prefix that is not the namespace', () => {
-        expect(shortName('filings_Filing', 'sec-filings')).toBe('filings_Filing');
+        expect(shortName('filings_Filing', 'sec/filings')).toBe('filings_Filing');
     });
 
     it('keeps only the first prefix off a nested id', () => {
