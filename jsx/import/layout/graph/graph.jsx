@@ -240,6 +240,32 @@ function detailsRow(row) {
 }
 
 //
+// a namespace's name as the legend prints it: each part of its path whole where
+// its column has room for it, so a name too long for one line breaks between its
+// source and its vocabulary -- 'noaa/' over 'cap-model' -- rather than at a
+// hyphen inside one, or wherever the column runs out. The parts are laid out by
+// '.graph-legend-name' in '_graph.scss'.
+//
+// Note: the slash ends the line it closes, as a hyphen does, and the <wbr> after
+//       it is where the line may break. A browser breaks after a hyphen of its
+//       own accord, but not after a slash.
+//
+function namespaceName(namespace) {
+    const parts = namespace.split('/');
+
+    return (
+        <span className='graph-legend-name'>
+            {parts.map((part, index) => (
+                <React.Fragment key={index}>
+                    {index ? <wbr /> : null}
+                    <span>{index < parts.length - 1 ? `${part}/` : part}</span>
+                </React.Fragment>
+            ))}
+        </span>
+    );
+}
+
+//
 // the menu the picker opens: under the control, aligned with it, and bounded.
 //
 // Bounded is the point. A native <select> hands its options to the operating
@@ -1321,7 +1347,7 @@ class GraphLayout extends Component {
 
     //
     // Note: headed 'Namespaces', not 'Sources'. These are the namespaces the
-    //       node types come from -- bls-jolts, bls-eci, sec-filings -- which is
+    //       node types come from -- bls/jolts, bls/eci, sec/filings -- which is
     //       not the same list as the sources the graph holds (bls, market, sec).
     //       The panel beside it lists the sources under that name, and two
     //       different lists under one heading read as a contradiction.
@@ -1341,7 +1367,7 @@ class GraphLayout extends Component {
                                 className='graph-legend-swatch'
                                 style={{ backgroundColor: shown.painted.get(namespace) }}
                             />
-                            {namespace}
+                            {namespaceName(namespace)}
                         </React.Fragment>
                     )))}
                 </ul>
