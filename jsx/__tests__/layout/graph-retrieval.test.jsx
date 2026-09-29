@@ -258,7 +258,7 @@ describe('the legend', () => {
 
     it('names each namespace under its source, as the day\'s predicates file it', async () => {
         //
-        // the Training graph reads 'sec-filings' off its build's uris, and a day
+        // the Training graph reads 'sec/filings' off its build's uris, and a day
         // with no uris read 'filings' -- the one type under two names on two
         // pages drawn from one run.
         //
@@ -266,7 +266,7 @@ describe('the legend', () => {
 
         await setup();
 
-        expect(namespaces()).toEqual(['sec-filings', 'noaa-cap-model']);
+        expect(namespaces()).toEqual(['sec/filings', 'noaa/cap-model']);
     });
 
     it('names a namespace by its type\'s name where no predicate files it', async () => {
