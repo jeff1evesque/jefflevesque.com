@@ -519,8 +519,8 @@ class DataLayout extends Component {
 
         {/*
 
-            Note: 6 = Saturday, 0 = Sunday, and StockSplitSplitter function will
-                  produce stock-split csv listing Mon-Fri regardless of holiday
+            Note: 6 = Saturday, 0 = Sunday. The stock-split feed produces its
+                  listing Monday to Friday, holidays included
 
         */}
 
