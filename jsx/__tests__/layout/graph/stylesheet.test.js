@@ -4,10 +4,10 @@
  *
  * jsdom lays nothing out, so no suite can see a name run past the edge of its
  * column. What can be held is the rule that decides it: a namespace's name wraps
- * at its hyphen when its column is too narrow, rather than being clipped. The
- * legend showed 'noaa-cap-mode' and 'market-enrichm' cut off at the edge of the
- * side column when every namespace began to name its source -- see the note above
- * '.graph-legend-namespaces'.
+ * between the parts of its path when its column is too narrow, rather than being
+ * clipped. The legend once showed 'noaa-cap-mode' and 'market-enrichm' cut off at
+ * the edge of the side column when every namespace began to name its source --
+ * see the note above '.graph-legend-namespaces'.
  *
  * Note: read the way breath.test.js reads '_animation.scss': comments taken out,
  *       and a block found by its header, whole.
@@ -62,6 +62,16 @@ describe('a namespace in the legend', () => {
     it('wraps a name too long for its column, with its swatch beside it', () => {
         expect(entry).toMatch(/overflow-wrap\s*:\s*anywhere\s*;/);
         expect(entry).toMatch(/flex-wrap\s*:\s*nowrap\s*;/);
+    });
+
+    it('keeps each part of its path whole where it fits: \'noaa/\' over \'cap-model\'', () => {
+        //
+        // inline, a part's own hyphen is a place to break, and the name came out
+        // 'noaa/cap-' over 'model'
+        //
+        const [part] = entry ? blocks(entry, '.graph-legend-name > span') : [];
+
+        expect(part).toMatch(/display\s*:\s*inline-block\s*;/);
     });
 });
 
