@@ -75,43 +75,6 @@ function get(type, url, callback, worker, source, stream) {
             'November',
             'December'
         ];
-    } else if (type === 'stock-split') {
-        if (url) {
-            var promise = papaParseCsv(url, callback, worker, false, true, source, stream);
-        } else {
-            const csv = `ticker,split_ratio,split_date
-                aaaa,2:17,${mm}/${dd}/${yyyy}
-                zzzz.F,1:17,${mm}/${dd}/${yyyy}
-                PFE,10:17,${mm}/${dd}/${yyyy}
-                165.SG,1:20,01/17/2023
-                MAYNF,1:20,01/18/2023
-                HXXB.F,1:17,01/20/2023
-                MCD,4:1,${mm}/${dd}/${yyyy}
-                tsla,1:3,${mm}/${dd}/${yyyy}
-            ,,,
-            ,,,`;
-            var promise = parseCsv(csv, false);
-        }
-
-        return promise;
-
-    } else if (type === 'stock-split-report') {
-        if (url) {
-            var promise = parseCsv(url);
-        } else {
-            const csv = `id,started_on,completed_on,job_state,attempt,push_down_predicate,repartition_number,split_ratio,worker_type,number_of_workers,actual_runtime,expected_runtime,split_date
-                jr_8397def4443eb485c4775e064511a6d1bdf1d8b71c943e383d8361486c11df99,2023-05-03 00:37:21.258000+00:00,2023-05-03 00:40:23.234000+00:00,SUCCEEDED,0,"ticker == ""pcar"" AND ( year <= ""2022"" OR ( month <= ""02"" AND year == ""2023"" ) )",21,0.44444444444,G.1X,4,181.976,no history,02/08/2023
-                jr_2b07cac0bf8d52cbee77f51c7d90866a3efa656060a6774895f45ae78552b736,2023-05-03 00:52:05.859000+00:00,2023-05-03 00:54:57.506000+00:00,SUCCEEDED,0,"ticker == ""mnst"" AND ( year <= ""2022"" OR ( month <= ""02"" AND year == ""2023"" ) )",21,0.25,G.1X,4,171.64700000000002,no history,03/28/2023
-                jr_3363485a5be3868756ae20a324e8ac485715d2476d9b6aa546f3b99a03dd20c5,2023-05-03 22:55:28.109000+00:00,2023-05-03 22:57:12.320000+00:00,SUCCEEDED,0,"ticker == ""tsla"" AND ( year <= ""2021"" OR ( month <= ""${mm}"" AND year == ""${yyyy}"" ) )",1,0.3333333333333333,G.1X,4,104.21100000000001,no history,${mm}/${dd}/${yyyy}
-                jr_84e9b59fe4b44ca1443e694be7c9d2c034935cdf316bb7ac1383ae08f8f879a8,2023-05-03 23:30:42.358000+00:00,2023-05-03 23:33:23.690000+00:00,SUCCEEDED,0,"ticker == ""goog"" AND ( year <= ""2021"" OR ( month <= ""07"" AND year == ""2022"" ) )",13,0.05,G.1X,4,161.33200000000002,no history,07/18/2022
-                jr_c775498f4874d3cf945d272104364bcda9eb5820ce4d07a39ab3ee40351bb9b5,2023-05-03 23:42:28.980000+00:00,2023-05-03 23:44:50.436000+00:00,SUCCEEDED,0,"ticker == ""amzn"" AND ( year <= ""2021"" OR ( month <= ""06"" AND year == ""2022"" ) )",21,0.05,G.1X,4,141.45600000000002,152.1244,06/06/2022
-            ,,,,,,,,,,,,
-            ,,,,,,,,,,,,`;
-            var promise = parseCsv(csv, false);
-        }
-
-        return promise;
-
     } else if (type === 'ticker-custom') {
         if (url) {
             var promise = parseCsv(url);
