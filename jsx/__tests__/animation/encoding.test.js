@@ -102,7 +102,24 @@ describe('sourceNamespace', () => {
         expect(sourceNamespace(
             { source_type_uri: 'https://example.com/ontology/bls/jolts/OpeningsRate' },
             'jolts_OpeningsRate'
-        )).toBe('bls-jolts');
+        )).toBe('bls/jolts');
+    });
+
+    it('joins the path as the uri does, so a hyphen in a vocabulary\'s name stays in it', () => {
+        //
+        // joined on hyphens, NOAA's 'cap-model' came out 'noaa-cap-model', which
+        // cannot say where the source ends, and a flat 'sec-filings' read the same
+        // as a nested 'sec/filings'.
+        //
+        expect(sourceNamespace(
+            { source_type_uri: 'https://example.com/ontology/noaa/cap-model/Area' },
+            'cap_Area'
+        )).toBe('noaa/cap-model');
+
+        expect(sourceNamespace(
+            { source_type_uri: 'https://example.com/ontology/sec-filings/Filing' },
+            'filings_Filing'
+        )).toBe('sec-filings');
     });
 
     it('keeps an enrichment vocabulary with the source it belongs to', () => {
@@ -113,12 +130,12 @@ describe('sourceNamespace', () => {
         expect(sourceNamespace(
             { source_type_uri: 'https://example.com/ontology/bls/enrichment/UnifiedDay' },
             'bls_enrichment_UnifiedDay'
-        )).toBe('bls-enrichment');
+        )).toBe('bls/enrichment');
 
         expect(sourceNamespace(
             { source_type_uri: 'https://example.com/ontology/sec/enrichment/Filing' },
             'sec_enrichment_Filing'
-        )).toBe('sec-enrichment');
+        )).toBe('sec/enrichment');
     });
 
     it('keeps reading a flat uri exactly as it always did', () => {
@@ -136,7 +153,7 @@ describe('sourceNamespace', () => {
         expect(sourceNamespace(
             { source_type_uri: 'https://example.com/ontology/a/b/c/Type' },
             'x_Type'
-        )).toBe('a-b-c');
+        )).toBe('a/b/c');
     });
 
     it('falls back for a uri that names a namespace rather than a type', () => {
@@ -168,8 +185,8 @@ describe('sourceNamespace', () => {
         // what the uri would. The first segment alone put a day's market quotes
         // and its market enrichment under one 'market' that no build has.
         //
-        expect(sourceNamespace({}, 'bls_enrichment_PriceIndex')).toBe('bls-enrichment');
-        expect(sourceNamespace({}, 'market_quotes_EquitySnapshot')).toBe('market-quotes');
+        expect(sourceNamespace({}, 'bls_enrichment_PriceIndex')).toBe('bls/enrichment');
+        expect(sourceNamespace({}, 'market_quotes_EquitySnapshot')).toBe('market/quotes');
     });
 
     it('reads the vocabulary a day\'s predicates name, where there is no uri', () => {
@@ -177,14 +194,14 @@ describe('sourceNamespace', () => {
         // the id says 'jolts', and the day's own predicates say 'bls/jolts' --
         // which is what a build's uri says of the same type.
         //
-        expect(sourceNamespace({ vocabulary: 'bls/jolts' }, 'jolts_Industry')).toBe('bls-jolts');
+        expect(sourceNamespace({ vocabulary: 'bls/jolts' }, 'jolts_Industry')).toBe('bls/jolts');
     });
 
     it('prefers the uri over a vocabulary', () => {
         expect(sourceNamespace(
             { source_type_uri: 'https://example.com/ontology/bls/jolts/Industry', vocabulary: 'odd' },
             'jolts_Industry'
-        )).toBe('bls-jolts');
+        )).toBe('bls/jolts');
     });
 
     it('ignores a vocabulary that is not a path', () => {
