@@ -76,14 +76,12 @@ export default () => {
 
                     {/*
 
-                        stock-split carries no sector or industry: the listings
-                        they were merged against are large-cap while splits are
-                        overwhelmingly micro-cap, so api-datalake stopped
-                        returning both columns and now returns one row per
-                        split_date with the tickers that split on it. the day is
-                        already the x-axis value, so a single fixed series name
-                        keeps one color per chart, and the tickers ride along on
-                        the record for the tooltip to read
+                        stock-split carries no sector or industry: the datalake
+                        api answers one row per split_date, with the tickers
+                        that split on it. the day is already the x-axis value,
+                        so a single fixed series name keeps one color per chart,
+                        and the tickers ride along on the record for the tooltip
+                        to read
 
                     */}
                     if (
