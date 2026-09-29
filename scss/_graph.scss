@@ -559,18 +559,23 @@ $graph-held-edge: $green-4;
 //       fit and the list correctly falls back to one column. 'columns' counts
 //       from the same minimum the grid's auto-fill did.
 //
-// Note: a name longer than its column WRAPS, at its hyphen -- 'sec-' over
+// Note: a name longer than its column WRAPS, after its slash -- 'sec/' over
 //       'enrichment' -- rather than being cut off. Each namespace names its
-//       source now, and 'sec-enrichment', 'noaa-cap-model' and
-//       'market-enrichment' run 96 to 117px at the body font in a column that
-//       holds 95. Clipped, the legend showed 'bls-enrichm…', which names nothing;
+//       source now, and 'sec/enrichment', 'noaa/cap-model' and
+//       'market/enrichment' run past a column that holds 95px at the body font.
+//       Clipped, the legend once showed 'bls-enrichm…', which names nothing;
 //       widened to hold them, it could only have gone one column, and twice as
 //       long. Wrapping costs a row a second line, and only the rows that need
 //       one, whatever the reader's font.
 //
+// Note: each part of a name's path is an inline block, so it stays whole where
+//       it fits: 'noaa/' over 'cap-model', not 'noaa/cap-' over 'model'. A
+//       browser will not break after a slash of its own accord, so the break
+//       between two parts is a <wbr> -- see namespaceName in graph.jsx.
+//
 // Note: 'nowrap' is kept on the ROW, so the swatch stays beside its name and
-//       only the name's own text wraps. 'anywhere' breaks a name inside a word
-//       only where it has no hyphen to break at and still does not fit.
+//       only the name's own text wraps. 'anywhere' breaks a part inside a word
+//       only where the part alone is longer than its column.
 //
 .graph-legend-namespaces {
   column-gap: 0.75rem;
@@ -602,6 +607,10 @@ $graph-held-edge: $green-4;
 
     .graph-legend-swatch {
       margin-top: calc((1.5em - 0.75rem) / 2);
+    }
+
+    .graph-legend-name > span {
+      display: inline-block;
     }
   }
 }
