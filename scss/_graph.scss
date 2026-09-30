@@ -1000,6 +1000,39 @@ $graph-held-edge: $green-4;
   .graph-legend-swatch {
     vertical-align: baseline;
   }
+
+  //
+  // every other row shaded, in place of a line under each, so a row is easy
+  // to follow from its name to its numbers across a wide page. The shade is
+  // the page's ink, so by night it is lighter than the page, not darker.
+  //
+  // Note: the lines keep their 1px and lose their color, so a row is still
+  //       30.5px and PENDING_ROWS still fills the box -- see tables.jsx. The
+  //       line under the headings and the one under the last row stay, in
+  //       the gray of the rule over the tabs. mui's own is 2.1:1 on the page
+  //       by night.
+  //
+  // Note: '.graph-tables' ahead of each, for mui's sake. Its cell and row
+  //       styles are injected after this stylesheet, at one class.
+  //
+  .MuiTableCell-root {
+    border-bottom-color: $gray-2;
+  }
+
+  tbody tr:not(:last-child) > td {
+    border-bottom-color: transparent;
+  }
+
+  tbody tr:nth-of-type(even) {
+    background-color: rgba(var(--ink-rgb), 0.03);
+  }
+
+  //
+  // mui's own 4% is no change at all over a shaded row
+  //
+  tbody .MuiTableRow-hover:hover {
+    background-color: rgba(var(--ink-rgb), 0.07);
+  }
 }
 
 .graph-tables-count {
