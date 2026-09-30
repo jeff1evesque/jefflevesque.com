@@ -487,6 +487,22 @@ $graph-held-edge: $green-4;
   }
 }
 
+//
+// a name in a details row that carries a note: a source in a day's Sources that
+// is outside the graph, drawn as a link to the docs' paragraph on such sources
+// with the note in a tooltip -- see detailValue in graph.jsx. It keeps the row's
+// own color, underlined with dots, so it reads as a name with a note rather than
+// as a way off the page.
+//
+// scoped under '#bootstrap-override' because the global link color is, and an id
+// outranks any number of classes -- see '_api-links.scss'. Unscoped, the name
+// would be hyperlink blue, with no underline until the pointer is over it.
+//
+#bootstrap-override .graph-details a.graph-details-noted {
+  color: inherit;
+  text-decoration: underline dotted;
+}
+
 .graph-legend {
   ul {
     list-style: none;
