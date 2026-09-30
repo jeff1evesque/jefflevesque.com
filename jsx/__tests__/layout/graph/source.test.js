@@ -15,17 +15,14 @@
  *
  * A day's own list of sources can name one that none of its node types come
  * from: a feed the builder reads into a table of its own, as it reads the split
- * feed. Nothing else on the page shows it, so the day panel links it to where the
- * docs explain it. What is held is outsideGraph, which says which sources those
- * are, and that the paragraph they link to is in the docs.
+ * feed. Nothing else on the page shows it, so the day panel puts a note over it.
+ * What is held is outsideGraph, which says which sources those are, and what
+ * the note says.
  *
  * Note: jest.config.js runs this suite in New York time, which is what lets the
  *       zone tests below tell a run read as UTC from one read in the local zone.
  */
 
-import fs from 'fs';
-import path from 'path';
-import { API_DOCS } from '../../../import/general/api-url.js';
 import { DAY_DETAILS, buildDay, outsideGraph } from '../../../import/layout/graph/source.js';
 
 //
@@ -163,8 +160,6 @@ const TYPES = {
     temporal_Day: { count: 30, entities: 30, facts: 0 },
 };
 
-const DOCS = path.resolve(__dirname, '../../../../documentation/api/knowledge-graph.md');
-
 describe('a source outside the graph', () => {
     it('is one the day lists that none of its node types come from', () => {
         expect(outsideGraph({ sources: ['bls', 'market', 'noaa', 'sec', 'stock-split'] }, TYPES))
@@ -191,12 +186,10 @@ describe('a source outside the graph', () => {
         expect(outsideGraph({ sources: sources }, TYPES)).toEqual([]);
     });
 
-    it('is linked to a paragraph the knowledge graph docs hold', () => {
+    it('carries a note saying so, and no link', () => {
         const { noted } = DAY_DETAILS.find((row) => row.label === 'Sources');
-        const [page, anchor] = noted.docs.split('#');
 
-        expect(page).toBe(API_DOCS.knowledgeGraph);
-        expect(anchor).toBe('sources-outside-the-graph');
-        expect(fs.readFileSync(DOCS, 'utf8')).toMatch(new RegExp(`^\\{: #${anchor} \\}$`, 'm'));
+        expect(noted.note).toBe('Not in the graph: its data is kept in a table of its own.');
+        expect(noted).not.toHaveProperty('docs');
     });
 });
