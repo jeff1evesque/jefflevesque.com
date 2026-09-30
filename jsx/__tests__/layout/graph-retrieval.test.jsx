@@ -479,6 +479,23 @@ describe('the day details', () => {
             expect(noted).toHaveAccessibleDescription(NOTE);
         });
 
+        it('is followed by an info icon, hidden from screen readers', async () => {
+            await setup();
+
+            const icon = detailNoted('Sources')[0].querySelector('svg');
+
+            expect(icon).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+            expect(icon).toHaveAttribute('aria-hidden', 'true');
+        });
+
+        it('shows the note from the icon too', async () => {
+            await setup();
+
+            fireEvent.mouseOver(detailNoted('Sources')[0].querySelector('svg'));
+
+            expect(await screen.findByRole('tooltip')).toHaveTextContent(NOTE);
+        });
+
         it('shows the note in a tooltip over it', async () => {
             await setup();
 
