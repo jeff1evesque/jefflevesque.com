@@ -84,6 +84,12 @@ const DAYS = [
 ];
 
 //
+// what the day panel says over a source outside the graph, and where it links
+//
+const NOTE = 'Not in the graph: its data is kept in a table of its own.';
+const OUTSIDE = `${API_DOCS.knowledgeGraph}#sources-outside-the-graph`;
+
+//
 // a day shaped as the loader answers one: nine million market snapshots that
 // carry no name and no value, three named types, and a nameless company node
 // that touches one of them -- so which of them the canvas draws is decided by
@@ -165,6 +171,16 @@ function detail(label) {
         .find((r) => r.querySelector('dt').textContent === label);
 
     return row ? row.querySelector('dd').textContent : undefined;
+}
+
+//
+// the links in one details row's value
+//
+function detailLinks(label) {
+    const row = [...document.querySelectorAll('.graph-details-row')]
+        .find((r) => r.querySelector('dt').textContent === label);
+
+    return row ? [...row.querySelectorAll('dd a')] : [];
 }
 
 async function chooseDay(day) {
@@ -424,6 +440,76 @@ describe('the day details', () => {
         await setup();
 
         expect(detail('Sources')).toBe('n/a');
+    });
+
+    //
+    // a source the day lists that none of its node types come from -- a feed the
+    // builder reads into a table of its own -- is shown by nothing else on the
+    // page, so its name links to where the docs explain it, with a note over it.
+    // See outsideGraph in source.js.
+    //
+    describe('a source outside the graph', () => {
+        beforeEach(() => {
+            getTableDays.mockResolvedValue([
+                { ...DAYS[0], sources: ['market', 'noaa', 'sec', 'stock-split'] },
+                ...DAYS.slice(1),
+            ]);
+            getTableDay.mockResolvedValue(namedDay());
+        });
+
+        it('is a link to the docs, and the only one', async () => {
+            await setup();
+
+            const links = detailLinks('Sources');
+
+            expect(detail('Sources')).toBe('market, noaa, sec, stock-split');
+            expect(links.map((link) => link.textContent)).toEqual(['stock-split']);
+            expect(links[0]).toHaveAttribute('href', OUTSIDE);
+        });
+
+        it('opens the docs in a new tab, leaving the page as it was arranged', async () => {
+            await setup();
+
+            const [link] = detailLinks('Sources');
+
+            expect(link).toHaveAttribute('target', '_blank');
+            expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+        });
+
+        it('is still called by its name, with the note describing it', async () => {
+            await setup();
+
+            expect(screen.getByRole('link', { name: 'stock-split' })).toHaveAccessibleDescription(NOTE);
+        });
+
+        it('shows the note in a tooltip over it', async () => {
+            await setup();
+
+            fireEvent.mouseOver(screen.getByRole('link', { name: 'stock-split' }));
+
+            expect(await screen.findByRole('tooltip')).toHaveTextContent(NOTE);
+        });
+
+        it('is not a source whose node types the day holds, where the canvas draws none of them', async () => {
+            //
+            // market's one type here is nine million snapshots, none of which can
+            // be found by name, so the canvas leaves it out. It is still in the
+            // tables, and so in the graph.
+            //
+            await setup();
+
+            expect(explorer().dataset.types.split(' ')).not.toContain('market_quotes_OptionSnapshot');
+            expect(detailLinks('Sources').map((link) => link.textContent)).not.toContain('market');
+        });
+
+        it('is none on a day whose list is null, whose sources are read off its node types', async () => {
+            getTableDays.mockResolvedValue(DAYS.map((row) => ({ ...row, sources: null })));
+
+            await setup();
+
+            expect(detail('Sources')).toBe('noaa, sec');
+            expect(detailLinks('Sources')).toEqual([]);
+        });
     });
 
     //
