@@ -409,6 +409,87 @@ describe('the sample data around a month boundary', () => {
     });
 });
 
+describe('telling the caller a request failed', () => {
+    //
+    // the failure is still caught and logged, as above, and the callback still
+    // never fires for it. What changes is that a caller passing 'on_error' is told,
+    // so it can tell a request that failed from one still in flight.
+    //
+    let quiet;
+
+    beforeEach(() => {
+        quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        quiet.mockRestore();
+    });
+
+    it('is told of a response that is not ok', async () => {
+        const callback = jest.fn();
+        const failed = jest.fn();
+        mockFetch({}, false);
+
+        await getData('bls-ingest', URL, callback, false, 'bls', 'bls', failed);
+
+        expect(failed).toHaveBeenCalledTimes(1);
+        expect(callback).not.toHaveBeenCalled();
+        expect(quiet).toHaveBeenCalled();
+    });
+
+    it('is told of a body with no report', async () => {
+        const failed = jest.fn();
+        mockFetch({ unexpected: true });
+
+        await getData('bls-ingest', URL, jest.fn(), false, 'bls', 'bls', failed);
+
+        expect(failed).toHaveBeenCalledWith({ unexpected: true });
+    });
+
+    it('is told of a request that got no answer at all', async () => {
+        const failed = jest.fn();
+        const offline = new Error('offline');
+        global.fetch = jest.fn().mockRejectedValue(offline);
+
+        await getData('bls-ingest', URL, jest.fn(), false, 'bls', 'bls', failed);
+
+        expect(failed).toHaveBeenCalledWith(offline);
+    });
+
+    it('is not told of a report, or of an empty one', async () => {
+        const failed = jest.fn();
+
+        mockFetch({ report: 'group_by,total_success\nbls,292' });
+        await getData('bls-ingest', URL, jest.fn(), false, 'bls', 'bls', failed);
+
+        mockFetch({ report: '' });
+        await getData('bls-ingest', URL, jest.fn(), false, 'bls', 'bls', failed);
+
+        expect(failed).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['sec-ingest'],
+        ['us-national-weather-ingest'],
+        ['stock-market-ingest'],
+        ['stock-split-ingest'],
+    ])('is told for %s too', async (type) => {
+        const failed = jest.fn();
+        mockFetch({}, false);
+
+        await getData(type, URL, jest.fn(), false, null, null, failed);
+
+        expect(failed).toHaveBeenCalledTimes(1);
+    });
+
+    it('is not needed: a caller that passes something else is left alone', async () => {
+        mockFetch({}, false);
+
+        await expect(getData('bls-ingest', URL, jest.fn(), false, 'bls', 'bls', 'not a function'))
+            .resolves.toBeUndefined();
+    });
+});
+
 describe('argument forwarding', () => {
     it('getData passes its arguments through unchanged', () => {
         //
