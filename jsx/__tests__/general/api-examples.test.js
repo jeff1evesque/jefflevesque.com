@@ -271,11 +271,27 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
             day: row.day,
             run: typeof row.run === 'string' ? row.run : null,
             published: typeof row.published === 'string' ? row.published : null,
+            sources: Array.isArray(row.sources) ? row.sources : null,
         })));
         listed.forEach((row) => {
             expect({ day: row.day, run: typeof row.run, published: typeof row.published })
                 .toEqual({ day: row.day, run: 'string', published: 'string' });
         });
+    });
+
+    it('documents each day\'s sources, null for the days published before the builder recorded them', async () => {
+        //
+        // the Retrieval graph's Sources row reads the list, and falls back to a
+        // day's vocabularies where it is null -- as it is on every documented day
+        //
+        answering(days.example);
+
+        const listed = await getTableDays();
+
+        days.example.report.rows.forEach((row) => {
+            expect({ day: row.day, documented: 'sources' in row }).toEqual({ day: row.day, documented: true });
+        });
+        expect(listed.map((row) => row.sources)).toEqual(days.example.report.rows.map(() => null));
     });
 
     it('reads the documented node and edge types as one day', async () => {
