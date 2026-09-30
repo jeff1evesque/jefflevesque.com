@@ -3,9 +3,8 @@
  * its own controls.
  *
  * stream-download.test.jsx covers the request. This covers the answer -- a web worker
- * reduces the response to chart rows, and callbackGetData merges them into the stream's
- * chart -- and the controls that ask again: the rate, the refresh icon, the Ingest Rate
- * switch, a listing row, and the mobile Filter button.
+ * reduces the response to rows, and callbackGetData merges them into the stream's own
+ * -- and the control that asks again: the Rate buttons over the rows.
  *
  * Note: web-worker.js is mocked with a builder that records each worker, so a reply can
  *       be delivered on demand. setup.js's Worker shim never posts a message back.
@@ -27,7 +26,7 @@ jest.mock('../../../import/general/account-api.js', () => ({
 }));
 
 import React from 'react';
-import { render, act, screen, fireEvent, within } from '@testing-library/react';
+import { render, act, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 const mockWorkers = [];
@@ -55,6 +54,7 @@ jest.mock('../../../import/worker/web-worker.js', () => ({
 import getData from '../../../import/general/get-data.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
 import THROUGHPUT_KEY from '../../../import/general/throughput-key.js';
+import { STREAMS } from '../../../import/general/stream-id.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -99,11 +99,12 @@ function answer(stream, source, days) {
 }
 
 //
-// hand `item` to the page, and deliver `data` as its worker's reply
+// hand `item` to the page, as the reply to what `asked` names -- a stream and a
+// rate, or nothing -- and deliver `data` as its worker's reply
 //
-function reply(page, item, data) {
+function reply(page, item, data, asked = []) {
     act(() => {
-        page.callbackGetData(item);
+        page.callbackGetData(item, ...asked);
     });
 
     const worker = mockWorkers[mockWorkers.length - 1];
@@ -119,11 +120,7 @@ beforeEach(() => {
     jest.clearAllMocks();
     mockWorkers.length = 0;
 
-    //
-    // a chart click keeps its stream for the next visit, in localStorage, which
-    // lasts the whole of this file -- see listing-preference.js
-    //
-    window.localStorage.clear();
+    window.history.replaceState({}, '', '/');
 });
 
 describe('handing a response to the worker', () => {
@@ -225,175 +222,123 @@ describe('a reply for a stream', () => {
     });
 });
 
-describe('a reply that names no source', () => {
-    it('adds its rows to the stream on screen', () => {
+describe('a report with nothing in it', () => {
+    const EMPTY = { chart_data_original: [], stream_throughput: 0, selected_source: null, selected_stream: null };
+
+    it('still stops the row it was asked for loading', () => {
+        //
+        // the worker cannot name a stream for a report that carried none, so the
+        // stream the request was made for travels with the reply. It used to fall
+        // back on the charted stream, and the stream actually asked for loaded forever.
+        //
         const { page } = setup();
-        const selected = page.state.selected_stream;
-        const before = (page.state[`chart_data_${selected}`] || []).length;
 
-        reply(page, {}, { chart_data_original: rows(selected, [1, 2]), stream_throughput: 7 });
+        reply(page, {}, EMPTY, ['bls', 'day']);
 
-        expect(page.state[`chart_data_${selected}`]).toHaveLength(before + 2);
-        expect(page.state.stream_throughput).toBe(7);
+        expect(page.state.promise_get_data_bls).toBe(true);
+        expect(page.state.chart_data_bls).toEqual([]);
     });
 });
 
-describe('a reply while the address names a stream', () => {
-    afterEach(() => {
-        window.history.pushState({}, '', '/');
-    });
-
-    it('selects the stream the address names', () => {
+describe('a reply to a rate the reader has moved on from', () => {
+    it('is dropped before it reaches a worker', () => {
+        //
+        // a rate change clears every row and asks again. A reply to the old rate
+        // arriving after that would otherwise land on the new rate's rows.
+        //
         const { page } = setup();
-        window.history.pushState({}, '', '/stream?item=bls&rate=day');
+        const before = mockWorkers.length;
 
-        reply(page, {}, answer('bls', 'bls', [1]));
+        act(() => {
+            page.callbackGetData({}, 'bls', 'hour');
+        });
 
-        expect(page.state.selected_stream).toBe('bls');
+        expect(page.state.stream_rate_bls).toBe('day');
+        expect(mockWorkers).toHaveLength(before);
     });
 
-    it('leaves the selection alone when the address names no stream', () => {
+    it('is kept when it answers the rate on screen', () => {
+        const { page } = setup();
+
+        reply(page, {}, answer('bls', 'bls', [1, 2]), ['bls', 'day']);
+
+        expect(page.state.promise_get_data_bls).toBe(true);
+    });
+});
+
+describe('the stream an address names', () => {
+    it('has its row marked', () => {
+        window.history.replaceState({}, '', '/stream?item=bls&rate=day');
+
+        const { page } = setup();
+
+        expect(page.state.current_stream).toBe('bls');
+    });
+
+    it('stays marked whatever stream a reply is for', () => {
+        window.history.replaceState({}, '', '/stream?item=bls&rate=day');
+
+        const { page } = setup();
+
+        reply(page, {}, answer('sec', 'sec', [1]), ['sec', 'day']);
+
+        expect(page.state.current_stream).toBe('bls');
+    });
+
+    it('marks no row when the address names no stream the page lists', () => {
         //
         // a name a stream used to go by never reaches the page -- the route
-        // replaces it with the id first -- so anything else names nothing. It
-        // used to be selected anyway, and the page threw reading the per-stream
-        // state that did not exist for it.
+        // replaces it with the id first -- so anything else names nothing.
         //
+        window.history.replaceState({}, '', '/stream?item=no-such-stream&rate=day');
+
         const { page } = setup();
-        const before = page.state.selected_stream;
-        window.history.pushState({}, '', '/stream?item=no-such-stream&rate=day');
 
-        reply(page, {}, answer('bls', 'bls', [1]));
-
-        expect(page.state.selected_stream).toBe(before);
+        expect(page.state.current_stream).toBeNull();
     });
 });
 
-describe('the controls that ask again', () => {
-    const lastUrl = () => new URL(String(getData.mock.calls[getData.mock.calls.length - 1][1]));
-
-    it('asks for the stream at a rate chosen beside the chart', () => {
+describe('the Rate buttons', () => {
+    it('ask for every stream again at the rate chosen', () => {
         const { page } = setup();
         getData.mockClear();
 
         act(() => {
-            fireEvent.click(screen.getAllByText('Hourly')[0]);
+            fireEvent.click(screen.getByRole('button', { name: 'Hour' }));
         });
 
-        expect(page.state.selected_stream_rate).toBe('Hour');
-        expect(lastUrl().searchParams.get('Interval')).toBe('hour');
-        expect(lastUrl().searchParams.get('Stream')).toBe(page.state.selected_stream);
+        const asked = getData.mock.calls.map((call) => new URL(String(call[1])));
+
+        expect(page.state.rate).toBe('Hour');
+        expect(asked.map((url) => url.searchParams.get('Stream'))).toEqual(STREAMS);
+        expect(asked.every((url) => url.searchParams.get('Interval') === 'hour')).toBe(true);
+        STREAMS.forEach((stream) => {
+            expect(page.state[`stream_rate_${stream}`]).toBe('hour');
+            expect(page.state[`promise_get_data_${stream}`]).toBe(false);
+        });
     });
 
-    it('asks again from the refresh icon', () => {
+    it('clear every row before its new report arrives', () => {
         const { page } = setup();
-        getData.mockClear();
+
+        reply(page, {}, answer('bls', 'bls', [1, 2]), ['bls', 'day']);
+        expect(page.state.chart_data_bls.length).toBeGreaterThan(0);
 
         act(() => {
-            fireEvent.click(document.querySelector('.area-chart-parent .refresh, .area-chart-parent .refresh-disabled'));
+            fireEvent.click(screen.getByRole('button', { name: 'Month' }));
         });
 
-        expect(getData).toHaveBeenCalledTimes(1);
-        expect(lastUrl().searchParams.get('Stream')).toBe(page.state.selected_stream);
+        expect(page.state.chart_data_bls).toEqual([]);
     });
 
-    it('asks for a stream whose chart button is chosen in the listing', () => {
-        const { page } = setup();
-        getData.mockClear();
-
-        act(() => {
-            fireEvent.click(screen.getByRole('button', { name: 'Chart Bureau of Labor Statistics' }));
-        });
-
-        expect(page.state.selected_stream).toBe('bls');
-        expect(lastUrl().searchParams.get('Stream')).toBe('bls');
-    });
-
-    it('hides the chart, and its api icons with it, from the Ingest Rate switch', () => {
+    it('ask nothing again for the rate already on screen', () => {
         setup();
-        const switched = within(document.querySelector('.checkbox-vertical-default')).getByRole('checkbox', { name: 'Ingest Rate' });
+        getData.mockClear();
 
         act(() => {
-            fireEvent.click(switched);
+            fireEvent.click(screen.getByRole('button', { name: 'Day' }));
         });
 
-        expect(document.querySelector('.area-chart-parent')).toBeNull();
-        expect(document.querySelector('.api-links')).toBeNull();
-
-        act(() => {
-            fireEvent.click(switched);
-        });
-
-        expect(document.querySelector('.api-links')).not.toBeNull();
-    });
-});
-
-describe('the mobile filter', () => {
-    it('hides the page while the filter is edited, and restores it when applied', () => {
-        const { page } = setup();
-
-        act(() => {
-            fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
-        });
-
-        expect(page.state.hide_all).toBe(true);
-        expect(screen.getByText('Edit Content Filter')).toBeInTheDocument();
-
-        act(() => {
-            fireEvent.click(screen.getByRole('button', { name: 'Apply Filter' }));
-        });
-
-        expect(page.state.hide_all).toBe(false);
-    });
-
-    it('restores the page when the filter is dismissed', () => {
-        const { page } = setup();
-
-        act(() => {
-            fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
-        });
-        act(() => {
-            fireEvent.click(document.querySelector('.exit'));
-        });
-
-        expect(page.state.hide_all).toBe(false);
-        expect(page.state.display_filter_button).toBe(true);
-    });
-});
-
-describe('resizing', () => {
-    const width = window.innerWidth;
-
-    afterEach(() => {
-        window.innerWidth = width;
-    });
-
-    it('sizes the chart from the viewport\'s width', () => {
-        //
-        // chart-height.js takes the height as a share of the width, clamped, so a wider
-        // window draws a taller chart: 1400px wide is 392px tall.
-        //
-        const { page } = setup();
-        window.innerWidth = 1400;
-
-        act(() => {
-            window.dispatchEvent(new Event('resize'));
-        });
-
-        expect(page.state.chart_height).toBe(392);
-    });
-
-    it('leaves the height alone when the width does not move it', () => {
-        const { page } = setup();
-        const before = page.state.chart_height;
-        const render = jest.spyOn(page, 'setState');
-
-        act(() => {
-            window.dispatchEvent(new Event('resize'));
-        });
-
-        expect(page.state.chart_height).toBe(before);
-        expect(render).not.toHaveBeenCalled();
-        render.mockRestore();
+        expect(getData).not.toHaveBeenCalled();
     });
 });
