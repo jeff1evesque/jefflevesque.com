@@ -74,6 +74,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import GraphExplorer from '../../animation/graph-explorer.jsx';
 import { API_DOCS } from '../../general/api-url.js';
@@ -251,6 +252,9 @@ function detailsRow(row) {
 // Note: the note DESCRIBES the name rather than replacing it, so the name is
 //       still read as 'stock-split' and the note after it.
 //
+// Note: a small info icon follows the name, so a reader knows there is a note to
+//       find. It is hidden from screen readers, which read the note itself.
+//
 // Note: the name can take focus, so the note shows from the keyboard too, and a
 //       tap shows it at once. By default a touch has to be held for most of a
 //       second.
@@ -276,6 +280,7 @@ function detailValue(row, choice, whole) {
                     <Tooltip title={row.noted.note} describeChild enterTouchDelay={0}>
                         <span className='graph-details-noted' tabIndex={0}>
                             {name}
+                            <InfoOutlinedIcon fontSize='inherit' />
                         </span>
                     </Tooltip>
                 )
