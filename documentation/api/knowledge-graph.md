@@ -266,12 +266,12 @@ day's `sources` by its name, as its
 records. `stock-split` is one: the day's stock splits, in the
 [`splits/`](https://jeff1evesque.github.io/pyg-knowledge-graph-builder/reference/tables/#splits)
 table. No node or edge comes from such a feed, so the canvas, the legend and the tables do
-not show it, and the api has no path for its table. Sources draws its name as a link to
-this paragraph, underlined with dots, with a tooltip saying it is not in the graph. A node
+not show it, and the api has no path for its table. Sources underlines its name with dots,
+with a tooltip saying it is not in the graph. A node
 type comes from a source when the first part of its namespace is the source's name —
 `bls` for `bls/jolts`, `market` for `market/quotes` — and every type the day holds is
 asked, not only the sixty drawn: none of `market`'s types is drawn, and every one of them
-is in the tables. A day whose `sources` is `null` links none, since its list is read off
+is in the tables. A day whose `sources` is `null` notes none, since its list is read off
 its node types.
 {: #sources-outside-the-graph }
 
