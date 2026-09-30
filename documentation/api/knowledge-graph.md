@@ -170,7 +170,7 @@ answer — it was asked and nothing matched.
 
 | Path | Takes | Answers |
 |---|---|---|
-| `tables/days` | nothing | every published day, newest first, with the `run` that published it and when it was `published`: the days the rest may name |
+| `tables/days` | nothing | every published day, newest first, with the `run` that published it, when it was `published`, and the `sources` its tables hold: the days the rest may name |
 | `tables/node-types` | `Day` | one row per node type that day: its `count` of nodes, its `entities` — the nodes that carry text, and so can be found by name — and its `facts`, the values held about them |
 | `tables/edge-types` | optionally `Day` | the relation catalog: which links exist between which node types, how many of each, and whether each came from a source or was derived |
 | `tables/find` | `Text`, optionally `Day` | entities whose text matches, as a case-insensitive substring |
@@ -185,6 +185,12 @@ names the run of 2026-09-25 at 05:00 UTC, whose build the Training Graph names b
 2026-09-24. `published` is when the day finished publishing, which is when it became
 readable, not when its tables were written: nothing records that. Either is `null` for a
 day that does not say.
+
+**A day says which sources its tables hold.** `sources` is the list the builder records
+as it publishes a day: every source its run read, and each feed it reads into a table of
+its own, such as `stock-split` for the day's stock splits. It is a list of names, sorted,
+and it is `null` for a day published before the builder recorded it. A day is never
+published again, so neither `sources` nor `run` nor `published` ever changes.
 
 **`Limit`** is taken by every path but `days`, which takes nothing at all. It is 100
 when left out and 1000 at most, and a larger one is refused with a `400` rather than
@@ -244,7 +250,9 @@ those days' types under `jolts`. Their `market_quotes` types are named `market-q
 the one flat vocabulary their builds' uris name, where a later day's are `market/quotes`.
 
 Its Day details carry **Sources** directly under Published, where `/graph`'s Build details
-carry theirs under Built: the sources the day's vocabularies are filed under,
+carry theirs under Built: the day's `sources` from `days`, so a source the builder adds
+to the tables, or stops reading, comes and goes with no change to the page. A day whose
+`sources` is `null` lists the sources the day's vocabularies are filed under instead,
 `bls, market, noaa, sec` on every day from 2026-09-21, which is what the run that
 published each one read. `/graph`'s Sources row for the build of the same run says
 `bls, market, sec`, because the build leaves out the four `noaa` node types, and the
