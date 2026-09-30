@@ -52,7 +52,7 @@ jest.mock('../../../import/worker/web-worker.js', () => ({
 }));
 
 import getData from '../../../import/general/get-data.js';
-import StreamLayout from '../../../import/layout/stream/stream.jsx';
+import StreamLayout, { SLOW_AFTER_MS } from '../../../import/layout/stream/stream.jsx';
 import THROUGHPUT_KEY from '../../../import/general/throughput-key.js';
 import { STREAMS } from '../../../import/general/stream-id.js';
 
@@ -61,7 +61,7 @@ const DAY = 24 * 60 * 60 * 1000;
 function setup() {
     const held = React.createRef();
 
-    render(
+    const { unmount } = render(
         <MemoryRouter>
             <StreamLayout ref={held} />
         </MemoryRouter>
@@ -70,7 +70,30 @@ function setup() {
     const page = held.current;
     const scaled = jest.spyOn(page, 'toggleChartScale').mockImplementation((stream, rate, data) => data);
 
-    return { page, scaled };
+    return { page, scaled, unmount };
+}
+
+//
+// what `stream`'s row says over its bars, or null when it says nothing
+//
+function rowStatus(stream) {
+    const line = document.querySelector(`.stream-row[data-stream="${stream}"] .stream-row-status`);
+
+    return line ? line.textContent : null;
+}
+
+//
+// fail the request the page last made for `stream`, as get-data.js reports it
+//
+function failRequest(stream) {
+    const calls = getData.mock.calls.filter((call) => call[5] === stream);
+    const failed = calls[calls.length - 1][6];
+
+    act(() => {
+        failed(new Error('offline'));
+    });
+
+    return failed;
 }
 
 //
@@ -99,8 +122,8 @@ function answer(stream, source, days) {
 }
 
 //
-// hand `item` to the page, as the reply to what `asked` names -- a stream and a
-// rate, or nothing -- and deliver `data` as its worker's reply
+// hand `item` to the page, as the reply to what `asked` names -- a stream and the
+// request it answers, or nothing -- and deliver `data` as its worker's reply
 //
 function reply(page, item, data, asked = []) {
     act(() => {
@@ -233,36 +256,245 @@ describe('a report with nothing in it', () => {
         //
         const { page } = setup();
 
-        reply(page, {}, EMPTY, ['bls', 'day']);
+        reply(page, {}, EMPTY, ['bls', page.asked.bls]);
 
         expect(page.state.promise_get_data_bls).toBe(true);
         expect(page.state.chart_data_bls).toEqual([]);
     });
 });
 
-describe('a reply to a rate the reader has moved on from', () => {
+describe('a reply to a request since replaced', () => {
+    //
+    // a rate change, or a retry, clears the row and asks again. A reply to the
+    // request it replaced, arriving after that, would otherwise land on the rows
+    // of the new one.
+    //
     it('is dropped before it reaches a worker', () => {
-        //
-        // a rate change clears every row and asks again. A reply to the old rate
-        // arriving after that would otherwise land on the new rate's rows.
-        //
         const { page } = setup();
+        const replaced = page.asked.bls;
+
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Hour' }));
+        });
         const before = mockWorkers.length;
 
         act(() => {
-            page.callbackGetData({}, 'bls', 'hour');
+            page.callbackGetData({}, 'bls', replaced);
+        });
+
+        expect(mockWorkers).toHaveLength(before);
+    });
+
+    it('is dropped even at the same rate, after the rate was changed and changed back', () => {
+        //
+        // the rate alone cannot tell the first Day request from the second
+        //
+        const { page } = setup();
+        const first = page.asked.bls;
+
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Hour' }));
+        });
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Day' }));
+        });
+        const before = mockWorkers.length;
+
+        act(() => {
+            page.callbackGetData({}, 'bls', first);
         });
 
         expect(page.state.stream_rate_bls).toBe('day');
         expect(mockWorkers).toHaveLength(before);
     });
 
-    it('is kept when it answers the rate on screen', () => {
+    it('is dropped when the request is replaced while its worker runs', () => {
         const { page } = setup();
 
-        reply(page, {}, answer('bls', 'bls', [1, 2]), ['bls', 'day']);
+        act(() => {
+            page.callbackGetData({}, 'bls', page.asked.bls);
+        });
+        const worker = mockWorkers[mockWorkers.length - 1];
+
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Hour' }));
+        });
+        act(() => {
+            worker.onmessage({ data: answer('bls', 'bls', [1, 2]) });
+        });
+
+        expect(page.state.chart_data_bls).toEqual([]);
+        expect(page.state.promise_get_data_bls).toBe(false);
+    });
+
+    it('is kept when it answers the request the row is waiting on', () => {
+        const { page } = setup();
+
+        reply(page, {}, answer('bls', 'bls', [1, 2]), ['bls', page.asked.bls]);
 
         expect(page.state.promise_get_data_bls).toBe(true);
+    });
+
+    it('is dropped once the page has gone', () => {
+        const { page, unmount } = setup();
+        const asked = page.asked.bls;
+
+        unmount();
+        const before = mockWorkers.length;
+
+        page.callbackGetData({}, 'bls', asked);
+
+        expect(mockWorkers).toHaveLength(before);
+    });
+});
+
+describe('a stream slow to answer', () => {
+    //
+    // the S&P 500's report can take a while when the api has not cached it. A
+    // slow stream is not a failed one: its row says it is still loading, and
+    // keeps waiting.
+    //
+    beforeEach(() => {
+        jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    it('says it is still loading once it has taken ten seconds, and keeps waiting', () => {
+        const { page } = setup();
+
+        act(() => {
+            jest.advanceTimersByTime(SLOW_AFTER_MS - 1);
+        });
+
+        expect(rowStatus('stock-market')).toBe('Loading');
+
+        act(() => {
+            jest.advanceTimersByTime(1);
+        });
+
+        expect(rowStatus('stock-market')).toBe('Still loading. This stream can take a while.');
+        expect(page.state['failed_stock-market']).toBe(false);
+    });
+
+    it('says nothing once its report lands, however late', () => {
+        const { page } = setup();
+
+        act(() => {
+            jest.advanceTimersByTime(SLOW_AFTER_MS);
+        });
+        reply(page, {}, answer('stock-market', 'options', [1]), ['stock-market', page.asked['stock-market']]);
+
+        expect(rowStatus('stock-market')).toBeNull();
+        expect(page.state['slow_stock-market']).toBe(false);
+    });
+
+    it('is never called slow when its report lands in time', () => {
+        const { page } = setup();
+
+        reply(page, {}, answer('bls', 'bls', [1]), ['bls', page.asked.bls]);
+        act(() => {
+            jest.advanceTimersByTime(SLOW_AFTER_MS);
+        });
+
+        expect(page.state.slow_bls).toBe(false);
+        expect(rowStatus('bls')).toBeNull();
+    });
+
+    it('counts again from a new request', () => {
+        setup();
+
+        act(() => {
+            jest.advanceTimersByTime(SLOW_AFTER_MS - 1000);
+        });
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Hour' }));
+        });
+        act(() => {
+            jest.advanceTimersByTime(SLOW_AFTER_MS - 1000);
+        });
+
+        expect(rowStatus('bls')).toBe('Loading');
+
+        act(() => {
+            jest.advanceTimersByTime(1000);
+        });
+
+        expect(rowStatus('bls')).toBe('Still loading. This stream can take a while.');
+    });
+});
+
+describe('a stream whose request fails', () => {
+    it('says it could not load, and stops its spinner', () => {
+        const { page } = setup();
+
+        failRequest('bls');
+
+        expect(page.state.failed_bls).toBe(true);
+        expect(rowStatus('bls')).toBe('Could not load this stream.Retry');
+        expect(document.querySelector('.stream-row[data-stream="bls"] .stream-row-spinner')).toBeNull();
+    });
+
+    it('leaves every other row loading', () => {
+        setup();
+
+        failRequest('bls');
+
+        expect(rowStatus('sec')).toBe('Loading');
+        expect(rowStatus('stock-market')).toBe('Loading');
+    });
+
+    it('asks again from its Retry button, and loads as before', () => {
+        const { page } = setup();
+
+        failRequest('bls');
+        getData.mockClear();
+
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Retry Bureau of Labor Statistics' }));
+        });
+
+        expect(getData).toHaveBeenCalledTimes(1);
+        expect(getData.mock.calls[0][5]).toBe('bls');
+        expect(new URL(String(getData.mock.calls[0][1])).searchParams.get('Interval')).toBe('day');
+        expect(page.state.failed_bls).toBe(false);
+        expect(rowStatus('bls')).toBe('Loading');
+    });
+
+    it('is not said for a request since replaced', () => {
+        const { page } = setup();
+        const calls = getData.mock.calls.filter((call) => call[5] === 'bls');
+        const replaced = calls[calls.length - 1][6];
+
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Hour' }));
+        });
+        act(() => {
+            replaced(new Error('offline'));
+        });
+
+        expect(page.state.failed_bls).toBe(false);
+        expect(rowStatus('bls')).toBe('Loading');
+    });
+
+    it('stops the row being called slow', () => {
+        jest.useFakeTimers();
+
+        try {
+            const { page } = setup();
+
+            failRequest('bls');
+            act(() => {
+                jest.advanceTimersByTime(SLOW_AFTER_MS);
+            });
+
+            expect(page.state.slow_bls).toBe(false);
+            expect(rowStatus('bls')).toBe('Could not load this stream.Retry');
+        } finally {
+            jest.useRealTimers();
+        }
     });
 });
 
@@ -280,7 +512,7 @@ describe('the stream an address names', () => {
 
         const { page } = setup();
 
-        reply(page, {}, answer('sec', 'sec', [1]), ['sec', 'day']);
+        reply(page, {}, answer('sec', 'sec', [1]), ['sec', page.asked.sec]);
 
         expect(page.state.current_stream).toBe('bls');
     });
@@ -321,7 +553,7 @@ describe('the Rate buttons', () => {
     it('clear every row before its new report arrives', () => {
         const { page } = setup();
 
-        reply(page, {}, answer('bls', 'bls', [1, 2]), ['bls', 'day']);
+        reply(page, {}, answer('bls', 'bls', [1, 2]), ['bls', page.asked.bls]);
         expect(page.state.chart_data_bls.length).toBeGreaterThan(0);
 
         act(() => {
@@ -329,6 +561,22 @@ describe('the Rate buttons', () => {
         });
 
         expect(page.state.chart_data_bls).toEqual([]);
+    });
+
+    it('put every row\'s figures back to n/a until its new report is in', () => {
+        const { page } = setup();
+
+        act(() => {
+            page.setState({ stream_bls_health: '99.50', stream_bls_coverage: '80.00', stream_bls_total: 1234 });
+        });
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Hour' }));
+        });
+
+        const cells = [...document.querySelectorAll('.stream-row[data-stream="bls"] .stream-row-figure')]
+            .map((cell) => cell.textContent);
+
+        expect(cells).toEqual(['n/a', 'n/a', 'n/a']);
     });
 
     it('ask nothing again for the rate already on screen', () => {
