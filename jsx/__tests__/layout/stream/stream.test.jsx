@@ -11,10 +11,9 @@
  * through it rather than rendering raw ids like 'stock-split'. The two
  * are otherwise free to drift.
  *
- * Note: no network is mocked here. setup.js provides a fetch that resolves to a
- *       not-ok response, and every loader in this codebase logs and carries on, so
- *       this is the genuine "before any data arrives" state rather than a
- *       contrived one.
+ * Note: get-data.js is mocked, and by default never answers, which is the
+ *       genuine "before any data arrives" state. The cases about failure put the
+ *       real one back, and meet setup.js's fetch, which answers not-ok.
  *
  * Note: the component is not redux-connected -- redux/container/stream/stream.jsx
  *       wraps it -- so it renders standalone with no Provider.
@@ -30,11 +29,17 @@ jest.mock('../../../import/general/account-api.js', () => ({
     listSubscriptions: jest.fn(),
 }));
 
+jest.mock('../../../import/general/get-data.js', () => ({
+    __esModule: true,
+    default: jest.fn(),
+}));
+
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { listSubscriptions } from '../../../import/general/account-api.js';
+import getData from '../../../import/general/get-data.js';
 import { STREAMS } from '../../../import/general/stream-id.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
 
@@ -65,8 +70,11 @@ function pressedRate() {
     return document.querySelector('.stream-rate[aria-pressed="true"]').textContent;
 }
 
+const { default: realGetData } = jest.requireActual('../../../import/general/get-data.js');
+
 beforeEach(() => {
     window.history.replaceState({}, '', '/');
+    getData.mockReset();
 });
 
 afterAll(() => {
@@ -159,7 +167,10 @@ describe('each row before data arrives', () => {
     it('marks every row loading until its report arrives', () => {
         setup();
 
-        expect(document.querySelectorAll('.stream-row-loader')).toHaveLength(5);
+        const lines = [...document.querySelectorAll('.stream-row-status')].map((line) => line.textContent);
+
+        expect(lines).toEqual(['Loading', 'Loading', 'Loading', 'Loading', 'Loading']);
+        expect(document.querySelectorAll('.stream-row-spinner')).toHaveLength(5);
     });
 });
 
@@ -370,29 +381,41 @@ describe('resilience', () => {
     it('mounts with no props at all', () => {
         //
         // the redux container supplies its props; a missing one must not stop the
-        // listing rendering, since the shell is useful before any data loads.
+        // rows rendering, since the shell is useful before any data loads.
         //
         expect(() => setup()).not.toThrow();
     });
 
-    it('mounts when every request fails', () => {
+    it('says every row could not load when every request fails, and keeps the page', async () => {
         //
-        // the default fetch in setup.js resolves not-ok, so this is the state after
-        // a total api outage: the listing still renders, with n/a throughout.
+        // the real loader, against setup.js's fetch, which answers not-ok: the state
+        // after a total api outage. Each row says so, and offers to ask again.
         //
+        getData.mockImplementation(realGetData);
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+
         setup();
 
+        expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(5);
+        expect(screen.getAllByRole('button', { name: /^Retry / })).toHaveLength(5);
         expect(screen.getByText('S&P 500')).toBeInTheDocument();
-        expect(screen.getAllByText('n/a').length).toBeGreaterThan(0);
+
+        quiet.mockRestore();
     });
 
-    it('survives an outright network rejection', async () => {
+    it('says the same when the network rejects outright', async () => {
         const original = global.fetch;
         global.fetch = () => Promise.reject(new Error('offline'));
+        getData.mockImplementation(realGetData);
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
 
-        expect(() => setup()).not.toThrow();
-        expect(screen.getByText('S&P 500')).toBeInTheDocument();
+        try {
+            setup();
 
-        global.fetch = original;
+            expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(5);
+        } finally {
+            global.fetch = original;
+            quiet.mockRestore();
+        }
     });
 });
