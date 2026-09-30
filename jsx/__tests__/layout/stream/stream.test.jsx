@@ -1,10 +1,10 @@
 /**
- * stream.test.jsx: the stream listing layout.
+ * stream.test.jsx: /stream, every stream as a row of bars.
  *
- * 1461 lines and 37 imports, so this does not attempt line coverage. What it
- * covers is the contract a visitor actually sees: which streams are listed, under
- * which labels, what each row shows before any data has arrived, and which rate
- * options are offered.
+ * This does not attempt line coverage. What it covers is the contract a visitor
+ * actually sees: which streams have rows, under which labels, what each row shows
+ * before any data has arrived, which rates are offered, and the icons over the
+ * rows. The bars themselves are stream-bars.test.js's and stream-rows.test.jsx's.
  *
  * The labels are the valuable part. They come from stream-name.js, which is unit
  * tested separately -- this is what proves the component actually routes its ids
@@ -35,11 +35,8 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { listSubscriptions } from '../../../import/general/account-api.js';
-import { KEY, VERSION } from '../../../import/general/listing-preference.js';
 import { STREAMS } from '../../../import/general/stream-id.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
-import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
-import { colors, colors_dark, toRGB } from '../../../import/general/colors.js';
 
 function setup(props = {}) {
     return render(
@@ -54,55 +51,46 @@ function bodyText() {
 }
 
 //
-// Wednesday 2026-03-18, after daylight time begins, so both instants below are EDT
-// and the eastern hour the constructor reads is UTC-4. A fixed weekday matters as
-// much as a fixed hour: the market-hours test also gates on the day.
+// the rows' names, top to bottom
 //
-const DURING_THE_SESSION = '2026-03-18T15:00:00Z';   // 11:00 EDT
-const AFTER_THE_BELL = '2026-03-18T21:00:00Z';       // 17:00 EDT
-
-//
-// everything jest can fake EXCEPT Date. The component reads the wall clock in its
-// constructor, so that is the only thing worth pinning -- faking the timers as well
-// would stall react-spinners and MUI's transitions, which is a different test.
-//
-const TIMERS_LEFT_REAL = [
-    'hrtime',
-    'nextTick',
-    'performance',
-    'queueMicrotask',
-    'requestAnimationFrame',
-    'cancelAnimationFrame',
-    'requestIdleCallback',
-    'cancelIdleCallback',
-    'setImmediate',
-    'clearImmediate',
-    'setInterval',
-    'clearInterval',
-    'setTimeout',
-    'clearTimeout',
-];
-
-//
-// Note: the clock is restored before the assertions run. Only the constructor reads
-//       it, and leaving it faked would carry into RTL's own cleanup.
-//
-function setupAt(iso, props = {}) {
-    jest.useFakeTimers({ doNotFake: TIMERS_LEFT_REAL, now: new Date(iso) });
-
-    try {
-        return setup(props);
-    } finally {
-        jest.useRealTimers();
-    }
+function rowNames() {
+    return [...document.querySelectorAll('.stream-row .stream-row-title')]
+        .map((title) => title.firstChild.textContent);
 }
 
-describe('the stream listing', () => {
-    it('lists all five streams', () => {
+//
+// the rate button pressed
+//
+function pressedRate() {
+    return document.querySelector('.stream-rate[aria-pressed="true"]').textContent;
+}
+
+beforeEach(() => {
+    window.history.replaceState({}, '', '/');
+});
+
+afterAll(() => {
+    window.history.replaceState({}, '', '/');
+});
+
+describe('the stream rows', () => {
+    it('gives every stream a row, in the order stream-id.js lists them', () => {
         setup();
 
         expect(bodyText()).toContain('Streams');
-        expect(screen.getByText('5')).toBeInTheDocument();
+        expect(rowNames()).toEqual([
+            'S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'US Weather Alerts',
+        ]);
+    });
+
+    it('says how often each stream runs, from its schedule', () => {
+        setup();
+
+        const schedules = [...document.querySelectorAll('.stream-row-schedule')].map((cell) => cell.textContent);
+
+        expect(schedules).toEqual([
+            'weekdays, every 20 min', 'weekdays, once a day', 'once a day', 'weekdays, every 5 min', 'daily, every 5 min',
+        ]);
     });
 
     it('renders each stream under its display label, not its id', () => {
@@ -143,14 +131,12 @@ describe('the stream listing', () => {
 });
 
 describe('each row before data arrives', () => {
-    it('shows a health, coverage, rate and total for every stream', () => {
+    it('heads the rows with health, coverage and total records, once each', () => {
         setup();
 
-        const text = bodyText();
-        expect(text).toContain('Health');
-        expect(text).toContain('Coverage');
-        expect(text).toContain('Rate');
-        expect(text).toContain('Total Records');
+        const headings = [...document.querySelectorAll('.stream-rows-sort')].map((button) => button.firstChild.textContent);
+
+        expect(headings).toEqual(['Health', 'Coverage', 'Total Records']);
     });
 
     it('shows n/a rather than a zero or a blank', () => {
@@ -161,42 +147,24 @@ describe('each row before data arrives', () => {
         //
         setup();
 
-        expect(screen.getAllByText('n/a').length).toBeGreaterThanOrEqual(5);
-        expect(bodyText()).not.toContain('0%');
+        const figures = [...document.querySelectorAll('.stream-row-figure')].map((cell) => cell.textContent);
+
+        expect(figures).toHaveLength(15);
+        expect(figures.every((figure) => figure === 'n/a')).toBe(true);
+        document.querySelectorAll('.stream-row').forEach((row) => {
+            expect(row.textContent).not.toContain('0%');
+        });
     });
 
-    it('defaults every stream to the daily rate outside market hours', () => {
-        //
-        // daily is the rate the page has always drawn, and the one every stream
-        // supports -- minute coverage is only gradeable for stock-market.
-        //
-        setupAt(AFTER_THE_BELL);
+    it('marks every row loading until its report arrives', () => {
+        setup();
 
-        expect(screen.getAllByText('Day')).toHaveLength(5);
-        expect(screen.queryByText('Minute')).toBeNull();
-    });
-
-    it('opens the S&P 500 at the minute rate while the market is open', () => {
-        //
-        // the other half of the same rule, and the reason this pair needs a pinned
-        // clock. stream.jsx:234 reads the eastern wall clock in its constructor and
-        // gives stock-market the minute rate between 09:30 and 16:00 on a weekday, so
-        // whichever regime is asserted, the assertion is only true for part of the day.
-        //
-        // This previously read 'defaults every stream to the daily rate' against the
-        // real clock and expected five 'Day' labels. It passed overnight and at
-        // weekends, and failed every weekday afternoon -- the suite was green or red
-        // depending on when it ran, which is worse than either answer.
-        //
-        setupAt(DURING_THE_SESSION);
-
-        expect(screen.getAllByText('Day')).toHaveLength(4);
-        expect(screen.getAllByText('Minute')).toHaveLength(1);
+        expect(document.querySelectorAll('.stream-row-loader')).toHaveLength(5);
     });
 });
 
-describe('the rate selector', () => {
-    it('offers exactly the rates the chart has windows for', () => {
+describe('the rate', () => {
+    it('offers exactly the rates the window has sizes for, coarsest first', () => {
         //
         // these mirror ROLLING_WINDOW in rolling-window.js, which carries minute,
         // hour, day and month -- and deliberately no per-second rate, since ingest
@@ -204,17 +172,53 @@ describe('the rate selector', () => {
         //
         setup();
 
-        const text = bodyText();
-        expect(text).toContain('Monthly');
-        expect(text).toContain('Daily');
-        expect(text).toContain('Hourly');
-        expect(text).toContain('Minutes');
+        const rates = [...document.querySelectorAll('.stream-rate')].map((button) => button.textContent);
+
+        expect(rates).toEqual(['Month', 'Day', 'Hour', 'Minute']);
     });
 
-    it('offers no per-second rate', () => {
+    it('opens by the day', () => {
         setup();
 
-        expect(bodyText()).not.toContain('Seconds');
+        expect(pressedRate()).toBe('Day');
+        expect(bodyText()).toContain('Last 20 Days, one bar per day');
+    });
+
+    it('opens at the rate an address names', () => {
+        window.history.replaceState({}, '', '/?rate=hour');
+        setup();
+
+        expect(pressedRate()).toBe('Hour');
+    });
+
+    it('opens by the day when the address names no rate it offers', () => {
+        window.history.replaceState({}, '', '/?rate=second');
+        setup();
+
+        expect(pressedRate()).toBe('Day');
+    });
+
+    it('redraws every row at a rate chosen', () => {
+        setup();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Hour' }));
+
+        expect(pressedRate()).toBe('Hour');
+        expect(bodyText()).toContain('Last 24 Hours, one bar per hour');
+        expect(document.querySelectorAll('.stream-row')[0].querySelectorAll('.stream-bar-slot')).toHaveLength(24);
+    });
+
+    it('draws a bar per interval of the window at each rate', () => {
+        [['Month', 12], ['Day', 20], ['Hour', 24], ['Minute', 60]].forEach(([rate, bars]) => {
+            window.history.replaceState({}, '', `/?rate=${rate.toLowerCase()}`);
+            const { unmount } = setup();
+
+            document.querySelectorAll('.stream-row').forEach((row) => {
+                expect(row.querySelectorAll('.stream-bar-slot')).toHaveLength(bars);
+            });
+
+            unmount();
+        });
     });
 });
 
@@ -299,144 +303,66 @@ describe('each row\'s bell', () => {
     });
 });
 
-describe('the listing as a table', () => {
-    it('names each figure once, in a column header', () => {
-        //
-        // the cards said every label again on every row; the table says each once
-        //
-        setup();
-
-        const headers = [...document.querySelectorAll('.listing-table thead th')]
-            .map((cell) => cell.textContent.trim());
-
-        expect(headers).toEqual(expect.arrayContaining(['Stream', 'Health', 'Coverage', 'Rate', 'Total Records']));
-        expect(screen.getAllByText('Total Records')).toHaveLength(1);
-    });
-
+describe('the controls on each row', () => {
     it('names every row\'s controls for the stream they act on', () => {
         setup();
 
-        expect(screen.getByRole('button', { name: 'Chart SEC Filings' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Triggers for S&P 500' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Alarms for SEC Filings' }))
             .toHaveAttribute('href', '/stream/sec/alarm');
     });
-});
 
-describe('opening on the stream last charted', () => {
-    //
-    // a chart click keeps its stream for the next visit, in localStorage, which
-    // lasts the whole of this file. Each case starts from an empty one, and from an
-    // address that names no stream.
-    //
-    beforeEach(() => {
-        window.localStorage.clear();
-        window.history.replaceState({}, '', '/');
-    });
-
-    afterAll(() => {
-        window.localStorage.clear();
-        window.history.replaceState({}, '', '/');
-    });
-
-    const keep = (stream) => window.localStorage.setItem(
-        KEY,
-        JSON.stringify({ v: VERSION, stream: { chart: stream } })
-    );
-    const kept = () => JSON.parse(window.localStorage.getItem(KEY)).stream.chart;
-    const charted = () => document.querySelector('.listing-table-selected th').textContent;
-    const rate = (label) => screen.getAllByLabelText(label)[0].checked;
-
-    it('opens on the S&P 500 when nothing is kept', () => {
+    it('has no chart button, since every stream is drawn at once', () => {
         setup();
 
-        expect(charted()).toBe('S&P 500');
+        expect(screen.queryByRole('button', { name: /^Chart / })).toBeNull();
     });
 
-    it('opens on the stream kept from the last visit', () => {
-        keep('sec');
-        setup();
-
-        expect(charted()).toBe('SEC Filings');
-    });
-
-    it('opens on the stream a link names, and leaves the kept one as it was', () => {
-        keep('sec');
+    it('marks the row of the stream an address names', () => {
         window.history.replaceState({}, '', '/?item=bls');
         setup();
 
-        expect(charted()).toBe('Bureau of Labor Statistics');
-        expect(kept()).toBe('sec');
-    });
-
-    it('opens on the S&P 500 when the kept stream is not one it lists', () => {
-        keep('retired-stream');
-        setup();
-
-        expect(charted()).toBe('S&P 500');
-    });
-
-    it('keeps the stream a click charts', () => {
-        setup();
-        fireEvent.click(screen.getByRole('button', { name: 'Chart SEC Filings' }));
-
-        expect(kept()).toBe('sec');
-    });
-
-    it('opens a kept stream by the day while the market is open', () => {
-        //
-        // only the S&P 500 moves to minutes during the session. A kept SEC opens by
-        // the day, as it does when it is chosen from the listing.
-        //
-        keep('sec');
-        setupAt(DURING_THE_SESSION);
-
-        expect(rate('Daily')).toBe(true);
-        expect(rate('Minutes')).toBe(false);
-    });
-
-    it('still opens the S&P 500 by the minute while the market is open', () => {
-        setupAt(DURING_THE_SESSION);
-
-        expect(rate('Minutes')).toBe(true);
-        expect(rate('Daily')).toBe(false);
-    });
-
-    it('lists the rows in the order kept, and keeps a new one', () => {
-        window.localStorage.setItem(KEY, JSON.stringify({
-            v: VERSION,
-            stream: { order: ['sec', 'bls'] },
-        }));
-        setup();
-
-        const names = () => [...document.querySelectorAll('.listing-table tbody th')]
-            .map((cell) => cell.textContent);
-
-        expect(names()).toEqual([
-            'SEC Filings', 'Bureau of Labor Statistics', 'S&P 500', 'Stock Splits', 'US Weather Alerts',
-        ]);
-
-        fireEvent.keyDown(screen.getByRole('button', { name: 'Move S&P 500' }), { key: 'ArrowUp' });
-
-        expect(names().slice(0, 3)).toEqual(['SEC Filings', 'S&P 500', 'Bureau of Labor Statistics']);
-        expect(JSON.parse(window.localStorage.getItem(KEY)).stream.order.slice(0, 3))
-            .toEqual(['sec', 'stock-market', 'bls']);
+        expect(document.querySelector('.stream-row-current').dataset.stream).toBe('bls');
     });
 });
 
-describe('the controls', () => {
-    it('offers a filter and a sort', () => {
+describe('the icons over the rows', () => {
+    it('link the performance docs', () => {
         setup();
 
-        const text = bodyText();
-        expect(text).toContain('Filter');
-        expect(text).toContain('Sort');
+        expect(screen.getByRole('link', { name: 'API docs' }).getAttribute('href')).toMatch(/performance/);
     });
 
-    it('renders interactive controls rather than static text', () => {
+    it('open a list of the requests, one per stream, at the rate on screen', async () => {
         setup();
 
-        expect(document.querySelectorAll('button').length).toBeGreaterThan(0);
+        fireEvent.click(screen.getByRole('button', { name: 'This request' }));
+
+        const items = await screen.findAllByRole('menuitem');
+
+        expect(items.map((item) => item.textContent)).toEqual([
+            'S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'US Weather Alerts',
+        ]);
+        items.forEach((item, index) => {
+            const url = new URL(item.getAttribute('href'));
+
+            expect(url.searchParams.get('Stream')).toBe(STREAMS[index]);
+            expect(url.searchParams.get('Interval')).toBe('day');
+            expect(item).toHaveAttribute('target', '_blank');
+        });
+    });
+
+    it('have no refresh button', () => {
+        setup();
+
+        expect(document.querySelector('.refresh, .refresh-disabled')).toBeNull();
+    });
+
+    it('draw no area chart and no listing table', () => {
+        setup();
+
+        expect(document.querySelector('.area-chart-parent')).toBeNull();
+        expect(document.querySelector('.listing-table')).toBeNull();
     });
 });
 
@@ -468,32 +394,5 @@ describe('resilience', () => {
         expect(screen.getByText('S&P 500')).toBeInTheDocument();
 
         global.fetch = original;
-    });
-});
-
-//
-// the loading chip over the chart: a patch of the page behind the dots, so they
-// hold their contrast whatever the chart is showing, and the dots in the site's
-// green. Both follow the page's theme -- a white chip on a dark page is a hole in
-// it, and the light green is nearly as dark as a dark page.
-//
-describe('the loading chip', () => {
-    it.each([
-        ['light', 'rgba(255, 255, 255, 0.92)', colors['green-6']],
-        ['dark', 'rgba(30, 30, 30, 0.92)', colors_dark['green-6']],
-    ])('is drawn in the %s page\'s own colors', (theme, chip, green) => {
-        render(
-            <ThemeModeContext.Provider value={{ theme: theme, toggle: () => {} }}>
-                <MemoryRouter>
-                    <StreamLayout />
-                </MemoryRouter>
-            </ThemeModeContext.Provider>
-        );
-
-        const patch = [...document.querySelectorAll('div')].find((div) => div.style.background === chip);
-
-        expect(patch).toBeDefined();
-        expect([...patch.querySelectorAll('span')].map((dot) => dot.style.backgroundColor))
-            .toContain(toRGB(green));
     });
 });
