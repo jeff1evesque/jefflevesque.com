@@ -1,15 +1,14 @@
 /**
- * stream-scale.test.jsx: the stream layout's chart aggregation.
+ * stream-scale.test.jsx: how /stream buckets a report into its rows' intervals.
  *
- * stream.test.jsx covers the listing before data arrives. The aggregation below it
+ * stream.test.jsx covers the rows before data arrives. The aggregation below them
  * is the part with actual arithmetic in it, and none of it is reachable through the
  * rendered page, because no report ever loads under jsdom:
  *
- *   - initializeChartScale, which maps a rate name onto the d3 format strings
- *   - toggleChartScale, which buckets rows by that rate and sums each series
- *   - updateMetrics, which totals the same rows into the listing's health figure
+ *   - toggleChartScale, which buckets rows by the rate and sums each series
+ *   - updateMetrics, which totals the same rows into a row's health figure
  *
- * All three are driven through a ref. They are ordinary methods called from the
+ * Both are driven through a ref. They are ordinary methods called from the
  * component's own handlers, and this is the only boundary they present.
  *
  * Note: the buckets are built from LOCAL date getters, so every assertion here
@@ -121,101 +120,6 @@ function scale(page, rate, rows) {
 
     return result;
 }
-
-describe('initializeChartScale', () => {
-    it.each([
-        ['monthly', 'scale_chart_monthly', '%m/%Y', 'Month'],
-        ['month', 'scale_chart_monthly', '%m/%Y', 'Month'],
-        ['daily', 'scale_chart_daily', '%m/%d', 'Day'],
-        ['day', 'scale_chart_daily', '%m/%d', 'Day'],
-        ['hourly', 'scale_chart_hourly', '%I%p', 'Hour'],
-        ['hour', 'scale_chart_hourly', '%I%p', 'Hour'],
-        ['minutes', 'scale_chart_minutes', '%I:%M%p', 'Minute'],
-        ['minute', 'scale_chart_minutes', '%I:%M%p', 'Minute'],
-    ])('%s sets its flag, tick format and rate label', (rate, flag, format, label) => {
-        //
-        // every rate is accepted under two spellings, because the control tray passes
-        // the adjective and the stored rate is the noun. Both have to land on the same
-        // branch or the chart formats its axis for a different scale than it aggregated.
-        //
-        const page = setup();
-
-        act(() => {
-            page.initializeChartScale(rate);
-        });
-
-        expect(page.state[flag]).toBe(true);
-        expect(page.state.x_ticker_format).toBe(format);
-        expect(page.state[`stream_rate_${page.state.selected_stream}`]).toBe(label);
-    });
-
-    it('sets exactly one scale flag at a time', () => {
-        //
-        // the four flags drive which control reads as active, so two true at once would
-        // light up two.
-        //
-        const page = setup();
-
-        act(() => {
-            page.initializeChartScale('hourly');
-        });
-
-        const flags = ['scale_chart_monthly', 'scale_chart_daily',
-            'scale_chart_hourly', 'scale_chart_minutes'];
-        expect(flags.filter(f => page.state[f] === true)).toEqual(['scale_chart_hourly']);
-    });
-
-    it('clears a previously set flag when the rate changes', () => {
-        const page = setup();
-
-        act(() => {
-            page.initializeChartScale('monthly');
-        });
-        act(() => {
-            page.initializeChartScale('daily');
-        });
-
-        expect(page.state.scale_chart_monthly).toBe(false);
-        expect(page.state.scale_chart_daily).toBe(true);
-    });
-
-    it('accepts an upper-case rate', () => {
-        const page = setup();
-
-        act(() => {
-            page.initializeChartScale('MONTHLY');
-        });
-
-        expect(page.state.scale_chart_monthly).toBe(true);
-    });
-
-    it('does nothing at all for an empty rate', () => {
-        const page = setup();
-        const before = page.state.x_ticker_format;
-
-        act(() => {
-            page.initializeChartScale('');
-        });
-
-        expect(page.state.x_ticker_format).toBe(before);
-    });
-
-    it('leaves the formats alone for an unrecognised rate', () => {
-        //
-        // the flags are all set to false but no format branch matches, so the axis
-        // keeps whatever it had. A silent no-op rather than a reset.
-        //
-        const page = setup();
-        const before = page.state.x_ticker_format;
-
-        act(() => {
-            page.initializeChartScale('fortnightly');
-        });
-
-        expect(page.state.scale_chart_monthly).toBe(false);
-        expect(page.state.x_ticker_format).toBe(before);
-    });
-});
 
 describe('toggleChartScale bucketing', () => {
     it('folds rows in the same month into one point', () => {
