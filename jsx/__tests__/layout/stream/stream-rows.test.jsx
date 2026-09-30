@@ -21,7 +21,8 @@ function stream(name, overrides = {}) {
         stream: name.toLowerCase().replace(/\s+/g, '-'),
         name: name,
         schedule: 'weekdays, once a day',
-        loading: false,
+        status: 'done',
+        retry: () => {},
         current: false,
         bars: [],
         figures: { health: 'n/a', coverage: 'n/a', total: 'n/a' },
@@ -76,18 +77,74 @@ describe('a row', () => {
             .toHaveTextContent('Health 99% · Coverage 95% · Records 1,234');
     });
 
-    it('shows a loader while its report is on the way', () => {
-        setup([stream('SEC Filings', { loading: true }), stream('BLS')]);
-
-        expect(rowOf('SEC Filings').querySelector('.stream-row-loader')).not.toBeNull();
-        expect(rowOf('BLS').querySelector('.stream-row-loader')).toBeNull();
-    });
 
     it('is marked when it is the stream the address names', () => {
         setup([stream('SEC Filings', { current: true }), stream('BLS')]);
 
         expect(rowOf('SEC Filings')).toHaveClass('stream-row-current');
         expect(rowOf('BLS')).not.toHaveClass('stream-row-current');
+    });
+});
+
+describe('a row whose report is not in', () => {
+    function status(name) {
+        const line = rowOf(name).querySelector('.stream-row-status');
+
+        return line ? line.textContent : null;
+    }
+
+    function spinner(name) {
+        return rowOf(name).querySelector('.stream-row-spinner');
+    }
+
+    it('says it is loading, with a spinner beside its name', () => {
+        setup([stream('SEC Filings', { status: 'loading' })]);
+
+        expect(status('SEC Filings')).toBe('Loading');
+        expect(spinner('SEC Filings')).toHaveAttribute('aria-label', 'Loading SEC Filings');
+        expect(within(rowOf('SEC Filings')).getByRole('status')).toBeInTheDocument();
+    });
+
+    it('says it is still loading once it has taken a while, and keeps its spinner', () => {
+        setup([stream('S&P 500', { status: 'slow' })]);
+
+        expect(status('S&P 500')).toBe('Still loading. This stream can take a while.');
+        expect(spinner('S&P 500')).not.toBeNull();
+    });
+
+    it('says it could not load, with no spinner, and a button that asks again', () => {
+        const retry = jest.fn();
+
+        setup([stream('SEC Filings', { status: 'failed', retry: retry })]);
+
+        expect(status('SEC Filings')).toBe('Could not load this stream.Retry');
+        expect(spinner('SEC Filings')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Retry SEC Filings' }));
+
+        expect(retry).toHaveBeenCalledTimes(1);
+    });
+
+    it('draws its bars under the line, since its schedule is known before its report', () => {
+        setup([stream('SEC Filings', { status: 'loading', bars: BARS })]);
+
+        expect(rowOf('SEC Filings').querySelectorAll('.stream-bar-slot')).toHaveLength(4);
+        expect(rowOf('SEC Filings').querySelector('.stream-row-bars-wrap')).toHaveClass('stream-row-bars-waiting');
+    });
+
+    it('says nothing, and shows no spinner, once its report is in', () => {
+        setup([stream('SEC Filings')]);
+
+        expect(status('SEC Filings')).toBeNull();
+        expect(spinner('SEC Filings')).toBeNull();
+        expect(rowOf('SEC Filings').querySelector('.stream-row-bars-wrap')).not.toHaveClass('stream-row-bars-waiting');
+    });
+
+    it('does not hold up a row whose report is in', () => {
+        setup([stream('S&P 500', { status: 'slow' }), stream('SEC Filings', { bars: BARS })]);
+
+        expect(status('SEC Filings')).toBeNull();
+        expect(rowOf('SEC Filings').querySelectorAll('.stream-bar-reported')).toHaveLength(2);
     });
 });
 
