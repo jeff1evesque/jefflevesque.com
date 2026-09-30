@@ -352,3 +352,26 @@ describe('the page\'s title', () => {
         expect(rem(header, 'gap')).toBe(rem(header, 'margin-bottom'));
     });
 });
+
+describe('the tables\' rows', () => {
+    const table = blocks(source, '.graph-tables').join('\n');
+    const [shaded] = blocks(table, 'tbody tr:nth-of-type(even)');
+    const [hover] = blocks(table, 'tbody .MuiTableRow-hover:hover');
+    const [between] = blocks(table, 'tbody tr:not(:last-child) > td');
+    const [cell] = blocks(table, '.MuiTableCell-root');
+    const alpha = (block) => Number(block.match(/rgba\(var\(--ink-rgb\),\s*([\d.]+)\)/)[1]);
+
+    it('shade every other row with the page\'s ink, fainter than the row under the pointer', () => {
+        expect(alpha(shaded)).toBeGreaterThan(0);
+        expect(alpha(hover)).toBeGreaterThan(alpha(shaded));
+    });
+
+    it('drop the line between rows by its color, not its width, so a row keeps its height', () => {
+        expect(between).toMatch(/border-bottom-color\s*:\s*transparent/);
+        expect(between).not.toMatch(/border(-bottom)?(-width)?\s*:\s*(0|none)/);
+    });
+
+    it('keep the line under the headings and the last row, in the page\'s rule gray', () => {
+        expect(cell).toMatch(/border-bottom-color\s*:\s*\$gray-2/);
+    });
+});
