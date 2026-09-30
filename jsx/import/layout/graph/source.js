@@ -56,7 +56,7 @@
 
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
 import { DAY, getTableDays, getTableDay, daysRequest, dayRequests } from '../../general/get-graph-tables.js';
-import { API_DOCS, knowledgeGraphUrl } from '../../general/api-url.js';
+import { knowledgeGraphUrl } from '../../general/api-url.js';
 import { typeSource, vocabulary } from '../../animation/encoding.js';
 
 const COMPACT = new Intl.NumberFormat('en-US', {
@@ -498,11 +498,10 @@ function outsideGraph(day, types) {
 // under its own Sources -- see DETAILS.
 //
 // `noted` marks the names in a row's list that carry a note, and says what the
-// note is and where the docs say more. Every row whose value is a list has one,
-// and Sources is the one such row: the names are the sources outside the graph,
-// which nothing else on the page shows, and each is drawn as a link to the docs'
-// paragraph on them, with the note in a tooltip over it. See outsideGraph, and
-// detailValue in graph.jsx.
+// note is. Every row whose value is a list has one, and Sources is the one such
+// row: the names are the sources outside the graph, which nothing else on the
+// page shows, and each carries the note in a tooltip over it. See outsideGraph,
+// and detailValue in graph.jsx.
 //
 // Note: 'Run' is the run that published the day, and it is the Run of the build
 //       the Training graph names by the same day: the two graphs of a day are
@@ -543,7 +542,6 @@ const DAY_DETAILS = [
         noted: {
             names: (day, whole) => outsideGraph(day, whole.node_types),
             note: 'Not in the graph: its data is kept in a table of its own.',
-            docs: `${API_DOCS.knowledgeGraph}#sources-outside-the-graph`,
         },
         schema: true,
         pending: '8.5rem',
