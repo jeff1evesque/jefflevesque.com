@@ -56,8 +56,8 @@
 
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
 import { DAY, getTableDays, getTableDay, daysRequest, dayRequests } from '../../general/get-graph-tables.js';
-import { knowledgeGraphUrl } from '../../general/api-url.js';
-import { typeSource } from '../../animation/encoding.js';
+import { API_DOCS, knowledgeGraphUrl } from '../../general/api-url.js';
+import { typeSource, vocabulary } from '../../animation/encoding.js';
 
 const COMPACT = new Intl.NumberFormat('en-US', {
     notation: 'compact',
@@ -419,8 +419,12 @@ function total(types, measure = 'count') {
  * each one read. The build of the same run says bls, market and sec, because it
  * leaves out the four node types of noaa, and the tables keep them.
  *
- * Note: '' for a day whose vocabularies name no source, which the panel prints as
- *       'n/a'. That is every day published before the builder filed its
+ * Note: a list, sorted, which the panel prints comma separated -- so the names in
+ *       it that carry a note can be drawn apart from the rest. See `noted` on
+ *       the Sources row below.
+ *
+ * Note: empty for a day whose vocabularies name no source, which the panel prints
+ *       as 'n/a'. That is every day published before the builder filed its
  *       vocabularies under their sources, 09-18 and earlier: 'ontology/jolts/'
  *       says nothing of bls. Read off such a day's type names instead, the list
  *       came out as market and sec, two of the day's four.
@@ -430,7 +434,41 @@ function daySources(day, types) {
         ? day.sources
         : Object.values(types).map((type) => typeSource(type)).filter(Boolean);
 
-    return [...new Set(named)].sort().join(', ');
+    return [...new Set(named)].sort();
+}
+
+/**
+ * the sources a day lists that none of its node types come from: a feed the
+ * builder reads into a table of its own, as it reads the split feed, and so one
+ * that nothing else on the page shows -- not the canvas, not the legend and not
+ * the tables below them.
+ *
+ * A node type comes from a source when the first part of its namespace, as the
+ * legend prints it, is the source's name: bls for 'bls/jolts', market for
+ * 'market/quotes'. Nothing here names a source, so a feed the builder reads the
+ * same way later is one of these with no change to the page, and one it stops
+ * reading is gone with it.
+ *
+ * Note: the namespace, and not typeSource. Where no predicate names a type's
+ *       vocabulary, as none names the market quotes', the namespace is read off
+ *       the type's own name, and typeSource says nothing -- so a day with no
+ *       market enrichment would have listed market here.
+ *
+ * Note: every node type the day holds is asked, not only the sixty the canvas
+ *       draws. None of market's is drawn, because none of them can be found by
+ *       name, and every one of them is in the tables.
+ *
+ * Note: none, for a day with no list of its own. Its Sources are read off its
+ *       node types, so every one of them has some -- see daySources.
+ */
+function outsideGraph(day, types) {
+    if (!Array.isArray(day.sources)) {
+        return [];
+    }
+
+    const inside = new Set(Object.keys(types).map((id) => vocabulary(types[id], id)[0]));
+
+    return day.sources.filter((name) => !inside.has(name));
 }
 
 //
@@ -458,6 +496,13 @@ function daySources(day, types) {
 // `ruled` draws a light rule under a row: under Sources, where the rows that
 // take a line each give way to the pairs, as the build panel is ruled and paired
 // under its own Sources -- see DETAILS.
+//
+// `noted` marks the names in a row's list that carry a note, and says what the
+// note is and where the docs say more. Every row whose value is a list has one,
+// and Sources is the one such row: the names are the sources outside the graph,
+// which nothing else on the page shows, and each is drawn as a link to the docs'
+// paragraph on them, with the note in a tooltip over it. See outsideGraph, and
+// detailValue in graph.jsx.
 //
 // Note: 'Run' is the run that published the day, and it is the Run of the build
 //       the Training graph names by the same day: the two graphs of a day are
@@ -495,6 +540,11 @@ const DAY_DETAILS = [
     {
         label: 'Sources',
         read: (day, whole) => whole && daySources(day, whole.node_types),
+        noted: {
+            names: (day, whole) => outsideGraph(day, whole.node_types),
+            note: 'Not in the graph: its data is kept in a table of its own.',
+            docs: `${API_DOCS.knowledgeGraph}#sources-outside-the-graph`,
+        },
         schema: true,
         pending: '8.5rem',
         ruled: true,
@@ -610,4 +660,4 @@ const DAYS = {
     },
 };
 
-export { BUILDS, DAYS, DETAILS, DAY_DETAILS, buildDay, pickerLabels, graphSources, when };
+export { BUILDS, DAYS, DETAILS, DAY_DETAILS, buildDay, outsideGraph, pickerLabels, graphSources, when };
