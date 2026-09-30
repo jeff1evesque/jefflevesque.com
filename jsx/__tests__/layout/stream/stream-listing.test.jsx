@@ -34,6 +34,15 @@ jest.mock('../../../import/general/account-api.js', () => ({
     listSubscriptions: jest.fn(() => Promise.resolve(null)),
 }));
 
+//
+// the page asks for every stream on mount. Nothing here is about the request,
+// which stream-download.test.jsx holds, so it is left unanswered.
+//
+jest.mock('../../../import/general/get-data.js', () => ({
+    __esModule: true,
+    default: jest.fn(),
+}));
+
 import React from 'react';
 import { render, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
