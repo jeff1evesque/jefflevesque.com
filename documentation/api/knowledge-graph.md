@@ -259,6 +259,22 @@ published each one read. `/graph`'s Sources row for the build of the same run sa
 tables keep them. A day before 2026-09-21 files no vocabulary under a source, and its
 Sources row reads `n/a`.
 
+**A source none of a day's node types come from is outside the graph.** The builder reads
+some feeds into a table of their own rather than into the graph, and lists each in the
+day's `sources` by its name, as its
+[day marker](https://jeff1evesque.github.io/pyg-knowledge-graph-builder/reference/tables/#the-day-marker)
+records. `stock-split` is one: the day's stock splits, in the
+[`splits/`](https://jeff1evesque.github.io/pyg-knowledge-graph-builder/reference/tables/#splits)
+table. No node or edge comes from such a feed, so the canvas, the legend and the tables do
+not show it, and the api has no path for its table. Sources draws its name as a link to
+this paragraph, underlined with dots, with a tooltip saying it is not in the graph. A node
+type comes from a source when the first part of its namespace is the source's name —
+`bls` for `bls/jolts`, `market` for `market/quotes` — and every type the day holds is
+asked, not only the sixty drawn: none of `market`'s types is drawn, and every one of them
+is in the tables. A day whose `sources` is `null` links none, since its list is read off
+its node types.
+{: #sources-outside-the-graph }
+
 ## Caching
 
 How long an answer may be kept, by a browser or by the shared cache in front of the
