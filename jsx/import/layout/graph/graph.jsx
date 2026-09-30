@@ -69,6 +69,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
+import Tooltip from '@mui/material/Tooltip';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -237,6 +238,57 @@ function detailsRow(row) {
     return ['graph-details-row', row.pair && 'graph-details-pair', row.ruled && 'graph-details-ruled']
         .filter(Boolean)
         .join(' ');
+}
+
+//
+// what a details row prints: its value, or 'n/a' where it has none.
+//
+// A value that is a LIST -- a day's Sources, the one row that has one -- is
+// printed comma separated, and a name in it the row's `noted` names is drawn as
+// a link to where the docs explain it, with the note in a tooltip over it. See
+// `noted` in source.js: a source none of the day's node types come from, which
+// nothing else on the page shows.
+//
+// Note: the note DESCRIBES the link rather than naming it, so the link is still
+//       called by the name it prints -- 'stock-split' -- and the note is read
+//       after it.
+//
+// Note: it opens in a new tab, as the icons over the canvas do. The page is a
+//       day someone may have spent a while arranging, and following a link
+//       should not throw that away.
+//
+function detailValue(row, choice, whole) {
+    const value = row.read(choice, whole);
+
+    if (!Array.isArray(value)) {
+        return value || 'n/a';
+    }
+
+    if (!value.length) {
+        return 'n/a';
+    }
+
+    const noted = new Set(row.noted.names(choice, whole));
+
+    return value.map((name, index) => (
+        <React.Fragment key={name}>
+            {index ? ', ' : null}
+            {noted.has(name)
+                ? (
+                    <Tooltip title={row.noted.note} describeChild>
+                        <a
+                            className='graph-details-noted'
+                            href={row.noted.docs}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                        >
+                            {name}
+                        </a>
+                    </Tooltip>
+                )
+                : name}
+        </React.Fragment>
+    ));
 }
 
 //
@@ -1288,6 +1340,9 @@ class GraphLayout extends Component {
     //       which is the source's to say, and how they look is the stylesheet's
     //       -- see '.graph-details' in '_graph.scss'.
     //
+    // Note: a day's Sources is a list, and a source in it that is outside the
+    //       graph is a link to the docs, with a note over it. See detailValue.
+    //
     details(build) {
         if (!build) {
             return null;
@@ -1303,7 +1358,7 @@ class GraphLayout extends Component {
                         <dd>
                             {row.schema && !whole && this.state.loading
                                 ? <PendingDetail index={index} width={row.pending || null} />
-                                : row.read(build, whole) || 'n/a'}
+                                : detailValue(row, build, whole)}
                         </dd>
                     </div>
                 ))}
