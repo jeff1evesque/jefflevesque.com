@@ -402,16 +402,22 @@ function total(types, measure = 'count') {
 }
 
 /**
- * the sources a day holds, as its own rows name them: every source a vocabulary
- * of its node types is published under.
+ * the sources a day holds: its own list, where the builder recorded one, and
+ * otherwise every source a vocabulary of its node types is published under.
  *
- * The Training graph's row of the same name reads the build's own list, which a
- * day does not have. The builder files every vocabulary under its source, so the
- * day's vocabularies say it instead -- see typeSource in encoding.js. On every day
- * published from 2026-09-21 to 09-24 that is bls, market, noaa and sec, which is
- * what the run that published each one read. The build of the same run says bls,
- * market and sec, because it leaves out the four node types of noaa, and the
- * tables keep them.
+ * The list is what the day's tables hold, as the builder recorded them when it
+ * published the day, and it names what the day's rows cannot: a feed read into a
+ * table of its own, as the split feed is, never becomes a node. Nothing here
+ * names a source, so one the builder adds, or stops reading, comes and goes with
+ * no change to the page. The Training graph's row of the same name reads the
+ * build's own list the same way.
+ *
+ * A day published before the builder recorded its sources says nothing, and its
+ * vocabularies say it instead: the builder files every vocabulary under its
+ * source -- see typeSource in encoding.js. On every day published from 2026-09-21
+ * to 09-24 that is bls, market, noaa and sec, which is what the run that published
+ * each one read. The build of the same run says bls, market and sec, because it
+ * leaves out the four node types of noaa, and the tables keep them.
  *
  * Note: '' for a day whose vocabularies name no source, which the panel prints as
  *       'n/a'. That is every day published before the builder filed its
@@ -419,10 +425,12 @@ function total(types, measure = 'count') {
  *       says nothing of bls. Read off such a day's type names instead, the list
  *       came out as market and sec, two of the day's four.
  */
-function daySources(types) {
-    return [...new Set(Object.values(types).map((type) => typeSource(type)).filter(Boolean))]
-        .sort()
-        .join(', ');
+function daySources(day, types) {
+    const named = Array.isArray(day.sources)
+        ? day.sources
+        : Object.values(types).map((type) => typeSource(type)).filter(Boolean);
+
+    return [...new Set(named)].sort().join(', ');
 }
 
 //
@@ -475,8 +483,10 @@ function daySources(types) {
 //
 // Note: 'Sources' comes straight after Published, where the build panel has
 //       its own under Built. It waits for the day's rows like the totals below
-//       it do, because it is read off them -- see daySources -- so it heads the
-//       block that waits.
+//       it do, and heads the block that waits. A day's own list comes with the
+//       picker, but a day published before the builder recorded one is read off
+//       its rows -- see daySources -- and a row that waited on some days and
+//       not on others would jump.
 //
 const DAY_DETAILS = [
     { label: 'Day', read: (day) => day.id, pending: '6rem' },
@@ -484,7 +494,7 @@ const DAY_DETAILS = [
     { label: 'Published', read: (day) => when(day.published), pending: '9rem' },
     {
         label: 'Sources',
-        read: (day, whole) => whole && daySources(whole.node_types),
+        read: (day, whole) => whole && daySources(day, whole.node_types),
         schema: true,
         pending: '8.5rem',
         ruled: true,
@@ -557,12 +567,18 @@ const DAYS = {
     //
     // Note: each choice carries the run that published its day and when that
     //       finished, as a build's listing entry carries its run and built --
-    //       so both are on the panel as soon as the picker is.
+    //       so both are on the panel as soon as the picker is -- and the sources
+    //       the builder recorded for it, which Sources reads.
     //
     list: () => getTableDays().then((days) => (days && days.length
         ? {
             default: days[0].day,
-            choices: days.map((row) => ({ id: row.day, run: row.run, published: row.published })),
+            choices: days.map((row) => ({
+                id: row.day,
+                run: row.run,
+                published: row.published,
+                sources: row.sources,
+            })),
         }
         : null)),
     load: (day) => getTableDay(day),

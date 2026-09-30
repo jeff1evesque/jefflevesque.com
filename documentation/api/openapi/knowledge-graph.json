@@ -561,7 +561,7 @@
       "get": {
         "operationId": "listKnowledgeGraphDays",
         "summary": "Every published day",
-        "description": "The days the tables hold, newest first -- every day the other tables paths may name as a Day -- each with the run that published it and when that finished. Takes no value at all, a Limit included: the answer is every published day, a year of them at most. Answered from the list the service resolves on every request, and from the marker each day's publishing writes last, so it runs no query.",
+        "description": "The days the tables hold, newest first -- every day the other tables paths may name as a Day -- each with the run that published it, when that finished, and the sources its tables hold. Takes no value at all, a Limit included: the answer is every published day, a year of them at most. Answered from the list the service resolves on every request, and from the marker each day's publishing writes last, so it runs no query.",
         "responses": {
           "200": {
             "description": "Every published day, newest first. Empty when none has finished publishing.",
@@ -614,6 +614,16 @@
                                   "null"
                                 ],
                                 "description": "When the day finished publishing, in UTC, which is when it became readable. Not when its tables were written, which nothing records."
+                              },
+                              "sources": {
+                                "type": [
+                                  "array",
+                                  "null"
+                                ],
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "Every source the day's tables hold, sorted, as the builder recorded them when it published the day: every source its run read, and each feed it reads into a table of its own, such as stock-split for the day's stock splits. Null for a day published before the builder recorded them. A day is never published again, so its sources never change."
                               }
                             }
                           }
@@ -628,52 +638,62 @@
                       {
                         "day": "2026-09-24",
                         "run": "2026-09-25T05:00:29Z",
-                        "published": "2026-09-25T07:49:49Z"
+                        "published": "2026-09-25T07:49:49Z",
+                        "sources": null
                       },
                       {
                         "day": "2026-09-23",
                         "run": "2026-09-24T05:00:42Z",
-                        "published": "2026-09-24T07:42:20Z"
+                        "published": "2026-09-24T07:42:20Z",
+                        "sources": null
                       },
                       {
                         "day": "2026-09-22",
                         "run": "2026-09-23T05:00:25Z",
-                        "published": "2026-09-23T07:49:33Z"
+                        "published": "2026-09-23T07:49:33Z",
+                        "sources": null
                       },
                       {
                         "day": "2026-09-21",
                         "run": "2026-09-22T05:00:25Z",
-                        "published": "2026-09-22T07:43:20Z"
+                        "published": "2026-09-22T07:43:20Z",
+                        "sources": null
                       },
                       {
                         "day": "2026-09-18",
                         "run": "2026-09-19T05:00:19Z",
-                        "published": "2026-09-19T07:54:16Z"
+                        "published": "2026-09-19T07:54:16Z",
+                        "sources": null
                       },
                       {
                         "day": "2026-09-17",
                         "run": "2026-09-18T05:00:00Z",
-                        "published": "2026-09-18T07:52:45Z"
+                        "published": "2026-09-18T07:52:45Z",
+                        "sources": null
                       },
                       {
                         "day": "2026-09-16",
                         "run": "2026-09-17T09:41:59Z",
-                        "published": "2026-09-17T12:28:29Z"
+                        "published": "2026-09-17T12:28:29Z",
+                        "sources": null
                       },
                       {
                         "day": "2026-09-15",
                         "run": "2026-09-16T17:15:46Z",
-                        "published": "2026-09-16T19:54:44Z"
+                        "published": "2026-09-16T19:54:44Z",
+                        "sources": null
                       },
                       {
                         "day": "2026-09-14",
                         "run": "2026-09-15T05:00:43Z",
-                        "published": "2026-09-15T07:54:18Z"
+                        "published": "2026-09-15T07:54:18Z",
+                        "sources": null
                       },
                       {
                         "day": "2026-09-09",
                         "run": "2026-09-13T15:04:28Z",
-                        "published": "2026-09-13T19:28:59Z"
+                        "published": "2026-09-13T19:28:59Z",
+                        "sources": null
                       }
                     ]
                   }

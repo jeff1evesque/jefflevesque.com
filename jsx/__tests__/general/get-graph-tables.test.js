@@ -109,12 +109,18 @@ describe('the requests', () => {
 
 describe('the published days', () => {
     //
-    // two days as the api answers them: each names the run that published it and
-    // when that finished.
+    // two days as the api answers them: each names the run that published it,
+    // when that finished, and the sources its tables hold -- the newer one as
+    // the builder recorded them, the older one published before it did.
     //
     const PUBLISHED = [
-        { day: '2026-09-23', run: '2026-09-24T05:00:42Z', published: '2026-09-24T06:41:18Z' },
-        { day: '2026-09-22', run: '2026-09-23T05:00:25Z', published: '2026-09-23T06:43:55Z' },
+        {
+            day: '2026-09-23',
+            run: '2026-09-24T05:00:42Z',
+            published: '2026-09-24T06:41:18Z',
+            sources: ['bls', 'market', 'noaa', 'sec', 'stock-split'],
+        },
+        { day: '2026-09-22', run: '2026-09-23T05:00:25Z', published: '2026-09-23T06:43:55Z', sources: null },
     ];
 
     it('answers them newest first, as the api lists them', async () => {
@@ -125,7 +131,7 @@ describe('the published days', () => {
         expect(days.map((row) => row.day)).toEqual(['2026-09-23', '2026-09-22']);
     });
 
-    it('keeps the run that published each day, and when that finished', async () => {
+    it('keeps the run that published each day, when that finished, and the sources its tables hold', async () => {
         answering({ days: () => ok(PUBLISHED) });
 
         await expect(getTableDays()).resolves.toEqual(PUBLISHED);
@@ -142,7 +148,38 @@ describe('the published days', () => {
         //
         answering({ days: () => ok([{ day: '2026-09-23', ...fields }]) });
 
-        await expect(getTableDays()).resolves.toEqual([{ day: '2026-09-23', run: null, published: null }]);
+        await expect(getTableDays()).resolves.toEqual([{ day: '2026-09-23', run: null, published: null, sources: null }]);
+    });
+
+    it.each([
+        ['missing', {}],
+        ['null', { sources: null }],
+        ['a name alone', { sources: 'bls' }],
+        ['not a list', { sources: { bls: 1 } }],
+        ['holding a number', { sources: ['bls', 5] }],
+        ['holding an empty name', { sources: ['bls', ''] }],
+    ])('reads sources that are %s as null', async (_, fields) => {
+        //
+        // null says the day's row names no sources, and Sources then reads them
+        // off the day's own rows
+        //
+        answering({ days: () => ok([{ day: '2026-09-23', ...fields }]) });
+
+        const [row] = await getTableDays();
+
+        expect(row.sources).toBeNull();
+    });
+
+    it('keeps a source the page has never heard of, as named', async () => {
+        //
+        // the builder decides what a day holds, so one it adds later reaches the
+        // page with no change here
+        //
+        answering({ days: () => ok([{ day: '2026-09-23', sources: ['bls', 'weather-radar'] }]) });
+
+        const [row] = await getTableDays();
+
+        expect(row.sources).toEqual(['bls', 'weather-radar']);
     });
 
     it('answers an empty list as an empty list', async () => {

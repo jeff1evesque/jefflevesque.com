@@ -5,7 +5,7 @@
  * Three calls, because a caller picks a day from a listing rather than naming
  * one, and a day's picture is two questions asked side by side:
  *
- *     GET <tables>/days                                -> { report: { rows: [{ day, run, published }, ...] } }
+ *     GET <tables>/days                                -> { report: { rows: [{ day, run, published, sources }, ...] } }
  *     GET <tables>/node-types?Day=<day>&Limit=1000     -> { report: { rows: [{ node_type, count, entities, facts }, ...] } }
  *     GET <tables>/edge-types?Day=<day>&Limit=1000     -> { report: { rows: [{ src_type, relation, dst_type, count, origin, ... }] } }
  *
@@ -238,9 +238,20 @@ export function daySchema(nodeRows, edgeRows) {
     return { node_types: node_types, edge_types: edge_types };
 }
 
+//
+// a day's sources as the builder recorded them, or null for anything that is not
+// a list of names
+//
+function sourcesOf(value) {
+    return Array.isArray(value) && value.every((name) => typeof name === 'string' && name)
+        ? value
+        : null;
+}
+
 /**
- * every published day, newest first, as { day, run, published }: the day as
- * 'YYYY-MM-DD', the run that published it, and when that finished publishing.
+ * every published day, newest first, as { day, run, published, sources }: the
+ * day as 'YYYY-MM-DD', the run that published it, when that finished publishing,
+ * and every source its tables hold.
  *
  * Resolves to the list, which may be empty, or to null if it cannot be had.
  *
@@ -251,6 +262,11 @@ export function daySchema(nodeRows, edgeRows) {
  * Note: `run` and `published` are null unless they are strings. A day's rows
  *       carried neither before the api said where each day came from, and one
  *       that still says nothing is read as a build's missing run is: 'n/a'.
+ *
+ * Note: `sources` is null unless it is a list of names. The builder records them
+ *       for a day as it publishes it, a day published before it did says
+ *       nothing, and the page then reads them off the day's own rows. See
+ *       daySources in source.js.
  */
 export function getTableDays(base = TABLES) {
     return report(daysRequest(base))
@@ -261,6 +277,7 @@ export function getTableDays(base = TABLES) {
                 day: row.day,
                 run: typeof row.run === 'string' ? row.run : null,
                 published: typeof row.published === 'string' ? row.published : null,
+                sources: sourcesOf(row.sources),
             })))
         .catch((e) => logged(`${base}/days`, e));
 }
