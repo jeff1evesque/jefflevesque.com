@@ -1,7 +1,6 @@
 /**
  * listing-table.jsx: a listing drawn as a table -- a row per stream, a column per
- * figure -- for the pages whose rows all carry the same figures, /stream and
- * /data.
+ * figure -- for a page whose rows all carry the same figures, as /data's do.
  *
  * As cards, each row said its labels again in a line of its own, so no figure
  * sat under the one above it and a column could not be read down the page. Here
