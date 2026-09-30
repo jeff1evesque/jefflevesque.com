@@ -19,6 +19,11 @@
  * listing off the fold.
  *
  * Note: this file should coincide with '_variables.scss'.
+ *
+ * Note: /data's chart is the only one left in the slot. /stream drew its stacked
+ *       area chart here too, until #152 drew every stream as a row of bars, so
+ *       what is said above about the two matching is why the figures are what
+ *       they are, not a second page that still depends on them.
  */
 
 const CHART_HEIGHT_MIN = 300;
