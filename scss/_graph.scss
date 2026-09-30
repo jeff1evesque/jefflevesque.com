@@ -487,6 +487,17 @@ $graph-held-edge: $green-4;
   }
 }
 
+//
+// a name in a details row that carries a note: a source in a day's Sources that
+// is outside the graph, with the note in a tooltip -- see detailValue in
+// graph.jsx. Underlined with dots, the usual mark of a name with a note, and the
+// help cursor over it.
+//
+.graph-details .graph-details-noted {
+  text-decoration: underline dotted;
+  cursor: help;
+}
+
 .graph-legend {
   ul {
     list-style: none;

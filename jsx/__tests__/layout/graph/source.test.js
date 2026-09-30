@@ -1,5 +1,6 @@
 /**
- * source.test.js: which day of the published tables a build holds.
+ * source.test.js: which day of the published tables a build holds, and which of a
+ * day's sources is outside the graph.
  *
  * The Training graph's picker names each build by that day, the way the Retrieval
  * graph's names a day of the tables. From schema 1.5 a build records it, and the
@@ -12,11 +13,17 @@
  * equals, less the four node types the build leaves out. It applies only to builds
  * older than 1.5, which makes them a closed set, and this is that set.
  *
+ * A day's own list of sources can name one that none of its node types come
+ * from: a feed the builder reads into a table of its own, as it reads the split
+ * feed. Nothing else on the page shows it, so the day panel puts a note over it.
+ * What is held is outsideGraph, which says which sources those are, and what
+ * the note says.
+ *
  * Note: jest.config.js runs this suite in New York time, which is what lets the
  *       zone tests below tell a run read as UTC from one read in the local zone.
  */
 
-import { buildDay } from '../../../import/layout/graph/source.js';
+import { DAY_DETAILS, buildDay, outsideGraph } from '../../../import/layout/graph/source.js';
 
 //
 // the published days on 2026-09-25, newest first, as the tables list them. None
@@ -136,5 +143,53 @@ describe('an older build', () => {
         ['with a run that is not a time', 'soon', DAYS],
     ])('holds none %s', (_, run, days) => {
         expect(buildDay({ schema_version: '1.4', run: run }, days)).toBeNull();
+    });
+});
+
+//
+// a day's node types, as get-graph-tables.js puts them: three filed under their
+// sources by the day's predicates, and two that no predicate names, which are
+// named by their own names -- the market quotes and the shared temporal types.
+// It holds no market enrichment, so nothing but the quotes' own name says market.
+//
+const TYPES = {
+    jolts_Industry: { count: 24, entities: 24, facts: 0, vocabulary: 'bls/jolts' },
+    filings_SECFiling: { count: 2_441, entities: 2_441, facts: 24_800, vocabulary: 'sec/filings' },
+    cap_Info: { count: 893, entities: 893, facts: 12_532, vocabulary: 'noaa/cap-model' },
+    market_quotes_OptionSnapshot: { count: 9_603_436, entities: 0, facts: 0 },
+    temporal_Day: { count: 30, entities: 30, facts: 0 },
+};
+
+describe('a source outside the graph', () => {
+    it('is one the day lists that none of its node types come from', () => {
+        expect(outsideGraph({ sources: ['bls', 'market', 'noaa', 'sec', 'stock-split'] }, TYPES))
+            .toEqual(['stock-split']);
+    });
+
+    it('is any the day lists that way, whatever it is called', () => {
+        expect(outsideGraph({ sources: ['bls', 'a-feed', 'sec', 'another-feed'] }, TYPES))
+            .toEqual(['a-feed', 'another-feed']);
+    });
+
+    it('is not one whose node types are named by their own names', () => {
+        //
+        // no predicate names the market quotes' vocabulary, so nothing a day
+        // publishes files them under market
+        //
+        expect(outsideGraph({ sources: ['market'] }, TYPES)).toEqual([]);
+    });
+
+    it.each([
+        ['no list', undefined],
+        ['a null one', null],
+    ])('is none on a day with %s, whose sources are read off its node types', (_, sources) => {
+        expect(outsideGraph({ sources: sources }, TYPES)).toEqual([]);
+    });
+
+    it('carries a note saying so, and no link', () => {
+        const { noted } = DAY_DETAILS.find((row) => row.label === 'Sources');
+
+        expect(noted.note).toBe('Not in the graph: its data is kept in a table of its own.');
+        expect(noted).not.toHaveProperty('docs');
     });
 });

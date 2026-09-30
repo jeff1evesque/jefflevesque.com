@@ -353,6 +353,21 @@ describe('the page\'s title', () => {
     });
 });
 
+describe('a source outside the graph, in a day\'s Sources', () => {
+    //
+    // a name with a note over it. See the note above '.graph-details-noted'.
+    //
+    const [noted] = blocks(source, '.graph-details .graph-details-noted');
+
+    it('is underlined with dots', () => {
+        expect(noted).toMatch(/text-decoration\s*:\s*underline dotted\s*;/);
+    });
+
+    it('shows the help cursor', () => {
+        expect(noted).toMatch(/cursor\s*:\s*help\s*;/);
+    });
+});
+
 describe('the tables\' rows', () => {
     const table = blocks(source, '.graph-tables').join('\n');
     const [shaded] = blocks(table, 'tbody tr:nth-of-type(even)');

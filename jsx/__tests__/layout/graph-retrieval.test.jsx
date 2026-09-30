@@ -84,6 +84,11 @@ const DAYS = [
 ];
 
 //
+// what the day panel says over a source outside the graph
+//
+const NOTE = 'Not in the graph: its data is kept in a table of its own.';
+
+//
 // a day shaped as the loader answers one: nine million market snapshots that
 // carry no name and no value, three named types, and a nameless company node
 // that touches one of them -- so which of them the canvas draws is decided by
@@ -165,6 +170,16 @@ function detail(label) {
         .find((r) => r.querySelector('dt').textContent === label);
 
     return row ? row.querySelector('dd').textContent : undefined;
+}
+
+//
+// the names that carry a note in one details row's value
+//
+function detailNoted(label) {
+    const row = [...document.querySelectorAll('.graph-details-row')]
+        .find((r) => r.querySelector('dt').textContent === label);
+
+    return row ? [...row.querySelectorAll('dd .graph-details-noted')] : [];
 }
 
 async function chooseDay(day) {
@@ -424,6 +439,91 @@ describe('the day details', () => {
         await setup();
 
         expect(detail('Sources')).toBe('n/a');
+    });
+
+    //
+    // a source the day lists that none of its node types come from -- a feed the
+    // builder reads into a table of its own -- is shown by nothing else on the
+    // page, so its name carries a note in a tooltip over it. See outsideGraph in
+    // source.js.
+    //
+    describe('a source outside the graph', () => {
+        beforeEach(() => {
+            getTableDays.mockResolvedValue([
+                { ...DAYS[0], sources: ['market', 'noaa', 'sec', 'stock-split'] },
+                ...DAYS.slice(1),
+            ]);
+            getTableDay.mockResolvedValue(namedDay());
+        });
+
+        it('is the one name that carries a note', async () => {
+            await setup();
+
+            expect(detail('Sources')).toBe('market, noaa, sec, stock-split');
+            expect(detailNoted('Sources').map((name) => name.textContent)).toEqual(['stock-split']);
+        });
+
+        it('is not a link, and the row holds none', async () => {
+            await setup();
+
+            expect(detailNoted('Sources')[0].tagName).toBe('SPAN');
+            expect(screen.queryByRole('link', { name: 'stock-split' })).toBeNull();
+        });
+
+        it('is still read by its name, with the note describing it', async () => {
+            await setup();
+
+            const [noted] = detailNoted('Sources');
+
+            expect(noted).toHaveTextContent('stock-split');
+            expect(noted).toHaveAccessibleDescription(NOTE);
+        });
+
+        it('shows the note in a tooltip over it', async () => {
+            await setup();
+
+            fireEvent.mouseOver(detailNoted('Sources')[0]);
+
+            expect(await screen.findByRole('tooltip')).toHaveTextContent(NOTE);
+        });
+
+        it('shows the note from the keyboard, since it can take focus', async () => {
+            await setup();
+
+            const [noted] = detailNoted('Sources');
+
+            expect(noted).toHaveAttribute('tabindex', '0');
+
+            //
+            // MUI shows a tooltip on focus only when the focus came from the
+            // keyboard, as a Tab does
+            //
+            fireEvent.keyDown(document.body, { key: 'Tab' });
+            act(() => noted.focus());
+
+            expect(await screen.findByRole('tooltip')).toHaveTextContent(NOTE);
+        });
+
+        it('is not a source whose node types the day holds, where the canvas draws none of them', async () => {
+            //
+            // market's one type here is nine million snapshots, none of which can
+            // be found by name, so the canvas leaves it out. It is still in the
+            // tables, and so in the graph.
+            //
+            await setup();
+
+            expect(explorer().dataset.types.split(' ')).not.toContain('market_quotes_OptionSnapshot');
+            expect(detailNoted('Sources').map((name) => name.textContent)).not.toContain('market');
+        });
+
+        it('is none on a day whose list is null, whose sources are read off its node types', async () => {
+            getTableDays.mockResolvedValue(DAYS.map((row) => ({ ...row, sources: null })));
+
+            await setup();
+
+            expect(detail('Sources')).toBe('noaa, sec');
+            expect(detailNoted('Sources')).toEqual([]);
+        });
     });
 
     //
