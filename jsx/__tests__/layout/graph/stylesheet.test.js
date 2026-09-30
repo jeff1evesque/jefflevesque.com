@@ -353,6 +353,22 @@ describe('the page\'s title', () => {
     });
 });
 
+describe('a source outside the graph, in a day\'s Sources', () => {
+    //
+    // a link to the docs that reads as a name with a note rather than as a way off
+    // the page. See the note above '.graph-details a.graph-details-noted'.
+    //
+    const [noted] = blocks(source, '#bootstrap-override .graph-details a.graph-details-noted');
+
+    it('keeps the row\'s own color, under the id that colors every other link', () => {
+        expect(noted).toMatch(/color\s*:\s*inherit\s*;/);
+    });
+
+    it('is underlined with dots', () => {
+        expect(noted).toMatch(/text-decoration\s*:\s*underline dotted\s*;/);
+    });
+});
+
 describe('the tables\' rows', () => {
     const table = blocks(source, '.graph-tables').join('\n');
     const [shaded] = blocks(table, 'tbody tr:nth-of-type(even)');
