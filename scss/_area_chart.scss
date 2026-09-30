@@ -1,4 +1,6 @@
-// _area_chart.scss: contains stacked area chart custom style.
+// _area_chart.scss: the box /data draws its chart in, and the refresh icon over
+//     it. Named for the stacked area chart /stream drew in it too, until #152
+//     drew /stream as rows of bars (see '_stream.scss').
 //
 // Note: this partial, is ignored by the scss compiler, and can be imported
 //       into another scss file.

@@ -1,5 +1,5 @@
 /**
- * stream.jsx: stream article listing page
+ * stream.jsx: /stream, every stream as a row of bars -- see stream-rows.jsx
  *
  * Note: this script implements jsx (reactjs) syntax.
  *
@@ -7,21 +7,15 @@
 
 import React, { Component } from 'react';
 import Sheet from 'react-modal-sheet';
-import BeatLoader from 'react-spinners/BeatLoader';
-import PuffLoader from 'react-spinners/PuffLoader';
-import LoopIcon from '@mui/icons-material/Loop';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import Tooltip from '@mui/material/Tooltip';
-import BarChartIcon from '@mui/icons-material/BarChart';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import DataObjectIcon from '@mui/icons-material/DataObject';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
-import FormControl from '@mui/material/FormControl';
-import FormGroup from '@mui/material/FormGroup';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Switch from '@mui/material/Switch';
-import ArticleListing from '../../general/article-listing.jsx';
-import StackedAreaChart from '../../general/area-chart.jsx';
 import StockMarketFeatured from './featured/stock-market.jsx';
+import StreamRows from './stream-rows.jsx';
 import { isMobile } from 'react-device-detect';
 import trim from '../../general/trim-object.js';
 import getData from '../../general/get-data.js';
@@ -37,8 +31,6 @@ import { Link } from 'react-router-dom';
 import SvgExit from '../../svg/svg-exit.jsx';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
-import { colors_categorical, themeColors, translucent } from '../../general/colors.js';
-import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import streamName from '../../general/stream-name.js';
 import viewerTimeZone from '../../general/viewer-timezone.js';
 import { performanceUrl, API_DOCS } from '../../general/api-url.js';
@@ -46,6 +38,7 @@ import { listSubscriptions } from '../../general/account-api.js';
 import ApiLinks from '../../general/api-links.jsx';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
 import { STOCK_MARKET, STOCK_SPLIT, STREAMS } from '../../general/stream-id.js';
+import { streamBars, scheduleLabel } from '../../general/stream-bars.js';
 {/*
 
     'runsContinuously' left with the weather branch. It answered whether a silent
@@ -79,38 +72,61 @@ import {
     windowStart,
     windowLabel
 } from '../../general/rolling-window.js';
-import chartHeight, {
-    CHART_X_AXIS_HEIGHT,
-    CHART_X_AXIS_HEIGHT_MOBILE,
-    CHART_X_AXIS_ANGLE,
-    CHART_X_AXIS_ANCHOR
-} from '../../general/chart-height.js';
-import { readChart, writeChart, readOrder, writeOrder } from '../../general/listing-preference.js';
 
 
 {/*
 
-    how long the loader takes to fade once the query resolves. the element stays
-    mounted and animates its opacity, so the dots ease out as the chart arrives
-    rather than being unmounted mid-frame. matches the /data page
+    the rates the rows can be drawn at, coarsest first. One rate for every row,
+    so the rows line up interval for interval and can be read down as well as
+    across.
 
 */}
-const LOADER_FADE_MS = 450;
+const RATES = ['Month', 'Day', 'Hour', 'Minute'];
 
 
 {/*
 
-    the listing's columns: each stream's figures, as the table lays them out --
-    see listing-table.jsx. The rate is a word, and sorting by it would put the
-    rates in the alphabet's order rather than their own.
+    how long a stream may take before its row says it is still loading. A slow
+    stream is not a failed one -- the S&P 500's report can take a while when the
+    api has not cached it -- so this only changes what the row says, and the
+    request is left to finish. A row says it could not load only when the request
+    actually fails.
 
 */}
-const LISTING_COLUMNS = [
-    { key: 'Health', numeric: true, sortable: true },
-    { key: 'Coverage', numeric: true, sortable: true },
-    { key: 'Rate', pill: true },
-    { key: 'Total Records', numeric: true, sortable: true },
-];
+export const SLOW_AFTER_MS = 10000;
+
+
+{/*
+
+    the rate an address names ('?rate=hour'), as the page writes it, or null
+
+*/}
+function linkedRate(search) {
+    const asked = String(new URLSearchParams(search).get('rate') || '').toLowerCase();
+
+    return RATES.find((rate) => rate.toLowerCase() === asked) || null;
+}
+
+
+{/*
+
+    the first and last of the window's intervals as the axis over the rows names
+    them: short, since the bar under the pointer says the rest
+
+*/}
+function axisLabel(date, rate) {
+    const r = String(rate).toLowerCase();
+
+    if (r === 'month') {
+        return date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    }
+
+    if (r === 'day') {
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    return date.toLocaleString('en-US', { hour: 'numeric', minute: r === 'minute' ? '2-digit' : undefined });
+}
 
 
 {/*
@@ -206,109 +222,28 @@ function format_count(value) {
 
 
 class StreamLayout extends Component {
-    //
-    // the page's theme, which the loading chip's green is drawn in. See
-    // theme-mode.jsx.
-    //
-    static contextType = ThemeModeContext;
-
     constructor() {
         super();
 
         {/*
 
-            the viewer's own clock, matching the window and the chart rows. it
-            was 'dstDate()' -- eastern wall-clock in the local zone's slot --
-            which also made the market-hours check below shift a second time,
-            since that check converts to new york itself
-
-        */}
-
-        const today = new Date();
-        const stream_coverage = 'n/a';
-
-        {/*
-
             each stream by its id, which is also its name everywhere on this
-            page: the per-stream state keys, the listing's links and the
-            requests. See stream-id.js. The page used to hold a second,
-            capitalized name for each ('StockMarket'), linked by one and keyed
-            by the other, and lower-cased between the two.
+            page: the per-stream state keys, the rows and the requests. See
+            stream-id.js.
 
         */}
         const streams = STREAMS;
 
         {/*
 
-            the stream the page opens on: the one a link names, when it names one
-            -- callbackGetData keeps to it as each response lands -- and otherwise
-            the one this reader last charted here, and otherwise the first. See
-            listing-preference.js.
+            one rate for every row: the one an address names ('?rate=hour'),
+            and otherwise the day. The rows line up interval for interval, so
+            the S&P 500 no longer opens by the minute on its own while the market
+            is open -- every other row would open on a window of minutes it has
+            no runs in.
 
         */}
-        const linked = new URLSearchParams(document.location.search).get('item');
-        const opening = STREAMS.includes(linked)
-            ? linked
-            : (readChart('stream', STREAMS) || STOCK_MARKET);
-
-        {/*
-
-            deliberately still eastern: 09:30-16:00 is a fact about the
-            exchange, not about the reader. a viewer in london gets the intraday
-            rate while new york is open, not while london is
-
-        */}
-
-        const d = new Date(today.toLocaleString('en-US', {timeZone: 'America/New_York'}));
-        const day = d.getDay();
-        const hour = d.getHours();
-        const minutes = d.getMinutes();
-
-        var stream_rate = 'Day';
-        var scale_chart_minutes = false;
-        var scale_chart_daily = true;
-        var x_ticker_format = '%m/%d';
-        var label_format = '%d %B, %Y';
-
-        if (
-            [1, 2, 3, 4, 5].includes(day)
-            && ( hour === 9 && minutes > 30 || hour >= 10 )
-            && hour < 16
-        ) {
-            var stream_rate_stockmarket = 'Minute';
-            var scale_chart_minutes_stockmarket = true;
-            var scale_chart_daily_stockmarket = false;
-            var x_ticker_format_stockmarket = '%I:%M%p';
-            var label_format_stockmarket = '%d %B, %Y (%H:%M:%S%Z)';
-        } else {
-            var stream_rate_stockmarket = stream_rate;
-            var scale_chart_minutes_stockmarket = scale_chart_minutes;
-            var scale_chart_daily_stockmarket = scale_chart_daily;
-            var x_ticker_format_stockmarket = x_ticker_format;
-            var label_format_stockmarket = label_format;
-        }
-
-        {/*
-
-            the chart opens at its own stream's rate. Only the S&P 500 moves to
-            minutes while the market is open; any other stream opens by the day,
-            as it does when it is chosen from the listing.
-
-        */}
-        const opens_on_market = opening === STOCK_MARKET;
-
-        let list_article = [];
-        streams.forEach((v, i) => {
-            const loader = <PuffLoader color='#228B22' size={isMobile ? 2 : 3} speedMultiplier='0.5' />;
-
-            list_article.push({
-                'name': v,
-                'link': `?item=${v}&rate=${stream_rate}`,
-                'detail': { 'Health': 'n/a', 'Coverage': 'n/a', 'Rate': 'n/a', 'Total Records': 'n/a' },
-                'loader': loader,
-                'control_tray': this.getControlTray(v)
-            });
-        });
+        const rate = linkedRate(document.location.search) || 'Day';
 
         this.state = {
             local: is_local,
@@ -319,8 +254,6 @@ class StreamLayout extends Component {
             chart_data_sec: [],
             chart_data_sec_sec: [],
             'chart_data_us-national-weather': [],
-            chart_data_placeholder_bls: [],
-            chart_data_placeholder_sec: [],
             bottom_sheet_open: false,
             field_datetime: 'window_start',
             'promise_get_data_stock-market': false,
@@ -328,35 +261,25 @@ class StreamLayout extends Component {
             promise_get_data_bls: false,
             promise_get_data_sec: false,
             'promise_get_data_us-national-weather': false,
-            display_area_chart: true,
-            display_filter_button: true,
-            display_apply_filter_button: false,
-            time_map: {'Month': 'Monthly', 'Day': 'Daily', 'Hour': 'Hourly', 'Minute': 'Minutes'},
-            scale_chart_monthly: false,
-            scale_chart_daily: opens_on_market ? scale_chart_daily_stockmarket : scale_chart_daily,
-            scale_chart_hourly: false,
-            scale_chart_minutes: opens_on_market ? scale_chart_minutes_stockmarket : scale_chart_minutes,
-            hide_all: false,
-            x_ticker_format: opens_on_market ? x_ticker_format_stockmarket : x_ticker_format,
-            label_format: opens_on_market ? label_format_stockmarket : label_format,
-            selected_stream: opening,
-            selected_stream_rate: opens_on_market ? stream_rate_stockmarket : stream_rate,
+            rate: rate,
             //
-            // the order this reader dragged the listing into, or null for the
-            // page's own -- see listing-preference.js
+            // the stream an address names ('?item=sec'), whose row is marked --
+            // see the note on callbackGetData
             //
-            listing_order: readOrder('stream', STREAMS),
+            current_stream: STREAMS.includes(new URLSearchParams(document.location.search).get('item'))
+                ? new URLSearchParams(document.location.search).get('item')
+                : null,
             'stream_source_stock-market': ['options', 'price'],
             'stream_source_stock-split': ['alpha', 'beta', 'gamma'],
             stream_source_bls: ['bls'],
             stream_source_sec: ['sec'],
             'stream_source_us-national-weather': ['weather'],
             streams: streams,
-            'stream_rate_stock-market': stream_rate_stockmarket,
-            'stream_rate_stock-split': stream_rate,
-            stream_rate_bls: stream_rate,
-            stream_rate_sec: stream_rate,
-            'stream_rate_us-national-weather': stream_rate,
+            'stream_rate_stock-market': rate,
+            'stream_rate_stock-split': rate,
+            stream_rate_bls: rate,
+            stream_rate_sec: rate,
+            'stream_rate_us-national-weather': rate,
             stream_throughput: 0,
             stream_throughput_bls_bls: 0,
             stream_throughput_sec_sec: 0,
@@ -370,18 +293,16 @@ class StreamLayout extends Component {
             stream_sec_health: 'n/a',
             'stream_us-national-weather_total': 'n/a',
             'stream_us-national-weather_health': 'n/a',
-            'stream_stock-market_coverage': stream_coverage,
-            'stream_stock-split_coverage': stream_coverage,
-            stream_bls_coverage: stream_coverage,
-            stream_sec_coverage: stream_coverage,
-            'stream_us-national-weather_coverage': stream_coverage,
-            today: today,
-            ingest_performance_data: null,
+            'stream_stock-market_coverage': 'n/a',
+            'stream_stock-split_coverage': 'n/a',
+            stream_bls_coverage: 'n/a',
+            stream_sec_coverage: 'n/a',
+            'stream_us-national-weather_coverage': 'n/a',
             sheet_snap_points: [1, 0.75, 0.55, 0.25],
-            tool_tip_color: '#777',
-            performance_link: 'https://www.jefflevesque.com/artifact/performance',
-            list_article: list_article,
-            chart_height: chartHeight(),
+            //
+            // where the 'This request' menu hangs from while it is open, or null
+            //
+            requests_anchor: null,
             //
             // how many of each stream's alarms the reader holds, by stream id --
             // see loadSubscriptions. Empty signed out, and until they arrive.
@@ -390,48 +311,50 @@ class StreamLayout extends Component {
         }
 
         this.updateMetrics = this.updateMetrics.bind(this);
-        this.updateStreamListing = this.updateStreamListing.bind(this);
-        this.listing = this.listing.bind(this);
-        this.filterColumn = this.filterColumn.bind(this);
-        this.toggleAreaChart = this.toggleAreaChart.bind(this);
-        this.toggleChartScale = this.toggleChartScale.bind(this);
         this.toggleSetOpen = this.toggleSetOpen.bind(this);
         this.callbackGetData = this.callbackGetData.bind(this);
         this.downloadData = this.downloadData.bind(this);
         this.getControlTray = this.getControlTray.bind(this);
-        this.initializeChartScale = this.initializeChartScale.bind(this);
         this.reset_stream = this.reset_stream.bind(this);
-        this.updateChartHeight = this.updateChartHeight.bind(this);
         this.loadSubscriptions = this.loadSubscriptions.bind(this);
-        this.reorderListing = this.reorderListing.bind(this);
+        this.chooseRate = this.chooseRate.bind(this);
+        this.retryStream = this.retryStream.bind(this);
+        this.failedData = this.failedData.bind(this);
+
+        //
+        // the request each stream is waiting on, by stream id: a count that goes up
+        // with every request, so a reply is matched to the request it answers and a
+        // reply to one since replaced is dropped -- see callbackGetData. And the
+        // timer that marks a stream still loading, by the same id.
+        //
+        this.asked = {};
+        this.slow_timers = {};
     }
 
-    //
-    // the reader's new order of the listing, kept for their next visit; null puts
-    // the page's own order back
-    //
-    reorderListing(order) {
-        this.setState({ listing_order: order });
-        writeOrder('stream', order);
+    componentWillUnmount() {
+        //
+        // a reply that lands after the page has gone answers a request nothing is
+        // waiting on any more
+        //
+        Object.keys(this.asked).forEach((stream) => {
+            this.asked[stream] += 1;
+        });
+        Object.values(this.slow_timers).forEach((timer) => clearTimeout(timer));
     }
 
     componentDidMount() {
         this.state.streams.forEach((stream) => {
-            this.downloadData(stream, this.state[`stream_rate_${stream}`]);
+            this.downloadData(stream, this.state.rate);
         });
 
-        window.addEventListener('resize', this.updateChartHeight);
         this.loadSubscriptions();
     }
 
     //
     // how many of each stream's alarms the reader holds, for the bells in the
-    // listing -- see getControlTray. Signed out, subscribed to nothing, or asking a
+    // rows -- see getControlTray. Signed out, subscribed to nothing, or asking a
     // service that could not answer, every bell stays as it was: a bell that cannot
     // say anything says nothing.
-    //
-    // Note: the listing's rows are built ahead of time, so the bells are redrawn by
-    //       rebuilding the listing once the counts are in.
     //
     loadSubscriptions() {
         listSubscriptions()
@@ -446,32 +369,53 @@ class StreamLayout extends Component {
                     held[subscription.stream] = (held[subscription.stream] || 0) + 1;
                 });
 
-                this.setState({ subscriptions: held }, () => this.updateStreamListing());
+                this.setState({ subscriptions: held });
             })
             .catch((error) => {
                 console.log(`Error (account api): the subscriptions could not be listed, ${error.message}`);
             });
     }
 
-    componentWillUnmount() {
-        window.removeEventListener('resize', this.updateChartHeight);
-    }
-
     //
-    // the chart height follows the viewport, so it has to be recomputed rather
-    // than read once: a fixed pixel height handed to recharts does not react to
-    // a resize the way its own 'aspect' would
+    // every row redrawn at another rate: each stream cleared and asked for again
     //
-    updateChartHeight() {
-        const height = chartHeight();
-
-        if (height !== this.state.chart_height) {
-            this.setState({ chart_height: height });
+    chooseRate(rate) {
+        if (rate === this.state.rate) {
+            return;
         }
+
+        this.setState({ rate: rate }, () => {
+            this.state.streams.forEach((stream) => {
+                this.reset_stream(stream);
+                this.downloadData(stream, rate);
+            });
+        });
     }
 
-    reset_stream(selected_stream=null) {
-        const stream = selected_stream || this.state.selected_stream;
+    //
+    // a stream asked for again from its row, after its request failed
+    //
+    retryStream(stream) {
+        this.reset_stream(stream);
+        this.downloadData(stream, this.state.rate);
+    }
+
+    //
+    // a request that failed: its row says so and offers to ask again. A failure
+    // of a request since replaced says nothing, since the row is waiting on
+    // another.
+    //
+    failedData(stream, asked) {
+        if (this.asked[stream] !== asked) {
+            return;
+        }
+
+        clearTimeout(this.slow_timers[stream]);
+        this.setState({ [`failed_${stream}`]: true, [`slow_${stream}`]: false });
+    }
+
+    reset_stream(selected_stream) {
+        const stream = selected_stream;
 
         this.setState({ [`chart_data_${stream}`]: [], stream_throughput: 'n/a' });
 
@@ -493,32 +437,6 @@ class StreamLayout extends Component {
         }
     }
 
-    updateStreamListing(s=null) {
-        const streams = s ? s : this.state.streams;
-        let list_article = [];
-
-        streams.forEach((stream) => {
-            const loader = ! this.state[`promise_get_data_${stream}`]
-                ? <PuffLoader color='#228B22' size={isMobile ? 2 : 3} speedMultiplier='0.5' />
-                : null;
-
-            list_article.push({
-                'name': stream,
-                'link': `?item=${stream}&rate=${this.state[`stream_rate_${stream}`]}`,
-                'detail': {
-                    'Health': format_percent(this.state[`stream_${stream}_health`]),
-                    'Coverage': format_percent(this.state[`stream_${stream}_coverage`]),
-                    'Rate': this.state[`stream_rate_${stream}`][0].toUpperCase() + this.state[`stream_rate_${stream}`].slice(1),
-                    'Total Records': format_count(this.state[`stream_${stream}_total`])
-                },
-                'loader': loader,
-                'control_tray': this.getControlTray(stream)
-            });
-        });
-
-        this.setState({ list_article: list_article });
-    }
-
     getControlTray(stream, url_trigger=false) {
         const font_size = isMobile ? 'medium' : 'large';
         {/*
@@ -528,13 +446,8 @@ class StreamLayout extends Component {
             and a screen reader says it. They were spans with click handlers,
             which did neither.
 
-            Note: the listing is first built in the constructor, before there is
-                  any state to read -- no chart button there is pressed yet, and
-                  every bell is the plain one.
-
         */}
         const name = streamName(stream);
-        const charted = !!this.state && this.state.selected_stream === stream;
         const held = ((this.state && this.state.subscriptions) || {})[stream] || 0;
 
         //
@@ -576,35 +489,6 @@ class StreamLayout extends Component {
             <div className='control-tray'>
                 {trigger_button}
 
-                <button
-                    type='button'
-                    className='border-circle-radius control-button'
-                    aria-label={`Chart ${name}`}
-                    aria-pressed={charted}
-                    onClick={() => {
-                        //
-                        // kept, so the page opens on this chart next time -- see
-                        // listing-preference.js
-                        //
-                        writeChart('stream', stream);
-
-                        this.setState({
-                            selected_stream: stream,
-                            [`promise_get_data_${stream}`]: false
-                        }, () => {
-                            this.updateStreamListing();
-                            this.initializeChartScale(this.state.selected_stream_rate);
-                            this.reset_stream(stream);
-                            this.downloadData(stream, this.state.selected_stream_rate);
-                        });
-                    }}
-                >
-                    <BarChartIcon
-                        className='control-icon chart'
-                        fontSize={font_size}
-                    />
-                </button>
-
                 <Link
                     className='border-circle-radius control-button'
                     to={`/stream/${stream}/alarm`}
@@ -622,9 +506,6 @@ class StreamLayout extends Component {
     // the bell says whether the reader is subscribed to any of the stream's alarms:
     // ringing, and held in green, when they are, with how many under the pointer.
     // Either way it leads to the stream's alarm page, where they are changed.
-    //
-    // Note: the listing is first built in the constructor, before there is any state
-    //       to read -- every bell there is the plain one.
     //
     alarmBell(stream, font_size) {
         const held = ((this.state && this.state.subscriptions) || {})[stream] || 0;
@@ -700,19 +581,37 @@ class StreamLayout extends Component {
 
     downloadData(type, stream_rate) {
         stream_rate = stream_rate.toLowerCase();
+
+        const asked = (this.asked[type] || 0) + 1;
+        this.asked[type] = asked;
+
+        //
+        // Note: the figures go back to n/a with the rows, so a row waiting on a
+        //       new report never shows the old one's figures beside 'Loading'.
+        //
         this.setState({
             [`stream_rate_${type}`]: stream_rate,
-            [`promise_get_data_${type}`]: false
-        }, () => {
-            this.updateStreamListing();
+            [`promise_get_data_${type}`]: false,
+            [`slow_${type}`]: false,
+            [`failed_${type}`]: false,
+            [`stream_${type}_health`]: 'n/a',
+            [`stream_${type}_coverage`]: 'n/a',
+            [`stream_${type}_total`]: 'n/a'
         });
 
         const request = this.STREAM_REQUEST[type];
 
         if (!request) {
-            this.setState({ selected_stream: type, [`promise_get_data_${type}`]: true });
+            this.setState({ [`promise_get_data_${type}`]: true });
             return;
         }
+
+        clearTimeout(this.slow_timers[type]);
+        this.slow_timers[type] = setTimeout(() => {
+            if (this.asked[type] === asked && !this.state[`promise_get_data_${type}`]) {
+                this.setState({ [`slow_${type}`]: true });
+            }
+        }, SLOW_AFTER_MS);
 
         {/*
 
@@ -727,8 +626,8 @@ class StreamLayout extends Component {
                   and a caller that no longer knows the layout has no basis for
                   choosing them. The api supplies each stream's own.
 
-            Note: built by api-url.js, which also builds the 'This request' link
-                  under the chart, so the link names this exact request.
+            Note: built by api-url.js, which also builds the 'This request' menu
+                  over the rows, so each link names this exact request.
 
         */}
 
@@ -737,14 +636,36 @@ class StreamLayout extends Component {
         getData(
             request.get_data,
             this.state.local ? null : url,
-            (item) => this.callbackGetData(item),
+            (item) => this.callbackGetData(item, type, asked),
             true,
             this.state.local ? request.source_local : request.source,
-            type
+            type,
+            () => this.failedData(type, asked)
         );
     }
 
-    callbackGetData(item) {
+    //
+    // whether a reply answers the request its stream is waiting on. One that
+    // names no request -- a caller outside downloadData -- is taken as it comes.
+    //
+    answersLatest(asked_stream, asked) {
+        return !asked_stream || asked === null || this.asked[asked_stream] === asked;
+    }
+
+    //
+    // Note: the stream and the request the reply was ASKED for travel with it. A
+    //       report that came back empty names no stream of its own, and its row
+    //       must still stop loading; a reply to a request since replaced -- by
+    //       another rate, or a retry -- is dropped, so it cannot land on the rows
+    //       of the one that replaced it. Asked twice: when the reply arrives, and
+    //       again when the worker is done with it, since the reader can change
+    //       the rate while the worker runs.
+    //
+    callbackGetData(item, asked_stream = null, asked = null) {
+        if (!this.answersLatest(asked_stream, asked)) {
+            return;
+        }
+
         const field_datetime = Object.assign(this.state.field_datetime);
         const worker = new WorkerBuilder(workerIngestPerformance);
 
@@ -754,6 +675,10 @@ class StreamLayout extends Component {
         };
 
         worker.onmessage = (event) => {
+            if (!this.answersLatest(asked_stream, asked)) {
+                return;
+            }
+
             if (
                 checkValidObject('data', event)
                 && 'selected_source' in event.data
@@ -765,7 +690,7 @@ class StreamLayout extends Component {
             ) {
                 var chart_data = event.data.chart_data_original;
                 var selected_source = event.data.selected_source;
-                var selected_stream = event.data.selected_stream;
+                var selected_stream = event.data.selected_stream || asked_stream;
 
                 {/*
 
@@ -824,41 +749,20 @@ class StreamLayout extends Component {
                     };
                 });
             } else {
-                var selected_stream = this.state.selected_stream;
-                if (selected_stream) {
-                    var chart_data = event.data.chart_data_original;
-                    this.setState((state) => ({
-                        [`chart_data_${selected_stream}`]: [
-                            ...chart_data,
-                            ...(state[`chart_data_${selected_stream}`] || [])
-                        ],
-                        stream_throughput: event.data.stream_throughput
-                    }));
-                } else {
-                    var selected_stream = null
-                    var chart_data = null;
-                    console.log('Error: callback has no selected_stream');
-                }
-            }
-
-            {/*
-
-                the stream the address names, when it names one. The route has
-                already replaced a name the stream used to go by with its id --
-                see route/canonical-stream.jsx -- so anything else here names no
-                stream at all, and is left alone rather than selected: there is
-                no chart to draw for it, and its per-stream state does not exist.
-
-            */}
-            const params = new URLSearchParams(document.location.search);
-            if (STREAMS.includes(params.get('item'))) {
-                var selected_stream = params.get('item');
-                this.setState({ selected_stream: selected_stream });
+                //
+                // a report with nothing in it: the stream still stops loading,
+                // and its row draws what was due as missed or pending
+                //
+                var selected_stream = asked_stream;
+                var chart_data = [];
             }
 
             if (selected_stream) {
+                clearTimeout(this.slow_timers[selected_stream]);
+
                 this.setState({
-                    [`promise_get_data_${selected_stream}`]: true
+                    [`promise_get_data_${selected_stream}`]: true,
+                    [`slow_${selected_stream}`]: false
                 }, () => {
                     //
                     // the listing counts describe the chart, so they are computed
@@ -901,48 +805,8 @@ class StreamLayout extends Component {
         });
     }
 
-    toggleAreaChart() {
-        this.setState({ display_area_chart: ! this.state.display_area_chart });
-    }
-
     toggleSetOpen() {
         this.setState({ bottom_sheet_open: ! this.state.bottom_sheet_open });
-    }
-
-    initializeChartScale(v) {
-        const rate = v.toLowerCase();
-        if (rate) {
-            this.setState({ scale_chart_monthly: ['monthly', 'month'].includes(rate) ? true : false });
-            this.setState({ scale_chart_daily: ['daily', 'day'].includes(rate) ? true : false });
-            this.setState({ scale_chart_hourly: ['hourly', 'hour'].includes(rate) ? true : false });
-            this.setState({ scale_chart_minutes: ['minutes', 'minute'].includes(rate) ? true : false });
-
-            if (['monthly', 'month'].includes(rate)) {
-                this.setState({
-                    x_ticker_format: '%m/%Y',
-                    label_format: '%B %Y',
-                    [`stream_rate_${this.state.selected_stream}`]: 'Month'
-                });
-            } else if (['daily', 'day'].includes(rate)) {
-                this.setState({
-                    x_ticker_format: '%m/%d',
-                    label_format: '%d %B, %Y',
-                    [`stream_rate_${this.state.selected_stream}`]: 'Day'
-                });
-            } else if (['hourly', 'hour'].includes(rate)) {
-                this.setState({
-                    x_ticker_format: '%I%p',
-                    label_format: '%d %B, %Y (%I%p)',
-                    [`stream_rate_${this.state.selected_stream}`]: 'Hour'
-                });
-            } else if (['minutes', 'minute'].includes(rate)) {
-                this.setState({
-                    x_ticker_format: '%I:%M%p',
-                    label_format: '%d %B, %Y (%H:%M:%S%Z)',
-                    [`stream_rate_${this.state.selected_stream}`]: 'Minute'
-                });
-            }
-        }
     }
 
     //
@@ -997,8 +861,6 @@ class StreamLayout extends Component {
                     [`stream_${stream}_coverage`]: checkValidFloat(stream_coverage) && stream_coverage > 100
                         ? 100
                         : parseFloat(stream_coverage) && parseFloat(stream_coverage) > 0 ? stream_coverage : 'n/a'
-                }, () => {
-                    this.updateStreamListing();
                 });
             }
         });
@@ -1174,321 +1036,42 @@ class StreamLayout extends Component {
         }
     }
 
-    filterColumn(style='default', btn=false) {
-        const selected_stream = this.state.selected_stream;
-        if (btn && this.state.display_filter_button) {
-            //
-            // the range the chart is actually drawing. it used to name the
-            // calendar period the rate sat in ('Today', 'July', '2026') for a
-            // chart that has always drawn a trailing window, so the label
-            // disagreed with the chart under it -- now both come from
-            // rolling-window.js and cannot drift apart
-            //
-            var title_count = windowLabel(this.state[`stream_rate_${selected_stream}`]);
-
-            const header = isMobile && selected_stream
-                ? (
-                    <div className='listing-graphic-title'>
-                        <h5>{streamName(selected_stream)}</h5>
-                        <span className='title-count'> ({title_count})</span>
-                    </div>
-                ) : '';
-
-            var button_filter = (
-                <div className='d-block d-md-none filter'>
-                    {header}
-                    <button className='btn' type='button' onClick={() =>
-                        this.setState({
-                            display_filter_button: false,
-                            display_apply_filter_button: true,
-                            hide_all: true
-                        })
-                    }>Filter</button>
-                </div>
-            );
-            var filter = null;
-            var apply_filter = null;
-        } else {
-            const class_parent = style === 'default'
-                ? 'col-md-3 d-none d-md-block checkbox-vertical checkbox-vertical-default'
-                : 'checkbox-vertical checkbox-vertical-expanded';
-
-            const class_date_label = style === 'default' ? 12 : 3;
-
-            var filter = (
-                <div className={class_parent}>
-                    <div className='row'>
-                        <FormControl
-                            component='fieldset'
-                            variant='standard'
-                            className={`col-lg-${class_date_label} col-sm-${class_date_label}`}
-                        >
-                            <FormGroup>
-                                <FormControlLabel
-                                    control={
-                                        <Switch
-                                            checked={this.state.display_area_chart}
-                                            onChange={() => this.toggleAreaChart()}
-                                            name='Ingest Rate'
-                                        />
-                                    }
-                                    label='Ingest Rate'
-                                />
-                            </FormGroup>
-                        </FormControl>
-                    </div>
-
-                    {
-                        this.state.display_area_chart && <div className='row'>
-                            {Object.keys(this.state.time_map).map((key, index) => (
-                                <label className={`col-lg-${class_date_label} col-sm-${class_date_label} checkbox-container`} key={key}>
-                                    <input
-                                        type='checkbox'
-                                        checked={this.state[`scale_chart_${this.state.time_map[key].toLowerCase()}`]}
-                                        onChange={() => {
-                                            Object.entries(this.state.time_map).map(([k, v]) => {
-                                                const rate = this.state.time_map[key].toLowerCase();
-                                                const stream_rate = `stream_rate_${selected_stream}`;
-
-                                                if (rate === v.toLowerCase()) {
-                                                    this.setState({
-                                                        [stream_rate]: key,
-                                                        selected_stream_rate: key,
-                                                        [`promise_get_data_${selected_stream}`]: false
-                                                    }, () => {
-                                                        this.updateStreamListing();
-                                                        this.initializeChartScale(key);
-                                                        this.reset_stream(selected_stream);
-                                                        this.downloadData(selected_stream, key);
-                                                    });
-                                                }
-                                            });
-                                        }}
-                                        disabled={!this.state.display_area_chart}
-                                    />
-                                    <span className='checkbox-checkmark'></span>
-                                    <div className='checkbox-label'>{this.state.time_map[key]}</div>
-                                </label>
-                            ))}
-                        </div>
-                    }
-                </div>
-            );
-
-            if (this.state.display_apply_filter_button) {
-                var button_exit = (
-                    <span className='exit' onClick={() =>
-                        this.setState({
-                            display_filter_button: true,
-                            display_apply_filter_button: false,
-                            hide_all: false
-                        })
-                    }>
-                        <SvgExit />
-                    </span>
-                );
-                var button_filter = <h5>Edit Content Filter</h5>;
-                var apply_filter = (
-                    <div className='apply-filter'>
-                        <button className='btn' type='button' onClick={() =>
-                            this.setState({
-                                display_filter_button: true,
-                                display_apply_filter_button: false,
-                                hide_all: false
-                            })
-                        }>Apply Filter</button>
-                    </div>
-                );
-            } else {
-                var button_exit = null;
-                var button_filter = null;
-            }
-        }
-
-        return(
-            <>
-                {button_exit}
-                {button_filter}
-                {filter}
-                {apply_filter}
-            </>
-        )
-    }
-
-    listing() {
-        return (
-            <div className='col listing'>
-                <ArticleListing
-                    title='Streams'
-                    left_column={false}
-                    list_article={this.state.list_article}
-                    stream_labels={true}
-                    columns={LISTING_COLUMNS}
-                    name_label='Stream'
-                    order={this.state.listing_order}
-                    onReorder={this.reorderListing}
-                    name={this.state.selected_stream ? this.state.selected_stream : null}
-                />
-            </div>
-        )
+    //
+    // the page's rows: each stream's bars at the rate on screen, its figures, and
+    // its controls
+    //
+    rows() {
+        return this.state.streams.map((stream) => ({
+            stream: stream,
+            name: streamName(stream),
+            schedule: scheduleLabel(stream),
+            status: this.state[`failed_${stream}`]
+                ? 'failed'
+                : this.state[`promise_get_data_${stream}`]
+                ? 'done'
+                : this.state[`slow_${stream}`] ? 'slow' : 'loading',
+            retry: () => this.retryStream(stream),
+            current: stream === this.state.current_stream,
+            bars: streamBars(
+                this.state[`chart_data_${stream}`],
+                stream,
+                this.state.rate,
+                this.state.field_datetime,
+                this.state[`stream_source_${stream}`]
+            ),
+            figures: {
+                health: format_percent(this.state[`stream_${stream}_health`]),
+                coverage: format_percent(this.state[`stream_${stream}_coverage`]),
+                total: format_count(this.state[`stream_${stream}_total`])
+            },
+            controls: this.getControlTray(stream)
+        }));
     }
 
     render() {
-        const filter_page = this.filterColumn('expanded', true);
-        const left_column = ! this.state.hide_all
-            ? this.filterColumn()
-            : null;
-
-        //
-        // visible strictly while the query is in flight, so the dots begin fading
-        // the moment the chart lands rather than sitting on top of a chart that
-        // has already rendered
-        //
-        const loader_visible = ! this.state[`promise_get_data_${this.state.selected_stream}`];
-
-        //
-        // same treatment as the /data page: kept mounted and faded with opacity
-        // rather than unmounted (removing the node cannot be transitioned, which
-        // is what made it vanish abruptly), and centered over the whole chart area
-        // rather than wherever a bare 'margin: auto' happens to land inside the
-        // positioned chart wrapper. 'pointerEvents: none' keeps the invisible
-        // layer from eating chart hovers
-        //
-        const loader = (
-            <div
-                style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    //
-                    // above '.refresh' (z-index 1 in _area_chart.scss) and above
-                    // the chart wrapper, which is positioned but carries no
-                    // z-index of its own
-                    //
-                    zIndex: 10,
-                    opacity: loader_visible ? 1 : 0,
-                    transition: `opacity ${LOADER_FADE_MS}ms ease-out`,
-                    pointerEvents: 'none'
-                }}
-            >
-                {/*
-
-                    a chip behind the dots, not a full-area wash: it restores a
-                    known surface under the dots so they hold their contrast
-                    regardless of what the chart is showing. sized to the dots
-                    rather than the chart so the spinning '.refresh' icon is not
-                    dimmed while the query is in flight
-
-                */}
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: isMobile ? '14px 18px' : '18px 24px',
-                        borderRadius: 999,
-                        background: translucent(themeColors(this.context.theme)['white-1'], 0.92),
-                        boxShadow: '0 1px 6px rgba(0, 0, 0, 0.12)'
-                    }}
-                >
-                    <BeatLoader
-                        //
-                        // the app's ui accent -- the same green as the selected
-                        // row's left border -- rather than a series color, so
-                        // chrome and data do not share one value. The dark
-                        // theme's lighter green on a dark page
-                        //
-                        color={themeColors(this.context.theme)['green-6']}
-                        margin={5}
-                        size={isMobile ? 20 : 30}
-                        speedMultiplier={0.75}
-                    />
-                </div>
-            </div>
-        );
-
-        const refresh_class = this.state[`promise_get_data_${this.state.selected_stream}`]
-            ? 'refresh'
-            : 'refresh-disabled';
-
-        if (
-            ! this.state.hide_all
-            && this.state.display_area_chart
-        ) {
-            var area_chart = (
-                <div className='col-lg-12 mx-auto'>
-                    <div className='area-chart-parent'>
-                        {loader}
-                        <LoopIcon
-                            className={refresh_class}
-                            fontSize={ isMobile ? 'medium' : 'large' }
-                            onClick={() => {
-                                this.initializeChartScale(this.state[`stream_rate_${this.state.selected_stream}`]);
-                                this.reset_stream(this.state.selected_stream);
-                                this.updateStreamListing();
-                                this.downloadData(this.state.selected_stream, this.state[`stream_rate_${this.state.selected_stream}`]);
-                            }}
-                            sx={{
-                                animation: ! this.state[`promise_get_data_${this.state.selected_stream}`]
-                                    ? 'spin 2s linear infinite' : 'none',
-                                '@keyframes spin': ! this.state[`promise_get_data_${this.state.selected_stream}`]
-                                    ? {
-                                        '0%': {
-                                            transform: 'rotate(360deg)',
-                                        },
-                                        '100%': {
-                                            transform: 'rotate(0deg)',
-                                        },
-                                    } : 'none'
-                            }}
-                        />
-                        <StackedAreaChart
-                            data={this.state[`chart_data_${this.state.selected_stream}`]}
-                            data_keys={this.state[`stream_source_${this.state.selected_stream}`]}
-                            color={colors_categorical}
-                            title={streamName(this.state.selected_stream)}
-                            y_label='Total Ingest'
-                            data_key={this.state.field_datetime}
-                            height={this.state.chart_height}
-                            x_axis_height={isMobile ? CHART_X_AXIS_HEIGHT_MOBILE : CHART_X_AXIS_HEIGHT}
-                            x_axis_angle={isMobile ? 0 : CHART_X_AXIS_ANGLE}
-                            x_axis_anchor={isMobile ? 'middle' : CHART_X_AXIS_ANCHOR}
-                            x_ticker_format={this.state.x_ticker_format}
-                            label_format={this.state.label_format}
-                            y_tick_format={isMobile ? false : 'exponential'}
-                            y_axis_tick_line={isMobile ? false : true}
-                        />
-                        {/*
-
-                            beside the refresh icon, at its size. The request is the
-                            url downloadData fetches for the stream and rate on screen,
-                            so it opens the response this chart was drawn from
-
-                        */}
-                        <ApiLinks
-                            docs={API_DOCS.performance}
-                            request={performanceUrl(
-                                this.state.selected_stream,
-                                this.state[`stream_rate_${this.state.selected_stream}`],
-                                viewerTimeZone()
-                            )}
-                            size={isMobile ? 'medium' : 'large'}
-                        />
-                    </div>
-                </div>
-            );
-        } else {
-            var area_chart = null;
-        }
-
-        const listing = ! this.state.hide_all
-            ? this.listing()
-            : null;
+        const rate = this.state.rate;
+        const start = windowStart(rate);
+        const size = isMobile ? 'medium' : 'large';
 
         const sheet_class = isMobile
             ? 'container featured-sheet-mobile'
@@ -1497,14 +1080,74 @@ class StreamLayout extends Component {
         return (
             <ErrorBoundary FallbackComponent={ErrorFallback}>
                 <div className='container'>
-                    <div className='row listing-graphic'>
-                        {filter_page}
-                        {area_chart}
+                    <div className='stream-rows-bar'>
+                        <div className='stream-rows-intro'>
+                            <h4>Streams</h4>
+                            <span>{windowLabel(rate)}, one bar per {rate.toLowerCase()}</span>
+                        </div>
+                        <div className='stream-rates' role='group' aria-label='Rate'>
+                            {RATES.map((r) => (
+                                <button
+                                    key={r}
+                                    type='button'
+                                    className='stream-rate'
+                                    aria-pressed={r === rate}
+                                    onClick={() => this.chooseRate(r)}
+                                >
+                                    {r}
+                                </button>
+                            ))}
+                        </div>
+                        {/*
+
+                            the docs, and the requests the rows were drawn from: one
+                            per stream, so 'This request' opens a list of them rather
+                            than linking any one. Each is the url downloadData
+                            fetched, built by the same function
+
+                        */}
+                        <div className='stream-api-links'>
+                            <ApiLinks docs={API_DOCS.performance} size={size} />
+                            <Tooltip title='This request'>
+                                <button
+                                    type='button'
+                                    className='api-link stream-requests'
+                                    aria-label='This request'
+                                    aria-haspopup='menu'
+                                    aria-expanded={Boolean(this.state.requests_anchor)}
+                                    onClick={(event) => this.setState({ requests_anchor: event.currentTarget })}
+                                >
+                                    <DataObjectIcon fontSize={size} />
+                                </button>
+                            </Tooltip>
+                            <Menu
+                                anchorEl={this.state.requests_anchor}
+                                open={Boolean(this.state.requests_anchor)}
+                                onClose={() => this.setState({ requests_anchor: null })}
+                            >
+                                {this.state.streams.map((stream) => (
+                                    <MenuItem
+                                        key={stream}
+                                        component='a'
+                                        href={String(performanceUrl(stream, rate.toLowerCase(), viewerTimeZone()))}
+                                        target='_blank'
+                                        rel='noopener noreferrer'
+                                        onClick={() => this.setState({ requests_anchor: null })}
+                                    >
+                                        {streamName(stream)}
+                                    </MenuItem>
+                                ))}
+                            </Menu>
+                        </div>
                     </div>
-                    <div className='row listing-general'>
-                        {left_column}
-                        {listing}
-                    </div>
+
+                    <StreamRows
+                        rows={this.rows()}
+                        rate={rate}
+                        first={start ? axisLabel(start, rate) : ''}
+                        last='Now'
+                    />
+
                     <Sheet
                         isOpen={this.state.bottom_sheet_open}
                         onClose={() => null}

@@ -3,14 +3,15 @@
 `GET https://api.jefflevesque.com/v1/public/performance`
 
 How much one ingest stream took in, and how much of it succeeded, bucketed over a
-trailing window. `/stream` charts it for the stream and the rate a reader chooses.
+trailing window. `/stream` draws it as a row of bars for every stream, at the rate a
+reader chooses.
 
 ## Parameters
 
 | Parameter | Values | The application sends |
 |---|---|---|
-| `Stream` | `bls`, `sec`, `stock-market`, `stock-split`, `us-national-weather` | the stream selected in the listing |
-| `Interval` | `minute`, `hour`, `day`, `month`; `minute` when omitted | the rate selected beside the chart |
+| `Stream` | `bls`, `sec`, `stock-market`, `stock-split`, `us-national-weather` | each stream in turn, one request per row |
+| `Interval` | `minute`, `hour`, `day`, `month`; `minute` when omitted | the rate chosen over the rows |
 | `Timezone` | an IANA time zone, such as `America/New_York`; `UTC` when omitted | the reader's own, from the browser |
 
 `Stream` takes a stream's id, the same id the website names the stream by in its own
@@ -40,8 +41,8 @@ York.
 `report` is `null` when the window holds no rows.
 
 The application reads `group_by`, `window_start`, `total_success` and `total_fail`.
-It stacks each source's successes by bucket for the chart, and computes the stream's
-health and ingest coverage from the same rows. See
+It sums each source's successes and failures by bucket into one bar per interval,
+and computes the stream's health and ingest coverage from the same rows. See
 [Ingest coverage](../application/ingest-coverage.md).
 
 ## The archive behind it

@@ -11,7 +11,14 @@
 import { readString } from 'react-papaparse';
 import {parseCsv, papaParseCsv} from '../general/parse-csv.js';
 
-function get_promise(url, callback, source, stream) {
+//
+// Note: 'on_error' is told when the request fails -- a response that is not ok,
+//       a body with no report, or no answer at all. The failure is still caught
+//       and logged, so a caller that passes nothing sees no change; a caller that
+//       does can tell a request that failed from one still in flight, which the
+//       callback alone cannot, since it never fires for either.
+//
+function get_promise(url, callback, source, stream, on_error = null) {
     return fetch(url, {method: 'GET'})
         .then((response) => {
             if (response.ok) {
@@ -45,10 +52,14 @@ function get_promise(url, callback, source, stream) {
             } else {
                 console.log(`Error: url=${url} returned ${e}`);
             }
+
+            if (typeof on_error === 'function') {
+                on_error(e);
+            }
         });
 }
 
-function get(type, url, callback, worker, source, stream) {
+function get(type, url, callback, worker, source, stream, on_error) {
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
     const mm = today.getMonth() === 11 ? '12' : String(today.getMonth() + 1).padStart(2, '0');
@@ -107,7 +118,7 @@ function get(type, url, callback, worker, source, stream) {
 
     } else if (type === 'bls-ingest') {
         if (url) {
-            var promise = get_promise(url, callback, source, stream);
+            var promise = get_promise(url, callback, source, stream, on_error);
         } else {
             const yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 1).padStart(2, '0');
             const before_yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 2).padStart(2, '0');
@@ -129,7 +140,7 @@ function get(type, url, callback, worker, source, stream) {
 
     } else if (type === 'sec-ingest') {
         if (url) {
-            var promise = get_promise(url, callback, source, stream);
+            var promise = get_promise(url, callback, source, stream, on_error);
         } else {
             const yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 1).padStart(2, '0');
             const before_yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 2).padStart(2, '0');
@@ -151,7 +162,7 @@ function get(type, url, callback, worker, source, stream) {
 
     } else if (type === 'us-national-weather-ingest') {
         if (url) {
-            var promise = get_promise(url, callback, source, stream);
+            var promise = get_promise(url, callback, source, stream, on_error);
         } else {
             const yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 1).padStart(2, '0');
             const before_yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 2).padStart(2, '0');
@@ -180,7 +191,7 @@ function get(type, url, callback, worker, source, stream) {
 
     } else if (type === 'stock-market-ingest') {
         if (url) {
-            var promise = get_promise(url, callback, source, stream);
+            var promise = get_promise(url, callback, source, stream, on_error);
         } else {
             const yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 1).padStart(2, '0');
             const before_yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 2).padStart(2, '0');
@@ -215,7 +226,7 @@ function get(type, url, callback, worker, source, stream) {
 
     } else if (type === 'stock-split-ingest') {
         if (url) {
-            var promise = get_promise(url, callback, source, stream);
+            var promise = get_promise(url, callback, source, stream, on_error);
         } else {
             const yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 1).padStart(2, '0');
             const before_yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 2).padStart(2, '0');
@@ -444,6 +455,6 @@ function get(type, url, callback, worker, source, stream) {
     }
 }
 
-export default function getData(type, url=null, callback=()=>{}, worker=false, source=null, stream=null) {
-    return get(type, url, callback, worker, source, stream);
+export default function getData(type, url=null, callback=()=>{}, worker=false, source=null, stream=null, on_error=null) {
+    return get(type, url, callback, worker, source, stream, on_error);
 }

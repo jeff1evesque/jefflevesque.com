@@ -1,0 +1,538 @@
+// _stream.scss: /stream's rows of bars -- see layout/stream/stream-rows.jsx.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+//
+
+//
+// a reported bar's shade by its health, darkest for a bar whose records all
+// succeeded -- see HEALTH_BANDS in stream-bars.js. One blue, stepped. By night
+// the steps run the other way, so the fullest bar is still the one that stands
+// out most against the page.
+//
+:root {
+  --stream-health-0: #1c5cab;
+  --stream-health-1: #3987e5;
+  --stream-health-2: #6da7ec;
+  --stream-health-3: #9ec5f4;
+  --stream-health-4: #cde2fb;
+  --stream-missed: #d03b3b;
+  --stream-off-1: #ebeae6;
+  --stream-off-2: #f6f5f2;
+}
+
+:root[data-theme='dark'] {
+  --stream-health-0: #86b6ef;
+  --stream-health-1: #5598e7;
+  --stream-health-2: #2a78d6;
+  --stream-health-3: #1c5cab;
+  --stream-health-4: #104281;
+  --stream-missed: #e66767;
+  --stream-off-1: #3a3a37;
+  --stream-off-2: #2a2a28;
+}
+
+//
+// a row: its name, its controls, its bars and its three figures, in columns the
+// heading shares. On a phone the figures move under the name, and the bars take
+// a line of their own.
+//
+// Note: every column but the bars' is a fixed width. Each row is a grid of its
+//       own, so a column sized to its content would be as wide as that row's
+//       content -- the S&P 500's two controls against every other row's one --
+//       and the bars would start at a different place on each row.
+//
+.stream-rows-head,
+.stream-row {
+  align-items: center;
+  column-gap: 1rem;
+  display: grid;
+  grid-template-columns: 14rem 5.5rem minmax(0, 1fr) repeat(3, 6.5rem);
+}
+
+.stream-row-controls {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.stream-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin: 1rem 0 2rem;
+}
+
+.stream-rows-head {
+  color: $gray-6;
+  font-size: 0.85rem;
+}
+
+.stream-rows-head-name {
+  grid-column: 1 / 3;
+}
+
+.stream-rows-axis {
+  display: flex;
+  justify-content: space-between;
+}
+
+.stream-rows-sort {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: 0.25rem;
+  justify-content: flex-end;
+  padding: 0.25rem 0;
+
+  &:hover,
+  &:focus-visible {
+    color: $gray-8;
+    text-decoration: underline;
+  }
+}
+
+.stream-rows-sort-arrow {
+  display: inline-block;
+  width: 0.7rem;
+}
+
+.stream-row-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stream-row-title {
+  align-items: center;
+  display: flex;
+  font-weight: 500;
+  gap: 0.5rem;
+}
+
+.stream-row-schedule {
+  color: $gray-6;
+  font-size: 0.8rem;
+}
+
+.stream-row-current .stream-row-title {
+  color: $green-5;
+}
+
+//
+// the figures under the name, which only a phone shows
+//
+.stream-row-inline {
+  display: none;
+}
+
+.stream-row-figure {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+//
+// the spinner beside a stream still loading, in the site's green
+//
+// Note: the color is said on the svg's circle as well, because mui draws the
+//       spinner in its own primary blue on the element, one class deep.
+//
+.stream-row-title .stream-row-spinner {
+  color: $green-5;
+  flex-shrink: 0;
+
+  circle {
+    stroke: currentColor;
+  }
+}
+
+//
+// a row's bars, and what it says over them until its report is in: loading,
+// still loading, or that it could not load, with a button to ask again. The bars
+// stay drawn underneath -- a row's schedule is known before its report is -- and
+// the line sits on a wash of the page so it reads over them.
+//
+.stream-row-bars-wrap {
+  min-width: 0;
+  position: relative;
+}
+
+.stream-row-status {
+  align-items: center;
+  background-color: var(--white-1-85);
+  bottom: 0;
+  color: $gray-7;
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.75rem;
+  justify-content: center;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.stream-row-retry {
+  background: none;
+  border: 1px solid $gray-5;
+  border-radius: 999px;
+  color: $gray-8;
+  cursor: pointer;
+  font: inherit;
+  min-height: 2.25rem;
+  padding: 0.2rem 0.9rem;
+
+  &:hover,
+  &:focus-visible {
+    border-color: $gray-8;
+  }
+}
+
+//
+// a row waiting on its report hides the dots over its bars, which stand above the
+// wash and would read as a fresh failure
+//
+.stream-row-bars-waiting .stream-bar-failed::before {
+  display: none;
+}
+
+//
+// the bars stand on one baseline, as tall as the row allows
+//
+.stream-row-bars {
+  align-items: flex-end;
+  border-bottom: 1px solid $gray-3;
+  display: flex;
+  gap: 2px;
+  height: 4.5rem;
+}
+
+.stream-row-bars-dense {
+  gap: 1px;
+}
+
+.stream-bar-slot {
+  align-items: center;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  height: 100%;
+  justify-content: flex-end;
+  min-width: 0;
+  position: relative;
+
+  &:hover {
+    background-color: rgba(var(--ink-rgb), 0.06);
+  }
+}
+
+.stream-bar {
+  border-radius: 3px 3px 0 0;
+  display: block;
+  width: 100%;
+}
+
+.stream-health-0 { background-color: var(--stream-health-0); }
+.stream-health-1 { background-color: var(--stream-health-1); }
+.stream-health-2 { background-color: var(--stream-health-2); }
+.stream-health-3 { background-color: var(--stream-health-3); }
+.stream-health-4 { background-color: var(--stream-health-4); }
+
+//
+// a bar whose interval had failures carries a red dot over it
+//
+.stream-bar-failed::before {
+  background-color: var(--stream-missed);
+  border-radius: 50%;
+  content: '';
+  height: 5px;
+  left: 50%;
+  position: absolute;
+  top: -8px;
+  transform: translateX(-50%);
+  width: 5px;
+}
+
+.stream-bar-failed {
+  position: relative;
+}
+
+//
+// a miss is a short box, outlined in red and crossed, so it reads as a miss
+// without the red to say so
+//
+.stream-bar-missed {
+  background:
+    linear-gradient(45deg, transparent 44%, var(--stream-missed) 44%, var(--stream-missed) 56%, transparent 56%),
+    linear-gradient(-45deg, transparent 44%, var(--stream-missed) 44%, var(--stream-missed) 56%, transparent 56%);
+  border: 2px solid var(--stream-missed);
+  border-radius: 3px;
+  box-sizing: border-box;
+  height: 1rem;
+  max-width: 1.4rem;
+}
+
+//
+// nothing due, drawn as a thin hatched strip; a minute between runs thinner
+// still
+//
+.stream-bar-off,
+.stream-bar-between {
+  background: repeating-linear-gradient(45deg, var(--stream-off-1) 0 3px, var(--stream-off-2) 3px 6px);
+  border-radius: 2px 2px 0 0;
+  height: 6px;
+}
+
+.stream-bar-between {
+  height: 3px;
+}
+
+.stream-bar-pending {
+  height: 0;
+}
+
+.stream-rows-readout {
+  background-color: $gray-1;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.9rem;
+
+  span {
+    color: $gray-7;
+  }
+}
+
+.stream-rows-legend {
+  align-items: center;
+  color: $gray-6;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  gap: 0.5rem 1.25rem;
+}
+
+.stream-rows-legend-title {
+  color: $gray-8;
+  width: 100%;
+}
+
+.stream-rows-key {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.stream-rows-swatch {
+  border-radius: 3px;
+  display: inline-block;
+  height: 0.9rem;
+  width: 0.9rem;
+
+  &.stream-bar-missed {
+    height: 0.9rem;
+  }
+
+  &.stream-bar-off {
+    height: 0.9rem;
+  }
+}
+
+.stream-rows-swatch-failed {
+  background-color: var(--stream-missed);
+  border-radius: 50%;
+  height: 0.4rem;
+  width: 0.4rem;
+}
+
+//
+// the controls, a round button each, as the listing drew them
+//
+// Note: under '#bootstrap-override', which colors every link.
+//
+#bootstrap-override .stream-rows {
+  .control-tray {
+    align-items: center;
+    display: inline-flex;
+    float: none;
+    margin: 0;
+  }
+
+  .control-tray .control-icon {
+    font-size: 1.45rem;
+    margin: 0;
+  }
+
+  .control-tray .control-button,
+  .control-tray .control-button:link,
+  .control-tray .control-button:visited {
+    align-items: center;
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    color: inherit;
+    display: inline-flex;
+    height: 2.5rem;
+    justify-content: center;
+    padding: 0;
+    text-decoration: none;
+    width: 2.5rem;
+  }
+
+  .control-tray .control-button:hover,
+  .control-tray .control-button:focus-visible {
+    background-color: rgba(var(--ink-rgb), 0.06);
+  }
+
+  .control-tray .control-button:before,
+  .control-tray .control-button:hover:before {
+    display: none;
+  }
+}
+
+//
+// a phone: the name with its figures under it and the controls beside it, then
+// the bars across the whole width. The figures' headings go, and the sort with
+// them.
+//
+@media (max-width: 767.98px) {
+  .stream-rows-head {
+    display: flex;
+  }
+
+  .stream-rows-head-name,
+  .stream-rows-sort {
+    display: none;
+  }
+
+  .stream-rows-axis {
+    flex: 1;
+    font-size: 0.8rem;
+  }
+
+  .stream-row {
+    grid-template-areas:
+      'name controls'
+      'bars bars';
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0.4rem;
+  }
+
+  .stream-row-name { grid-area: name; }
+  .stream-row-controls { grid-area: controls; }
+  .stream-row-bars-wrap { grid-area: bars; }
+  .stream-row-bars { height: 3rem; }
+
+  .stream-row-retry {
+    min-height: 2.75rem;
+  }
+
+  .stream-row-figure {
+    display: none;
+  }
+
+  .stream-row-inline {
+    color: $gray-6;
+    display: block;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #bootstrap-override .stream-rows .control-tray .control-button {
+    height: 2.75rem;
+    width: 2.75rem;
+  }
+}
+
+//
+// the rate the rows are drawn at, and the api icons, over the rows
+//
+.stream-rows-bar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+.stream-rows-intro {
+  display: flex;
+  flex-direction: column;
+
+  h4 {
+    margin: 0;
+  }
+
+  span {
+    color: $gray-6;
+  }
+}
+
+//
+// the docs link and the 'This request' button beside it, which opens a menu of
+// the requests. The button takes the link's gray, so the two read as a pair.
+//
+.stream-api-links {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.stream-requests {
+  background: none;
+  border: 0;
+  color: #555;
+  cursor: pointer;
+  display: inline-flex;
+  line-height: 0;
+  padding: 0;
+
+  &:hover,
+  &:focus-visible {
+    color: $gray-9;
+  }
+
+  @include dark {
+    color: $gray-6;
+
+    &:hover,
+    &:focus-visible {
+      color: $gray-9;
+    }
+  }
+}
+
+.stream-rates {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.stream-rate {
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 999px;
+  color: $gray-7;
+  cursor: pointer;
+  font: inherit;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.9rem;
+
+  &[aria-pressed='true'] {
+    background-color: $gray-9;
+    border-color: $gray-9;
+    color: $white-1;
+  }
+
+  &:hover,
+  &:focus-visible {
+    border-color: $gray-7;
+  }
+}

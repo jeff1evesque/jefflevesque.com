@@ -292,10 +292,10 @@
 // only the chart glyph does this -- the alarm and query controls navigate away
 // and have no 'currently showing' state to report
 //
-// Note: written against the row class rather than per page, so /stream and
-//       /data pick it up from the one place both already render through
-//       (article-listing.jsx applies 'highlight' to the selected row, and both
-//       trays mark their glyph '.control-icon.chart')
+// Note: written against the row class rather than per page, so /data picks it
+//       up from the one place it renders through (article-listing.jsx applies
+//       'highlight' to the selected row, and its tray marks its glyph
+//       '.control-icon.chart')
 //
 .article-link.highlight .control-tray .control-icon.chart {
   color: $green-5;
@@ -388,9 +388,9 @@
 }
 
 //
-// the switch over each listing page's filters -- Ingest Rate on /stream, Data
-// Distribution on /data -- in the site's green rather than mui's blue, as Account
-// Settings' switches are (see _account.scss).
+// the switch over a listing page's filters -- Data Distribution on /data -- in
+// the site's green rather than mui's blue, as Account Settings' switches are (see
+// _account.scss).
 //
 // Note: scoped by the filter column. mui's own rule is one class, and arrives
 //       after this stylesheet.
@@ -406,7 +406,7 @@
 }
 
 //
-// /stream's and /data's listings, as a table -- see listing-table.jsx. A row per
+// /data's listing, as a table -- see listing-table.jsx. A row per
 // stream and a column per figure, each figure's label said once, in the header,
 // and a number right-aligned so a column reads down the page.
 //

@@ -668,8 +668,7 @@ class ArticleListing extends Component {
     render() {
         if (Array.isArray(this.props.columns) && this.props.columns.length) {
             //
-            // the charted row: /data names it as `selected_identifier`, and
-            // /stream as `name`
+            // the charted row, which /data names as `selected_identifier`
             //
             return (
                 <ListingTable
@@ -677,7 +676,7 @@ class ArticleListing extends Component {
                     name_label={this.props.name_label}
                     columns={this.props.columns}
                     rows={this.props.list_article}
-                    selected={this.props.selected_identifier || this.props.name || null}
+                    selected={this.props.selected_identifier || null}
                     order={this.props.order || null}
                     onReorder={this.props.onReorder || null}
                     label={this.props.stream_labels ? streamName : (name) => name}

@@ -26,7 +26,7 @@ jest.mock('../../../import/general/account-api.js', () => ({
 }));
 
 import React from 'react';
-import { render, act, screen } from '@testing-library/react';
+import { render, act, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 jest.mock('../../../import/general/get-data.js', () => ({
@@ -399,34 +399,61 @@ describe('running locally', () => {
     });
 });
 
-describe('the api icons beside the chart', () => {
+describe('the icons over the rows', () => {
     //
-    // the request icon has to open the request the chart was drawn from, so it is
-    // asserted against the url the page actually handed its loader rather than rebuilt
-    // here from the same inputs.
+    // each request in the 'This request' menu has to open the request its row was
+    // drawn from, so it is asserted against the url the page actually handed its
+    // loader rather than rebuilt here from the same inputs.
     //
+    // the menu's items, as { name, href }, once it is opened
+    //
+    async function menu() {
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'This request' }));
+        });
+
+        return (await screen.findAllByRole('menuitem'))
+            .map((item) => ({ name: item.textContent, href: item.getAttribute('href') }));
+    }
+
+    //
+    // the url the page last handed its loader for `stream`
+    //
+    function askedFor(stream) {
+        const calls = getData.mock.calls.filter((call) => call[5] === stream);
+
+        return String(calls[calls.length - 1][1]);
+    }
+
     it('links the performance api\'s documentation', () => {
         setup();
 
         expect(screen.getByRole('link', { name: 'API docs' })).toHaveAttribute('href', API_DOCS.performance);
     });
 
-    it('links the request made for the stream on screen', () => {
-        const page = setup();
+    it('list the request made for each stream\'s row', async () => {
+        setup();
 
-        download(page, page.state.selected_stream, 'day');
+        const items = await menu();
 
-        expect(screen.getByRole('link', { name: 'This request' }))
-            .toHaveAttribute('href', String(lastRequest().url));
+        expect(items).toHaveLength(STREAMS.length);
+        STREAMS.forEach((stream, index) => {
+            expect(items[index].href).toBe(askedFor(stream));
+        });
     });
 
-    it('follows the rate when another is chosen', () => {
-        const page = setup();
+    it('follow the rate when another is chosen', async () => {
+        setup();
 
-        download(page, page.state.selected_stream, 'hour');
+        act(() => {
+            fireEvent.click(screen.getByRole('button', { name: 'Hour' }));
+        });
 
-        const link = screen.getByRole('link', { name: 'This request' });
-        expect(link).toHaveAttribute('href', String(lastRequest().url));
-        expect(paramsOf(link.getAttribute('href')).get('Interval')).toBe('hour');
+        const items = await menu();
+
+        STREAMS.forEach((stream, index) => {
+            expect(items[index].href).toBe(askedFor(stream));
+            expect(paramsOf(items[index].href).get('Interval')).toBe('hour');
+        });
     });
 });

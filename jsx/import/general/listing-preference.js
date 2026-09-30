@@ -3,7 +3,7 @@
  * visits -- the stream they last charted there, and the order they dragged its
  * rows into.
  *
- * /stream and /data each open on a chart, and list their streams under it. A
+ * /data opens on a chart, and lists its streams under it. A
  * reader who charts the same stream on every visit, or watches two streams more
  * than the rest, answers the same two questions every time the page asks them:
  * which one, and in what order. Asking again is the page forgetting an answer it
@@ -34,10 +34,13 @@ const KEY = 'jefflevesque.listing';
 const VERSION = 1;
 
 //
-// the pages that keep a choice, each under its own name: /stream's and /data's
-// list the same streams, and a reader charts a different one on each.
+// the pages that keep a choice, each under its own name.
 //
-const PAGES = ['stream', 'data'];
+// Note: /stream kept one too, until it drew every stream at once as a row of
+//       bars (#152). It charts none and has no order to drag, so a choice a
+//       reader kept for it before is left where it is and never read.
+//
+const PAGES = ['data'];
 
 /**
  * the stored document, or null for anything unreadable.

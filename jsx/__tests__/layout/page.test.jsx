@@ -58,6 +58,21 @@ jest.mock('../../import/general/account-api.js', () => {
     };
 });
 
+//
+// the real loader, less the failure hook /stream hands it. These cases are about
+// where an address ends up, and setup.js's fetch answers every request not-ok --
+// told of it, /stream's rows would say they could not load after a case had
+// ended. What a failed request does to /stream is stream.test.jsx's.
+//
+jest.mock('../../import/general/get-data.js', () => {
+    const actual = jest.requireActual('../../import/general/get-data.js');
+
+    return {
+        __esModule: true,
+        default: (...args) => actual.default(...args.slice(0, 6)),
+    };
+});
+
 import user from '../../import/redux/reducer/login.jsx';
 import layout from '../../import/redux/reducer/layout.jsx';
 import page from '../../import/redux/reducer/page.jsx';
