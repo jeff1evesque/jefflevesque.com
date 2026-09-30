@@ -86,6 +86,18 @@ const RATES = ['Month', 'Day', 'Hour', 'Minute'];
 
 {/*
 
+    how long a stream may take before its row says it is still loading. A slow
+    stream is not a failed one -- the S&P 500's report can take a while when the
+    api has not cached it -- so this only changes what the row says, and the
+    request is left to finish. A row says it could not load only when the request
+    actually fails.
+
+*/}
+export const SLOW_AFTER_MS = 10000;
+
+
+{/*
+
     the rate an address names ('?rate=hour'), as the page writes it, or null
 
 */}
@@ -306,6 +318,28 @@ class StreamLayout extends Component {
         this.reset_stream = this.reset_stream.bind(this);
         this.loadSubscriptions = this.loadSubscriptions.bind(this);
         this.chooseRate = this.chooseRate.bind(this);
+        this.retryStream = this.retryStream.bind(this);
+        this.failedData = this.failedData.bind(this);
+
+        //
+        // the request each stream is waiting on, by stream id: a count that goes up
+        // with every request, so a reply is matched to the request it answers and a
+        // reply to one since replaced is dropped -- see callbackGetData. And the
+        // timer that marks a stream still loading, by the same id.
+        //
+        this.asked = {};
+        this.slow_timers = {};
+    }
+
+    componentWillUnmount() {
+        //
+        // a reply that lands after the page has gone answers a request nothing is
+        // waiting on any more
+        //
+        Object.keys(this.asked).forEach((stream) => {
+            this.asked[stream] += 1;
+        });
+        Object.values(this.slow_timers).forEach((timer) => clearTimeout(timer));
     }
 
     componentDidMount() {
@@ -356,6 +390,28 @@ class StreamLayout extends Component {
                 this.downloadData(stream, rate);
             });
         });
+    }
+
+    //
+    // a stream asked for again from its row, after its request failed
+    //
+    retryStream(stream) {
+        this.reset_stream(stream);
+        this.downloadData(stream, this.state.rate);
+    }
+
+    //
+    // a request that failed: its row says so and offers to ask again. A failure
+    // of a request since replaced says nothing, since the row is waiting on
+    // another.
+    //
+    failedData(stream, asked) {
+        if (this.asked[stream] !== asked) {
+            return;
+        }
+
+        clearTimeout(this.slow_timers[stream]);
+        this.setState({ [`failed_${stream}`]: true, [`slow_${stream}`]: false });
     }
 
     reset_stream(selected_stream) {
@@ -525,9 +581,22 @@ class StreamLayout extends Component {
 
     downloadData(type, stream_rate) {
         stream_rate = stream_rate.toLowerCase();
+
+        const asked = (this.asked[type] || 0) + 1;
+        this.asked[type] = asked;
+
+        //
+        // Note: the figures go back to n/a with the rows, so a row waiting on a
+        //       new report never shows the old one's figures beside 'Loading'.
+        //
         this.setState({
             [`stream_rate_${type}`]: stream_rate,
-            [`promise_get_data_${type}`]: false
+            [`promise_get_data_${type}`]: false,
+            [`slow_${type}`]: false,
+            [`failed_${type}`]: false,
+            [`stream_${type}_health`]: 'n/a',
+            [`stream_${type}_coverage`]: 'n/a',
+            [`stream_${type}_total`]: 'n/a'
         });
 
         const request = this.STREAM_REQUEST[type];
@@ -536,6 +605,13 @@ class StreamLayout extends Component {
             this.setState({ [`promise_get_data_${type}`]: true });
             return;
         }
+
+        clearTimeout(this.slow_timers[type]);
+        this.slow_timers[type] = setTimeout(() => {
+            if (this.asked[type] === asked && !this.state[`promise_get_data_${type}`]) {
+                this.setState({ [`slow_${type}`]: true });
+            }
+        }, SLOW_AFTER_MS);
 
         {/*
 
@@ -560,25 +636,33 @@ class StreamLayout extends Component {
         getData(
             request.get_data,
             this.state.local ? null : url,
-            (item) => this.callbackGetData(item, type, stream_rate),
+            (item) => this.callbackGetData(item, type, asked),
             true,
             this.state.local ? request.source_local : request.source,
-            type
+            type,
+            () => this.failedData(type, asked)
         );
     }
 
     //
-    // Note: the stream and the rate the reply was ASKED for travel with it. A
-    //       report that came back empty names no stream of its own, and its row
-    //       must still stop loading; a reply to a rate the reader has since
-    //       changed from is dropped, so it cannot land on the new rate's rows.
+    // whether a reply answers the request its stream is waiting on. One that
+    // names no request -- a caller outside downloadData -- is taken as it comes.
     //
-    callbackGetData(item, asked_stream = null, asked_rate = null) {
-        if (
-            asked_stream
-            && asked_rate
-            && String(this.state[`stream_rate_${asked_stream}`]).toLowerCase() !== String(asked_rate).toLowerCase()
-        ) {
+    answersLatest(asked_stream, asked) {
+        return !asked_stream || asked === null || this.asked[asked_stream] === asked;
+    }
+
+    //
+    // Note: the stream and the request the reply was ASKED for travel with it. A
+    //       report that came back empty names no stream of its own, and its row
+    //       must still stop loading; a reply to a request since replaced -- by
+    //       another rate, or a retry -- is dropped, so it cannot land on the rows
+    //       of the one that replaced it. Asked twice: when the reply arrives, and
+    //       again when the worker is done with it, since the reader can change
+    //       the rate while the worker runs.
+    //
+    callbackGetData(item, asked_stream = null, asked = null) {
+        if (!this.answersLatest(asked_stream, asked)) {
             return;
         }
 
@@ -591,6 +675,10 @@ class StreamLayout extends Component {
         };
 
         worker.onmessage = (event) => {
+            if (!this.answersLatest(asked_stream, asked)) {
+                return;
+            }
+
             if (
                 checkValidObject('data', event)
                 && 'selected_source' in event.data
@@ -670,8 +758,11 @@ class StreamLayout extends Component {
             }
 
             if (selected_stream) {
+                clearTimeout(this.slow_timers[selected_stream]);
+
                 this.setState({
-                    [`promise_get_data_${selected_stream}`]: true
+                    [`promise_get_data_${selected_stream}`]: true,
+                    [`slow_${selected_stream}`]: false
                 }, () => {
                     //
                     // the listing counts describe the chart, so they are computed
@@ -954,7 +1045,12 @@ class StreamLayout extends Component {
             stream: stream,
             name: streamName(stream),
             schedule: scheduleLabel(stream),
-            loading: !this.state[`promise_get_data_${stream}`],
+            status: this.state[`failed_${stream}`]
+                ? 'failed'
+                : this.state[`promise_get_data_${stream}`]
+                ? 'done'
+                : this.state[`slow_${stream}`] ? 'slow' : 'loading',
+            retry: () => this.retryStream(stream),
             current: stream === this.state.current_stream,
             bars: streamBars(
                 this.state[`chart_data_${stream}`],
