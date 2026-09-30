@@ -135,6 +135,71 @@
 }
 
 //
+// the spinner beside a stream still loading, in the site's green
+//
+// Note: the color is said on the svg's circle as well, because mui draws the
+//       spinner in its own primary blue on the element, one class deep.
+//
+.stream-row-title .stream-row-spinner {
+  color: $green-5;
+  flex-shrink: 0;
+
+  circle {
+    stroke: currentColor;
+  }
+}
+
+//
+// a row's bars, and what it says over them until its report is in: loading,
+// still loading, or that it could not load, with a button to ask again. The bars
+// stay drawn underneath -- a row's schedule is known before its report is -- and
+// the line sits on a wash of the page so it reads over them.
+//
+.stream-row-bars-wrap {
+  min-width: 0;
+  position: relative;
+}
+
+.stream-row-status {
+  align-items: center;
+  background-color: var(--white-1-85);
+  bottom: 0;
+  color: $gray-7;
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.75rem;
+  justify-content: center;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.stream-row-retry {
+  background: none;
+  border: 1px solid $gray-5;
+  border-radius: 999px;
+  color: $gray-8;
+  cursor: pointer;
+  font: inherit;
+  min-height: 2.25rem;
+  padding: 0.2rem 0.9rem;
+
+  &:hover,
+  &:focus-visible {
+    border-color: $gray-8;
+  }
+}
+
+//
+// a row waiting on its report hides the dots over its bars, which stand above the
+// wash and would read as a fresh failure
+//
+.stream-row-bars-waiting .stream-bar-failed::before {
+  display: none;
+}
+
+//
 // the bars stand on one baseline, as tall as the row allows
 //
 .stream-row-bars {
@@ -360,7 +425,12 @@
 
   .stream-row-name { grid-area: name; }
   .stream-row-controls { grid-area: controls; }
-  .stream-row-bars { grid-area: bars; height: 3rem; }
+  .stream-row-bars-wrap { grid-area: bars; }
+  .stream-row-bars { height: 3rem; }
+
+  .stream-row-retry {
+    min-height: 2.75rem;
+  }
 
   .stream-row-figure {
     display: none;
