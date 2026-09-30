@@ -490,12 +490,21 @@ $graph-held-edge: $green-4;
 //
 // a name in a details row that carries a note: a source in a day's Sources that
 // is outside the graph, with the note in a tooltip -- see detailValue in
-// graph.jsx. Underlined with dots, the usual mark of a name with a note, and the
-// help cursor over it.
+// graph.jsx. A small info icon follows the name, the size of its text and in the
+// labels' gray, and never wraps onto a line of its own.
+//
+// Note: scoped two classes deep, since MUI's own class on the icon would
+//       otherwise win -- see '_api-links.scss'.
 //
 .graph-details .graph-details-noted {
-  text-decoration: underline dotted;
-  cursor: help;
+  white-space: nowrap;
+
+  svg {
+    color: $gray-6;
+    font-size: 1em;
+    margin-left: 0.2em;
+    vertical-align: -0.125em;
+  }
 }
 
 .graph-legend {
