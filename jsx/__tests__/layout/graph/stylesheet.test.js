@@ -355,16 +355,24 @@ describe('the page\'s title', () => {
 
 describe('a source outside the graph, in a day\'s Sources', () => {
     //
-    // a name with a note over it. See the note above '.graph-details-noted'.
+    // a name with a note over it, and an info icon after it. See the note above
+    // '.graph-details-noted'.
     //
     const [noted] = blocks(source, '.graph-details .graph-details-noted');
+    const [icon] = noted ? blocks(noted, 'svg') : [];
 
-    it('is underlined with dots', () => {
-        expect(noted).toMatch(/text-decoration\s*:\s*underline dotted\s*;/);
+    it('never leaves its icon on a line of its own', () => {
+        expect(noted).toMatch(/white-space\s*:\s*nowrap\s*;/);
     });
 
-    it('shows the help cursor', () => {
-        expect(noted).toMatch(/cursor\s*:\s*help\s*;/);
+    it('draws the icon the size of its text, in the labels\' gray', () => {
+        expect(icon).toMatch(/font-size\s*:\s*1em\s*;/);
+        expect(icon).toMatch(/color\s*:\s*\$gray-6\s*;/);
+    });
+
+    it('is no longer underlined, and keeps the ordinary cursor', () => {
+        expect(noted).not.toMatch(/text-decoration/);
+        expect(noted).not.toMatch(/cursor/);
     });
 });
 
