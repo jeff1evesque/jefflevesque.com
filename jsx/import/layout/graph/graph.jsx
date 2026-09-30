@@ -244,18 +244,16 @@ function detailsRow(row) {
 // what a details row prints: its value, or 'n/a' where it has none.
 //
 // A value that is a LIST -- a day's Sources, the one row that has one -- is
-// printed comma separated, and a name in it the row's `noted` names is drawn as
-// a link to where the docs explain it, with the note in a tooltip over it. See
-// `noted` in source.js: a source none of the day's node types come from, which
-// nothing else on the page shows.
+// printed comma separated, and a name in it the row's `noted` names carries the
+// note in a tooltip over it. See `noted` in source.js: a source none of the
+// day's node types come from, which nothing else on the page shows.
 //
-// Note: the note DESCRIBES the link rather than naming it, so the link is still
-//       called by the name it prints -- 'stock-split' -- and the note is read
-//       after it.
+// Note: the note DESCRIBES the name rather than replacing it, so the name is
+//       still read as 'stock-split' and the note after it.
 //
-// Note: it opens in a new tab, as the icons over the canvas do. The page is a
-//       day someone may have spent a while arranging, and following a link
-//       should not throw that away.
+// Note: the name can take focus, so the note shows from the keyboard too, and a
+//       tap shows it at once. By default a touch has to be held for most of a
+//       second.
 //
 function detailValue(row, choice, whole) {
     const value = row.read(choice, whole);
@@ -275,15 +273,10 @@ function detailValue(row, choice, whole) {
             {index ? ', ' : null}
             {noted.has(name)
                 ? (
-                    <Tooltip title={row.noted.note} describeChild>
-                        <a
-                            className='graph-details-noted'
-                            href={row.noted.docs}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                        >
+                    <Tooltip title={row.noted.note} describeChild enterTouchDelay={0}>
+                        <span className='graph-details-noted' tabIndex={0}>
                             {name}
-                        </a>
+                        </span>
                     </Tooltip>
                 )
                 : name}
@@ -1341,7 +1334,7 @@ class GraphLayout extends Component {
     //       -- see '.graph-details' in '_graph.scss'.
     //
     // Note: a day's Sources is a list, and a source in it that is outside the
-    //       graph is a link to the docs, with a note over it. See detailValue.
+    //       graph carries a note in a tooltip over it. See detailValue.
     //
     details(build) {
         if (!build) {
