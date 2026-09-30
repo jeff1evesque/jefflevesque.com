@@ -10,7 +10,7 @@ The routes are declared in
 
 !!! note "A stream is named by its id"
 
-    `:stream`, and the `?item=` the `/stream` and `/data` listings link to, take a
+    `:stream`, and the `?item=` that `/stream` and `/data` take, are a
     stream's id: `stock-market`, `stock-split`, `bls`, `sec` or `us-national-weather`,
     from
     [`jsx/import/general/stream-id.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/stream-id.js).
