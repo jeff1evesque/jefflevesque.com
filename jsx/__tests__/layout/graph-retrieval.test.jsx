@@ -84,10 +84,9 @@ const DAYS = [
 ];
 
 //
-// what the day panel says over a source outside the graph, and where it links
+// what the day panel says over a source outside the graph
 //
 const NOTE = 'Not in the graph: its data is kept in a table of its own.';
-const OUTSIDE = `${API_DOCS.knowledgeGraph}#sources-outside-the-graph`;
 
 //
 // a day shaped as the loader answers one: nine million market snapshots that
@@ -174,13 +173,13 @@ function detail(label) {
 }
 
 //
-// the links in one details row's value
+// the names that carry a note in one details row's value
 //
-function detailLinks(label) {
+function detailNoted(label) {
     const row = [...document.querySelectorAll('.graph-details-row')]
         .find((r) => r.querySelector('dt').textContent === label);
 
-    return row ? [...row.querySelectorAll('dd a')] : [];
+    return row ? [...row.querySelectorAll('dd .graph-details-noted')] : [];
 }
 
 async function chooseDay(day) {
@@ -445,8 +444,8 @@ describe('the day details', () => {
     //
     // a source the day lists that none of its node types come from -- a feed the
     // builder reads into a table of its own -- is shown by nothing else on the
-    // page, so its name links to where the docs explain it, with a note over it.
-    // See outsideGraph in source.js.
+    // page, so its name carries a note in a tooltip over it. See outsideGraph in
+    // source.js.
     //
     describe('a source outside the graph', () => {
         beforeEach(() => {
@@ -457,35 +456,50 @@ describe('the day details', () => {
             getTableDay.mockResolvedValue(namedDay());
         });
 
-        it('is a link to the docs, and the only one', async () => {
+        it('is the one name that carries a note', async () => {
             await setup();
-
-            const links = detailLinks('Sources');
 
             expect(detail('Sources')).toBe('market, noaa, sec, stock-split');
-            expect(links.map((link) => link.textContent)).toEqual(['stock-split']);
-            expect(links[0]).toHaveAttribute('href', OUTSIDE);
+            expect(detailNoted('Sources').map((name) => name.textContent)).toEqual(['stock-split']);
         });
 
-        it('opens the docs in a new tab, leaving the page as it was arranged', async () => {
+        it('is not a link, and the row holds none', async () => {
             await setup();
 
-            const [link] = detailLinks('Sources');
-
-            expect(link).toHaveAttribute('target', '_blank');
-            expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+            expect(detailNoted('Sources')[0].tagName).toBe('SPAN');
+            expect(screen.queryByRole('link', { name: 'stock-split' })).toBeNull();
         });
 
-        it('is still called by its name, with the note describing it', async () => {
+        it('is still read by its name, with the note describing it', async () => {
             await setup();
 
-            expect(screen.getByRole('link', { name: 'stock-split' })).toHaveAccessibleDescription(NOTE);
+            const [noted] = detailNoted('Sources');
+
+            expect(noted).toHaveTextContent('stock-split');
+            expect(noted).toHaveAccessibleDescription(NOTE);
         });
 
         it('shows the note in a tooltip over it', async () => {
             await setup();
 
-            fireEvent.mouseOver(screen.getByRole('link', { name: 'stock-split' }));
+            fireEvent.mouseOver(detailNoted('Sources')[0]);
+
+            expect(await screen.findByRole('tooltip')).toHaveTextContent(NOTE);
+        });
+
+        it('shows the note from the keyboard, since it can take focus', async () => {
+            await setup();
+
+            const [noted] = detailNoted('Sources');
+
+            expect(noted).toHaveAttribute('tabindex', '0');
+
+            //
+            // MUI shows a tooltip on focus only when the focus came from the
+            // keyboard, as a Tab does
+            //
+            fireEvent.keyDown(document.body, { key: 'Tab' });
+            act(() => noted.focus());
 
             expect(await screen.findByRole('tooltip')).toHaveTextContent(NOTE);
         });
@@ -499,7 +513,7 @@ describe('the day details', () => {
             await setup();
 
             expect(explorer().dataset.types.split(' ')).not.toContain('market_quotes_OptionSnapshot');
-            expect(detailLinks('Sources').map((link) => link.textContent)).not.toContain('market');
+            expect(detailNoted('Sources').map((name) => name.textContent)).not.toContain('market');
         });
 
         it('is none on a day whose list is null, whose sources are read off its node types', async () => {
@@ -508,7 +522,7 @@ describe('the day details', () => {
             await setup();
 
             expect(detail('Sources')).toBe('noaa, sec');
-            expect(detailLinks('Sources')).toEqual([]);
+            expect(detailNoted('Sources')).toEqual([]);
         });
     });
 
