@@ -382,10 +382,32 @@ describe('the day details', () => {
     });
 
     //
-    // the Training graph's panel lists the sources its build holds. A day has no
-    // list of its own, and its vocabularies are filed under their sources.
+    // the Training graph's panel lists the sources its build holds, and a day's
+    // lists the sources the builder recorded for it: every source its tables
+    // hold, a feed that never becomes a node included.
     //
-    it('lists the sources the day\'s vocabularies are filed under', async () => {
+    it('lists the sources the day\'s own list names, sorted', async () => {
+        //
+        // the list wins over the vocabularies, which say noaa and sec here and
+        // cannot see a feed with no nodes at all
+        //
+        getTableDays.mockResolvedValue([
+            { ...DAYS[0], sources: ['stock-split', 'sec', 'bls'] },
+            ...DAYS.slice(1),
+        ]);
+        getTableDay.mockResolvedValue(namedDay());
+
+        await setup();
+
+        expect(detail('Sources')).toBe('bls, sec, stock-split');
+    });
+
+    //
+    // a day published before the builder recorded its sources has no list, and
+    // its vocabularies are filed under their sources
+    //
+    it('lists the sources the day\'s vocabularies are filed under, where the day has no list', async () => {
+        getTableDays.mockResolvedValue(DAYS.map((row) => ({ ...row, sources: null })));
         getTableDay.mockResolvedValue(namedDay());
 
         await setup();
