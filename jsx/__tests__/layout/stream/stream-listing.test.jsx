@@ -1,19 +1,19 @@
 /**
- * stream-listing.test.jsx: the figures the stream listing reports.
+ * stream-listing.test.jsx: the figures each /stream row reports.
  *
- * stream.test.jsx asserts that a Health, Coverage, Rate and Total Records label
- * exists on every row. What it cannot assert is the VALUE beside each label, because
- * no report loads under jsdom and every one of them sits at 'n/a'. Those values are
- * computed by three module-private functions in stream.jsx:
+ * stream.test.jsx asserts that the rows are headed Health, Coverage and Total
+ * Records. What it cannot assert is the VALUE in each column, because no report
+ * loads under jsdom and every one of them sits at 'n/a'. Those values are computed
+ * by three module-private functions in stream.jsx:
  *
  *   - streamCoverage, which counts the intervals that carried data against the
  *     intervals the scraper was due to run in
  *   - format_percent, which appends a '%' to a figure that is one
  *   - format_count, which separates thousands in an eight digit ingest total
  *
- * None are exported, and none need to be: 'updateMetrics' and 'updateStreamListing'
- * are the component's own entry points to them, and are reachable through a ref the
- * same way stream-scale.test.jsx reaches the aggregator.
+ * None are exported, and none need to be: 'updateMetrics' and 'rows' are the
+ * component's own entry points to them, and are reachable through a ref the same
+ * way stream-scale.test.jsx reaches the aggregator.
  *
  * Coverage is the figure worth pinning hardest. It is the only number on the page
  * that can see a scraper which never ran -- health divides successes by throughput,
@@ -327,17 +327,13 @@ describe('the listing coverage figure', () => {
     });
 });
 
-describe('the listing figures as they are rendered', () => {
+describe('the figures as a row draws them', () => {
     //
-    // 'updateStreamListing' is what puts each figure into the row the listing draws,
-    // and it is the only caller of the two formatters.
+    // 'rows' is what puts each figure into the row the page draws, and it is the
+    // only caller of the two formatters.
     //
-    function detailFor(page, stream) {
-        act(() => {
-            page.updateStreamListing();
-        });
-
-        return page.state.list_article.find(v => v.name === stream).detail;
+    function figuresFor(page, stream) {
+        return page.rows().find((row) => row.stream === stream).figures;
     }
 
     it('appends a percent sign to a figure that is one', () => {
@@ -347,10 +343,10 @@ describe('the listing figures as they are rendered', () => {
             page.setState({ stream_bls_health: '92.50', stream_bls_coverage: '80.00' });
         });
 
-        const detail = detailFor(page, 'bls');
+        const figures = figuresFor(page, 'bls');
 
-        expect(detail.Health).toBe('92.50%');
-        expect(detail.Coverage).toBe('80.00%');
+        expect(figures.health).toBe('92.50%');
+        expect(figures.coverage).toBe('80.00%');
     });
 
     it('leaves n/a alone rather than rendering n/a%', () => {
@@ -364,10 +360,10 @@ describe('the listing figures as they are rendered', () => {
             page.setState({ stream_bls_health: 'n/a', stream_bls_coverage: 'n/a' });
         });
 
-        const detail = detailFor(page, 'bls');
+        const figures = figuresFor(page, 'bls');
 
-        expect(detail.Health).toBe('n/a');
-        expect(detail.Coverage).toBe('n/a');
+        expect(figures.health).toBe('n/a');
+        expect(figures.coverage).toBe('n/a');
     });
 
     it('separates thousands in the ingest total', () => {
@@ -381,7 +377,7 @@ describe('the listing figures as they are rendered', () => {
             page.setState({ stream_bls_total: 48909600 });
         });
 
-        expect(detailFor(page, 'bls')['Total Records']).toBe('48,909,600');
+        expect(figuresFor(page, 'bls').total).toBe('48,909,600');
     });
 
     it('passes a non-numeric total through untouched', () => {
@@ -395,50 +391,39 @@ describe('the listing figures as they are rendered', () => {
             page.setState({ stream_bls_total: 'n/a' });
         });
 
-        expect(detailFor(page, 'bls')['Total Records']).toBe('n/a');
+        expect(figuresFor(page, 'bls').total).toBe('n/a');
 
         act(() => {
             page.setState({ stream_bls_total: '' });
         });
 
-        expect(detailFor(page, 'bls')['Total Records']).toBe('');
+        expect(figuresFor(page, 'bls').total).toBe('');
 
         act(() => {
             page.setState({ stream_bls_total: null });
         });
 
-        expect(detailFor(page, 'bls')['Total Records']).toBeNull();
+        expect(figuresFor(page, 'bls').total).toBeNull();
     });
 
-    it('capitalizes the rate the row reports', () => {
+    it('draws them in the stream\'s own row, in the order the columns are headed', () => {
         const page = setup();
 
         act(() => {
-            page.setState({ stream_rate_bls: 'minute' });
+            page.setState({ stream_bls_health: '92.50', stream_bls_coverage: '80.00', stream_bls_total: 1234 });
         });
 
-        expect(detailFor(page, 'bls').Rate).toBe('Minute');
-    });
+        const cells = [...document.querySelectorAll('.stream-row[data-stream="bls"] .stream-row-figure')]
+            .map((cell) => cell.textContent);
 
-    it('lists only the streams it was handed', () => {
-        //
-        // the listing is rebuilt from a stream list rather than mutated in place, so a
-        // caller naming a subset gets exactly that subset.
-        //
-        const page = setup();
-
-        act(() => {
-            page.updateStreamListing(['bls', 'sec']);
-        });
-
-        expect(page.state.list_article.map(v => v.name)).toEqual(['bls', 'sec']);
+        expect(cells).toEqual(['92.50%', '80.00%', '1,234']);
     });
 });
 
 describe('clearing a stream before it is refetched', () => {
     //
-    // 'reset_stream' runs on every rate change and on every click of the refresh
-    // control, immediately before the new request goes out. If it missed a key the old
+    // 'reset_stream' runs for every stream on every rate change, immediately before
+    // the new request goes out. If it missed a key the old
     // rows would still be in state when the response landed and the aggregator would
     // merge two rates into one chart -- a daily series with an hour of minutes grafted
     // onto the end of it.
@@ -456,27 +441,6 @@ describe('clearing a stream before it is refetched', () => {
 
         expect(page.state.chart_data_bls).toEqual([]);
         expect(page.state.stream_throughput).toBe('n/a');
-    });
-
-    it('falls back to the selected stream when it is named none', () => {
-        //
-        // the refresh control calls it with no argument, on whichever stream the chart is
-        // currently showing.
-        //
-        const page = setup();
-
-        act(() => {
-            page.setState({
-                selected_stream: 'bls',
-                chart_data_bls: [row('bls', new Date(), 5)],
-            });
-        });
-
-        act(() => {
-            page.reset_stream();
-        });
-
-        expect(page.state.chart_data_bls).toEqual([]);
     });
 
     it('clears the per-source series alongside the merged one', () => {
@@ -545,22 +509,23 @@ describe('the per-row control tray', () => {
         expect(tray(page, 'bls').querySelector('[data-testid="QueryStatsIcon"]')).toBeNull();
     });
 
-    it.each(STREAMS)('gives %s a chart control and an alarm link at its id', (stream) => {
+    it.each(STREAMS)('gives %s an alarm link at its id, and no chart control', (stream) => {
         //
         // the link used to be the lower-cased name -- '/stream/stockmarket/alarm'
-        // -- where the listing linked '?item=StockMarket'. Both are the id now.
+        // -- where the listing linked '?item=StockMarket'. Both are the id now. The
+        // chart control went with the chart: every stream is drawn at once.
         //
         const page = setup();
         const container = tray(page, stream);
 
-        expect(container.querySelector('[data-testid="BarChartIcon"]')).toBeTruthy();
+        expect(container.querySelector('[data-testid="BarChartIcon"]')).toBeNull();
         expect(container.querySelector(`a[href="/stream/${stream}/alarm"]`)).toBeTruthy();
     });
 
     it('routes the query stats control when asked for a url trigger', () => {
         //
-        // the same control is a link on the trigger page and a sheet opener on the
-        // listing, which is what 'url_trigger' selects between.
+        // the same control is a link on the trigger page and a sheet opener on
+        // /stream's rows, which is what 'url_trigger' selects between.
         //
         const page = setup();
 
@@ -570,7 +535,7 @@ describe('the per-row control tray', () => {
             .toBeNull();
     });
 
-    it('opens the sheet when the listing variant is clicked', () => {
+    it('opens the sheet when the rows\' variant is clicked', () => {
         const page = setup();
         const container = tray(page, 'stock-market');
 
