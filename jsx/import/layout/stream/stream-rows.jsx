@@ -16,11 +16,17 @@
  *       the page; each bar names itself to a screen reader instead, and the
  *       figures carry the row's summary.
  *
+ * Note: each row loads on its own, and says where it is over its bars until its
+ *       report is in: loading, still loading once it has taken a while, or that
+ *       it could not load, with a button to ask again. A slow stream never holds
+ *       up the others, and is never called failed for being slow -- see
+ *       SLOW_AFTER_MS in stream.jsx.
+ *
  */
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import PuffLoader from 'react-spinners/PuffLoader';
+import CircularProgress from '@mui/material/CircularProgress';
 import { HEALTH_BANDS, barSummary, barWhen, healthBand } from '../../general/stream-bars.js';
 
 //
@@ -31,6 +37,15 @@ const COLUMNS = [
     { key: 'coverage', label: 'Coverage', short: 'Coverage' },
     { key: 'total', label: 'Total Records', short: 'Records' },
 ];
+
+//
+// what a row says over its bars while its report is not in, by its status
+//
+const STATUS = {
+    loading: 'Loading',
+    slow: 'Still loading. This stream can take a while.',
+    failed: 'Could not load this stream.',
+};
 
 //
 // a bar's classes and height. A reported bar stands as tall as its records, on
@@ -63,31 +78,58 @@ function StreamRow({ row, rate, onPoint }) {
             <div className='stream-row-name'>
                 <span className='stream-row-title'>
                     {row.name}
-                    {row.loading ? <span className='stream-row-loader'><PuffLoader color='#228B22' size={3} speedMultiplier='0.5' /></span> : null}
+                    {row.status === 'loading' || row.status === 'slow'
+                        ? (
+                            <CircularProgress
+                                className='stream-row-spinner'
+                                size={14}
+                                thickness={5}
+                                aria-label={`Loading ${row.name}`}
+                            />
+                        ) : null}
                 </span>
                 <span className='stream-row-schedule'>{row.schedule}</span>
                 <span className='stream-row-inline'>{inline}</span>
             </div>
             <div className='stream-row-controls'>{row.controls}</div>
-            <div className={`stream-row-bars${row.bars.length > 30 ? ' stream-row-bars-dense' : ''}`}>
-                {row.bars.map((bar) => {
-                    const look = barLook(bar, peak);
-                    const title = `${row.name}, ${barWhen(bar.start, rate)}`;
-                    const summary = barSummary(bar);
+            <div className={`stream-row-bars-wrap${row.status in STATUS ? ' stream-row-bars-waiting' : ''}`}>
+                <div className={`stream-row-bars${row.bars.length > 30 ? ' stream-row-bars-dense' : ''}`}>
+                    {row.bars.map((bar) => {
+                        const look = barLook(bar, peak);
+                        const title = `${row.name}, ${barWhen(bar.start, rate)}`;
+                        const summary = barSummary(bar);
 
-                    return (
-                        <span
-                            key={bar.start.valueOf()}
-                            className='stream-bar-slot'
-                            role='img'
-                            aria-label={`${title}: ${summary}`}
-                            onMouseEnter={() => onPoint({ title, summary })}
-                            onClick={() => onPoint({ title, summary })}
-                        >
-                            <span className={look.className} style={look.style} />
-                        </span>
-                    );
-                })}
+                        return (
+                            <span
+                                key={bar.start.valueOf()}
+                                className='stream-bar-slot'
+                                role='img'
+                                aria-label={`${title}: ${summary}`}
+                                onMouseEnter={() => onPoint({ title, summary })}
+                                onClick={() => onPoint({ title, summary })}
+                            >
+                                <span className={look.className} style={look.style} />
+                            </span>
+                        );
+                    })}
+                </div>
+                {row.status in STATUS
+                    ? (
+                        <div className={`stream-row-status stream-row-status-${row.status}`} role='status'>
+                            <span>{STATUS[row.status]}</span>
+                            {row.status === 'failed'
+                                ? (
+                                    <button
+                                        type='button'
+                                        className='stream-row-retry'
+                                        aria-label={`Retry ${row.name}`}
+                                        onClick={row.retry}
+                                    >
+                                        Retry
+                                    </button>
+                                ) : null}
+                        </div>
+                    ) : null}
             </div>
             {COLUMNS.map((column) => (
                 <div key={column.key} className='stream-row-figure'>{row.figures[column.key]}</div>
@@ -199,7 +241,8 @@ StreamRows.propTypes = {
         stream: PropTypes.string.isRequired,
         name: PropTypes.string.isRequired,
         schedule: PropTypes.string,
-        loading: PropTypes.bool,
+        status: PropTypes.oneOf(['loading', 'slow', 'failed', 'done']),
+        retry: PropTypes.func,
         current: PropTypes.bool,
         bars: PropTypes.array.isRequired,
         figures: PropTypes.shape({
