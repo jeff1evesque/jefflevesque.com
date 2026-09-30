@@ -136,11 +136,14 @@ describe('the table', () => {
         expect(cell('Stock Splits', 'RDF').querySelector('.listing-table-muted')).toHaveTextContent('None');
     });
 
-    it('marks the charted row', () => {
+    it('marks no row by the listing\'s own name', () => {
+        //
+        // /stream named its charted stream as `name`, until it stopped charting one
+        // (#152). /data's `name` is the listing's, which names no row.
+        //
         setup({ name: 'sec' });
 
-        expect(document.querySelector('.listing-table-selected th')).toHaveTextContent('SEC Filings');
-        expect(document.querySelectorAll('.listing-table-selected')).toHaveLength(1);
+        expect(document.querySelectorAll('.listing-table-selected')).toHaveLength(0);
     });
 
     it('marks the row /data names as its selected identifier', () => {
