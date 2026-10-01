@@ -1,9 +1,10 @@
 /**
  * listing-preference.js: what a reader chose on a listing page, kept between
- * visits -- the stream they last charted there, and the order they dragged its
- * rows into.
+ * visits -- the stream they last charted there, the order they dragged its rows
+ * into, and the figure they sorted its rows by.
  *
- * /data opens on a chart, and lists its streams under it. A
+ * /stream keeps the sort its rows were left in. /data opens on a chart, and
+ * lists its streams under it. A
  * reader who charts the same stream on every visit, or watches two streams more
  * than the rest, answers the same two questions every time the page asks them:
  * which one, and in what order. Asking again is the page forgetting an answer it
@@ -36,11 +37,16 @@ const VERSION = 1;
 //
 // the pages that keep a choice, each under its own name.
 //
-// Note: /stream kept one too, until it drew every stream at once as a row of
-//       bars (#152). It charts none and has no order to drag, so a choice a
-//       reader kept for it before is left where it is and never read.
+// Note: /stream keeps only its sort (#156). It kept a charted stream and an
+//       order too, until it drew every stream at once as a row of bars (#152);
+//       what a reader kept for it then is left where it is and never read.
 //
-const PAGES = ['data'];
+const PAGES = ['stream', 'data'];
+
+//
+// the directions a kept sort can run in
+//
+const DIRECTIONS = ['asc', 'desc'];
 
 /**
  * the stored document, or null for anything unreadable.
@@ -189,6 +195,38 @@ export function writeOrder(page, order) {
     }
 
     return write(page, { order: [...new Set(order)] });
+}
+
+/**
+ * the sort `page`'s rows were left in, as `{ key, dir }`, while `keys` still
+ * offers its figure -- and null otherwise, the page's own order.
+ *
+ * Note: checked rather than trusted, as an order is. A figure the page no
+ *       longer offers, or a direction that is neither, reads as no sort at all.
+ */
+export function readSort(page, keys) {
+    const mine = saved(page);
+    const sort = mine ? record(mine.sort) : null;
+
+    return sort && Array.isArray(keys) && keys.includes(sort.key) && DIRECTIONS.includes(sort.dir)
+        ? { key: sort.key, dir: sort.dir }
+        : null;
+}
+
+/**
+ * keep `sort` as the one `page`'s rows were left in, or clear it with null --
+ * the page's own order again.
+ */
+export function writeSort(page, sort) {
+    if (sort === null) {
+        return write(page, { sort: null });
+    }
+
+    if (!record(sort) || typeof sort.key !== 'string' || !sort.key || !DIRECTIONS.includes(sort.dir)) {
+        return false;
+    }
+
+    return write(page, { sort: { key: sort.key, dir: sort.dir } });
 }
 
 export { KEY, VERSION, PAGES };
