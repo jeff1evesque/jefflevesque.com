@@ -183,6 +183,27 @@ describe('the table', () => {
     });
 });
 
+describe('the title row', () => {
+    //
+    // a page can put a control of its own at the end of the row -- the Filter,
+    // on a phone's /data (#165)
+    //
+    it('carries the page\'s own control at its end', () => {
+        const { container } = setup({ actions: <button type='button'>Filter</button> });
+        const title = container.querySelector('.listing-table-title');
+
+        expect(title).toHaveClass('has-actions');
+        expect(title.querySelector('.listing-table-actions').textContent).toBe('Filter');
+    });
+
+    it('carries nothing else without one', () => {
+        const { container } = setup();
+
+        expect(container.querySelector('.listing-table-title')).not.toHaveClass('has-actions');
+        expect(container.querySelector('.listing-table-actions')).toBeNull();
+    });
+});
+
 describe('sorting by a header', () => {
     it('sorts ascending, then descending, then goes back to the reader\'s order', () => {
         setup();

@@ -1,0 +1,54 @@
+// _back-bar.scss: a phone's way back from one thing shown on its own to the
+//     list it came from -- /stream's "All streams" (#161) and /data's "All
+//     data" (#165).
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+//
+// the bar's look, which both pages extend rather than copy, so the two cannot
+// drift apart. A solid green, lighter by day and darker by night, rather than
+// a rail's fade: across the width of a phone a fade read as a stain
+//
+%back-bar {
+  align-items: center;
+  background-color: mix($green-2, #fff, 20%);
+  border: 0;
+  border-radius: 0.5rem;
+  color: $green-6;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  width: 100%;
+
+  @include dark {
+    background-color: mix($green-2, $dark-white-1, 18%);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+
+  svg {
+    font-size: 1.3rem;
+  }
+}
+
+//
+// /data's, over a dataset a phone shows on its own (#165). Only a phone draws
+// it, so it shows wherever it is drawn
+//
+.data-back-row {
+  margin: 0.5rem 0 0.25rem;
+}
+
+.data-back {
+  @extend %back-bar;
+  display: flex;
+}

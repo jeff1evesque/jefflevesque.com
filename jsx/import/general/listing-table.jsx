@@ -125,6 +125,11 @@ class ListingTable extends Component {
         order: PropTypes.arrayOf(PropTypes.string),
         onReorder: PropTypes.func,
         label: PropTypes.func,
+        //
+        // anything the page puts at the end of the title row -- the Filter, on
+        // a phone's /data (#165)
+        //
+        actions: PropTypes.node,
     }
 
     static defaultProps = {
@@ -135,6 +140,7 @@ class ListingTable extends Component {
         order: null,
         onReorder: null,
         label: (name) => name,
+        actions: null,
     }
 
     constructor(props) {
@@ -482,7 +488,7 @@ class ListingTable extends Component {
     }
 
     render() {
-        const { columns, title, name_label, onReorder } = this.props;
+        const { columns, title, name_label, onReorder, actions } = this.props;
         const sort = this.state.sort;
         const rows = this.shown();
         const draggable = !!onReorder && !sort && !this.state.query.trim() && rows.length > 1;
@@ -492,9 +498,10 @@ class ListingTable extends Component {
         return (
             <div className='articles listing-table'>
                 <div className='listing-table-head'>
-                    <div className='listing-table-title'>
+                    <div className={`listing-table-title${actions ? ' has-actions' : ''}`}>
                         <h5>{title}</h5>
                         <span className='title-count'>{rows.length}</span>
+                        {actions ? <div className='listing-table-actions'>{actions}</div> : null}
                     </div>
                     <div className='listing-table-tools'>
                         {onReorder && this.customized() ? (

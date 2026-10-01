@@ -19,17 +19,19 @@ import React from 'react';
 
 jest.mock('react-device-detect', () => ({ isMobile: true }));
 
-const { render, fireEvent, screen } = require('@testing-library/react');
+const { render, fireEvent, screen, act } = require('@testing-library/react');
 const { MemoryRouter } = require('react-router-dom');
 const DataLayout = require('../../../import/layout/data/data.jsx').default;
 const { KEY, VERSION } = require('../../../import/general/listing-preference.js');
 
 //
-// a click keeps the stream it charts for the next visit, in localStorage, which
-// lasts the whole of this file. Each case starts from an empty one.
+// a click keeps the stream it charts for the next visit, in localStorage, and
+// opens it in the address, as '?item=' -- both of which last the whole of this
+// file. Each case starts from an empty store and a bare address.
 //
 beforeEach(() => {
     window.localStorage.clear();
+    window.history.replaceState(null, '', '/');
 });
 
 //
@@ -62,14 +64,15 @@ describe('the listing on mobile', () => {
     it('renders without the desktop-only assumptions', () => {
         setup();
 
-        expect(bodyText()).toContain('Data Distribution');
+        expect(document.querySelector('.listing-table-title h5').textContent).toBe('Data');
     });
 
-    it('draws the sunburst rather than the bars of cubes', () => {
+    it('draws the sunburst rather than the bars of cubes, once a dataset is opened', () => {
         //
         // a row of bars does not fit a phone's width, so a phone keeps the ring
         //
         setup();
+        fireEvent.click(chartButton('S&P 500'));
 
         expect(document.querySelector('.sunburst.sunburst-phone')).not.toBeNull();
         expect(document.querySelector('.cube-chart')).toBeNull();
@@ -121,14 +124,209 @@ describe('the listing on mobile', () => {
         expect(chartHeader()).toBe('SEC Filings');
     });
 
-    it('names the stream the page opens on in the chart header', () => {
+    it('opens on the listing with the stream charted last marked, not opened', () => {
         //
-        // a page opening on the stream charted last time says so over the chart,
-        // rather than the S&P 500 it used to open on
+        // the stream charted last time is still the one the page charts, and
+        // its row is marked, but a phone opens on the listing (#165)
         //
         window.localStorage.setItem(KEY, JSON.stringify({ v: VERSION, data: { chart: 'sec' } }));
         setup();
 
+        expect(document.querySelector('.listing-graphic-title')).toBeNull();
+        expect(document.querySelector('.listing-table-selected').textContent).toContain('SEC Filings');
+
+        fireEvent.click(chartButton('SEC Filings'));
+        expect(chartHeader()).toBe('SEC Filings');
+    });
+});
+
+//
+// #165: a phone opens on the listing, and a dataset's graph icon opens it on its
+// own, with a way back -- as /stream does since #161
+//
+function backBar() {
+    return document.querySelector('button.data-back');
+}
+
+function listingShown() {
+    return document.querySelector('.listing-table') !== null;
+}
+
+function sunburstShown() {
+    return document.querySelector('.sunburst') !== null;
+}
+
+//
+// the back or forward button landing on `address`
+//
+function travel(address) {
+    act(() => {
+        window.history.pushState(null, '', address);
+        window.dispatchEvent(new window.PopStateEvent('popstate'));
+    });
+}
+
+describe('a phone\'s listing first (#165)', () => {
+    it('opens on the listing alone, with the Filter in its title row', () => {
+        setup();
+
+        expect(listingShown()).toBe(true);
+        expect(sunburstShown()).toBe(false);
+        expect(backBar()).toBeNull();
+        expect(document.querySelector('.listing-graphic-title')).toBeNull();
+        expect(document.querySelector('.listing-table-title.has-actions .listing-table-actions button').textContent)
+            .toBe('Filter');
+    });
+
+    it('opens a dataset on its own from its graph icon, in place of the listing', () => {
+        setup();
+
+        fireEvent.click(chartButton('SEC Filings'));
+
+        expect(backBar().textContent).toBe('All data');
+        expect(chartHeader()).toBe('SEC Filings');
+        expect(document.querySelector('.listing-graphic-title .title-count').textContent).toMatch(/^ \(\d{4}\/\d{2}\)$/);
+        expect(sunburstShown()).toBe(true);
+        expect(listingShown()).toBe(false);
+        expect(window.location.search).toBe('?item=sec');
+    });
+
+    it('scrolls a dataset opened from far down the listing back to its top', () => {
+        const scrolled = jest.fn();
+        Element.prototype.scrollIntoView = scrolled;
+        const top = jest.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ top: -400 });
+
+        setup();
+        fireEvent.click(chartButton('US Weather'));
+
+        expect(scrolled).toHaveBeenCalledWith({ block: 'start' });
+
+        top.mockRestore();
+        delete Element.prototype.scrollIntoView;
+    });
+
+    it('leaves a dataset opened at the top of the page where it is', () => {
+        const scrolled = jest.fn();
+        Element.prototype.scrollIntoView = scrolled;
+
+        setup();
+        fireEvent.click(chartButton('US Weather'));
+
+        expect(scrolled).not.toHaveBeenCalled();
+
+        delete Element.prototype.scrollIntoView;
+    });
+
+    it('goes back to the listing from All data, with the dataset still marked', () => {
+        setup();
+
+        fireEvent.click(chartButton('SEC Filings'));
+        fireEvent.click(backBar());
+
+        expect(listingShown()).toBe(true);
+        expect(sunburstShown()).toBe(false);
+        expect(document.querySelector('.listing-table-selected').textContent).toContain('SEC Filings');
+        expect(window.location.search).toBe('');
+    });
+
+    it('keeps everything else the address carries', () => {
+        window.history.replaceState(null, '', '/?from=alarm');
+        setup();
+
+        fireEvent.click(chartButton('SEC Filings'));
+        expect(window.location.search).toBe('?from=alarm&item=sec');
+
+        fireEvent.click(backBar());
+        expect(window.location.search).toBe('?from=alarm');
+    });
+
+    it('opens the dataset the address names', () => {
+        window.history.replaceState(null, '', '/?item=us-national-weather');
+        setup();
+
+        expect(chartHeader()).toBe('US Weather Alerts');
+        expect(sunburstShown()).toBe(true);
+        expect(listingShown()).toBe(false);
+    });
+
+    it('opens on the listing where the address names no dataset', () => {
+        window.history.replaceState(null, '', '/?item=not-a-dataset');
+        setup();
+
+        expect(listingShown()).toBe(true);
+        expect(backBar()).toBeNull();
+    });
+
+    it('follows the back and forward buttons', () => {
+        setup();
+
+        fireEvent.click(chartButton('SEC Filings'));
+        travel('/');
+        expect(listingShown()).toBe(true);
+
+        //
+        // forward to a dataset the page is not charting: it is charted, as its
+        // graph icon would chart it
+        //
+        travel('/?item=bls');
+        expect(chartHeader()).toBe('Bureau of Labor Statistics');
+        expect(sunburstShown()).toBe(true);
+
+        travel('/?item=bls');
+        expect(chartHeader()).toBe('Bureau of Labor Statistics');
+    });
+
+    it('leaves another page\'s address to that page', () => {
+        const { unmount } = setup();
+
+        travel('/stream?item=sec');
+
+        expect(listingShown()).toBe(true);
+        unmount();
+    });
+
+    it('stops following the address once it is gone', () => {
+        const removed = jest.spyOn(window, 'removeEventListener');
+        const { unmount } = setup();
+
+        unmount();
+
+        expect(removed).toHaveBeenCalledWith('popstate', expect.any(Function));
+        removed.mockRestore();
+    });
+});
+
+describe('a phone\'s filter (#165)', () => {
+    it('has no Data Distribution switch', () => {
+        setup();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+
+        expect(bodyText()).toContain('Edit Content Filter');
+        expect(bodyText()).not.toContain('Data Distribution');
+    });
+
+    it('returns to the listing once applied', () => {
+        setup();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+        expect(listingShown()).toBe(false);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Apply Filter' }));
+        expect(listingShown()).toBe(true);
+        expect(backBar()).toBeNull();
+    });
+
+    it('returns to the dataset it was opened over once applied', () => {
+        setup();
+
+        fireEvent.click(chartButton('SEC Filings'));
+        fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+        expect(backBar()).toBeNull();
+        expect(sunburstShown()).toBe(false);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Apply Filter' }));
+        expect(backBar()).not.toBeNull();
         expect(chartHeader()).toBe('SEC Filings');
     });
 });
