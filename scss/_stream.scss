@@ -838,35 +838,11 @@ $stream-held: rgba($green-2, 0.32);
 
 //
 // a phone's way back to every stream, over the title of the one shown on its
-// own (#161). A solid green, lighter by day and darker by night, rather than
-// the rail's fade: across the width of a phone a fade read as a stain
+// own (#161), in the look /data's "All data" shares -- see _back-bar.scss
 //
 .stream-back {
-  align-items: center;
-  background-color: mix($green-2, #fff, 20%);
-  border: 0;
-  border-radius: 0.5rem;
-  color: $green-6;
-  cursor: pointer;
+  @extend %back-bar;
   display: none;
-  font: inherit;
-  font-weight: 600;
-  gap: 0.4rem;
-  min-height: 2.75rem;
-  padding: 0 0.9rem;
-  width: 100%;
-
-  @include dark {
-    background-color: mix($green-2, $dark-white-1, 18%);
-  }
-
-  &:focus-visible {
-    outline: 2px solid $focus;
-  }
-
-  svg {
-    font-size: 1.3rem;
-  }
 }
 
 //
