@@ -268,23 +268,24 @@ describe('the colors', () => {
         expect(dark.groups[10].color).toBe(color_tail(2, 3, 'dark'));
     });
 
-    it('draws a single series in one color', () => {
+    it('draws a single series in the chart colors, largest first, so its slices tell apart (#167)', () => {
         const tree = distributionTree([
             { form: '4', Filings: 30 },
             { form: '8-K', Filings: 10 },
             { form: '10-Q', Filings: 5 },
         ], 'form');
 
-        expect(new Set(tree.groups.map((group) => group.color))).toEqual(new Set([colors_categorical[0]]));
+        expect(tree.groups.map((group) => group.color)).toEqual(colors_categorical.slice(0, 3));
     });
 
-    it('draws the stock splits in one color, since a split is one series', () => {
+    it('draws the stock splits\' days in the chart colors by their splits, in day order (#167)', () => {
         const tree = distributionTree([
-            { sector: 'Day 1', splits: 2, tickers: 'crwd 4:1, svc 1:5' },
-            { sector: 'Day 5', splits: 1, tickers: 'cris 1:20' },
+            { sector: 'Day 1', splits: 1, tickers: 'cris 1:20' },
+            { sector: 'Day 5', splits: 2, tickers: 'crwd 4:1, svc 1:5' },
         ], 'sector');
 
-        expect(tree.groups.map((group) => group.color)).toEqual([colors_categorical[0], colors_categorical[0]]);
+        expect(tree.groups.map((group) => group.name)).toEqual(['Day 1', 'Day 5']);
+        expect(tree.groups.map((group) => group.color)).toEqual([colors_categorical[1], colors_categorical[0]]);
     });
 
     it('draws severity down one ramp, darkest for the most severe, and unknown in gray', () => {
