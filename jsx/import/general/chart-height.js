@@ -24,6 +24,9 @@
  *       area chart here too, until #152 drew every stream as a row of bars, so
  *       what is said above about the two matching is why the figures are what
  *       they are, not a second page that still depends on them.
+ *
+ * Note: the barchart below is /data's bars of cubes now -- see cube-chart.jsx --
+ *       which keep its height, its axis band and its angle.
  */
 
 const CHART_HEIGHT_MIN = 300;
@@ -62,6 +65,15 @@ const CHART_X_AXIS_ANGLE = -35;
 const CHART_X_AXIS_ANCHOR = 'end';
 
 /**
+ * room below the x-axis band for the axis's title -- 'Sector', 'Form' -- which
+ * the bars of cubes name their axes with, and the old barchart did not.
+ *
+ * added under the chart rather than taken from the band, so the slanted names
+ * keep the room they always had and the plot keeps its height.
+ */
+const CHART_X_AXIS_TITLE_HEIGHT = 18;
+
+/**
  * resolve the shared chart height for a viewport width.
  *
  * the width argument is optional so callers can pass an explicit value in a
@@ -89,5 +101,6 @@ export {
     CHART_X_AXIS_HEIGHT,
     CHART_X_AXIS_HEIGHT_MOBILE,
     CHART_X_AXIS_ANGLE,
-    CHART_X_AXIS_ANCHOR
+    CHART_X_AXIS_ANCHOR,
+    CHART_X_AXIS_TITLE_HEIGHT
 };
