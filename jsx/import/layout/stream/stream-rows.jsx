@@ -4,8 +4,9 @@
  * Each row names a stream and its schedule, carries its controls, draws a bar
  * per interval of the window (see stream-bars.js), and ends with the stream's
  * Health, Coverage and Total Records over that window. The figures sort the
- * rows; pointing at a bar, or tapping one on a phone, says what it is in the
- * line under the rows.
+ * rows. A mouse pointing at a bar brings up a popup by it saying what it is
+ * (#167); a finger tapping one on a phone has it said in the line under the
+ * rows.
  *
  * Note: the sort is the page's to keep, so it comes in as a prop and every
  *       change goes back out through 'onSort' -- see stream.jsx, which keeps it
@@ -17,6 +18,12 @@
  * Note: a bar's height is on its own row's scale, so a stream bringing a few
  *       records a day reads as clearly as one bringing millions. The Total
  *       Records column is where the streams are compared.
+ *
+ * Note: a bar's shade says its height again (#167): one blue in five steps,
+ *       darkest by day and brightest by night for the tallest fifth of its
+ *       row. It used to say the interval's health, and nearly every interval
+ *       is fully healthy, so nearly every bar was the same blue. Failures are
+ *       still marked, by the red dot over a bar, and counted in its popup.
  *
  * Note: the bars are not tab stops. A row of up to sixty of them, five rows
  *       deep, would put three hundred stops between a keyboard and the rest of
@@ -46,6 +53,9 @@
  *       which opens them again, and the line drags them wider or narrower.
  *       Dragged past the narrowest they can be, they fold. The page keeps the
  *       fold and the width -- see 'folded', 'width', 'onFold' and 'onResize'.
+ *       The divider and the rail run beside the rows only, from the headings
+ *       to the bottom of the last row (#167), not on past them beside the line
+ *       and the key under the rows.
  *
  * Note: a phone draws the rows as a list (#161): each stream's name and
  *       schedule, and the one figure the list is sorted by, with the whole row
@@ -64,7 +74,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
-import { HEALTH_BANDS, barSummary, barWhen, healthBand } from '../../general/stream-bars.js';
+import { barSummary, barWhen } from '../../general/stream-bars.js';
 
 //
 // the figures, as they head their columns and as a row is sorted by them
@@ -138,6 +148,30 @@ function plainClick(event) {
 }
 
 //
+// how many shades of the blue a reported bar can be drawn in (#167), and the
+// one a bar takes from its height on its row's scale: 0, the darkest by day
+// and the brightest by night, for the tallest fifth of the row, down to the
+// lightest for the shortest fifth. A row with nothing reported has no scale,
+// and what it draws takes the lightest.
+//
+// Note: the steps are colored in '_stream.scss', '--stream-shade-*'.
+//
+// Note: worked in the records themselves rather than in the share of the peak
+//       they are, which floating point rounds: 1 - 80/100 is a hair under a
+//       fifth, and put a bar at exactly four fifths of the peak in the
+//       tallest step.
+//
+export const SHADES = 5;
+
+export function heightShade(records, peak) {
+    if (!(peak > 0)) {
+        return SHADES - 1;
+    }
+
+    return Math.min(SHADES - 1, Math.max(0, Math.floor(((peak - records) * SHADES) / peak)));
+}
+
+//
 // a bar's classes and height. A reported bar stands as tall as its records, on
 // the row's own scale, and never shorter than a sliver, so a bar that brought
 // one record is still seen to have reported.
@@ -150,10 +184,24 @@ function barLook(bar, peak) {
     const height = peak ? Math.max(8, Math.round(100 * bar.records / peak)) : 8;
 
     return {
-        className: `stream-bar stream-bar-reported stream-health-${healthBand(bar.health)}${bar.failed ? ' stream-bar-failed' : ''}`,
+        className: `stream-bar stream-bar-reported stream-shade-${heightShade(bar.records, peak)}${bar.failed ? ' stream-bar-failed' : ''}`,
         style: { height: `${height}%` },
     };
 }
+
+//
+// what a click on a bar opens, by the rate, for its popup to say (#167): a
+// month its days, a day its hours, an hour its minutes. A minute opens
+// nothing, so its popup says nothing about a click.
+//
+const OPENS = { month: 'days', day: 'hours', hour: 'minutes' };
+
+//
+// how near a row's end, in px, a bar's popup stops centering on the bar and
+// lines up with the row's end instead, so it stays inside the row: about half
+// the widest a popup is
+//
+const TIP_EDGE = 110;
 
 /**
  * the phone's way to sort, since it has no room for the headings: the same
@@ -198,10 +246,52 @@ SortMenu.propTypes = {
 export function StreamBars({ row, rate, onPoint, pointed = null, onOpen = null, className = '' }) {
     const peak = Math.max(0, ...row.bars.filter((bar) => bar.kind === 'reported').map((bar) => bar.records));
     const tap = useRef({ type: 'mouse', described: false });
+    const wrap = useRef(null);
+    const [tip, setTip] = useState(null);
+    const opens = onOpen ? OPENS[String(rate).toLowerCase()] : null;
+
+    //
+    // the popup by a bar a mouse points at (#167): when it was, what it holds,
+    // and what a click opens. It stands over the bar's top -- or just over the
+    // baseline, for a bar with no height -- and at a row's two ends lines up
+    // with the end rather than centering on the bar, so it stays inside the
+    // row. A finger brings up no popup: a phone says what a tapped bar holds
+    // in the line under the rows
+    //
+    function showTip(event, bar, summary) {
+        if ((event.pointerType || 'mouse') !== 'mouse' || !wrap.current) {
+            return;
+        }
+
+        const box = wrap.current.getBoundingClientRect();
+        const slot = event.currentTarget.getBoundingClientRect();
+        const mark = event.currentTarget.firstChild.getBoundingClientRect();
+        const x = slot.left + (slot.width / 2) - box.left;
+
+        let side = 'middle';
+        if (x < TIP_EDGE) {
+            side = 'start';
+        } else if (x > box.width - TIP_EDGE) {
+            side = 'end';
+        }
+
+        setTip({
+            key: bar.start.valueOf(),
+            when: barWhen(bar.start, rate),
+            summary: summary,
+            hint: opens ? `Click to see its ${opens}` : '',
+            x: x,
+            y: Math.min(mark.top, slot.bottom - 2) - box.top,
+            side: side,
+        });
+    }
 
     return (
-        <div className={`stream-row-bars-wrap${row.status in STATUS ? ' stream-row-bars-waiting' : ''}${className ? ` ${className}` : ''}`}>
-            <div className={`stream-row-bars${row.bars.length > 30 ? ' stream-row-bars-dense' : ''}${onOpen ? ' stream-row-bars-open' : ''}`}>
+        <div ref={wrap} className={`stream-row-bars-wrap${row.status in STATUS ? ' stream-row-bars-waiting' : ''}${className ? ` ${className}` : ''}`}>
+            <div
+                className={`stream-row-bars${row.bars.length > 30 ? ' stream-row-bars-dense' : ''}${onOpen ? ' stream-row-bars-open' : ''}`}
+                onPointerLeave={() => setTip(null)}
+            >
                 {row.bars.map((bar) => {
                     const look = barLook(bar, peak);
                     const title = `${row.name}, ${barWhen(bar.start, rate)}`;
@@ -211,9 +301,10 @@ export function StreamBars({ row, rate, onPoint, pointed = null, onOpen = null, 
                     return (
                         <span
                             key={bar.start.valueOf()}
-                            className='stream-bar-slot'
+                            className={`stream-bar-slot${tip && tip.key === bar.start.valueOf() ? ' is-pointed' : ''}`}
                             role='img'
                             aria-label={`${title}: ${summary}`}
+                            onPointerEnter={(event) => showTip(event, bar, summary)}
                             onPointerDown={(event) => {
                                 tap.current = { type: event.pointerType || 'mouse', described: pointed === key };
                             }}
@@ -222,6 +313,7 @@ export function StreamBars({ row, rate, onPoint, pointed = null, onOpen = null, 
                                 const touched = tap.current.type === 'touch' || tap.current.type === 'pen';
 
                                 if (onOpen && (!touched || tap.current.described)) {
+                                    setTip(null);
                                     onOpen(bar);
                                 } else {
                                     onPoint({ title, summary, key });
@@ -233,6 +325,17 @@ export function StreamBars({ row, rate, onPoint, pointed = null, onOpen = null, 
                     );
                 })}
             </div>
+            {tip ? (
+                <div
+                    className={`stream-bar-tip stream-bar-tip-${tip.side}`}
+                    style={{ left: tip.x, top: tip.y }}
+                    aria-hidden='true'
+                >
+                    <div className='stream-bar-tip-when'>{tip.when}</div>
+                    <div className='stream-bar-tip-what'>{tip.summary}</div>
+                    {tip.hint ? <div className='stream-bar-tip-hint'>{tip.hint}</div> : null}
+                </div>
+            ) : null}
             {row.status in STATUS
                 ? (
                     <div className={`stream-row-status stream-row-status-${row.status}`} role='status'>
@@ -289,6 +392,10 @@ StreamReadout.propTypes = {
  * Note: open wherever there is room for it. A phone folds it under its own
  *       button instead (#161), since it is read once and then known -- the
  *       stylesheet shows the button, and hides the key until it is pressed.
+ *
+ * Note: the shades are one ramp, from the fewest records to the most (#167),
+ *       lightest first by day -- the order they run in by night is the
+ *       stylesheet's, so the ramp reads 'Fewer' to 'More' in either theme.
  */
 export function StreamLegend() {
     const [open, setOpen] = useState(false);
@@ -307,14 +414,17 @@ export function StreamLegend() {
             </button>
             <div className='stream-rows-legend-body'>
                 <span className='stream-rows-legend-title'>
-                    Height: records that succeeded, on each row&apos;s own scale. Shade: the share that did.
+                    Height and shade: records that succeeded, on each row&apos;s own scale.
                 </span>
-                {HEALTH_BANDS.map((band, index) => (
-                    <span key={band.label} className='stream-rows-key'>
-                        <span className={`stream-rows-swatch stream-health-${index}`} />
-                        {band.label}
+                <span className='stream-rows-key stream-rows-ramp'>
+                    Fewer
+                    <span className='stream-rows-ramp-steps'>
+                        {Array.from({ length: SHADES }, (_, index) => SHADES - 1 - index).map((step) => (
+                            <span key={step} className={`stream-rows-swatch stream-shade-${step}`} />
+                        ))}
                     </span>
-                ))}
+                    More
+                </span>
                 <span className='stream-rows-key'>
                     <span className='stream-rows-swatch stream-bar-missed' />
                     Missed
@@ -531,83 +641,92 @@ function StreamRows({
             className={`stream-rows${folded ? ' stream-rows-folded' : ''}`}
             style={width && !folded ? { '--stream-figures': `${width}px` } : undefined}
         >
-            <div className='stream-rows-head'>
-                <span className='stream-rows-head-name'>Stream</span>
-                <span className='stream-rows-axis'>
-                    <span>{first}</span>
-                    <span>{last}</span>
-                </span>
-                <span className='stream-rows-head-figures'>
-                    {COLUMNS.map((column) => (
-                        <button
-                            key={column.key}
-                            type='button'
-                            className={`stream-rows-sort${active(column.key) ? ' stream-rows-sort-active' : ''}`}
-                            aria-label={`Sort by ${column.label}`}
-                            aria-pressed={active(column.key)}
-                            onClick={() => onSort(nextSort(sort, column.key))}
-                        >
-                            {column.label}
-                            <span className='stream-rows-sort-mark' aria-hidden='true'>
-                                {!active(column.key)
-                                    ? <UnfoldMoreIcon fontSize='inherit' data-mark='none' />
-                                    : sort.dir === 'desc'
-                                        ? <ArrowDownwardIcon fontSize='inherit' data-mark='desc' />
-                                        : <ArrowUpwardIcon fontSize='inherit' data-mark='asc' />}
-                            </span>
-                        </button>
-                    ))}
-                </span>
-            </div>
+            {/*
 
-            {ordered.map((row) => (
-                <StreamRow
-                    key={row.stream}
-                    row={row}
-                    rate={rate}
-                    onPoint={setPointed}
-                    pointed={pointed ? pointed.key : null}
-                    onOpen={onOpen}
-                    onFocus={onFocus}
-                    pick={sort && sort.key ? sort.key : 'coverage'}
-                />
-            ))}
+                the headings and the rows, which the divider and the rail stand
+                beside, so that they stop at the last row (#167). The line under
+                the rows, the key and the hint come after, beside nothing
+
+            */}
+            <div className='stream-rows-table'>
+                <div className='stream-rows-head'>
+                    <span className='stream-rows-head-name'>Stream</span>
+                    <span className='stream-rows-axis'>
+                        <span>{first}</span>
+                        <span>{last}</span>
+                    </span>
+                    <span className='stream-rows-head-figures'>
+                        {COLUMNS.map((column) => (
+                            <button
+                                key={column.key}
+                                type='button'
+                                className={`stream-rows-sort${active(column.key) ? ' stream-rows-sort-active' : ''}`}
+                                aria-label={`Sort by ${column.label}`}
+                                aria-pressed={active(column.key)}
+                                onClick={() => onSort(nextSort(sort, column.key))}
+                            >
+                                {column.label}
+                                <span className='stream-rows-sort-mark' aria-hidden='true'>
+                                    {!active(column.key)
+                                        ? <UnfoldMoreIcon fontSize='inherit' data-mark='none' />
+                                        : sort.dir === 'desc'
+                                            ? <ArrowDownwardIcon fontSize='inherit' data-mark='desc' />
+                                            : <ArrowUpwardIcon fontSize='inherit' data-mark='asc' />}
+                                </span>
+                            </button>
+                        ))}
+                    </span>
+                </div>
+
+                {ordered.map((row) => (
+                    <StreamRow
+                        key={row.stream}
+                        row={row}
+                        rate={rate}
+                        onPoint={setPointed}
+                        pointed={pointed ? pointed.key : null}
+                        onOpen={onOpen}
+                        onFocus={onFocus}
+                        pick={sort && sort.key ? sort.key : 'coverage'}
+                    />
+                ))}
+
+                {/*
+
+                    the divider, and the rail the figures fold into: one or the
+                    other, from the headings down to the last row. See the note at
+                    the top
+
+                */}
+                {folded
+                    ? (
+                        <button
+                            type='button'
+                            className='stream-rows-rail'
+                            aria-label='Show Health, Coverage and Total Records'
+                            onClick={() => onFold(false)}
+                        >
+                            <ChevronLeftIcon fontSize='inherit' />
+                            <span>Health · Coverage · Records</span>
+                        </button>
+                    ) : (
+                        <div className='stream-rows-divider'>
+                            <div className='stream-rows-grip' aria-hidden='true' onPointerDown={startDrag} />
+                            <button
+                                type='button'
+                                className='stream-rows-fold'
+                                aria-label='Fold Health, Coverage and Total Records'
+                                onClick={() => onFold(true)}
+                            >
+                                <ChevronRightIcon fontSize='inherit' />
+                            </button>
+                        </div>
+                    )}
+            </div>
 
             <StreamReadout pointed={pointed} />
             <StreamLegend />
             <p className='stream-rows-hint'>Tap a stream to see its graph.</p>
-
-            {/*
-
-                the divider, and the rail the figures fold into: one or the
-                other, from the headings down to the last line of the key. See
-                the note at the top
-
-            */}
-            {folded
-                ? (
-                    <button
-                        type='button'
-                        className='stream-rows-rail'
-                        aria-label='Show Health, Coverage and Total Records'
-                        onClick={() => onFold(false)}
-                    >
-                        <ChevronLeftIcon fontSize='inherit' />
-                        <span>Health · Coverage · Records</span>
-                    </button>
-                ) : (
-                    <div className='stream-rows-divider'>
-                        <div className='stream-rows-grip' aria-hidden='true' onPointerDown={startDrag} />
-                        <button
-                            type='button'
-                            className='stream-rows-fold'
-                            aria-label='Fold Health, Coverage and Total Records'
-                            onClick={() => onFold(true)}
-                        >
-                            <ChevronRightIcon fontSize='inherit' />
-                        </button>
-                    </div>
-                )}
         </div>
     );
 }
