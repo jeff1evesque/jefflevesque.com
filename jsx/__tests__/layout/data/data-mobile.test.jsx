@@ -65,6 +65,16 @@ describe('the listing on mobile', () => {
         expect(bodyText()).toContain('Data Distribution');
     });
 
+    it('draws the sunburst rather than the bars of cubes', () => {
+        //
+        // a row of bars does not fit a phone's width, so a phone keeps the ring
+        //
+        setup();
+
+        expect(document.querySelector('.sunburst.sunburst-phone')).not.toBeNull();
+        expect(document.querySelector('.cube-chart')).toBeNull();
+    });
+
     it('lists every stream', () => {
         setup();
 

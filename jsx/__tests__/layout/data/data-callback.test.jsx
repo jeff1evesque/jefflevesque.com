@@ -296,8 +296,8 @@ describe('the distribution payload', () => {
     });
 });
 
-describe('the ring on the page', () => {
-    it('lists the groups of the stream on screen once its answer lands', () => {
+describe('the chart on the page', () => {
+    it('draws a bar for each group of the stream on screen once its answer lands', () => {
         const page = setup();
         page.callbackGetData({ stream: 'stock-market' });
 
@@ -311,8 +311,15 @@ describe('the ring on the page', () => {
             ],
         });
 
-        expect(screen.getByRole('button', { name: /^Energy, 5 records, 56% of all/ })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /^Utilities, 4 records/ })).toBeInTheDocument();
+        //
+        // a wide screen's bars of cubes: Energy holds two industries, so its bar
+        // lists them, where Utilities holds one and has nothing under it to list
+        //
+        expect([...document.querySelectorAll('text.cube-chart-name')].map((name) => name.textContent))
+            .toEqual(['Energy', 'Utilities']);
+        expect(document.querySelector('rect.cube-chart-bar[data-name="Energy"]'))
+            .toHaveAttribute('aria-label', 'Energy, 5 records, 56% of all. Lists its 2 industries');
+        expect(document.querySelector('rect.cube-chart-bar[data-name="Utilities"]')).not.toHaveAttribute('role');
     });
 });
 
