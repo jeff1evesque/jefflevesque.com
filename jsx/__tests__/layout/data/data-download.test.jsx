@@ -266,10 +266,10 @@ describe('an unrecognised stream', () => {
     });
 });
 
-describe('the api icons above the ring', () => {
+describe('the api icons over the chart', () => {
     //
     // asserted against the url the page handed its loader, so the icon cannot open a
-    // request the ring was not drawn from.
+    // request the chart was not drawn from.
     //
     it('links the datalake api\'s documentation', () => {
         setup();
@@ -346,6 +346,20 @@ describe('every loader\'s answer', () => {
     });
 });
 
+describe('the chart a wide screen draws', () => {
+    //
+    // the stacked bars of cubes, with the api icons over them; a phone draws the
+    // sunburst instead -- see data-mobile.test.jsx
+    //
+    it('draws the bars of cubes rather than the sunburst', () => {
+        setup();
+
+        expect(document.querySelector('.cube-chart')).not.toBeNull();
+        expect(document.querySelector('.cube-chart .cube-chart-actions .api-links')).not.toBeNull();
+        expect(document.querySelector('.sunburst')).toBeNull();
+    });
+});
+
 describe('the Data Distribution switch', () => {
     it('hides the chart, and its api icons with it, from the Data Distribution switch', () => {
         const page = setup();
@@ -357,12 +371,14 @@ describe('the Data Distribution switch', () => {
         });
 
         expect(page.state.display_data_distribution).toBe(false);
+        expect(document.querySelector('.cube-chart')).toBeNull();
         expect(document.querySelector('.api-links')).toBeNull();
 
         act(() => {
             fireEvent.click(switched);
         });
 
+        expect(document.querySelector('.cube-chart')).not.toBeNull();
         expect(document.querySelector('.api-links')).not.toBeNull();
     });
 });
