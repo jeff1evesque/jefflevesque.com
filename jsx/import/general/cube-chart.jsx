@@ -16,20 +16,64 @@
  *
  * Note: a wide screen's chart. A phone draws the sunburst instead -- see
  *       data.jsx -- since a row of bars does not fit its width.
+ *
+ * Note: the axes (#167). The value axis is written in short figures -- '3.5M',
+ *       '14M' -- where recharts' 'toExponential(0)' wrote 3.5M as '4e+6' and
+ *       10.5M and 14M both as '1e+7', and it never folds. Neither axis has a
+ *       title: the line over the plot says what a cube is worth, and the names
+ *       say what a bar is. The names start folded into a green bar under the
+ *       plot, which shows them again; shown, a click anywhere on them folds
+ *       them, and the page keeps which -- see 'namesShown' and 'onNames'.
+ *
+ * Note: the chart runs from the value axis's figures, at the page's left edge,
+ *       to the listing's right edge (#167): the left margin is the figures' own
+ *       width, and there is none at the right.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import CloseIcon from '@mui/icons-material/Close';
-import cubeLayout from './cube-layout.js';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import cubeLayout, { barsOf, ticksOf } from './cube-layout.js';
 import { share } from './sunburst.jsx';
-import { CHART_X_AXIS_HEIGHT, CHART_X_AXIS_ANGLE, CHART_X_AXIS_TITLE_HEIGHT } from './chart-height.js';
+import { CHART_X_AXIS_HEIGHT, CHART_X_AXIS_ANGLE } from './chart-height.js';
 
 //
-// the plot's margins inside the chart, in px: recharts' margins around the old
-// bars, with the value axis's width at the left, widened for the axis's title
+// the plot's margins inside the chart, in px: room over the plot for the line
+// that says what a cube is worth -- about 20px between it and the plot (#167)
+// -- none at the right, so the plot runs to the listing's edge, and under the
+// names the band recharts kept. The left is the value axis's own figures --
+// see axisRoom
 //
-const MARGIN = { top: 20, right: 25, bottom: 8, left: 62 };
+const MARGIN = { top: 34, right: 0, bottom: 8 };
+
+//
+// the green bar the names fold into, and the room between it and the plot
+//
+const RAIL = 28;
+const RAIL_GAP = 10;
+
+//
+// the value axis's figures, short: '3.5M', '14M', '250'
+//
+const TICK = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+
+//
+// the room the value axis's figures take at the left of the plot: the widest
+// of them, at about 6.8px a digit, 3.4px a point and 9.5px a letter in the 12px
+// they are drawn in, then the gap and the tick to the axis. Measured from the
+// figures rather than fixed, so a month of tens of millions and one of a few
+// splits each start the plot just clear of their own figures
+//
+export function axisRoom(tree) {
+    const ticks = ticksOf(Math.max(0, ...barsOf(tree).bars.map((bar) => bar.value)));
+    const widest = Math.max(...ticks.map((tick) => [...TICK.format(tick)].reduce(
+        (sum, char) => sum + (/[0-9]/.test(char) ? 6.8 : (char === '.' ? 3.4 : 9.5)), 0
+    )));
+
+    return Math.ceil(widest) + 10;
+}
 
 //
 // the width the chart lays out at until the page has measured it
@@ -110,25 +154,42 @@ function useWidth(ref) {
     return width;
 }
 
-export default function CubeChart({ tree, names, caption, height, actions, overlay }) {
+export default function CubeChart({ tree, names, caption, height, actions, overlay, namesShown = false, onNames = () => {} }) {
     const box = useRef(null);
     const width = useWidth(box);
     const [lit, setLit] = useState(null);
     const [open, setOpen] = useState(null);
+    const [shownNames, setShownNames] = useState(namesShown);
+
+    //
+    // the names shown or folded, and the page told, so it can keep which
+    //
+    function showNames(shown) {
+        setShownNames(shown);
+        onNames(shown);
+    }
+
+    //
+    // the plot is the same height either way. The names folded leave the green
+    // bar under it in their place, and the chart is that much shorter, so what
+    // is under the chart moves up. Shown, they take their band back, and a
+    // click anywhere in it folds them again
+    //
+    const plot_bottom = height - MARGIN.bottom - CHART_X_AXIS_HEIGHT;
+    const total_height = shownNames ? height : plot_bottom + RAIL_GAP + RAIL;
 
     const layout = useMemo(() => cubeLayout(tree, {
-        left: MARGIN.left,
+        left: axisRoom(tree),
         right: width - MARGIN.right,
         top: MARGIN.top,
-        bottom: height - MARGIN.bottom - CHART_X_AXIS_HEIGHT,
-    }), [tree, width, height]);
+        bottom: plot_bottom,
+    }), [tree, width, plot_bottom]);
 
     const { plot } = layout;
     const unit = names.unit;
     const bars = new Map(layout.bars.map((bar) => [bar.key, bar]));
     const opened = open ? bars.get(open) || null : null;
     const band = lit ? layout.bands.get(lit.key) || null : null;
-    const total_height = height + CHART_X_AXIS_TITLE_HEIGHT;
     const yOf = (value) => plot.bottom - ((value / layout.top) * (plot.bottom - plot.top));
 
     //
@@ -341,45 +402,28 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                     {layout.ticks.map((tick) => (
                         <g key={`tick-${tick}`}>
                             <line className='cube-chart-axis' x1={plot.left - 6} x2={plot.left} y1={yOf(tick)} y2={yOf(tick)} />
-                            {/*
-
-                                the old axis's labels, as recharts wrote them
-
-                            */}
                             <text className='cube-chart-tick' x={plot.left - 8} y={yOf(tick)} dy='0.355em' textAnchor='end'>
-                                {Number(tick).toExponential(0)}
+                                {TICK.format(tick)}
                             </text>
                         </g>
                     ))}
-                    {layout.bars.map((bar) => (
-                        <g key={`name-${bar.key}`}>
-                            <line className='cube-chart-axis' x1={bar.center} x2={bar.center} y1={plot.bottom} y2={plot.bottom + 6} />
-                            <text
-                                className='cube-chart-name'
-                                transform={`translate(${bar.center},${plot.bottom + 8}) rotate(${CHART_X_AXIS_ANGLE})`}
-                                dy='0.71em'
-                                textAnchor='end'
-                            >
-                                {bar.name}
-                            </text>
+                    {shownNames ? (
+                        <g className='cube-chart-names'>
+                            {layout.bars.map((bar) => (
+                                <g key={`name-${bar.key}`}>
+                                    <line className='cube-chart-axis' x1={bar.center} x2={bar.center} y1={plot.bottom} y2={plot.bottom + 6} />
+                                    <text
+                                        className='cube-chart-name'
+                                        transform={`translate(${bar.center},${plot.bottom + 8}) rotate(${CHART_X_AXIS_ANGLE})`}
+                                        dy='0.71em'
+                                        textAnchor='end'
+                                    >
+                                        {bar.name}
+                                    </text>
+                                </g>
+                            ))}
                         </g>
-                    ))}
-                    <text
-                        className='cube-chart-title'
-                        transform={`translate(12,${(plot.top + plot.bottom) / 2}) rotate(-90)`}
-                        dy='0.35em'
-                        textAnchor='middle'
-                    >
-                        {capitalized(unit[1])}
-                    </text>
-                    <text
-                        className='cube-chart-title'
-                        x={(plot.left + plot.right) / 2}
-                        y={total_height - 6}
-                        textAnchor='middle'
-                    >
-                        {capitalized(names.group[0])}
-                    </text>
+                    ) : null}
                     {/*
 
                         each bar's stack, under its cubes: it keeps a band lit
@@ -430,6 +474,45 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                         />
                     ))}
                 </svg>
+                {/*
+
+                    the names, shown, fold at a click anywhere on them. Under the
+                    pointer their band takes a pale green fading to the page,
+                    and /graph's fold arrow appears on its foot, where the green
+                    bar they fold into will be. The arrow is the button a
+                    keyboard reaches; the band is the mouse's larger target for
+                    the same thing
+
+                */}
+                {shownNames ? (
+                    <div
+                        className='cube-chart-names-hit'
+                        style={{ left: 0, top: plot.bottom + 2, width: width, height: total_height - plot.bottom - 2 }}
+                        onClick={() => showNames(false)}
+                    >
+                        <button
+                            type='button'
+                            className='cube-chart-fold'
+                            aria-label={`Hide the ${names.group[0]} names`}
+                            title={`Hide the ${names.group[0]} names`}
+                        >
+                            <ExpandLessIcon fontSize='inherit' />
+                        </button>
+                    </div>
+                ) : null}
+                {shownNames ? null : (
+                    <button
+                        type='button'
+                        className='cube-chart-rail'
+                        style={{ left: 0, top: plot.bottom + RAIL_GAP, width: width, height: RAIL }}
+                        aria-label={`Show the ${names.group[0]} names`}
+                        title={`Show the ${names.group[0]} names`}
+                        onClick={() => showNames(true)}
+                    >
+                        <ExpandMoreIcon fontSize='inherit' />
+                        <span>{capitalized(names.group[1])}</span>
+                    </button>
+                )}
                 {actions ? <div className='cube-chart-actions'>{actions}</div> : null}
                 {tip ? (
                     <div className='cube-chart-tip' style={tip.style} aria-hidden='true'>
@@ -476,4 +559,10 @@ CubeChart.propTypes = {
     height: PropTypes.number.isRequired,
     actions: PropTypes.node,
     overlay: PropTypes.node,
+    //
+    // whether the names start shown, and what is told when they are shown or
+    // folded -- the page keeps it, so a chart drawn again starts the same way
+    //
+    namesShown: PropTypes.bool,
+    onNames: PropTypes.func,
 };
