@@ -2,12 +2,12 @@
  * stream-focus.jsx: one stream on its own (#161) -- what a stream's name on
  * /stream opens.
  *
- * Its Health, Coverage and Total Records are three boxes over a taller graph
- * than a row has room for, and nothing stands to the right of the graph, so it
- * runs to the page's edge. The way back to every stream is the Stream column,
- * folded into a green rail down the graph's left side, as /graph's columns
- * fold. It runs from the top of the graph to the last line of the color key
- * under it, and no further.
+ * Its Health, Coverage and Total Records are three boxes centered over a taller
+ * graph than a row has room for, and nothing stands beside the graph, so it
+ * runs the page's width. The way back to every stream is the page's, over the
+ * title -- see '.stream-back' in stream.jsx. It was a green rail down the
+ * graph's left side, as /graph's columns fold, which read oddly as a way back
+ * and cost the graph its width (#167).
  *
  * Everything the rows do, this does to the one stream: the bars, what they say
  * when pointed at, a bar opening its interval one rate finer, and the line it
@@ -16,9 +16,9 @@
  *
  * Note: on a phone the same view is one column (#161): the graph first, then
  *       the figures side by side, then the line that describes a bar, and the
- *       color key folded under its button. The way back there is the bar over
- *       the title, which stream.jsx draws, so the stylesheet hides the rail --
- *       and the dates under the graph, which a phone has no room for.
+ *       color key folded under its button. The way back there is the same
+ *       '.stream-back', as a bar across the phone, and the stylesheet hides the
+ *       dates under the graph, which a phone has no room for.
  *
  * Note: a phone shortens two things so the three figures keep to one line:
  *       'Records' for 'Total Records', and the count itself, '137M' for
@@ -28,7 +28,6 @@
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { COLUMNS, StreamBars, StreamLegend, StreamReadout } from './stream-rows.jsx';
 
 //
@@ -90,7 +89,7 @@ Fitted.propTypes = {
     short: PropTypes.node,
 };
 
-function StreamFocus({ row, rate, first, last, onOpen = null, onAll = () => {} }) {
+function StreamFocus({ row, rate, first, last, onOpen = null }) {
     const [pointed, setPointed] = useState(null);
     const every = Math.max(1, Math.ceil(row.bars.length / TICKS));
 
@@ -118,11 +117,6 @@ function StreamFocus({ row, rate, first, last, onOpen = null, onAll = () => {} }
             </div>
 
             <div className='stream-focus-body'>
-                <button type='button' className='stream-focus-rail' aria-label='Show all streams' onClick={onAll}>
-                    <ChevronRightIcon fontSize='inherit' />
-                    <span>All streams</span>
-                </button>
-
                 <div className='stream-focus-main'>
                     <StreamBars
                         row={row}
@@ -167,10 +161,9 @@ StreamFocus.propTypes = {
     first: PropTypes.string,
     last: PropTypes.string,
     //
-    // what a bar opens, as for a row, and the way back to every stream
+    // what a bar opens, as for a row
     //
     onOpen: PropTypes.func,
-    onAll: PropTypes.func,
 };
 
 export default StreamFocus;

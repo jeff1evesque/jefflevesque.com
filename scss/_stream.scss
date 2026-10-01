@@ -6,28 +6,34 @@
 //
 
 //
-// a reported bar's shade by its health, darkest for a bar whose records all
-// succeeded -- see HEALTH_BANDS in stream-bars.js. One blue, stepped. By night
-// the steps run the other way, so the fullest bar is still the one that stands
-// out most against the page.
+// a reported bar's shade by its height on its row's own scale (#167) -- see
+// 'heightShade' in stream-rows.jsx. One blue in five steps, the darkest for the
+// tallest fifth of the row and the lightest for the shortest, which still
+// stands at 2.14:1 against the page, so a sliver of a bar is still seen. By
+// night the steps run the other way, the brightest for the tallest, and the
+// dimmest still stands at 2.75:1, so the tallest bar is the one that stands out
+// most against the page in either theme.
+//
+// The red of a miss and of a failure, and the hatching of an interval nothing
+// was due in, beside them.
 //
 :root {
-  --stream-health-0: #1c5cab;
-  --stream-health-1: #3987e5;
-  --stream-health-2: #6da7ec;
-  --stream-health-3: #9ec5f4;
-  --stream-health-4: #cde2fb;
+  --stream-shade-0: #1c5cab;
+  --stream-shade-1: #3772be;
+  --stream-shade-2: #5087d0;
+  --stream-shade-3: #699de3;
+  --stream-shade-4: #82b4f6;
   --stream-missed: #d03b3b;
   --stream-off-1: #ebeae6;
   --stream-off-2: #f6f5f2;
 }
 
 :root[data-theme='dark'] {
-  --stream-health-0: #86b6ef;
-  --stream-health-1: #5598e7;
-  --stream-health-2: #2a78d6;
-  --stream-health-3: #1c5cab;
-  --stream-health-4: #104281;
+  --stream-shade-0: #86b6ef;
+  --stream-shade-1: #6ba1e1;
+  --stream-shade-2: #508cd2;
+  --stream-shade-3: #3378c4;
+  --stream-shade-4: #0b63b5;
   --stream-missed: #e66767;
   --stream-off-1: #3a3a37;
   --stream-off-2: #2a2a28;
@@ -361,11 +367,11 @@ $stream-held: rgba($green-2, 0.32);
   width: 100%;
 }
 
-.stream-health-0 { background-color: var(--stream-health-0); }
-.stream-health-1 { background-color: var(--stream-health-1); }
-.stream-health-2 { background-color: var(--stream-health-2); }
-.stream-health-3 { background-color: var(--stream-health-3); }
-.stream-health-4 { background-color: var(--stream-health-4); }
+.stream-shade-0 { background-color: var(--stream-shade-0); }
+.stream-shade-1 { background-color: var(--stream-shade-1); }
+.stream-shade-2 { background-color: var(--stream-shade-2); }
+.stream-shade-3 { background-color: var(--stream-shade-3); }
+.stream-shade-4 { background-color: var(--stream-shade-4); }
 
 //
 // a bar whose interval had failures carries a red dot over it
@@ -499,13 +505,116 @@ $stream-held: rgba($green-2, 0.32);
 }
 
 //
-// the hint box and the key end where the divider stands, so the divider and
-// the figures beside it run from the headings down to the key's last line and
-// no further (#161)
+// the headings and the rows, which the divider and the rail are placed
+// against, so they run from the headings to the bottom of the last row and no
+// further (#167) -- not on beside the line, the key and the hint under the
+// rows, which the rows' box holds too
 //
-.stream-rows > .stream-rows-readout,
-.stream-rows > .stream-rows-legend {
-  margin-right: calc(var(--stream-figures-at) + 2rem);
+.stream-rows-table {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+//
+// the popup by a bar a mouse points at (#167): when it was, what it holds, and
+// what a click opens, over the bar's top with a point down at it, in the page's
+// surface with a hairline, as the cubes' tooltip on /data is. A popup by a bar
+// at a row's two ends lines up with the end rather than centering on the bar,
+// so it stays inside the row -- see TIP_EDGE in stream-rows.jsx -- and its
+// point moves along it to stay over the bar.
+//
+.stream-bar-tip {
+  background-color: $white-1;
+  border: 1px solid $gray-3;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: $gray-7;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  padding: 0.45rem 0.75rem;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 9px));
+  white-space: nowrap;
+  z-index: 5;
+
+  &::after {
+    background-color: $white-1;
+    border-bottom: 1px solid $gray-3;
+    border-right: 1px solid $gray-3;
+    bottom: -5px;
+    content: '';
+    height: 9px;
+    left: 50%;
+    position: absolute;
+    transform: translateX(-50%) rotate(45deg);
+    width: 9px;
+  }
+}
+
+.stream-bar-tip-start {
+  transform: translate(-16px, calc(-100% - 9px));
+
+  &::after {
+    left: 16px;
+  }
+}
+
+.stream-bar-tip-end {
+  transform: translate(calc(-100% + 16px), calc(-100% - 9px));
+
+  &::after {
+    left: auto;
+    right: 16px;
+    transform: translateX(50%) rotate(45deg);
+  }
+}
+
+.stream-bar-tip-when {
+  color: $gray-9;
+  font-weight: 600;
+}
+
+.stream-bar-tip-what {
+  font-variant-numeric: tabular-nums;
+}
+
+.stream-bar-tip-hint {
+  color: $gray-6;
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+//
+// the bar the popup is by stays lit, as the pointer lights it
+//
+.stream-bar-slot.is-pointed {
+  background-color: rgba(var(--ink-rgb), 0.06);
+}
+
+//
+// where a mouse can point, the popup says what a bar holds, so the line under
+// the rows that says it for a finger is not drawn (#167). A phone, and any
+// screen that is touched rather than pointed at, keeps it
+//
+@media (min-width: 768px) and (hover: hover) {
+  .stream-rows-readout {
+    display: none;
+  }
+}
+
+//
+// the key's five shades, side by side, from the fewest records to the most
+//
+.stream-rows-ramp-steps {
+  display: inline-flex;
+  gap: 2px;
+
+  .stream-rows-swatch {
+    border-radius: 2px;
+    width: 0.8rem;
+  }
 }
 
 //
@@ -567,13 +676,11 @@ $stream-held: rgba($green-2, 0.32);
 }
 
 //
-// the green rail a folded column leaves, as /graph's folded columns are drawn
-// -- see '.graph-panel-closed'. Down the right side for the figures, and down
-// the left for the Stream column of a stream shown on its own. The whole rail
-// is the button that opens it again.
+// the green rail the folded figures leave, down the rows' right side, as
+// /graph's folded columns are drawn -- see '.graph-panel-closed'. The whole
+// rail is the button that opens them again.
 //
-.stream-rows-rail,
-.stream-focus-rail {
+.stream-rows-rail {
   align-items: center;
   background-image: linear-gradient(to bottom, rgba($green-2, 0.42), rgba($green-4, 0.16));
   border: 0;
@@ -621,7 +728,9 @@ $stream-held: rgba($green-2, 0.32);
 // rail that brings them back
 //
 .stream-rows-folded {
-  padding-right: 3rem;
+  .stream-rows-table {
+    padding-right: 3rem;
+  }
 
   .stream-rows-head,
   .stream-row {
@@ -632,20 +741,13 @@ $stream-held: rgba($green-2, 0.32);
   .stream-row-figures {
     display: none;
   }
-
-  > .stream-rows-readout,
-  > .stream-rows-legend {
-    margin-right: 0;
-  }
 }
 
 //
 // a stream on its own (#161): its figures as three boxes centered over the
-// graph, the graph taller and to the page's edge, and the rail back to every
-// stream down its left side, from the graph's top to the key's last line
-//
-// Note: the boxes and the dates over the graph are set in by the rail and its
-//       gap, so they are centered on the graph rather than on the page.
+// graph, and the graph taller and the page's full width. The way back to every
+// stream is over the title -- see '.stream-back' -- since a rail down the
+// graph's left side gave way to it (#167).
 //
 .stream-focus {
   display: flex;
@@ -659,7 +761,6 @@ $stream-held: rgba($green-2, 0.32);
   gap: 1rem;
   justify-content: center;
   margin-bottom: 1.25rem;
-  padding-left: 3rem;
 }
 
 .stream-focus-figure {
@@ -695,7 +796,6 @@ $stream-held: rgba($green-2, 0.32);
   font-size: 0.85rem;
   justify-content: space-between;
   margin-bottom: 0.4rem;
-  padding-left: 3rem;
 }
 
 .stream-focus-body {
@@ -843,6 +943,65 @@ $stream-held: rgba($green-2, 0.32);
 .stream-back {
   @extend %back-bar;
   display: none;
+}
+
+//
+// a wider screen's way back from a stream on its own (#167): the phone's bar
+// as a small pill, the rate buttons' height, on a line of its own over the
+// title at the top left, where a way back is looked for. The title's line is a
+// grid so the pill can take a line to itself, with the rate's controls still
+// centered between the title and the api icons as they were. A step deeper
+// under the pointer: darker by day, brighter by night
+//
+@media (min-width: 768px) {
+  .stream-layout-focused .stream-rows-bar {
+    align-items: center;
+    display: grid;
+    gap: 0.75rem;
+    grid-template-areas:
+      'back back back'
+      'intro controls links';
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .stream-layout-focused .stream-rows-intro { grid-area: intro; }
+  .stream-layout-focused .stream-api-links { grid-area: links; }
+
+  .stream-layout-focused .stream-controls {
+    grid-area: controls;
+    justify-self: center;
+  }
+
+  .stream-back {
+    border: 1px solid mix($green-4, #fff, 40%);
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 0.95rem;
+    gap: 0.2rem;
+    grid-area: back;
+    justify-self: start;
+    min-height: 2.25rem;
+    padding: 0 1rem 0 0.55rem;
+    width: auto;
+
+    svg {
+      font-size: 1.25rem;
+    }
+
+    &:hover {
+      background-color: mix($green-2, #fff, 38%);
+      border-color: mix($green-4, #fff, 70%);
+    }
+
+    @include dark {
+      border-color: mix($green-4, $dark-white-1, 40%);
+
+      &:hover {
+        background-color: mix($green-2, $dark-white-1, 32%);
+        border-color: mix($green-4, $dark-white-1, 70%);
+      }
+    }
+  }
 }
 
 //
@@ -1043,7 +1202,7 @@ $stream-held: rgba($green-2, 0.32);
     display: none;
   }
 
-  .stream-rows-folded {
+  .stream-rows-folded .stream-rows-table {
     padding-right: 0;
   }
 
@@ -1122,7 +1281,6 @@ $stream-held: rgba($green-2, 0.32);
     display: contents;
   }
 
-  .stream-focus-rail,
   .stream-focus-ticks {
     display: none;
   }

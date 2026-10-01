@@ -4,9 +4,10 @@
  *
  * A stream's name, or '?item=' in the address, shows that stream on its own:
  * its name in the title with its controls, its figures in three boxes, a taller
- * graph, and a rail back to every stream. Opening one is a step in the browser's
- * history, so the back button comes back. The figures beside the rows fold, and
- * drag, and the page keeps how they were left.
+ * graph, and a button over the title back to every stream (#167). Opening one is
+ * a step in the browser's history, so the back button comes back. The figures
+ * beside the rows start folded (#167), fold and drag, and the page keeps how
+ * they were left.
  *
  * Note: get-data.js is mocked, so a request is only recorded, and every row
  *       waits on its report -- which is all this needs of the rows.
@@ -250,12 +251,16 @@ describe('a stream the address names', () => {
 });
 
 describe('the way back to every stream', () => {
-    it('is the rail beside the graph', () => {
+    it('is the All streams button over the title, on every screen (#167)', () => {
         setup('/stream?item=sec');
 
         const depth = window.history.length;
+        const back = screen.getByRole('button', { name: 'All streams' });
 
-        fireEvent.click(screen.getByRole('button', { name: 'Show all streams' }));
+        expect(back).toHaveClass('stream-back');
+        expect(document.querySelector('.stream-rows-bar').firstElementChild).toBe(back);
+
+        fireEvent.click(back);
 
         expect(focused()).toBeNull();
         expect(rowNames()).toHaveLength(STREAMS.length);
@@ -263,7 +268,7 @@ describe('the way back to every stream', () => {
         expect(window.history.length).toBe(depth + 1);
     });
 
-    it('is the bar over the title on a phone', () => {
+    it('keeps the rate the stream was shown at', () => {
         setup('/stream?item=sec&rate=hour');
 
         fireEvent.click(screen.getByRole('button', { name: 'All streams' }));
@@ -271,6 +276,19 @@ describe('the way back to every stream', () => {
         expect(focused()).toBeNull();
         expect(address().get('item')).toBeNull();
         expect(address().get('rate')).toBe('hour');
+    });
+
+    it('is no longer a rail beside the graph (#167)', () => {
+        setup('/stream?item=sec');
+
+        expect(screen.queryByRole('button', { name: 'Show all streams' })).toBeNull();
+        expect(document.querySelector('.stream-focus-rail')).toBeNull();
+    });
+
+    it('is not drawn while every stream is showing', () => {
+        setup('/stream');
+
+        expect(screen.queryByRole('button', { name: 'All streams' })).toBeNull();
     });
 
     it('is the back button', () => {
@@ -415,7 +433,17 @@ describe('a stream on its own, as the page draws it', () => {
 });
 
 describe('the figures beside the rows, folded and dragged', () => {
+    it('start folded when this browser kept nothing (#167)', () => {
+        const { page } = setup();
+
+        expect(page.state.figures_folded).toBe(true);
+        expect(document.querySelector('.stream-rows')).toHaveClass('stream-rows-folded');
+        expect(screen.getByRole('button', { name: 'Show Health, Coverage and Total Records' })).toBeInTheDocument();
+    });
+
     it('fold from the arrow, and are kept folded for the next visit', () => {
+        keep({ fold: { figures: false }, size: {} });
+
         setup();
 
         fireEvent.click(screen.getByRole('button', { name: 'Fold Health, Coverage and Total Records' }));
@@ -452,6 +480,8 @@ describe('the figures beside the rows, folded and dragged', () => {
     });
 
     it('keep a width only once the pointer is up', () => {
+        keep({ fold: { figures: false }, size: {} });
+
         const { page } = setup();
 
         act(() => {
@@ -459,7 +489,7 @@ describe('the figures beside the rows, folded and dragged', () => {
         });
 
         expect(page.state.figures_width).toBe(300);
-        expect(kept()).toBeUndefined();
+        expect(kept()).toEqual({ fold: { figures: false }, size: {} });
 
         act(() => {
             page.resizeFigures(310, true);
@@ -580,21 +610,26 @@ describe('StreamFocus on its own', () => {
         expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ records: 13 }));
     });
 
-    it('goes back to every stream from its rail', () => {
-        const onAll = jest.fn();
-
-        draw({ onAll: onAll });
-        fireEvent.click(screen.getByRole('button', { name: 'Show all streams' }));
-
-        expect(onAll).toHaveBeenCalledTimes(1);
-    });
-
-    it('has a rail that does nothing on its own, when nothing is listening', () => {
+    it('draws no way back of its own: the page\'s button over the title is it (#167)', () => {
         draw();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Show all streams' }));
+        expect(screen.queryByRole('button', { name: 'Show all streams' })).toBeNull();
+        expect(document.querySelector('.stream-focus-rail')).toBeNull();
+    });
 
-        expect(document.querySelector('.stream-focus')).toBeInTheDocument();
+    it('brings up a popup by a bar a mouse points at, as a row does (#167)', () => {
+        draw({ onOpen: () => {} });
+
+        fireEvent(document.querySelectorAll('.stream-focus .stream-bar-slot')[1], Object.assign(
+            new MouseEvent('pointerover', { bubbles: true, relatedTarget: document.body }),
+            { pointerType: 'mouse' }
+        ));
+
+        const tip = document.querySelector('.stream-focus .stream-bar-tip');
+
+        expect(tip.querySelector('.stream-bar-tip-when')).toHaveTextContent('Sat, Sep 12');
+        expect(tip.querySelector('.stream-bar-tip-what')).toHaveTextContent('11 records');
+        expect(tip.querySelector('.stream-bar-tip-hint')).toHaveTextContent('Click to see its hours');
     });
 
     it('carries the color key, and the line that describes a bar', () => {

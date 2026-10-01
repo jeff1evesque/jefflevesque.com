@@ -183,6 +183,14 @@
       float: right;
     }
   }
+
+  //
+  // a dataset on its own (#165): room between its title row, with the Filter,
+  // and the api icons under it, which sat against each other (#167)
+  //
+  .data-listing .listing-graphic > .filter {
+    margin-bottom: 0.6rem;
+  }
 }
 
 .articles {
@@ -661,7 +669,6 @@
     color: $green-6;
   }
 
-  .listing-table-muted,
   .listing-table-empty {
     color: $gray-6;
   }
@@ -798,6 +805,14 @@
 }
 
 //
+// room under the listing before the page ends, as /stream leaves under its key
+// (#167). The listing ended on the page's last pixel
+//
+.data-listing {
+  padding-bottom: 2rem;
+}
+
+//
 // /data's seven columns, closer together, so the longest name keeps to a line
 // at the widest container: every column's figure on one line takes about 607px
 // of its 831, and 'Bureau of Labor Statistics' about 202 of the 224 left
@@ -816,7 +831,8 @@
 //
 // below the large viewport: the same table, stacked into cards. Each row is a
 // flat bordered card -- its name, the grip before it and the controls after it
-// along the top, and each figure a small label over its value, two to a line.
+// along the top, and each figure a small label over its value, three to a line
+// (#167), the facts every dataset has first -- see 'listing-table-partial'.
 //
 // Note: the header is not on screen, so the sort menu is, and every cell says
 //       its own column's name, from its 'data-label'.
@@ -860,7 +876,7 @@
       border-radius: 0.5rem;
       display: grid;
       gap: 0.65rem 1rem;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       margin-bottom: 0.75rem;
       padding: 0.35rem 0.35rem 0.9rem 0.75rem;
       position: relative;
@@ -945,6 +961,16 @@
     //
     td[data-label].listing-table-blank {
       display: none;
+    }
+
+    //
+    // the facts only some datasets have -- a coverage, a lag -- come after the
+    // ones every dataset has, so those sit in the same places on every card
+    // (#167). Which are which is read from the rows -- see 'partial' in
+    // listing-table.jsx
+    //
+    td[data-label].listing-table-partial {
+      order: 1;
     }
   }
 }

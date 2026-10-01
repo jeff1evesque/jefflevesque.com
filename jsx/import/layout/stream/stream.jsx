@@ -393,6 +393,11 @@ class StreamLayout extends Component {
             a drag would stop at came from somewhere else, and is dropped rather
             than honored (#161)
 
+            Note: folded unless this browser kept them open (#167). The rows
+                  have the room for the bars, and a bar says what it holds in
+                  its popup; a reader who opens the figures has them open on
+                  the next visit, since any fold or drag keeps 'figures'
+
         */}
         const layout = readLayout(...LAYOUT);
         const kept_width = layout.size.figures;
@@ -420,7 +425,7 @@ class StreamLayout extends Component {
             // or null for every stream (#161)
             //
             focus: linkedItem(document.location.search),
-            figures_folded: layout.fold.figures === true,
+            figures_folded: layout.fold.figures !== false,
             figures_width: kept_width >= FIGURES_MIN ? kept_width : null,
             'stream_source_stock-market': ['options', 'price'],
             'stream_source_stock-split': ['alpha', 'beta', 'gamma'],
@@ -1603,11 +1608,10 @@ class StreamLayout extends Component {
                     <div className='stream-rows-bar'>
                         {/*
 
-                            the way back to every stream on a phone, over the
-                            title of the one shown on its own. A wider screen has
-                            the rail down the graph's side instead -- see
-                            stream-focus.jsx -- so the stylesheet shows this only
-                            on a phone (#161)
+                            the way back to every stream, over the title of the
+                            one shown on its own: a bar across a phone (#161),
+                            and a small pill on a wider screen, where it took
+                            the place of a rail down the graph's side (#167)
 
                         */}
                         {focused
@@ -1770,7 +1774,6 @@ class StreamLayout extends Component {
                                 first={first}
                                 last={last}
                                 onOpen={rate === 'Minute' ? null : this.openBar}
-                                onAll={this.showAll}
                             />
                         ) : (
                             <StreamRows

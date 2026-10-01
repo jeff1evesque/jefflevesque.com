@@ -133,7 +133,34 @@ describe('the table', () => {
 
         expect(cell('SEC Filings', 'Rate').querySelector('.listing-table-pill')).toHaveTextContent('Minute');
         expect(cell('SEC Filings', 'RDF').querySelector('.listing-table-pill-on')).toHaveTextContent('Available');
-        expect(cell('Stock Splits', 'RDF').querySelector('.listing-table-muted')).toHaveTextContent('None');
+    });
+
+    it('draws any other value of a yes column as a gray pill, an answer rather than a gap (#167)', () => {
+        setup();
+
+        const none = cell('Stock Splits', 'RDF').querySelector('.listing-table-pill');
+
+        expect(none).toHaveTextContent('None');
+        expect(none).not.toHaveClass('listing-table-pill-on');
+    });
+
+    it('marks the cells of a column some rows leave empty, so a card sets them after the rest (#167)', () => {
+        setup();
+
+        expect(cell('Bureau of Labor Statistics', 'Lag')).toHaveClass('listing-table-partial');
+        expect(cell('S&P 500', 'Lag')).toHaveClass('listing-table-partial', 'listing-table-blank');
+        ['Health', 'Rate', 'Total Records', 'RDF'].forEach((label) => {
+            expect(cell('Bureau of Labor Statistics', label)).not.toHaveClass('listing-table-partial');
+        });
+    });
+
+    it('reads which columns some rows leave empty from every row, not only the ones on screen (#167)', () => {
+        setup();
+
+        fireEvent.change(screen.getByPlaceholderText('Filter by name'), { target: { value: 'bls' } });
+
+        expect(names()).toEqual(['Bureau of Labor Statistics']);
+        expect(cell('Bureau of Labor Statistics', 'Lag')).toHaveClass('listing-table-partial');
     });
 
     it('marks no row by the listing\'s own name', () => {

@@ -7,8 +7,8 @@
  * nothing here knows what kind of data a stream holds:
  *
  *   - 'reported'  the interval carried rows. Its height is the records that
- *                 succeeded, and its shade the share of them that did -- its
- *                 health. 'failed' is what did not.
+ *                 succeeded, and its health the share of them that did.
+ *                 'failed' is what did not.
  *   - 'missed'    a run was due and the interval carried nothing, by the same
  *                 test the Coverage figure counts -- see 'missingIntervals'.
  *   - 'between'   a minute that holds no run of its own, because the run due in
@@ -30,10 +30,17 @@
  *       intervals zeroed (see toggleChartScale in stream.jsx). A zeroed row
  *       carries no throughput, so it is not read as a report.
  *
- * Note: the shade is health rather than coverage. A report carries one row per
- *       interval, so a daily bar can say how many records a day brought and how
- *       many failed, but not how many of that day's runs landed. Coverage is the
- *       figure beside the row, and a miss is drawn where it can be pointed at.
+ * Note: a bar carries its health rather than its coverage. A report carries one
+ *       row per interval, so a daily bar can say how many records a day brought
+ *       and how many failed, but not how many of that day's runs landed.
+ *       Coverage is the figure beside the row, and a miss is drawn where it can
+ *       be pointed at.
+ *
+ * Note: a bar's shade is its height again, not its health (#167) -- see
+ *       'heightShade' in stream-rows.jsx. Nearly every interval is fully
+ *       healthy, so a shade by health drew nearly every bar the same blue. A
+ *       bar with failures is marked by a red dot, and its summary says how many
+ *       failed and its health.
  *
  */
 
@@ -42,28 +49,6 @@ import { INGEST_SCHEDULE, coverageBucket, intervalExpected } from './ingest-sche
 import { missingIntervals } from './ingest-gaps.js';
 import { stepInterval, windowStart } from './rolling-window.js';
 import { canonicalStream } from './stream-id.js';
-
-//
-// the shades a reported bar is drawn in, darkest first: a bar whose records all
-// succeeded, then one losing up to 5%, up to 20%, up to half, and more than
-// half. Each is a class the stylesheet colors -- see '_stream.scss'.
-//
-export const HEALTH_BANDS = [
-    { floor: 1, label: 'All' },
-    { floor: 0.95, label: '95-99%' },
-    { floor: 0.8, label: '80-94%' },
-    { floor: 0.5, label: '50-79%' },
-    { floor: 0, label: 'Under 50%' },
-];
-
-//
-// the band a health falls in, as its index into HEALTH_BANDS
-//
-export function healthBand(health) {
-    const index = HEALTH_BANDS.findIndex((band) => health >= band.floor);
-
-    return index === -1 ? HEALTH_BANDS.length - 1 : index;
-}
 
 //
 // a row's records and throughput, summed over the stream's series

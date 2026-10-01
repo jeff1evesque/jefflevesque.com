@@ -356,10 +356,18 @@ class ListingTable extends Component {
 
         const text = String(value);
 
+        {/*
+
+            a column with an 'on' value draws it as a green pill, and any other
+            value as a gray one (#167) -- /data's RDF 'None' was plain text
+            beside the green 'Available' pills, and read as a value missing
+            rather than as the answer
+
+        */}
         if (typeof column.on === 'string') {
             return text === column.on
                 ? <span className='listing-table-pill listing-table-pill-on'>{text}</span>
-                : <span className='listing-table-muted'>{text}</span>;
+                : <span className='listing-table-pill'>{text}</span>;
         }
 
         if (column.pill) {
@@ -386,9 +394,27 @@ class ListingTable extends Component {
         return text;
     }
 
+    //
+    // the columns some rows have nothing in -- a lag only bls has, a coverage
+    // only the stock streams have. A card sets them after the ones every row
+    // has (#167), so the facts every card shares sit in the same places on
+    // each, rather than moving along wherever a card leaves one out.
+    //
+    // Note: read from every row the page gave rather than the rows on screen,
+    //       so narrowing the listing with the filter never moves a fact.
+    //
+    partial() {
+        const rows = this.named();
+
+        return new Set(this.props.columns
+            .filter((column) => rows.some((row) => empty(row.detail[column.key])))
+            .map((column) => column.key));
+    }
+
     row(row, draggable) {
         const { columns, label, selected, onReorder } = this.props;
         const name = label(row.name);
+        const partial = this.partial();
 
         const cells = (
             <>
@@ -417,6 +443,7 @@ class ListingTable extends Component {
                     const classes = [
                         column.numeric ? 'listing-table-numeric' : '',
                         empty(value) ? 'listing-table-blank' : '',
+                        partial.has(column.key) ? 'listing-table-partial' : '',
                     ].filter(Boolean).join(' ');
 
                     //
