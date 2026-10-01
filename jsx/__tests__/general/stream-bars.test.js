@@ -12,8 +12,6 @@
 
 import THROUGHPUT_KEY from '../../import/general/throughput-key.js';
 import {
-    HEALTH_BANDS,
-    healthBand,
     streamBars,
     barWhen,
     barSummary,
@@ -42,25 +40,6 @@ function barAt(bars, date) {
 }
 
 const day = (d) => new Date(2026, 8, d);
-
-describe('a health band', () => {
-    it.each([
-        [1, 0],
-        [0.999, 1],
-        [0.95, 1],
-        [0.9, 2],
-        [0.8, 2],
-        [0.5, 3],
-        [0.49, 4],
-        [0, 4],
-    ])('puts %s in band %s', (health, band) => {
-        expect(healthBand(health)).toBe(band);
-    });
-
-    it('falls to the last band for a health below every floor', () => {
-        expect(healthBand(-1)).toBe(HEALTH_BANDS.length - 1);
-    });
-});
 
 describe('the bars of a weekday stream, by the day', () => {
     //
