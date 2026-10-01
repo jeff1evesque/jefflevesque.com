@@ -3,7 +3,7 @@
   "info": {
     "title": "Performance",
     "version": "v1",
-    "description": "How much one ingest stream took in, and how much of it succeeded, bucketed over a trailing window. Read by the /stream page.\n\n**The archive.** The same measurement is also published as csv, one file per year or per month, served by the website. `/performance/archive` lists every file each stream has published, with the url it is served from, so where a stream's files are filed never has to be known or guessed. `/performance/archive/{stream}/{year}` and `/performance/archive/{stream}/{year}/{month}` redirect to one of them, and answer 404 for a file the listing does not name. The listing is what each stream's alarm page reads."
+    "description": "How much one ingest stream took in, and how much of it succeeded, bucketed over a trailing window: one ending now, or one ending at an earlier End. Read by the /stream page.\n\n**The archive.** The same measurement is also published as csv, one file per year or per month, served by the website. `/performance/archive` lists every file each stream has published, with the url it is served from, so where a stream's files are filed never has to be known or guessed. `/performance/archive/{stream}/{year}` and `/performance/archive/{stream}/{year}/{month}` redirect to one of them, and answer 404 for a file the listing does not name. The listing is what each stream's alarm page reads."
   },
   "servers": [
     {
@@ -15,7 +15,7 @@
       "get": {
         "operationId": "getPerformance",
         "summary": "One stream's ingest over its trailing window",
-        "description": "The window trails from now, and its length depends on the interval: shorter buckets cover a shorter span. Buckets are laid out on the calendar of the given time zone, so the same request made from two zones can return different dates.",
+        "description": "The window trails from now, and its length depends on the interval: shorter buckets cover a shorter span. Buckets are laid out on the calendar of the given time zone, so the same request made from two zones can return different dates. End moves it back: the window is then the one the api would give if now were End -- its last bucket is the one holding End, and it reaches back as far as ever. A window that has ended is kept by a cache for a day.",
         "parameters": [
           {
             "name": "Stream",
@@ -61,6 +61,17 @@
               "default": "UTC"
             },
             "example": "America/New_York"
+          },
+          {
+            "name": "End",
+            "in": "query",
+            "required": false,
+            "description": "Move the window back from now. An ISO 8601 date-time with a UTC offset or Z; the window's last bucket is the one holding it, in Timezone. Omitted, or later than now, it is now. A date alone, or a date-time with no offset, is a 400, as is End without Stream. Send a + offset as %2B. A weekday-only stream, such as stock-market, holds no rows for a weekend.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-09-17T23:00:00-04:00"
           }
         ],
         "responses": {
@@ -83,8 +94,19 @@
                     }
                   }
                 },
-                "example": {
-                  "report": "group_by,window_start,total_success,total_success_mean,total_success_max,total_fail,total_fail_mean,total_fail_max\nprice,2026-09-03 12:00:00-0400,9481,19.0,19,0,0.0,0\nprice,2026-09-04 12:00:00-0400,9481,19.0,19,0,0.0,0\n"
+                "examples": {
+                  "now": {
+                    "summary": "A window ending now, by the day",
+                    "value": {
+                      "report": "group_by,window_start,total_success,total_success_mean,total_success_max,total_fail,total_fail_mean,total_fail_max\nprice,2026-09-03 12:00:00-0400,9481,19.0,19,0,0.0,0\nprice,2026-09-04 12:00:00-0400,9481,19.0,19,0,0.0,0\n"
+                    }
+                  },
+                  "earlier": {
+                    "summary": "An earlier window: Sep 17, 2026 by the hour, from Interval=hour and End=2026-09-17T23:00:00-04:00",
+                    "value": {
+                      "report": "group_by,window_start,total_success,total_success_mean,total_success_max,total_fail,total_fail_mean,total_fail_max\noptions,2026-09-17 09:00:00-0400,529618,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 10:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 11:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 12:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 13:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 14:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 15:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\nprice,2026-09-17 09:00:00-0400,499,1.0,1,0,0.0,0\nprice,2026-09-17 10:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 11:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 12:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 13:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 14:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 15:00:00-0400,1497,1.0,1,0,0.0,0\n"
+                    }
+                  }
                 }
               }
             }
