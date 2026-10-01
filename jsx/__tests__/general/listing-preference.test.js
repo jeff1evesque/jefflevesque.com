@@ -17,6 +17,8 @@ import {
     writeChart,
     readOrder,
     writeOrder,
+    readSort,
+    writeSort,
     KEY,
     VERSION,
 } from '../../import/general/listing-preference.js';
@@ -65,17 +67,12 @@ describe('keeping the chart', () => {
         expect(readChart('data', STREAMS)).toBe('sec');
     });
 
-    it('keeps nothing for /stream, which charts no one stream', () => {
-        expect(writeChart('stream', 'sec')).toBe(false);
-        expect(writeOrder('stream', ['sec'])).toBe(false);
-        expect(window.localStorage.getItem(KEY)).toBeNull();
-    });
+    it('keeps /stream\'s and /data\'s apart', () => {
+        writeSort('stream', { key: 'health', dir: 'desc' });
+        writeChart('data', 'bls');
 
-    it('reads nothing a reader kept for /stream before it stopped keeping any', () => {
-        put({ v: VERSION, stream: { chart: 'sec', order: ['sec', 'bls'] } });
-
-        expect(readChart('stream', STREAMS)).toBeNull();
-        expect(readOrder('stream', STREAMS)).toBeNull();
+        expect(stored().stream).toEqual({ sort: { key: 'health', dir: 'desc' } });
+        expect(stored().data).toEqual({ chart: 'bls' });
     });
 
     it('keeps the order when the chart is written, and the chart when the order is', () => {
@@ -164,6 +161,88 @@ describe('keeping the order', () => {
         expect(writeOrder('data', ['sec', 7])).toBe(false);
         expect(writeOrder('data', ['sec', ''])).toBe(false);
         expect(window.localStorage.getItem(KEY)).toBeNull();
+    });
+});
+
+describe('keeping the sort', () => {
+    //
+    // /stream keeps the figure its rows were left sorted by (#156)
+    //
+    const FIGURES = ['health', 'coverage', 'total'];
+
+    it('reads back the sort it wrote', () => {
+        expect(writeSort('stream', { key: 'coverage', dir: 'asc' })).toBe(true);
+        expect(readSort('stream', FIGURES)).toEqual({ key: 'coverage', dir: 'asc' });
+    });
+
+    it('clears with null, back to the page\'s own order', () => {
+        writeSort('stream', { key: 'coverage', dir: 'asc' });
+        writeSort('stream', null);
+
+        expect(readSort('stream', FIGURES)).toBeNull();
+        expect(stored().stream).toEqual({});
+    });
+
+    it('is null for a page never written', () => {
+        expect(readSort('stream', FIGURES)).toBeNull();
+    });
+
+    it('is null for a figure the page no longer offers', () => {
+        writeSort('stream', { key: 'lag', dir: 'desc' });
+
+        expect(readSort('stream', FIGURES)).toBeNull();
+    });
+
+    it('is null without the page\'s figures to check it against', () => {
+        writeSort('stream', { key: 'health', dir: 'desc' });
+
+        expect(readSort('stream', undefined)).toBeNull();
+    });
+
+    it('reads a sort running neither way as none', () => {
+        put({ v: VERSION, stream: { sort: { key: 'health', dir: 'sideways' } } });
+
+        expect(readSort('stream', FIGURES)).toBeNull();
+    });
+
+    it('reads a sort that is not a record as none', () => {
+        put({ v: VERSION, stream: { sort: 'health' } });
+
+        expect(readSort('stream', FIGURES)).toBeNull();
+    });
+
+    it('keeps only the figure and the direction', () => {
+        writeSort('stream', { key: 'total', dir: 'desc', extra: true });
+
+        expect(stored().stream.sort).toEqual({ key: 'total', dir: 'desc' });
+    });
+
+    it('writes nothing for a sort that is not one', () => {
+        expect(writeSort('stream', 'health')).toBe(false);
+        expect(writeSort('stream', { key: '', dir: 'desc' })).toBe(false);
+        expect(writeSort('stream', { key: 'health', dir: 'up' })).toBe(false);
+        expect(writeSort('stream', [])).toBe(false);
+        expect(writeSort('model', { key: 'health', dir: 'desc' })).toBe(false);
+        expect(window.localStorage.getItem(KEY)).toBeNull();
+    });
+
+    it('leaves what /stream kept before #152 as it was', () => {
+        //
+        // a charted stream and an order, from when /stream had a chart and a
+        // listing to drag. Nothing reads them now, and nothing deletes them
+        //
+        put({ v: VERSION, stream: { chart: 'sec', order: ['sec', 'bls'] } });
+
+        writeSort('stream', { key: 'health', dir: 'asc' });
+
+        expect(stored().stream).toEqual({ chart: 'sec', order: ['sec', 'bls'], sort: { key: 'health', dir: 'asc' } });
+    });
+
+    it('reports the write it could not do rather than throwing', () => {
+        hostile();
+
+        expect(writeSort('stream', { key: 'health', dir: 'desc' })).toBe(false);
+        expect(readSort('stream', FIGURES)).toBeNull();
     });
 });
 
