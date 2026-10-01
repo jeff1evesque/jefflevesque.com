@@ -7,11 +7,6 @@
  * covers the request -- which loader, which url, and what happens for a stream it does
  * not recognize.
  *
- * Also covers the two module-level helpers the distribution tooltip is built from.
- * They are pure, they carry a fair amount of the file's branching, and they are only
- * reachable through a hover that jsdom cannot produce -- so they are exported and
- * called directly.
- *
  * Note: the four loaders are mocked. They are the network boundary, and each is a
  *       ~250 line module with its own suite (get-data-distribution.test.js).
  */
@@ -38,13 +33,8 @@ import getUsWeatherAlert from '../../../import/general/get-data/distribution/us-
 import getBls from '../../../import/general/get-data/distribution/bls.js';
 import getSec from '../../../import/general/get-data/distribution/sec.js';
 
-import DataLayout, {
-    splitTickerPairs,
-    DistributionTooltip,
-} from '../../../import/layout/data/data.jsx';
+import DataLayout from '../../../import/layout/data/data.jsx';
 import { API_DOCS, DATASETS } from '../../../import/general/api-url.js';
-import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
-import { colors, colors_dark, toRGB } from '../../../import/general/colors.js';
 
 function setup() {
     const held = React.createRef();
@@ -276,158 +266,10 @@ describe('an unrecognised stream', () => {
     });
 });
 
-describe('splitTickerPairs', () => {
-    it('splits the api\'s run-on ticker string into pairs', () => {
-        //
-        // the api answers 'nvdl 3:1, mull 25:1'. Both the hover and the drill-down sheet
-        // render the ticker left and its ratio right, which needs them apart.
-        //
-        expect(splitTickerPairs('nvdl 3:1, mull 25:1')).toEqual([
-            { ticker: 'nvdl', ratio: '3:1' },
-            { ticker: 'mull', ratio: '25:1' },
-        ]);
-    });
-
-    it('tolerates extra whitespace', () => {
-        expect(splitTickerPairs('  nvdl   3:1 ,  mull 25:1 ')).toEqual([
-            { ticker: 'nvdl', ratio: '3:1' },
-            { ticker: 'mull', ratio: '25:1' },
-        ]);
-    });
-
-    it('keeps a ticker with no ratio, with an empty one', () => {
-        expect(splitTickerPairs('nvdl')).toEqual([{ ticker: 'nvdl', ratio: '' }]);
-    });
-
-    it('joins a ratio that arrives in several parts', () => {
-        expect(splitTickerPairs('nvdl 3 : 1')).toEqual([{ ticker: 'nvdl', ratio: '3 : 1' }]);
-    });
-
-    it('drops empty entries rather than emitting blank rows', () => {
-        expect(splitTickerPairs('nvdl 3:1, , mull 25:1')).toHaveLength(2);
-    });
-
-    it.each([
-        ['an empty string', ''],
-        ['null', null],
-        ['undefined', undefined],
-        ['a number', 42],
-    ])('returns nothing for %s', (name, value) => {
-        expect(splitTickerPairs(value)).toEqual([]);
-    });
-});
-
-describe('DistributionTooltip', () => {
-    const PAYLOAD = [
-        { name: 'CPI', value: 12, color: '#ff0000' },
-        { name: 'PPI', value: 7, color: '#00ff00' },
-    ];
-
-    function show(props) {
-        const { container } = render(<DistributionTooltip {...props} />);
-        return container;
-    }
-
-    it('renders nothing while inactive', () => {
-        //
-        // recharts keeps the tooltip mounted and flips 'active', so an inactive render
-        // must produce nothing rather than a stale panel.
-        //
-        expect(show({ active: false, payload: PAYLOAD, label: 'Reports' }).textContent).toBe('');
-    });
-
-    it('renders nothing without a payload', () => {
-        expect(show({ active: true, payload: [], label: 'Reports' }).textContent).toBe('');
-    });
-
-    it('renders nothing when the payload is not an array', () => {
-        expect(show({ active: true, payload: null, label: 'Reports' }).textContent).toBe('');
-    });
-
-    it('lists each series with its value', () => {
-        const text = show({ active: true, payload: PAYLOAD, label: 'Reports' }).textContent;
-
-        expect(text).toContain('CPI');
-        expect(text).toContain('PPI');
-    });
-
-    it('shows the bar label', () => {
-        expect(show({ active: true, payload: PAYLOAD, label: 'Reports' }).textContent)
-            .toContain('Reports');
-    });
-
-    it('drops the empty segments', () => {
-        //
-        // a stacked bar carries a key per series in the whole chart, so most rows are
-        // zero for any given bar. Listing them all would bury the two that matter.
-        //
-        const text = show({
-            active: true,
-            payload: [...PAYLOAD, { name: 'EMPTY', value: 0, color: '#0000ff' }],
-            label: 'Reports',
-        }).textContent;
-
-        expect(text).toContain('CPI');
-        expect(text).not.toContain('EMPTY');
-    });
-
-    it('draws itself in the page\'s own colors, on a dark page as on a light one', () => {
-        //
-        // a white card of dark text on a dark page reads as a hole in it
-        //
-        const panel = (container) => container.firstChild;
-
-        const light = panel(show({ active: true, payload: PAYLOAD, label: 'Reports' }));
-        expect(light.style.background).toBe(toRGB(colors['white-1']));
-        expect(light.style.color).toBe(toRGB(colors['gray-7']));
-
-        const { container } = render(
-            <ThemeModeContext.Provider value={{ theme: 'dark', toggle: () => {} }}>
-                <DistributionTooltip active payload={PAYLOAD} label='Reports' />
-            </ThemeModeContext.Provider>
-        );
-
-        expect(panel(container).style.background).toBe(toRGB(colors_dark['white-1']));
-        expect(panel(container).style.color).toBe(toRGB(colors_dark['gray-7']));
-    });
-
-    it('drops a null segment as well', () => {
-        const text = show({
-            active: true,
-            payload: [...PAYLOAD, { name: 'NULLED', value: null, color: '#0000ff' }],
-            label: 'Reports',
-        }).textContent;
-
-        expect(text).not.toContain('NULLED');
-    });
-
-    it('renders nothing when every segment is empty', () => {
-        expect(show({
-            active: true,
-            payload: [{ name: 'A', value: 0 }, { name: 'B', value: null }],
-            label: 'Reports',
-        }).textContent).toBe('');
-    });
-
-    it('renders the color as a swatch rather than coloring the text', () => {
-        //
-        // recharts colors each row's TEXT with the series color, which on the
-        // many-series streams reads as unreadable rainbow text. The color moves to a
-        // small block and the label stays neutral.
-        //
-        const container = show({ active: true, payload: PAYLOAD, label: 'Reports' });
-
-        const swatches = [...container.querySelectorAll('*')].filter(
-            el => (el.getAttribute('style') || '').includes('background')
-        );
-        expect(swatches.length).toBeGreaterThan(0);
-    });
-});
-
-describe('the api icons beside the chart', () => {
+describe('the api icons above the ring', () => {
     //
     // asserted against the url the page handed its loader, so the icon cannot open a
-    // request the chart was not drawn from.
+    // request the ring was not drawn from.
     //
     it('links the datalake api\'s documentation', () => {
         setup();
@@ -504,19 +346,7 @@ describe('every loader\'s answer', () => {
     });
 });
 
-describe('the controls that ask again', () => {
-    it('asks for the stream on screen again from the refresh icon', () => {
-        const page = setup();
-        LOADERS.forEach(l => l.mockClear());
-
-        act(() => {
-            fireEvent.click(document.querySelector('.area-chart-parent .refresh, .area-chart-parent .refresh-disabled'));
-        });
-
-        expect(getStockMarket).toHaveBeenCalledTimes(1);
-        expect(new URL(urlOf(getStockMarket)).searchParams.get('Data')).toBe(DATASETS[page.state.selected_stream]);
-    });
-
+describe('the Data Distribution switch', () => {
     it('hides the chart, and its api icons with it, from the Data Distribution switch', () => {
         const page = setup();
         const switched = within(document.querySelector('.checkbox-vertical-default'))
