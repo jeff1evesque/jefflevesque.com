@@ -91,8 +91,14 @@ function presentIntervals(chart_data, stream, rate, field_datetime) {
           up to today. bounding it by the last row would hide exactly the outage
           that is hardest to spot -- a chart that simply stops early
 
+    Note: 'now' is where the window ends, and 'clock' the present, which says
+          which interval is still filling. The two are one instant for the
+          window ending now. A window that has ended (#159) ends before the
+          clock, so no interval of it is still filling, and its last can be
+          missed like any other
+
 */}
-export function missingIntervals(chart_data, stream, rate, field_datetime, now = new Date()) {
+export function missingIntervals(chart_data, stream, rate, field_datetime, now = new Date(), clock = now) {
     const expected = expectedIntervals(stream, rate, now);
 
     if (!expected.length) {
@@ -106,7 +112,7 @@ export function missingIntervals(chart_data, stream, rate, field_datetime, now =
     }
 
     const first = Math.min(...present);
-    const current = intervalStart(rate, now);
+    const current = intervalStart(rate, clock);
 
     return expected.filter((v) => {
         const t = v.valueOf();
@@ -136,9 +142,10 @@ export function fillMissingIntervals(
     rate,
     field_datetime,
     stream_source,
-    now = new Date()
+    now = new Date(),
+    clock = now
 ) {
-    const missing = missingIntervals(chart_data, stream, rate, field_datetime, now);
+    const missing = missingIntervals(chart_data, stream, rate, field_datetime, now, clock);
 
     if (!missing.length) {
         return chart_data;
