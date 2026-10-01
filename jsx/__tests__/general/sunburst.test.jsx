@@ -465,10 +465,10 @@ describe('a single series', () => {
         names: FORMS,
     });
 
-    it('draws a single ring, in one color', () => {
+    it('draws a single ring, in the chart colors (#167)', () => {
         const { container } = flat();
 
-        expect(arcs(container).map((path) => path.getAttribute('fill'))).toEqual([colors_categorical[0], colors_categorical[0]]);
+        expect(arcs(container).map((path) => path.getAttribute('fill'))).toEqual([colors_categorical[0], colors_categorical[1]]);
         expect(screen.getByRole('img', { name: 'Filings by form, September 2026' })).toBeInTheDocument();
     });
 
