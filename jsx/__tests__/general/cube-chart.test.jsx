@@ -3,13 +3,14 @@
  *
  * What a reader can do with it, as they would: point at a cube or at a row of a
  * bar's list, open a bar's list with a click or from the keyboard, and clear it
- * again with a second click, the ×, or Escape. Where each cube sits is held by
+ * again with a second click, the ×, or Escape, and show the names under the
+ * chart and fold them again (#167). Where each cube sits is held by
  * cube-layout.test.js; the tree it draws, by distribution-tree.test.js.
  */
 
 import React from 'react';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
-import CubeChart from '../../import/general/cube-chart.jsx';
+import CubeChart, { axisRoom } from '../../import/general/cube-chart.jsx';
 import distributionTree from '../../import/general/distribution-tree.js';
 import { colors_categorical } from '../../import/general/colors.js';
 
@@ -59,7 +60,8 @@ describe('the chart', () => {
     it('draws a bar per group, in label order, each a stack of cubes', () => {
         const { container } = draw();
 
-        expect(texts(container, 'text.cube-chart-name')).toEqual(['Energy', 'Financials', 'Information Technology', 'Utilities']);
+        expect([...container.querySelectorAll('rect.cube-chart-bar')].map((bar) => bar.getAttribute('data-name')))
+            .toEqual(['Energy', 'Financials', 'Information Technology', 'Utilities']);
         expect(cubes(container).length).toBeGreaterThan(100);
         cubes(container).forEach((cube) => expect(cube.style.opacity).toBe('1'));
     });
@@ -71,15 +73,34 @@ describe('the chart', () => {
         expect(bandOf(container, TECH)[0]).toHaveAttribute('fill', colors_categorical[1]);
     });
 
-    it('says what a cube is worth, and labels the axes as the old bars did', () => {
+    it('says what a cube is worth, and writes the value axis in short figures (#167)', () => {
         const { container } = draw();
 
         expect(container.querySelector('.cube-chart-caption').textContent).toBe('Each cube ≈ 10,000 records');
-        expect(texts(container, 'text.cube-chart-tick')).toEqual(['0e+0', '2e+6', '4e+6', '6e+6', '8e+6']);
-        expect(texts(container, 'text.cube-chart-title')).toEqual(['Records', 'Sector']);
+        expect(texts(container, 'text.cube-chart-tick')).toEqual(['0', '2M', '4M', '6M', '8M']);
+    });
+
+    it('writes a step of a half as one, where recharts wrote 3.5M as 4e+6 and 10.5M and 14M both as 1e+7', () => {
+        const { container } = draw({ rows: [{ sector: 'Information Technology', Semiconductors: 12800000 }] });
+
+        expect(texts(container, 'text.cube-chart-tick')).toEqual(['0', '3.5M', '7M', '10.5M', '14M']);
+    });
+
+    it('titles neither axis: the line over the plot and the names say what each is (#167)', () => {
+        const { container } = draw({ namesShown: true });
+
+        expect(container.querySelector('text.cube-chart-title')).toBeNull();
         container.querySelectorAll('text.cube-chart-name').forEach((name) => {
             expect(name.getAttribute('transform')).toMatch(/rotate\(-35\)$/);
         });
+    });
+
+    it('starts the plot just clear of the value axis\'s figures, and runs it to its right edge (#167)', () => {
+        const { container, tree } = draw();
+        const [axis, base] = container.querySelectorAll('line.cube-chart-axis');
+
+        expect(axis.getAttribute('x1')).toBe(String(axisRoom(tree)));
+        expect(base.getAttribute('x2')).toBe('1100');
     });
 
     it('says a cube is a single record where it is', () => {
@@ -280,7 +301,7 @@ describe('a bar\'s list', () => {
     });
 
     it('sets its caret over the bar it belongs to', () => {
-        const { container } = draw();
+        const { container } = draw({ namesShown: true });
 
         fireEvent.click(barOf(container, 'Energy'));
 
@@ -395,6 +416,101 @@ describe('a bar\'s list', () => {
 
         expect(list(container).querySelector('.cube-list-rows').style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))');
         expect(list(container).querySelector('.cube-list-rows').style.gridTemplateRows).toBe('repeat(2, auto)');
+    });
+});
+
+describe('the names under the chart (#167)', () => {
+    const shown = (container) => texts(container, 'text.cube-chart-name');
+    const bar = () => screen.queryByRole('button', { name: 'Show the sector names' });
+
+    it('start folded into a green bar, named for the groups it holds', () => {
+        const { container } = draw();
+
+        expect(shown(container)).toEqual([]);
+        expect(bar()).toHaveClass('cube-chart-rail');
+        expect(bar()).toHaveTextContent('Sectors');
+    });
+
+    it('name the bar for each stream\'s own groups', () => {
+        draw({ rows: forms(3), key: 'form', names: FORMS });
+
+        expect(screen.getByRole('button', { name: 'Show the form names' })).toHaveTextContent('Forms');
+    });
+
+    it('show at a click on the bar, in its place, and fold at a click anywhere on them', () => {
+        const { container } = draw();
+
+        fireEvent.click(bar());
+
+        expect(shown(container)).toEqual(['Energy', 'Financials', 'Information Technology', 'Utilities']);
+        expect(bar()).toBeNull();
+
+        fireEvent.click(container.querySelector('.cube-chart-names-hit'));
+
+        expect(shown(container)).toEqual([]);
+        expect(bar()).not.toBeNull();
+    });
+
+    it('fold from the arrow at their foot as well, which a keyboard reaches', () => {
+        const { container } = draw({ namesShown: true });
+        const arrow = screen.getByRole('button', { name: 'Hide the sector names' });
+
+        expect(container.querySelector('.cube-chart-names-hit')).toContainElement(arrow);
+
+        fireEvent.click(arrow);
+
+        expect(shown(container)).toEqual([]);
+    });
+
+    it('start shown when the page kept them shown', () => {
+        const { container } = draw({ namesShown: true });
+
+        expect(shown(container)).toHaveLength(4);
+        expect(bar()).toBeNull();
+    });
+
+    it('tell the page each time they are shown or folded, so it can keep which', () => {
+        const onNames = jest.fn();
+        const { container } = draw({ onNames: onNames });
+
+        fireEvent.click(bar());
+        fireEvent.click(container.querySelector('.cube-chart-names-hit'));
+
+        expect(onNames.mock.calls).toEqual([[true], [false]]);
+    });
+
+    it('take their room from under the chart, which keeps its plot and grows by the difference', () => {
+        const { container } = draw();
+        const base = () => container.querySelectorAll('line.cube-chart-axis')[1].getAttribute('y1');
+        const folded = { height: container.querySelector('svg').getAttribute('height'), base: base() };
+
+        fireEvent.click(bar());
+
+        expect(folded.height).toBe('342');
+        expect(container.querySelector('svg')).toHaveAttribute('height', '392');
+        expect(base()).toBe(folded.base);
+    });
+
+    it('leave the value axis alone: it never folds', () => {
+        const { container } = draw();
+
+        expect(texts(container, 'text.cube-chart-tick')).toHaveLength(5);
+        expect(screen.queryByRole('button', { name: /axis/ })).toBeNull();
+    });
+});
+
+describe('the room the value axis takes (#167)', () => {
+    it('is the widest figure, the gap and the tick', () => {
+        const tree = distributionTree([{ sector: 'Information Technology', Semiconductors: 12800000 }], 'sector');
+
+        expect(axisRoom(tree)).toBe(44);
+    });
+
+    it('is narrower for a month of a few splits than for one of millions of records', () => {
+        const splits = distributionTree(SPLITS, 'split_date');
+        const records = distributionTree(ROWS, 'sector');
+
+        expect(axisRoom(splits)).toBeLessThan(axisRoom(records));
     });
 });
 
