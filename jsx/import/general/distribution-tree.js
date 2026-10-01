@@ -85,26 +85,24 @@ function ringOrder(groups) {
 //
 //     a severity scale    one hue, darkest for the most severe, and a gray for
 //                         anything off the scale -- see severityColors
-//     a single series     one color for the whole ring: sec's filings, bls's
-//                         reports and the stock splits count one thing each, so
-//                         a second color would claim a difference there is not
 //     anything else       the site's eight chart colors, largest first, and the
 //                         shades of the long tail past them, as the bars were
 //
-function paint(groups, series, theme) {
+// Note: a stream that counts one thing in each group -- sec's filings, bls's
+//       reports, the stock splits -- takes the chart colors as well (#167). It
+//       was one blue for the whole ring, so its slices were told apart only by
+//       the thin gaps between them. The bars of cubes on a wide screen still
+//       draw such a stream in one color, a bar to a group -- see cube-layout.js
+//       -- since there the bars stand apart and the names under them say which
+//       is which.
+//
+function paint(groups, theme) {
     if (groups.length && groups.every((group) => severityRank(group.name) !== -1)) {
         const ramp = severityColors(theme);
 
         groups.forEach((group) => {
             const rank = severityRank(group.name);
             group.color = rank < ramp.length ? ramp[rank] : color_tail(0, 1, theme);
-        });
-        return;
-    }
-
-    if (series === 1) {
-        groups.forEach((group) => {
-            group.color = colors_categorical[0];
         });
         return;
     }
@@ -129,7 +127,6 @@ function paint(groups, series, theme) {
 //
 export default function distributionTree(rows, aggregate_key, theme = 'light') {
     const by_name = new Map();
-    const series = new Set();
     const names = new Set();
     let noted = false;
 
@@ -142,7 +139,6 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
         const counted = Object.keys(row).filter(
             (key) => key !== aggregate_key && typeof row[key] === 'number' && Number.isFinite(row[key])
         );
-        counted.forEach((key) => series.add(key));
 
         const pairs = splitTickerPairs(row.tickers);
         const found = pairs.length
@@ -172,7 +168,7 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
     const groups = ringOrder(Array.from(by_name.values()));
     groups.forEach((group) => group.members.sort(bySize));
 
-    paint(groups, series.size, theme);
+    paint(groups, theme);
 
     //
     // on the ring a member wears its group's color, so the outer ring reads as
