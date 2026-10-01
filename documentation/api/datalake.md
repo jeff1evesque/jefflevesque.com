@@ -43,9 +43,11 @@ whole; the application always sends one.
 | `sec` | `category`, `form`, `total_records` |
 | `us-weather-alert` | `severity`, `event`, `total_events` |
 
-`/data` draws the distribution as a sunburst, with the groups on the inner ring
-and what each holds on the outer ring, and lists the partition count against the
-stream.
+On a wide screen, `/data` draws the distribution as stacked bars built from
+cubes, one bar per group, each cube a round number of records. Clicking a bar
+lists what it holds under the chart. On a phone, it draws a sunburst instead,
+with the groups on the inner ring and what each holds on the outer ring. Either
+way, the listing gives the partition count against the stream.
 
 ## Errors
 
