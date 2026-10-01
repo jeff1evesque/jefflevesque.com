@@ -427,6 +427,19 @@
     white-space: nowrap;
   }
 
+  //
+  // a title row carrying the page's own control -- the Filter, on a phone's
+  // /data (#165) -- takes the row's width, with the control at its end
+  //
+  .listing-table-title.has-actions {
+    flex: 1 1 auto;
+  }
+
+  .listing-table-actions {
+    align-self: center;
+    margin-left: auto;
+  }
+
   .listing-table-tools {
     align-items: center;
     display: flex;
