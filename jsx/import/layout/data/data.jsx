@@ -17,6 +17,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ArticleListing from '../../general/article-listing.jsx';
 import Sunburst from '../../general/sunburst.jsx';
 import CubeChart from '../../general/cube-chart.jsx';
@@ -324,6 +325,47 @@ export function recordsLabel(stream, value, selected, now, lag = BLS_PUBLICATION
 }
 
 
+{/*
+
+    the dataset a phone shows on its own ('?item=sec'), or null for the listing:
+    when the address names none, or names one that is not a dataset (#165). As
+    /stream's linkedItem reads its own
+
+*/}
+export function linkedDataset(search) {
+    const asked = new URLSearchParams(search).get('item');
+
+    return STREAMS.includes(asked) ? asked : null;
+}
+
+
+{/*
+
+    a dataset opened on its own, or the listing again, in the address. PUSHED,
+    so the back button -- or a phone's back gesture -- returns to where the
+    reader was, and everything else the address carries is kept. As /stream's
+    writeItem (#165)
+
+*/}
+function writeDataset(stream) {
+    const params = new URLSearchParams(window.location.search);
+
+    if (stream) {
+        params.set('item', stream);
+    } else {
+        params.delete('item');
+    }
+
+    const search = params.toString();
+
+    window.history.pushState(
+        window.history.state,
+        '',
+        `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`
+    );
+}
+
+
 class DataLayout extends Component {
     //
     // the page's theme, which the ring's colors are drawn for, and the loading
@@ -372,7 +414,12 @@ class DataLayout extends Component {
             its current month never holds a row -- see blsLandingDate.
 
         */}
-        const opening = readChart('data', STREAMS) || STOCK_MARKET;
+        //
+        // on a phone, a dataset the address names opens on its own, and charts
+        // ahead of the remembered one -- see linkedDataset (#165)
+        //
+        const linked = isMobile ? linkedDataset(window.location.search) : null;
+        const opening = linked || readChart('data', STREAMS) || STOCK_MARKET;
         const landing = opening === BLS ? blsLandingDate(today, today) : null;
         const opened = landing || selected;
 
@@ -440,6 +487,16 @@ class DataLayout extends Component {
         this.updateChartHeight = this.updateChartHeight.bind(this);
         this.reorderListing = this.reorderListing.bind(this);
         this.treeFor = this.treeFor.bind(this);
+        this.chart = this.chart.bind(this);
+        this.openDataset = this.openDataset.bind(this);
+        this.showListing = this.showListing.bind(this);
+        this.onAddress = this.onAddress.bind(this);
+        this.filterButton = this.filterButton.bind(this);
+
+        //
+        // the page, which a dataset opened on a phone scrolls back to the top of
+        //
+        this.page = React.createRef();
 
         //
         // the tree each stream's ring was last drawn from, with the rows, key and
@@ -506,6 +563,11 @@ class DataLayout extends Component {
             data_distribution_sec: [],
             'data_distribution_us-national-weather': [],
             listing_graphic_title: opening,
+            //
+            // the dataset a phone shows on its own, in place of the listing, or
+            // null while it shows the listing -- see openDataset (#165)
+            //
+            opened: linked,
             artifact_link: 'https://www.jefflevesque.com/artifact',
             chart_height: chartHeight()
         }
@@ -517,10 +579,109 @@ class DataLayout extends Component {
         });
 
         window.addEventListener('resize', this.updateChartHeight);
+
+        //
+        // a phone follows the address, which holds the dataset it shows on its
+        // own; this page's own path, so the back button landing on another
+        // page's address is left to that page -- see onAddress
+        //
+        if (isMobile) {
+            this.path = window.location.pathname;
+            window.addEventListener('popstate', this.onAddress);
+        }
     }
 
     componentWillUnmount() {
         window.removeEventListener('resize', this.updateChartHeight);
+        window.removeEventListener('popstate', this.onAddress);
+    }
+
+    //
+    // chart `stream`: the dataset the chart, the header and the api icons are
+    // for, downloaded again for the month on screen
+    //
+    chart(stream) {
+        {/*
+
+            selecting bls steps the date back off the current month, which never
+            holds bls data -- see BLS_PUBLICATION_LAG_MONTHS.
+
+            only from the CURRENT month, so the step is idempotent: clicking bls
+            twice must not walk two months back, and a month the reader chose
+            deliberately is left alone. that also means the date picker keeps
+            working normally for bls -- this moves the landing point, it does not
+            override the filter
+
+        */}
+        const shifted = stream === BLS
+            ? blsLandingDate(this.state.selected_date, this.state.now)
+            : null;
+
+        this.setState({
+            selected_stream: stream,
+            // keep the mobile chart header in sync with the selected
+            // stream (was stuck on the default, the S&P 500)
+            listing_graphic_title: stream,
+            [`promise_get_data_${stream}`]: false,
+            ...(shifted ? {
+                selected_date: shifted,
+                dd: String(shifted.getDate()).padStart(2, '0'),
+                mm: shifted.getMonth() + 1,
+                yyyy: shifted.getFullYear()
+            } : {})
+        }, () => {
+            this.updateStreamListing();
+            this.reset_stream(stream);
+            this.downloadData(stream);
+        });
+    }
+
+    //
+    // on a phone, `stream` on its own, in place of the listing: pushed into the
+    // address, so Back returns to the listing, and scrolled to its top, since
+    // its graph icon may sit far down the listing (#165). Only the listing has
+    // the icons, so no dataset is open yet.
+    //
+    // Note: scrollIntoView is guarded, since jsdom has none
+    //
+    openDataset(stream) {
+        writeDataset(stream);
+
+        this.setState({ opened: stream }, () => {
+            const page = this.page.current;
+
+            if (page && typeof page.scrollIntoView === 'function' && page.getBoundingClientRect().top < 0) {
+                page.scrollIntoView({ block: 'start' });
+            }
+        });
+    }
+
+    //
+    // the listing again, from the bar over a dataset shown on its own (#165)
+    //
+    showListing() {
+        writeDataset(null);
+        this.setState({ opened: null });
+    }
+
+    //
+    // the back or forward button, landing on another of this page's addresses:
+    // a phone shows the dataset it names on its own, charting it where it is not
+    // the one charted, or the listing where it names none. An address on another
+    // page is that page's to draw. Only a phone listens (#165)
+    //
+    onAddress() {
+        if (window.location.pathname !== this.path) {
+            return;
+        }
+
+        const opened = linkedDataset(window.location.search);
+
+        if (opened && opened !== this.state.selected_stream) {
+            this.chart(opened);
+        }
+
+        this.setState({ opened: opened });
     }
 
     //
@@ -620,42 +781,15 @@ class DataLayout extends Component {
                         // listing-preference.js
                         //
                         writeChart('data', stream);
+                        this.chart(stream);
 
-                        {/*
-
-                            selecting bls steps the date back off the current
-                            month, which never holds bls data -- see
-                            BLS_PUBLICATION_LAG_MONTHS.
-
-                            only from the CURRENT month, so the step is
-                            idempotent: clicking bls twice must not walk two
-                            months back, and a month the reader chose
-                            deliberately is left alone. that also means the date
-                            picker keeps working normally for bls -- this moves
-                            the landing point, it does not override the filter
-
-                        */}
-                        const shifted = stream === BLS
-                            ? blsLandingDate(this.state.selected_date, this.state.now)
-                            : null;
-
-                        this.setState({
-                            selected_stream: stream,
-                            // keep the mobile chart header in sync with the selected
-                            // stream (was stuck on the default, the S&P 500)
-                            listing_graphic_title: stream,
-                            [`promise_get_data_${stream}`]: false,
-                            ...(shifted ? {
-                                selected_date: shifted,
-                                dd: String(shifted.getDate()).padStart(2, '0'),
-                                mm: shifted.getMonth() + 1,
-                                yyyy: shifted.getFullYear()
-                            } : {})
-                        }, () => {
-                            this.updateStreamListing();
-                            this.reset_stream(stream);
-                            this.downloadData(stream);
-                        });
+                        //
+                        // a phone opens the dataset on its own, in place of
+                        // the listing (#165)
+                        //
+                        if (isMobile) {
+                            this.openDataset(stream);
+                        }
                     }}
                 >
                     <BarChartIcon
@@ -886,6 +1020,23 @@ class DataLayout extends Component {
         return tree;
     }
 
+    //
+    // the button that opens the filter in place of the page: over the chart on
+    // a phone and a narrow window, and in the listing's title row on a phone's
+    // listing (#165)
+    //
+    filterButton() {
+        return (
+            <button className='btn' type='button' onClick={() =>
+                this.setState({
+                    display_filter_button: false,
+                    display_apply_filter_button: true,
+                    hide_all: true
+                })
+            }>Filter</button>
+        );
+    }
+
     filterColumn(style='default', btn=false) {
         if (btn && this.state.display_filter_button) {
             const mm = String(parseInt(this.state.mm) ).padStart(2, '0');
@@ -902,13 +1053,7 @@ class DataLayout extends Component {
             var button_filter = (
                 <div className='d-block d-md-none filter'>
                     {header}
-                    <button className='btn' type='button' onClick={() =>
-                        this.setState({
-                            display_filter_button: false,
-                            display_apply_filter_button: true,
-                            hide_all: true
-                        })
-                    }>Filter</button>
+                    {this.filterButton()}
                 </div>
             );
             var filter = null;
@@ -927,9 +1072,16 @@ class DataLayout extends Component {
             const views = ['month', 'year'];
             const label_datepicker = 'mm/yyyy';
 
+            {/*
+
+                a phone has no Data Distribution switch: its listing is the page
+                without the chart, and a dataset opened on its own with the
+                chart off would have nothing to show (#165)
+
+            */}
             var filter = (
                 <div className={class_parent}>
-                    <div className='row'>
+                    {isMobile ? null : <div className='row'>
                         <FormControl
                             component='fieldset'
                             variant='standard'
@@ -948,7 +1100,7 @@ class DataLayout extends Component {
                                 />
                             </FormGroup>
                         </FormControl>
-                    </div>
+                    </div>}
                     <div className='row'>
                         <LocalizationProvider dateAdapter={AdapterDateFns}>
                             <DatePicker
@@ -1015,11 +1167,12 @@ class DataLayout extends Component {
         )
     }
 
-    listing() {
+    listing(actions=null) {
         return (
             <div className='col listing'>
                 <ArticleListing
                     title='Data'
+                    actions={actions}
                     left_column={false}
                     list_article={this.state.list_article}
                     stream_labels={true}
@@ -1036,7 +1189,20 @@ class DataLayout extends Component {
 
     render() {
         const stream = this.state.selected_stream;
-        const filter_column = this.filterColumn('expanded', true);
+
+        {/*
+
+            a phone shows its listing alone, with the Filter in the listing's
+            title row, until a dataset's graph icon opens that dataset on its own,
+            in place of the listing (#165). A wide screen shows both, as it did
+
+        */}
+        const opened = isMobile ? this.state.opened : null;
+        const listing_first = Boolean(isMobile) && ! opened;
+
+        const filter_column = listing_first && this.state.display_filter_button
+            ? null
+            : this.filterColumn('expanded', true);
         const left_column = ! this.state.hide_all
             ? this.filterColumn()
             : null;
@@ -1123,7 +1289,7 @@ class DataLayout extends Component {
 
         if (
             ! this.state.hide_all
-            && this.state.display_data_distribution
+            && (isMobile ? !! opened : this.state.display_data_distribution)
         ) {
             const month = `${getData('list-months')[parseInt(this.state.mm) - 1]} ${this.state.yyyy}`;
             const chart = {
@@ -1173,14 +1339,31 @@ class DataLayout extends Component {
             var data_distribution = null
         }
 
-        const listing = ! this.state.hide_all
-            ? this.listing()
+        const listing = ! this.state.hide_all && ! opened
+            ? this.listing(listing_first ? this.filterButton() : null)
             : null;
+
+        {/*
+
+            the way back from a dataset on its own to the listing, as /stream's
+            "All streams" bar is on a phone (#165)
+
+        */}
+        const back = opened && ! this.state.hide_all
+            ? (
+                <div className='data-back-row'>
+                    <button type='button' className='data-back' onClick={this.showListing}>
+                        <ChevronLeftIcon fontSize='inherit' />
+                        All data
+                    </button>
+                </div>
+            ) : null;
 
         return (
             <ErrorBoundary FallbackComponent={ErrorFallback}>
-                <div className='container data-listing'>
+                <div className='container data-listing' ref={this.page}>
                     <div className='row listing-graphic'>
+                        {back}
                         {filter_column}
                         {data_distribution}
                     </div>
