@@ -14,6 +14,8 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import UpdateIcon from '@mui/icons-material/Update';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import UpdateDisabledIcon from '@mui/icons-material/UpdateDisabled';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import StockMarketFeatured from './featured/stock-market.jsx';
@@ -74,7 +76,13 @@ import { fillMissingIntervals, dropPaddedEmpties } from '../../general/ingest-ga
 */}
 import {
     windowStart,
-    windowLabel
+    windowLabel,
+    windowHeading,
+    intervalStart,
+    lastInstant,
+    localInstant,
+    pageWindow,
+    finerWindow
 } from '../../general/rolling-window.js';
 
 
@@ -135,6 +143,51 @@ function linkedRate(search) {
 
 {/*
 
+    the window an address names ('?end=2026-09-17T23:00:00-04:00') at 'rate', as
+    the start of its last bucket -- or null for the window ending now: when the
+    address names none, names it in any other form, or names one that has not
+    ended yet (#159)
+
+*/}
+function linkedEnd(search, rate, now = new Date()) {
+    const asked = String(new URLSearchParams(search).get('end') || '');
+
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(asked)) {
+        return null;
+    }
+
+    const when = new Date(asked);
+    const last = isNaN(when) ? null : intervalStart(rate, when);
+
+    return last && last < intervalStart(rate, now) ? last : null;
+}
+
+
+{/*
+
+    the window on screen, in the address: '?rate=' and, for a window that has
+    ended, '?end='. Replaced rather than pushed, so the back button leaves the
+    page instead of stepping back through every window the reader looked at.
+    Anything else the address carries, '?item=' among it, is kept
+
+*/}
+function writeWindow(rate, end) {
+    const params = new URLSearchParams(window.location.search);
+
+    params.set('rate', rate.toLowerCase());
+
+    if (end) {
+        params.set('end', localInstant(end));
+    } else {
+        params.delete('end');
+    }
+
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params}${window.location.hash}`);
+}
+
+
+{/*
+
     the first and last of the window's intervals as the axis over the rows names
     them: short, since the bar under the pointer says the rest
 
@@ -166,8 +219,8 @@ function axisLabel(date, rate) {
     carry (see 'ingest-schedule.js')
 
 */}
-function streamCoverage(chart_data, stream, rate, field_datetime, stream_source) {
-    const expected = expectedIntervals(stream, rate);
+function streamCoverage(chart_data, stream, rate, field_datetime, stream_source, now = new Date()) {
+    const expected = expectedIntervals(stream, rate, now);
 
     if (!expected.length) {
         return 'n/a';
@@ -270,6 +323,14 @@ class StreamLayout extends Component {
         */}
         const rate = linkedRate(document.location.search) || 'Day';
 
+        {/*
+
+            the window's end, as the start of its last bucket, or null for the
+            window ending now -- what an address names, see linkedEnd (#159)
+
+        */}
+        const end = linkedEnd(document.location.search, rate);
+
         this.state = {
             local: is_local,
             'chart_data_stock-market': [],
@@ -287,6 +348,7 @@ class StreamLayout extends Component {
             promise_get_data_sec: false,
             'promise_get_data_us-national-weather': false,
             rate: rate,
+            end: end,
             //
             // the stream an address names ('?item=sec'), whose row is marked --
             // see the note on callbackGetData
@@ -360,6 +422,8 @@ class StreamLayout extends Component {
         this.refresh = this.refresh.bind(this);
         this.toggleRefresh = this.toggleRefresh.bind(this);
         this.chooseSort = this.chooseSort.bind(this);
+        this.chooseWindow = this.chooseWindow.bind(this);
+        this.openBar = this.openBar.bind(this);
         this.onVisibility = this.onVisibility.bind(this);
 
         //
@@ -429,11 +493,18 @@ class StreamLayout extends Component {
             return;
         }
 
-        this.state.streams.forEach((stream) => {
-            if (this.state[`promise_get_data_${stream}`] || this.state[`failed_${stream}`]) {
-                this.downloadData(stream, this.state.rate, true);
-            }
-        });
+        //
+        // Note: a window that has ended no longer moves, so it is not asked for
+        //       again. The clock keeps running, and the window ending now is
+        //       asked for as soon as the reader goes back to it (#159)
+        //
+        if (!this.state.end) {
+            this.state.streams.forEach((stream) => {
+                if (this.state[`promise_get_data_${stream}`] || this.state[`failed_${stream}`]) {
+                    this.downloadData(stream, this.state.rate, true);
+                }
+            });
+        }
 
         this.setState({ refreshed_at: Date.now() }, () => this.scheduleRefresh(REFRESH_MS));
     }
@@ -453,10 +524,6 @@ class StreamLayout extends Component {
     }
 
     //
-    // the button beside the api icons: refreshing on its own, or not, kept for
-    // the reader's next visit -- see refresh-preference.js
-    //
-    //
     // the rows sorted by another figure, or put back in the page's own order with
     // null, and kept for the reader's next visit
     //
@@ -465,6 +532,10 @@ class StreamLayout extends Component {
         writeSort('stream', sort);
     }
 
+    //
+    // the button beside the api icons: refreshing on its own, or not, kept for
+    // the reader's next visit -- see refresh-preference.js
+    //
     toggleRefresh() {
         const on = !this.state.auto_refresh;
 
@@ -520,10 +591,23 @@ class StreamLayout extends Component {
     }
 
     //
-    // every row redrawn at another rate: each stream cleared and asked for again
+    // every row redrawn at another rate, over the window ending now
     //
     chooseRate(rate) {
-        if (rate === this.state.rate) {
+        this.chooseWindow(rate, null);
+    }
+
+    //
+    // every row redrawn over another window: a rate, and the start of the
+    // window's last bucket, or null for the window ending now. Each stream is
+    // cleared and asked for again, and the address says which window is on
+    // screen -- see writeWindow (#159)
+    //
+    chooseWindow(rate, end) {
+        const same = rate === this.state.rate
+            && (end && this.state.end ? end.valueOf() === this.state.end.valueOf() : !end && !this.state.end);
+
+        if (same) {
             return;
         }
 
@@ -531,7 +615,9 @@ class StreamLayout extends Component {
         // and the five minutes start over, since every stream has just been
         // asked for
         //
-        this.setState({ rate: rate, refreshed_at: Date.now() }, () => {
+        this.setState({ rate: rate, end: end, refreshed_at: Date.now() }, () => {
+            writeWindow(rate, end);
+
             this.state.streams.forEach((stream) => {
                 this.reset_stream(stream);
                 this.downloadData(stream, rate);
@@ -541,6 +627,27 @@ class StreamLayout extends Component {
                 this.scheduleRefresh(REFRESH_MS);
             }
         });
+    }
+
+    //
+    // a bar opened: the interval it covers, one rate finer -- a day's hours, an
+    // hour's minutes, a month's days. A minute opens nothing. See finerWindow
+    //
+    openBar(bar) {
+        const opened = finerWindow(this.state.rate, bar.start);
+
+        if (opened) {
+            this.chooseWindow(RATES.find((r) => r.toLowerCase() === opened.rate), opened.end);
+        }
+    }
+
+    //
+    // the instant the window on screen ends at: the present for the window ending
+    // now, and otherwise the last instant of its last bucket. What the window is
+    // measured from, wherever the page measures one
+    //
+    windowNow(rate = this.state.rate) {
+        return this.state.end ? lastInstant(rate, this.state.end) : new Date();
     }
 
     //
@@ -795,7 +902,7 @@ class StreamLayout extends Component {
 
         */}
 
-        const url = performanceUrl(type, stream_rate, viewerTimeZone());
+        const url = performanceUrl(type, stream_rate, viewerTimeZone(), this.state.end);
 
         getData(
             request.get_data,
@@ -1030,7 +1137,8 @@ class StreamLayout extends Component {
             selected_stream,
             this.state[`stream_rate_${selected_stream}`],
             this.state.field_datetime,
-            stream_source
+            stream_source,
+            this.windowNow(this.state[`stream_rate_${selected_stream}`])
         );
 
         this.state.streams.forEach((stream) => {
@@ -1159,9 +1267,19 @@ class StreamLayout extends Component {
 
             */}
 
-            const window_start = windowStart(v);
+            //
+            // Note: measured from the window's own end, which is now unless the
+            //       reader zoomed or paged back to one that has ended (#159). A
+            //       window that has ended is bounded there too: the api answers no
+            //       row past its End, but a row past it here would be counted in
+            //       the figures beside bars that are not drawn. The window ending
+            //       now keeps its lower bound only, as it always has
+            //
+            const window_now = this.windowNow(v);
+            const window_start = windowStart(v, window_now);
             var chart_data = window_start
-                ? arr_result.filter((item) => item[this.state.field_datetime] >= window_start)
+                ? arr_result.filter((item) => item[this.state.field_datetime] >= window_start
+                    && (!this.state.end || item[this.state.field_datetime] <= window_now))
                 : arr_result;
 
             {/*
@@ -1202,7 +1320,9 @@ class StreamLayout extends Component {
                 selected_stream,
                 v,
                 this.state.field_datetime,
-                stream_source
+                stream_source,
+                window_now,
+                new Date()
             );
 
             this.setState({ [`chart_data_${selected_stream}`]: chart_data });
@@ -1239,7 +1359,9 @@ class StreamLayout extends Component {
                 stream,
                 this.state.rate,
                 this.state.field_datetime,
-                this.state[`stream_source_${stream}`]
+                this.state[`stream_source_${stream}`],
+                this.windowNow(),
+                new Date()
             ),
             figures: {
                 health: format_percent(this.state[`stream_${stream}_health`]),
@@ -1252,7 +1374,8 @@ class StreamLayout extends Component {
 
     render() {
         const rate = this.state.rate;
-        const start = windowStart(rate);
+        const end = this.state.end;
+        const start = windowStart(rate, this.windowNow());
         const size = isMobile ? 'medium' : 'large';
 
         const sheet_class = isMobile
@@ -1265,7 +1388,11 @@ class StreamLayout extends Component {
                     <div className='stream-rows-bar'>
                         <div className='stream-rows-intro'>
                             <h4>Streams</h4>
-                            <span>{windowLabel(rate)}, one bar per {rate.toLowerCase()}</span>
+                            <span>
+                                {end
+                                    ? `${windowHeading(rate, end)}, by the ${rate.toLowerCase()}`
+                                    : `${windowLabel(rate)}, one bar per ${rate.toLowerCase()}`}
+                            </span>
                         </div>
                         <div className='stream-rates' role='group' aria-label='Rate'>
                             {RATES.map((r) => (
@@ -1279,6 +1406,42 @@ class StreamLayout extends Component {
                                     {r}
                                 </button>
                             ))}
+                        </div>
+                        {/*
+
+                            a window back, a window forward -- forward stops at the
+                            window ending now -- and the way back to now from
+                            wherever the reader has gone (#159)
+
+                        */}
+                        <div className='stream-pager' role='group' aria-label='Window'>
+                            <button
+                                type='button'
+                                className='stream-page'
+                                aria-label={`Earlier ${windowLabel(rate).replace('Last ', '').toLowerCase()}`}
+                                onClick={() => this.chooseWindow(rate, pageWindow(rate, end, -1))}
+                            >
+                                <ChevronLeftIcon fontSize='inherit' />
+                            </button>
+                            <button
+                                type='button'
+                                className='stream-page'
+                                aria-label={`Later ${windowLabel(rate).replace('Last ', '').toLowerCase()}`}
+                                disabled={!end}
+                                onClick={() => this.chooseWindow(rate, pageWindow(rate, end, 1))}
+                            >
+                                <ChevronRightIcon fontSize='inherit' />
+                            </button>
+                            {end
+                                ? (
+                                    <button
+                                        type='button'
+                                        className='stream-rate stream-now'
+                                        onClick={() => this.chooseWindow(rate, null)}
+                                    >
+                                        Now
+                                    </button>
+                                ) : null}
                         </div>
                         {/*
 
@@ -1311,7 +1474,7 @@ class StreamLayout extends Component {
                                     <MenuItem
                                         key={stream}
                                         component='a'
-                                        href={String(performanceUrl(stream, rate.toLowerCase(), viewerTimeZone()))}
+                                        href={String(performanceUrl(stream, rate.toLowerCase(), viewerTimeZone(), end))}
                                         target='_blank'
                                         rel='noopener noreferrer'
                                         onClick={() => this.setState({ requests_anchor: null })}
@@ -1352,8 +1515,9 @@ class StreamLayout extends Component {
                         rate={rate}
                         sort={this.state.sort}
                         onSort={this.chooseSort}
+                        onOpen={rate === 'Minute' ? null : this.openBar}
                         first={start ? axisLabel(start, rate) : ''}
-                        last='Now'
+                        last={end ? axisLabel(end, rate) : 'Now'}
                     />
 
                     <Sheet
