@@ -41,6 +41,7 @@ import {
     US_NATIONAL_WEATHER,
     canonicalStream,
 } from './stream-id.js';
+import { localInstant } from './rolling-window.js';
 
 const API = 'https://api.jefflevesque.com/v1/public';
 
@@ -109,12 +110,18 @@ function withParams(base, params) {
  * Note: the stream is sent by its id, whatever name it was handed by -- see
  *       canonicalStream. A name that is no stream's is sent lower-cased, as
  *       given, and the api answers it with a 400 that names what it accepts.
+ *
+ * Note: `end`, when given, ends the window there rather than now -- the api's
+ *       `End` (#159). A Date is sent with the viewer's own offset, so it names the
+ *       wall-clock time the page drew it at; see localInstant. Without one, the
+ *       request is exactly what it always was.
  */
-export function performanceUrl(stream, interval, timezone, base = ENDPOINTS.performance) {
+export function performanceUrl(stream, interval, timezone, end = null, base = ENDPOINTS.performance) {
     return withParams(base, {
         Stream: canonicalStream(stream) || String(stream).toLowerCase(),
         Interval: String(interval).toLowerCase(),
         Timezone: timezone,
+        ...(end ? { End: end instanceof Date ? localInstant(end) : String(end) } : {}),
     });
 }
 
