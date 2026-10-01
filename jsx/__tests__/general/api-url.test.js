@@ -424,14 +424,21 @@ describe('the endpoints and the documentation', () => {
 });
 
 describe('what is sent is what is documented', () => {
-    it('performance: exactly the parameters its report route declares', () => {
+    it('performance: exactly the parameters its report route declares, but End', () => {
         //
         // per route, now that the document holds the archive's routes too. They
         // take no query string, so a document-wide answer would still agree --
         // but only by accident.
         //
+        // Note: End is documented for a reader to try (#156), and no page sends it
+        //       yet: /stream asks for every window ending now. When a page does
+        //       send it, it leaves this exception, and the two lists agree whole.
+        //
+        const declared = declaredFor(documentOf('performance'), '/performance');
+
+        expect(declared).toContain('End');
         expect(sent(performanceUrl('bls', 'day', 'UTC')))
-            .toEqual(declaredFor(documentOf('performance'), '/performance'));
+            .toEqual(declared.filter((name) => name !== 'End'));
     });
 
     it('performance archive: sends no query parameter, because its routes declare none', () => {

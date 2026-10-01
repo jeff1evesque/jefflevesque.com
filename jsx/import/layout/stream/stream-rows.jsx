@@ -7,6 +7,13 @@
  * rows; pointing at a bar, or tapping one on a phone, says what it is in the
  * line under the rows.
  *
+ * Note: the sort is the page's to keep, so it comes in as a prop and every
+ *       change goes back out through 'onSort' -- see stream.jsx, which keeps it
+ *       for the reader's next visit. A heading's first click sorts largest
+ *       first, the next smallest first, and the third puts the page's own order
+ *       back. A phone, which has no room for the headings, gets the same
+ *       choices from a menu.
+ *
  * Note: a bar's height is on its own row's scale, so a stream bringing a few
  *       records a day reads as clearly as one bringing millions. The Total
  *       Records column is where the streams are compared.
@@ -27,15 +34,46 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import CircularProgress from '@mui/material/CircularProgress';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import { HEALTH_BANDS, barSummary, barWhen, healthBand } from '../../general/stream-bars.js';
 
 //
 // the figures, as they head their columns and as a row is sorted by them
 //
 const COLUMNS = [
-    { key: 'health', label: 'Health', short: 'Health' },
-    { key: 'coverage', label: 'Coverage', short: 'Coverage' },
-    { key: 'total', label: 'Total Records', short: 'Records' },
+    { key: 'health', label: 'Health', short: 'Health', desc: 'highest first', asc: 'lowest first' },
+    { key: 'coverage', label: 'Coverage', short: 'Coverage', desc: 'highest first', asc: 'lowest first' },
+    { key: 'total', label: 'Total Records', short: 'Records', desc: 'most first', asc: 'fewest first' },
+];
+
+//
+// the figures a sort can name, for whoever keeps one to check it against
+//
+export const SORT_KEYS = COLUMNS.map((column) => column.key);
+
+//
+// the sort after a heading is clicked: largest first, then smallest first, then
+// the page's own order again
+//
+export function nextSort(sort, key) {
+    if (!sort || sort.key !== key) {
+        return { key: key, dir: 'desc' };
+    }
+
+    return sort.dir === 'desc' ? { key: key, dir: 'asc' } : null;
+}
+
+//
+// the phone's menu: one choice per figure and direction, and the page's order
+//
+const SORT_CHOICES = [
+    { value: '', label: 'Default order' },
+    ...COLUMNS.flatMap((column) => ['desc', 'asc'].map((dir) => ({
+        value: `${column.key}:${dir}`,
+        label: `${column.label}, ${column[dir]}`,
+    }))),
 ];
 
 //
@@ -154,11 +192,10 @@ function sortValue(figure) {
     return Number.isFinite(value) ? value : null;
 }
 
-function StreamRows({ rows, rate, first, last }) {
-    const [sort, setSort] = useState({ key: null, dir: 'desc' });
+function StreamRows({ rows, rate, first, last, sort = null, onSort = () => {} }) {
     const [pointed, setPointed] = useState(null);
 
-    const ordered = sort.key
+    const ordered = sort && sort.key
         ? [...rows].sort((a, b) => {
             const x = sortValue(a.figures[sort.key]);
             const y = sortValue(b.figures[sort.key]);
@@ -171,8 +208,26 @@ function StreamRows({ rows, rate, first, last }) {
         })
         : rows;
 
+    const active = (key) => Boolean(sort) && sort.key === key;
+
     return (
         <div className='stream-rows'>
+            <label className='stream-rows-sort-menu'>
+                <span>Sort</span>
+                <select
+                    value={sort ? `${sort.key}:${sort.dir}` : ''}
+                    onChange={(event) => {
+                        const [key, dir] = event.target.value.split(':');
+
+                        onSort(key ? { key: key, dir: dir } : null);
+                    }}
+                >
+                    {SORT_CHOICES.map((choice) => (
+                        <option key={choice.value} value={choice.value}>{choice.label}</option>
+                    ))}
+                </select>
+            </label>
+
             <div className='stream-rows-head'>
                 <span className='stream-rows-head-name'>Stream</span>
                 <span className='stream-rows-axis'>
@@ -183,17 +238,18 @@ function StreamRows({ rows, rate, first, last }) {
                     <button
                         key={column.key}
                         type='button'
-                        className='stream-rows-sort'
+                        className={`stream-rows-sort${active(column.key) ? ' stream-rows-sort-active' : ''}`}
                         aria-label={`Sort by ${column.label}`}
-                        aria-pressed={sort.key === column.key}
-                        onClick={() => setSort({
-                            key: column.key,
-                            dir: sort.key === column.key && sort.dir === 'desc' ? 'asc' : 'desc',
-                        })}
+                        aria-pressed={active(column.key)}
+                        onClick={() => onSort(nextSort(sort, column.key))}
                     >
                         {column.label}
-                        <span className='stream-rows-sort-arrow' aria-hidden='true'>
-                            {sort.key === column.key ? (sort.dir === 'desc' ? '↓' : '↑') : ''}
+                        <span className='stream-rows-sort-mark' aria-hidden='true'>
+                            {!active(column.key)
+                                ? <UnfoldMoreIcon fontSize='inherit' data-mark='none' />
+                                : sort.dir === 'desc'
+                                    ? <ArrowDownwardIcon fontSize='inherit' data-mark='desc' />
+                                    : <ArrowUpwardIcon fontSize='inherit' data-mark='asc' />}
                         </span>
                     </button>
                 ))}
@@ -255,6 +311,11 @@ StreamRows.propTypes = {
     rate: PropTypes.string.isRequired,
     first: PropTypes.string,
     last: PropTypes.string,
+    sort: PropTypes.shape({
+        key: PropTypes.oneOf(SORT_KEYS).isRequired,
+        dir: PropTypes.oneOf(['asc', 'desc']).isRequired,
+    }),
+    onSort: PropTypes.func,
 };
 
 export default StreamRows;

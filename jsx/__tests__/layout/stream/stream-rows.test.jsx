@@ -9,7 +9,7 @@
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 
-import StreamRows from '../../../import/layout/stream/stream-rows.jsx';
+import StreamRows, { SORT_KEYS, nextSort } from '../../../import/layout/stream/stream-rows.jsx';
 
 const at = (d) => new Date(2026, 8, d);
 
@@ -243,46 +243,192 @@ describe('sorting by a figure', () => {
         stream('C', { figures: { health: '99.50%', coverage: '100%', total: 'n/a' } }),
     ];
 
+    //
+    // the rows, holding their sort the way the page does: what they are handed,
+    // and what they hand back through 'onSort'
+    //
+    function Sortable({ initial = null, told = () => {}, ...props }) {
+        const [sort, setSort] = React.useState(initial);
+
+        return (
+            <StreamRows
+                {...props}
+                sort={sort}
+                onSort={(next) => {
+                    told(next);
+                    setSort(next);
+                }}
+            />
+        );
+    }
+
+    function sortable(props = {}) {
+        return render(<Sortable rows={ROWS} rate='day' first='Sep 11' last='Now' {...props} />);
+    }
+
+    function heading(label) {
+        return screen.getByRole('button', { name: `Sort by ${label}` });
+    }
+
+    function mark(label) {
+        return heading(label).querySelector('[data-mark]').dataset.mark;
+    }
+
     it('keeps the rows in the order they came until a figure is chosen', () => {
-        setup(ROWS);
+        sortable();
 
         expect(names()).toEqual(['A', 'B', 'C']);
     });
 
     it('puts the largest first, and n/a last', () => {
-        setup(ROWS);
+        sortable();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Sort by Health' }));
+        fireEvent.click(heading('Health'));
 
         expect(names()).toEqual(['C', 'A', 'B']);
-        expect(screen.getByRole('button', { name: 'Sort by Health' })).toHaveAttribute('aria-pressed', 'true');
+        expect(heading('Health')).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('reverses on a second click, and keeps n/a last', () => {
-        setup(ROWS);
+        sortable();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Sort by Health' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Sort by Health' }));
+        fireEvent.click(heading('Health'));
+        fireEvent.click(heading('Health'));
 
         expect(names()).toEqual(['A', 'C', 'B']);
     });
 
-    it('reads a total with thousands separators as the number it is', () => {
-        setup(ROWS);
+    it('puts the page\'s own order back on a third click', () => {
+        sortable();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Sort by Total Records' }));
+        fireEvent.click(heading('Health'));
+        fireEvent.click(heading('Health'));
+        fireEvent.click(heading('Health'));
+
+        expect(names()).toEqual(['A', 'B', 'C']);
+        expect(heading('Health')).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('reads a total with thousands separators as the number it is', () => {
+        sortable();
+
+        fireEvent.click(heading('Total Records'));
 
         expect(names()).toEqual(['A', 'B', 'C']);
     });
 
     it('starts a new figure largest first', () => {
-        setup(ROWS);
+        sortable();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Sort by Health' }));
-        fireEvent.click(screen.getByRole('button', { name: 'Sort by Coverage' }));
+        fireEvent.click(heading('Health'));
+        fireEvent.click(heading('Coverage'));
 
         expect(names()).toEqual(['C', 'B', 'A']);
-        expect(screen.getByRole('button', { name: 'Sort by Health' })).toHaveAttribute('aria-pressed', 'false');
+        expect(heading('Health')).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('marks every heading as one that sorts, and the one in use with its direction', () => {
+        sortable();
+
+        expect(['Health', 'Coverage', 'Total Records'].map(mark)).toEqual(['none', 'none', 'none']);
+
+        fireEvent.click(heading('Coverage'));
+        expect(['Health', 'Coverage', 'Total Records'].map(mark)).toEqual(['none', 'desc', 'none']);
+        expect(heading('Coverage')).toHaveClass('stream-rows-sort-active');
+
+        fireEvent.click(heading('Coverage'));
+        expect(mark('Coverage')).toBe('asc');
+    });
+
+    it('starts from the sort it is handed', () => {
+        sortable({ initial: { key: 'total', dir: 'asc' } });
+
+        expect(names()).toEqual(['B', 'A', 'C']);
+        expect(mark('Total Records')).toBe('asc');
+    });
+
+    it('hands every change back, so the page can keep it', () => {
+        const told = jest.fn();
+
+        sortable({ told: told });
+
+        fireEvent.click(heading('Health'));
+        fireEvent.click(heading('Health'));
+        fireEvent.click(heading('Health'));
+
+        expect(told.mock.calls.map(([sort]) => sort)).toEqual([
+            { key: 'health', dir: 'desc' },
+            { key: 'health', dir: 'asc' },
+            null,
+        ]);
+    });
+
+    describe('from the phone\'s menu', () => {
+        function menu() {
+            return screen.getByRole('combobox');
+        }
+
+        it('offers the page\'s order, and each figure both ways', () => {
+            sortable();
+
+            expect([...menu().querySelectorAll('option')].map((option) => option.textContent)).toEqual([
+                'Default order',
+                'Health, highest first',
+                'Health, lowest first',
+                'Coverage, highest first',
+                'Coverage, lowest first',
+                'Total Records, most first',
+                'Total Records, fewest first',
+            ]);
+        });
+
+        it('sorts as the headings do', () => {
+            sortable();
+
+            fireEvent.change(menu(), { target: { value: 'coverage:asc' } });
+
+            expect(names()).toEqual(['A', 'B', 'C']);
+
+            fireEvent.change(menu(), { target: { value: 'health:desc' } });
+
+            expect(names()).toEqual(['C', 'A', 'B']);
+            expect(mark('Health')).toBe('desc');
+        });
+
+        it('puts the page\'s order back from Default order', () => {
+            const told = jest.fn();
+
+            sortable({ initial: { key: 'health', dir: 'desc' }, told: told });
+
+            fireEvent.change(menu(), { target: { value: '' } });
+
+            expect(names()).toEqual(['A', 'B', 'C']);
+            expect(told).toHaveBeenLastCalledWith(null);
+        });
+
+        it('shows the sort the headings chose', () => {
+            sortable();
+
+            fireEvent.click(heading('Total Records'));
+
+            expect(menu()).toHaveValue('total:desc');
+        });
+    });
+});
+
+describe('the next sort', () => {
+    it('starts a figure largest first, reverses it, then lets it go', () => {
+        expect(nextSort(null, 'health')).toEqual({ key: 'health', dir: 'desc' });
+        expect(nextSort({ key: 'health', dir: 'desc' }, 'health')).toEqual({ key: 'health', dir: 'asc' });
+        expect(nextSort({ key: 'health', dir: 'asc' }, 'health')).toBeNull();
+    });
+
+    it('starts another figure largest first, whatever the last one was doing', () => {
+        expect(nextSort({ key: 'health', dir: 'asc' }, 'total')).toEqual({ key: 'total', dir: 'desc' });
+    });
+
+    it('names the figures a kept sort may name', () => {
+        expect(SORT_KEYS).toEqual(['health', 'coverage', 'total']);
     });
 });
 

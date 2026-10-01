@@ -30,8 +30,21 @@ function documentOf(name) {
     return JSON.parse(fs.readFileSync(path.join(OPENAPI, `${name}.json`), 'utf8'));
 }
 
+//
+// the one format a document names: an ISO 8601 date-time, which the performance
+// api's End takes. With its offset, since End names an instant and the api refuses
+// one without -- strict mode refuses a format it was not told of, rather than
+// ignoring it.
+//
+const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
 function ajv() {
-    return new Ajv2020({ strict: true, allowUnionTypes: true, allErrors: true });
+    return new Ajv2020({
+        strict: true,
+        allowUnionTypes: true,
+        allErrors: true,
+        formats: { 'date-time': DATE_TIME },
+    });
 }
 
 //
@@ -227,6 +240,34 @@ describe('the guard itself', () => {
             '/performance/archive/{stream}/{year}',
             '/performance/archive/{stream}/{year}/{month}',
         ]);
+    });
+
+    it('holds a date-time to an offset', () => {
+        //
+        // the performance api's End refuses a date-time with no offset, so the
+        // documentation may not show one
+        //
+        const validate = ajv().compile({ type: 'string', format: 'date-time' });
+
+        expect(validate('2026-09-17T23:00:00-04:00')).toBe(true);
+        expect(validate('2026-09-17T23:00:00Z')).toBe(true);
+        expect(validate('2026-09-17T23:00:00')).toBe(false);
+        expect(validate('2026-09-17')).toBe(false);
+    });
+
+    it('shows End answering an earlier window', () => {
+        //
+        // the second example of the performance report is the one End asks for:
+        // Sep 17 by the hour, every row inside that day
+        //
+        const operation = documentOf('performance').paths['/performance'].get;
+        const end = operation.parameters.find((parameter) => parameter.name === 'End');
+        const earlier = operation.responses['200'].content['application/json'].examples.earlier.value.report;
+        const days = earlier.trim().split('\n').slice(1).map((line) => line.split(',')[1].slice(0, 10));
+
+        expect(end.example).toBe('2026-09-17T23:00:00-04:00');
+        expect(days.length).toBeGreaterThan(0);
+        expect(new Set(days)).toEqual(new Set(['2026-09-17']));
     });
 
     it('finds both kinds of example', () => {

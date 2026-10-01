@@ -3,8 +3,8 @@
 `GET https://api.jefflevesque.com/v1/public/performance`
 
 How much one ingest stream took in, and how much of it succeeded, bucketed over a
-trailing window. `/stream` draws it as a row of bars for every stream, at the rate a
-reader chooses.
+trailing window: one ending now, or one ending at an earlier [`End`](#an-earlier-window).
+`/stream` draws it as a row of bars for every stream, at the rate a reader chooses.
 
 ## Parameters
 
@@ -13,6 +13,7 @@ reader chooses.
 | `Stream` | `bls`, `sec`, `stock-market`, `stock-split`, `us-national-weather` | each stream in turn, one request per row |
 | `Interval` | `minute`, `hour`, `day`, `month`; `minute` when omitted | the rate chosen over the rows |
 | `Timezone` | an IANA time zone, such as `America/New_York`; `UTC` when omitted | the reader's own, from the browser |
+| `End` | an ISO 8601 date-time with a UTC offset or `Z`, such as `2026-09-17T23:00:00-04:00`; now when omitted | nothing yet |
 
 `Stream` takes a stream's id, the same id the website names the stream by in its own
 urls. Three streams went by other names before -- `stockmarket`, `stockmarketstocksplit`
@@ -24,6 +25,37 @@ The window trails from now, and its buckets are laid out on a calendar, so the t
 zone travels with the request rather than being applied to the answer: a trailing 20
 days ending at 22:00 in Tokyo is not the same 20 dates as one ending at 09:00 in New
 York.
+
+## An earlier window
+
+`End` moves the window back from now. The window is the one the api would give if
+now were `End`:
+
+- **Its last bucket is the one holding `End`,** in `Timezone`, and it reaches back the
+  same 12 months, 20 days, 24 hours or 60 minutes as ever.
+- **Omitted, it is now,** exactly as before.
+- **Later than now, it is read as now.**
+- **It names an instant, so it carries an offset.** A date alone, a date-time with no
+  offset, or anything that does not parse is a `400`, as is `End` without `Stream`.
+- **A `+` offset is sent as `%2B`.** Unencoded in a query string, it arrives as a
+  space, and is refused rather than read as some other instant.
+
+In New York time:
+
+| Asking for | `Interval` | `End` | Buckets |
+|---|---|---|---|
+| Sep 17 by the hour | `hour` | `2026-09-17T23:00:00-04:00` | Sep 17, 00:00 to 23:00 |
+| Sep 17, 12:00 to 12:59, by the minute | `minute` | `2026-09-17T12:59:00-04:00` | 12:00 to 12:59 |
+| the 20 days before a window starting Sep 11 | `day` | `2026-09-10T00:00:00-04:00` | Aug 22 to Sep 10 |
+| the 12 months before a window starting Oct 2025 | `month` | `2025-09-01T00:00:00-04:00` | Oct 2024 to Sep 2025 |
+
+A bucket a stream was not scheduled in holds no rows, so a weekday-only stream such as
+`stock-market` answers nothing for a Saturday.
+
+A complete report for a window that has ended no longer moves, and is sent
+`Cache-Control: public, max-age=86400, stale-while-revalidate=86400, stale-if-error=86400`.
+A window that still holds now is kept for minutes, as before, and a short, empty or
+failed report is not kept at all.
 
 ## Response
 
@@ -57,10 +89,11 @@ The two are not copies of each other, and each holds what the other cannot:
 |---|---|---|
 | a row is | one ingest event | one bucket, summarized |
 | columns | `group_by`, `window_start`, `total_success`, `total_fail`, `window_every` | the first four, plus `_mean` and `_max` for each total |
-| window | a whole year, historical | trails from now |
+| window | a whole year, historical | trails from now, or from `End` |
 
-So this endpoint cannot answer for March 2024, and the archive cannot answer for
-this morning.
+With `End`, this endpoint answers an earlier window too, as far back as it holds data,
+but always as buckets, never one event at a time. The archive cannot answer for this
+morning.
 
 ### Listing it
 
@@ -114,7 +147,7 @@ what it answers.
 
 | Status | `report` |
 |---|---|
-| 400 | a message naming what was not accepted, such as a `Stream` it does not recognize |
+| 400 | a message naming what was not accepted, such as a `Stream` it does not recognize, or an `End` that names no instant |
 | 500 | `null`, when no data could be read for the stream |
 
 ## In the application

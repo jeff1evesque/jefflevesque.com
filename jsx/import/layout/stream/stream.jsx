@@ -17,7 +17,7 @@ import UpdateIcon from '@mui/icons-material/Update';
 import UpdateDisabledIcon from '@mui/icons-material/UpdateDisabled';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import StockMarketFeatured from './featured/stock-market.jsx';
-import StreamRows from './stream-rows.jsx';
+import StreamRows, { SORT_KEYS } from './stream-rows.jsx';
 import { isMobile } from 'react-device-detect';
 import trim from '../../general/trim-object.js';
 import getData from '../../general/get-data.js';
@@ -39,6 +39,7 @@ import { performanceUrl, API_DOCS } from '../../general/api-url.js';
 import { listSubscriptions } from '../../general/account-api.js';
 import ApiLinks from '../../general/api-links.jsx';
 import { readRefresh, writeRefresh } from '../../general/refresh-preference.js';
+import { readSort, writeSort } from '../../general/listing-preference.js';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
 import { STOCK_MARKET, STOCK_SPLIT, STREAMS } from '../../general/stream-id.js';
 import { streamBars, scheduleLabel } from '../../general/stream-bars.js';
@@ -338,7 +339,12 @@ class StreamLayout extends Component {
             // it last asked, which the page opening counts as
             //
             auto_refresh: readRefresh(),
-            refreshed_at: Date.now()
+            refreshed_at: Date.now(),
+            //
+            // the figure the rows are sorted by, as the reader last left them, or
+            // null for the page's own order -- see listing-preference.js
+            //
+            sort: readSort('stream', SORT_KEYS)
         }
 
         this.updateMetrics = this.updateMetrics.bind(this);
@@ -353,6 +359,7 @@ class StreamLayout extends Component {
         this.failedData = this.failedData.bind(this);
         this.refresh = this.refresh.bind(this);
         this.toggleRefresh = this.toggleRefresh.bind(this);
+        this.chooseSort = this.chooseSort.bind(this);
         this.onVisibility = this.onVisibility.bind(this);
 
         //
@@ -449,6 +456,15 @@ class StreamLayout extends Component {
     // the button beside the api icons: refreshing on its own, or not, kept for
     // the reader's next visit -- see refresh-preference.js
     //
+    //
+    // the rows sorted by another figure, or put back in the page's own order with
+    // null, and kept for the reader's next visit
+    //
+    chooseSort(sort) {
+        this.setState({ sort: sort });
+        writeSort('stream', sort);
+    }
+
     toggleRefresh() {
         const on = !this.state.auto_refresh;
 
@@ -1334,6 +1350,8 @@ class StreamLayout extends Component {
                     <StreamRows
                         rows={this.rows()}
                         rate={rate}
+                        sort={this.state.sort}
+                        onSort={this.chooseSort}
                         first={start ? axisLabel(start, rate) : ''}
                         last='Now'
                     />

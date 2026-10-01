@@ -56,7 +56,7 @@ describe('performance, as the /stream page loads it', () => {
         // the documented request is the S&P 500's, by its id, so this loads it
         // the way the page loads that stream.
         //
-        answering(successOf('performance').example);
+        answering(successOf('performance').examples.now.value);
         const callback = jest.fn();
 
         await getData(
@@ -78,6 +78,37 @@ describe('performance, as the /stream page loads it', () => {
             });
         });
         expect(rows[0]).toMatchObject({ group_by: 'price', total_success: '9481', total_fail: '0' });
+    });
+
+    it('reads an earlier window the same way: one row per source and hour of Sep 17', async () => {
+        //
+        // the example of an End: the S&P 500's two sources, by the hour, through
+        // the hours the market is open on Sep 17
+        //
+        answering(successOf('performance').examples.earlier.value);
+        const callback = jest.fn();
+
+        await getData(
+            'stock-market-ingest',
+            performanceUrl('stock-market', 'hour', 'America/New_York'),
+            callback,
+            true,
+            'stock-market',
+            'stock-market'
+        );
+
+        const { data } = callback.mock.calls[0][0];
+        const rows = data.filter(row => row.group_by);
+        const hours = rows.map(row => row.window_start);
+
+        expect(new Set(rows.map(row => row.group_by))).toEqual(new Set(['options', 'price']));
+        expect(hours.every(hour => hour.startsWith('2026-09-17 '))).toBe(true);
+        expect(new Set(hours).size * 2).toBe(rows.length);
+        rows.forEach(row => {
+            ['group_by', 'window_start', 'total_success', 'total_fail'].forEach(column => {
+                expect(row[column]).toBeTruthy();
+            });
+        });
     });
 
     it('hands the page nothing, rather than a failure, when the window holds no rows', async () => {
