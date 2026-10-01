@@ -43,8 +43,9 @@ whole; the application always sends one.
 | `sec` | `category`, `form`, `total_records` |
 | `us-weather-alert` | `severity`, `event`, `total_events` |
 
-`/data` stacks the distribution into bars, one per group, and lists the partition
-count against the stream.
+`/data` draws the distribution as a sunburst, with the groups on the inner ring
+and what each holds on the outer ring, and lists the partition count against the
+stream.
 
 ## Errors
 
