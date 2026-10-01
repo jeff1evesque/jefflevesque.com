@@ -19,7 +19,7 @@
  */
 
 import React from 'react';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 global.__workers = [];
@@ -35,6 +35,7 @@ jest.mock('../../../import/worker/web-worker.js', () => ({
 }));
 
 import DataLayout, { distributionNames } from '../../../import/layout/data/data.jsx';
+import { KEY, VERSION } from '../../../import/general/layout-preference.js';
 
 function setup() {
     const held = React.createRef();
@@ -297,7 +298,10 @@ describe('the distribution payload', () => {
 });
 
 describe('the chart on the page', () => {
-    it('draws a bar for each group of the stream on screen once its answer lands', () => {
+    //
+    // the S&P 500's month, landed: Energy holds two industries, Utilities one
+    //
+    function landed() {
         const page = setup();
         page.callbackGetData({ stream: 'stock-market' });
 
@@ -311,15 +315,58 @@ describe('the chart on the page', () => {
             ],
         });
 
+        return page;
+    }
+
+    const kept = () => (JSON.parse(window.localStorage.getItem(KEY) || '{}').data || {}).wide;
+    const names = () => [...document.querySelectorAll('text.cube-chart-name')].map((name) => name.textContent);
+
+    beforeEach(() => {
+        window.localStorage.clear();
+    });
+
+    afterAll(() => {
+        window.localStorage.clear();
+    });
+
+    it('draws a bar for each group of the stream on screen once its answer lands', () => {
+        landed();
+
         //
         // a wide screen's bars of cubes: Energy holds two industries, so its bar
         // lists them, where Utilities holds one and has nothing under it to list
         //
-        expect([...document.querySelectorAll('text.cube-chart-name')].map((name) => name.textContent))
+        expect([...document.querySelectorAll('rect.cube-chart-bar')].map((bar) => bar.getAttribute('data-name')))
             .toEqual(['Energy', 'Utilities']);
         expect(document.querySelector('rect.cube-chart-bar[data-name="Energy"]'))
             .toHaveAttribute('aria-label', 'Energy, 5 records, 56% of all. Lists its 2 industries');
         expect(document.querySelector('rect.cube-chart-bar[data-name="Utilities"]')).not.toHaveAttribute('role');
+    });
+
+    it('folds the chart\'s names until they are asked for, and keeps them shown once they are (#167)', () => {
+        const page = landed();
+
+        expect(names()).toEqual([]);
+        expect(kept()).toBeUndefined();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show the sector names' }));
+
+        expect(names()).toEqual(['Energy', 'Utilities']);
+        expect(page.state.names_shown).toBe(true);
+        expect(kept()).toEqual({ fold: { names: false }, size: {} });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Hide the sector names' }));
+
+        expect(kept()).toEqual({ fold: { names: true }, size: {} });
+    });
+
+    it('opens with the names shown where this browser kept them shown (#167)', () => {
+        window.localStorage.setItem(KEY, JSON.stringify({ v: VERSION, data: { wide: { fold: { names: false } } } }));
+
+        const page = landed();
+
+        expect(page.state.names_shown).toBe(true);
+        expect(names()).toEqual(['Energy', 'Utilities']);
     });
 });
 
