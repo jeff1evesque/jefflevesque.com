@@ -1,4 +1,5 @@
-// _stream.scss: /stream's rows of bars -- see layout/stream/stream-rows.jsx.
+// _stream.scss: /stream's rows of bars -- see layout/stream/stream-rows.jsx --
+// and a stream on its own, see layout/stream/stream-focus.jsx.
 //
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
@@ -33,21 +34,70 @@
 }
 
 //
+// the room the three figures take beside the bars, as the stylesheet gives it.
+// A reader can drag it wider or narrower (#161) -- see stream-rows.jsx, which
+// carries a dragged width as '--stream-figures' on the rows' box -- and never
+// past half the row, which is held here as well as by the drag, so a width
+// kept from a wider window cannot take more than half of a narrower one.
+//
+// Note: said once, on the box every row and the divider are inside, so the
+//       rows' columns and the divider between them agree on it. The 50% is
+//       resolved where the value is used: each row is a grid as wide as that
+//       box, and the divider is placed against the box itself.
+//
+$stream-figures: 23rem;
+
+//
+// the green /graph says 'you turned this on, and can turn it off again' in --
+// see '$graph-held' -- for the fold arrow under the pointer
+//
+$stream-held: rgba($green-2, 0.32);
+
+//
 // a row: its name, its controls, its bars and its three figures, in columns the
-// heading shares. On a phone the figures move under the name, and the bars take
-// a line of their own.
+// heading shares. On a phone the rows are a list instead -- see the foot of
+// this file.
 //
 // Note: every column but the bars' is a fixed width. Each row is a grid of its
 //       own, so a column sized to its content would be as wide as that row's
 //       content -- the S&P 500's two controls against every other row's one --
 //       and the bars would start at a different place on each row.
 //
+// Note: the fourth column is empty and has no width. Its two gaps are the room
+//       the divider stands in, between the bars and the figures, so the divider
+//       is placed down the middle of it -- see '.stream-rows-divider'.
+//
+.stream-rows {
+  --stream-figures-at: min(var(--stream-figures, #{$stream-figures}), 50%);
+  display: flex;
+  flex-direction: column;
+  margin: 1rem 0 2rem;
+  position: relative;
+}
+
 .stream-rows-head,
 .stream-row {
   align-items: center;
   column-gap: 1rem;
   display: grid;
-  grid-template-columns: 14rem 5.5rem minmax(0, 1fr) 6.5rem 6.5rem 8rem;
+  grid-template-columns: 14rem 5.5rem minmax(0, 1fr) 0 var(--stream-figures-at);
+}
+
+.stream-rows-head-figures,
+.stream-row-figures {
+  column-gap: 1rem;
+  display: grid;
+  grid-column: 5;
+  grid-template-columns: 6.5fr 6.5fr 8fr;
+}
+
+//
+// each stream with room above and below it, and a faint line between one and
+// the next (#161), so a tall bar no longer stands against the row over it
+//
+.stream-row {
+  border-top: 1px solid $gray-1;
+  padding: 1rem 0;
 }
 
 .stream-row-controls {
@@ -55,16 +105,10 @@
   justify-content: flex-end;
 }
 
-.stream-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  margin: 1rem 0 2rem;
-}
-
 .stream-rows-head {
   color: $gray-6;
   font-size: 0.85rem;
+  padding-bottom: 0.4rem;
 }
 
 .stream-rows-head-name {
@@ -117,9 +161,12 @@
 
 //
 // a phone's way to sort, since it has no room for the headings: the same
-// choices, from a menu over the rows. Hidden wherever the headings show
+// choices, from a menu on the line of controls. Hidden wherever the headings
+// show. The rate's menu beside it is the phone's in place of the rate buttons
+// (#161)
 //
-.stream-rows-sort-menu {
+.stream-rows-sort-menu,
+.stream-rate-menu {
   align-items: center;
   color: $gray-6;
   display: none;
@@ -151,25 +198,66 @@
   gap: 0.5rem;
 }
 
+//
+// a stream's name opens it on its own (#161), and says so under the pointer
+// the way a link does, without turning the list of names into a list of
+// underlined blue
+//
+// Note: under '#bootstrap-override', which colors every link.
+//
+#bootstrap-override .stream-row-link,
+#bootstrap-override .stream-row-link:link,
+#bootstrap-override .stream-row-link:visited {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
+
 .stream-row-schedule {
   color: $gray-6;
   font-size: 0.8rem;
 }
 
-.stream-row-current .stream-row-title {
-  color: $green-5;
-}
-
-//
-// the figures under the name, which only a phone shows
-//
-.stream-row-inline {
-  display: none;
-}
-
 .stream-row-figure {
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+//
+// what a phone shows of a row in place of its bars and figures: the one figure
+// the list is sorted by, and an arrow saying the row opens. Hidden wherever the
+// row is drawn whole (#161)
+//
+.stream-row-pick {
+  align-items: flex-end;
+  display: none;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+
+.stream-row-pick-value {
+  font-size: 1.05rem;
+}
+
+.stream-row-pick-name {
+  color: $gray-6;
+  font-size: 0.75rem;
+}
+
+.stream-row-chevron {
+  color: $gray-5;
+  display: none;
+  font-size: 1.5rem;
+}
+
+.stream-rows-hint {
+  color: $gray-6;
+  display: none;
+  margin: 0.75rem 0 0;
 }
 
 //
@@ -338,6 +426,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem 0.75rem;
+  margin-top: 1rem;
   min-height: 2.75rem;
   padding: 0.6rem 0.9rem;
 
@@ -347,12 +436,33 @@
 }
 
 .stream-rows-legend {
+  margin-top: 0.9rem;
+}
+
+.stream-rows-legend-body {
   align-items: center;
   color: $gray-6;
   display: flex;
   flex-wrap: wrap;
   font-size: 0.85rem;
   gap: 0.5rem 1.25rem;
+}
+
+//
+// the button a phone folds the key under (#161). Wherever there is room the key
+// is simply open, and the button is not drawn
+//
+.stream-rows-legend-toggle {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: $gray-7;
+  cursor: pointer;
+  display: none;
+  font: inherit;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+  padding: 0;
 }
 
 .stream-rows-legend-title {
@@ -389,11 +499,259 @@
 }
 
 //
-// the controls, a round button each, as the listing drew them
+// the hint box and the key end where the divider stands, so the divider and
+// the figures beside it run from the headings down to the key's last line and
+// no further (#161)
+//
+.stream-rows > .stream-rows-readout,
+.stream-rows > .stream-rows-legend {
+  margin-right: calc(var(--stream-figures-at) + 2rem);
+}
+
+//
+// the divider between the bars and the figures (#161): /graph's, down the
+// middle of the empty column -- see the note on the rows' grid. A 1px rule, a
+// strip on it that drags, and an arrow halfway down it that folds the figures.
+// See '.graph-grip' and '.graph-fold', which this matches.
+//
+// Note: the arrow points OUTWARD, the way the figures' edge travels as they
+//       fold, which is the way the rail's own chevron then points back along.
+//
+.stream-rows-divider {
+  background-color: $gray-2;
+  bottom: 0;
+  position: absolute;
+  right: calc(var(--stream-figures-at) + 1rem);
+  top: 0;
+  width: 1px;
+}
+
+.stream-rows-grip {
+  bottom: 0;
+  cursor: col-resize;
+  left: -0.4375rem;
+  position: absolute;
+  top: 0;
+  width: 0.875rem;
+  z-index: 1;
+}
+
+.stream-rows-fold {
+  align-items: center;
+  background-color: $white-1;
+  border: 1px solid $gray-3;
+  border-radius: 50%;
+  color: $gray-6;
+  cursor: pointer;
+  display: flex;
+  font-size: 1.05rem;
+  height: 1.5rem;
+  justify-content: center;
+  left: 50%;
+  padding: 0;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 1.5rem;
+  z-index: 2;
+
+  &:hover {
+    background-color: $stream-held;
+    border-color: $green-4;
+    color: $green-6;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+}
+
+//
+// the green rail a folded column leaves, as /graph's folded columns are drawn
+// -- see '.graph-panel-closed'. Down the right side for the figures, and down
+// the left for the Stream column of a stream shown on its own. The whole rail
+// is the button that opens it again.
+//
+.stream-rows-rail,
+.stream-focus-rail {
+  align-items: center;
+  background-image: linear-gradient(to bottom, rgba($green-2, 0.42), rgba($green-4, 0.16));
+  border: 0;
+  border-radius: 0.25rem;
+  color: $green-6;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  gap: 0.6rem;
+  padding: 0.75rem 0;
+  width: 2rem;
+
+  &:hover {
+    background-image: linear-gradient(to bottom, rgba($green-2, 0.6), rgba($green-4, 0.28));
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+
+  svg {
+    flex-shrink: 0;
+    font-size: 1.15rem;
+  }
+
+  span {
+    letter-spacing: 0.02em;
+    writing-mode: vertical-rl;
+  }
+}
+
+.stream-rows-rail {
+  bottom: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+//
+// the figures folded: their columns go, and the bars take the room, beside the
+// rail that brings them back
+//
+.stream-rows-folded {
+  padding-right: 3rem;
+
+  .stream-rows-head,
+  .stream-row {
+    grid-template-columns: 14rem 5.5rem minmax(0, 1fr);
+  }
+
+  .stream-rows-head-figures,
+  .stream-row-figures {
+    display: none;
+  }
+
+  > .stream-rows-readout,
+  > .stream-rows-legend {
+    margin-right: 0;
+  }
+}
+
+//
+// a stream on its own (#161): its figures as three boxes centered over the
+// graph, the graph taller and to the page's edge, and the rail back to every
+// stream down its left side, from the graph's top to the key's last line
+//
+// Note: the boxes and the dates over the graph are set in by the rail and its
+//       gap, so they are centered on the graph rather than on the page.
+//
+.stream-focus {
+  display: flex;
+  flex-direction: column;
+  margin: 1rem 0 2rem;
+}
+
+.stream-focus-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  padding-left: 3rem;
+}
+
+.stream-focus-figure {
+  align-items: center;
+  background-color: $white-2;
+  border: 1px solid $gray-2;
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 11rem;
+  padding: 0.6rem 1.5rem;
+}
+
+.stream-focus-figure-label {
+  color: $gray-6;
+  font-size: 0.85rem;
+}
+
+.stream-focus-figure-value {
+  font-size: 1.7rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.stream-focus-short {
+  display: none;
+}
+
+.stream-focus-axis {
+  color: $gray-6;
+  display: flex;
+  font-size: 0.85rem;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+  padding-left: 3rem;
+}
+
+.stream-focus-body {
+  align-items: stretch;
+  display: flex;
+  gap: 1rem;
+}
+
+.stream-focus-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stream-focus-bars .stream-row-bars {
+  gap: 4px;
+  height: 25rem;
+}
+
+.stream-focus-bars .stream-row-bars-dense {
+  gap: 1px;
+}
+
+//
+// the dates under the graph, one under every so many bars, in the bars' own
+// columns. A date wider than its bar's column is centered on it all the same:
+// flex centers what overflows, where text-align would push it to one side
+//
+.stream-focus-ticks {
+  color: $gray-6;
+  display: flex;
+  font-size: 0.8rem;
+  gap: 4px;
+  margin-top: 0.4rem;
+
+  span {
+    display: flex;
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+    white-space: nowrap;
+  }
+}
+
+.stream-focus-ticks-dense {
+  gap: 1px;
+}
+
+//
+// the controls, a round button each, as the listing drew them: on each row, and
+// beside the title of a stream shown on its own
 //
 // Note: under '#bootstrap-override', which colors every link.
 //
-#bootstrap-override .stream-rows {
+#bootstrap-override .stream-layout {
   .control-tray {
     align-items: center;
     display: inline-flex;
@@ -434,69 +792,6 @@
 }
 
 //
-// a phone: the name with its figures under it and the controls beside it, then
-// the bars across the whole width. The figures' headings go, and the Sort menu
-// takes their place.
-//
-@media (max-width: 767.98px) {
-  .stream-rows-head {
-    display: flex;
-  }
-
-  .stream-rows-sort-menu {
-    display: flex;
-  }
-
-  .stream-rows-head-name,
-  .stream-rows-sort {
-    display: none;
-  }
-
-  .stream-rows-axis {
-    flex: 1;
-    font-size: 0.8rem;
-  }
-
-  .stream-row {
-    grid-template-areas:
-      'name controls'
-      'bars bars';
-    grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: 0.4rem;
-  }
-
-  .stream-row-name { grid-area: name; }
-  .stream-row-controls { grid-area: controls; }
-  .stream-row-bars-wrap { grid-area: bars; }
-  .stream-row-bars { height: 3rem; }
-
-  .stream-row-retry {
-    min-height: 2.75rem;
-  }
-
-  .stream-page {
-    height: 2.75rem;
-    width: 2.75rem;
-  }
-
-  .stream-row-figure {
-    display: none;
-  }
-
-  .stream-row-inline {
-    color: $gray-6;
-    display: block;
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
-  }
-
-  #bootstrap-override .stream-rows .control-tray .control-button {
-    height: 2.75rem;
-    width: 2.75rem;
-  }
-}
-
-//
 // the rate the rows are drawn at, and the api icons, over the rows
 //
 .stream-rows-bar {
@@ -518,6 +813,59 @@
 
   span {
     color: $gray-6;
+  }
+}
+
+//
+// a stream shown on its own: its name in the title's place, with its controls
+// beside it (#161)
+//
+.stream-rows-title {
+  align-items: center;
+  display: flex;
+  gap: 0.25rem;
+}
+
+//
+// the rate, the pager, and on a phone the sort: one line (#161)
+//
+.stream-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+//
+// a phone's way back to every stream, over the title of the one shown on its
+// own (#161). A solid green, lighter by day and darker by night, rather than
+// the rail's fade: across the width of a phone a fade read as a stain
+//
+.stream-back {
+  align-items: center;
+  background-color: mix($green-2, #fff, 20%);
+  border: 0;
+  border-radius: 0.5rem;
+  color: $green-6;
+  cursor: pointer;
+  display: none;
+  font: inherit;
+  font-weight: 600;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  width: 100%;
+
+  @include dark {
+    background-color: mix($green-2, $dark-white-1, 18%);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+
+  svg {
+    font-size: 1.3rem;
   }
 }
 
@@ -625,5 +973,258 @@
   &:hover,
   &:focus-visible {
     border-color: $gray-7;
+  }
+}
+
+//
+// a phone (#161). The page was four lines of controls before any data, and
+// three lines of text and a row of bars for each stream: it is a plain list
+// now, under one line of controls, and a stream's own view is one column.
+//
+@media (max-width: 767.98px) {
+  //
+  // the title and the icons, then one line of controls: the rate's menu, the
+  // pager, and the sort's menu. A stream on its own has the way back over its
+  // title, and no icons -- its title has its own controls beside it
+  //
+  .stream-rows-bar {
+    align-items: start;
+    display: grid;
+    gap: 0.75rem 0.5rem;
+    grid-template-areas:
+      'intro links'
+      'controls controls';
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .stream-rows-intro { grid-area: intro; }
+  .stream-api-links { grid-area: links; }
+
+  .stream-controls {
+    gap: 0.5rem;
+    grid-area: controls;
+  }
+
+  .stream-rates {
+    display: none;
+  }
+
+  .stream-rate-menu,
+  .stream-rows-sort-menu {
+    display: flex;
+  }
+
+  //
+  // the sort's menu at the end of the line, and only as wide as the line has
+  // room for. Its longest choice is cut short while it is closed, and read in
+  // full in the list the phone opens for it
+  //
+  .stream-rows-sort-menu {
+    margin-left: auto;
+
+    select {
+      max-width: 8.5rem;
+    }
+  }
+
+  .stream-page {
+    height: 2.75rem;
+    width: 2.75rem;
+  }
+
+  .stream-layout-focused .stream-rows-bar {
+    grid-template-areas:
+      'back'
+      'intro'
+      'controls';
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stream-back {
+    display: flex;
+    grid-area: back;
+  }
+
+  .stream-layout-focused .stream-api-links {
+    display: none;
+  }
+
+  .stream-rows-title h4 {
+    flex: 1 1 auto;
+  }
+
+  //
+  // the list: a row is its name and schedule, the figure the list is sorted
+  // by, and an arrow, and the whole row is the link to the stream -- the name's
+  // own link, stretched over it. What a row says while it loads, or that it
+  // could not, sits under the name, since there are no bars to lay it over
+  //
+  .stream-rows-head,
+  .stream-rows-divider,
+  .stream-rows-rail,
+  .stream-rows > .stream-rows-readout,
+  .stream-rows > .stream-rows-legend {
+    display: none;
+  }
+
+  .stream-rows-folded {
+    padding-right: 0;
+  }
+
+  .stream-row,
+  .stream-rows-folded .stream-row {
+    grid-template-areas:
+      'name pick chevron'
+      'bars bars bars';
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    position: relative;
+    row-gap: 0;
+  }
+
+  .stream-row-name { grid-area: name; }
+  .stream-row .stream-row-bars-wrap { grid-area: bars; }
+
+  //
+  // Note: the bars and the line over them are hidden on the LIST's rows. A
+  //       stream's own view draws the same bars, and needs them.
+  //
+  .stream-row-controls,
+  .stream-row-figures,
+  .stream-row .stream-row-bars {
+    display: none;
+  }
+
+  .stream-row-pick {
+    display: flex;
+    grid-area: pick;
+  }
+
+  .stream-row-chevron {
+    display: inline-flex;
+    grid-area: chevron;
+  }
+
+  .stream-row-link::after {
+    bottom: 0;
+    content: '';
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+
+  .stream-row .stream-row-status {
+    background: none;
+    justify-content: flex-start;
+    margin-top: 0.4rem;
+    position: static;
+  }
+
+  //
+  // above the stretched link, so a tap on it asks again rather than opening
+  // the stream
+  //
+  .stream-row-retry {
+    min-height: 2.75rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stream-rows-hint {
+    display: block;
+  }
+
+  //
+  // a stream on its own: the graph, then its figures side by side, then the
+  // line that describes a bar and the key, folded. The two boxes that lay the
+  // graph beside the rail step aside -- 'display: contents' -- so all of it is
+  // one column the order below can arrange. The rail and the dates under the
+  // graph go: the bar over the title is the way back here
+  //
+  .stream-focus-body,
+  .stream-focus-main {
+    display: contents;
+  }
+
+  .stream-focus-rail,
+  .stream-focus-ticks {
+    display: none;
+  }
+
+  .stream-focus-axis {
+    font-size: 0.8rem;
+    order: 1;
+    padding-left: 0;
+  }
+
+  .stream-focus-bars {
+    order: 2;
+  }
+
+  .stream-focus-bars .stream-row-bars {
+    gap: 2px;
+    height: 15rem;
+  }
+
+  .stream-focus-figures {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 1rem 0 0;
+    order: 3;
+    padding-left: 0;
+  }
+
+  .stream-focus-figure {
+    align-items: flex-start;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .stream-focus-figure-label {
+    font-size: 0.8rem;
+  }
+
+  .stream-focus-figure-value {
+    font-size: 1.3rem;
+  }
+
+  .stream-focus-long {
+    display: none;
+  }
+
+  .stream-focus-short {
+    display: inline;
+  }
+
+  .stream-focus .stream-rows-readout {
+    order: 4;
+  }
+
+  .stream-focus .stream-rows-legend {
+    order: 5;
+  }
+
+  //
+  // the key, folded under its button until it is asked for
+  //
+  .stream-rows-legend-toggle {
+    display: flex;
+  }
+
+  .stream-rows-legend-body {
+    display: none;
+  }
+
+  .stream-rows-legend-open .stream-rows-legend-body {
+    display: flex;
+  }
+
+  #bootstrap-override .stream-layout .control-tray .control-button {
+    height: 2.75rem;
+    width: 2.75rem;
   }
 }

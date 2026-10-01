@@ -19,7 +19,8 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import UpdateDisabledIcon from '@mui/icons-material/UpdateDisabled';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import StockMarketFeatured from './featured/stock-market.jsx';
-import StreamRows, { SORT_KEYS } from './stream-rows.jsx';
+import StreamRows, { FIGURES_MIN, SORT_KEYS, SortMenu } from './stream-rows.jsx';
+import StreamFocus from './stream-focus.jsx';
 import { isMobile } from 'react-device-detect';
 import trim from '../../general/trim-object.js';
 import getData from '../../general/get-data.js';
@@ -42,6 +43,7 @@ import { listSubscriptions } from '../../general/account-api.js';
 import ApiLinks from '../../general/api-links.jsx';
 import { readRefresh, writeRefresh } from '../../general/refresh-preference.js';
 import { readSort, writeSort } from '../../general/listing-preference.js';
+import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
 import { STOCK_MARKET, STOCK_SPLIT, STREAMS } from '../../general/stream-id.js';
 import { streamBars, scheduleLabel } from '../../general/stream-bars.js';
@@ -184,6 +186,59 @@ function writeWindow(rate, end) {
 
     window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params}${window.location.hash}`);
 }
+
+
+{/*
+
+    the stream an address opens on its own ('?item=sec'), or null for every
+    stream: when it names none, or names one that is not a stream (#161). An
+    older name for a stream has been rewritten to its id before the page mounts
+    -- see canonical-stream.jsx
+
+*/}
+function linkedItem(search) {
+    const asked = new URLSearchParams(search).get('item');
+
+    return STREAMS.includes(asked) ? asked : null;
+}
+
+
+{/*
+
+    a stream opened on its own, or every stream again, in the address. PUSHED,
+    unlike the window, so the back button -- or a phone's back gesture, which is
+    how a phone leaves a stream's own view -- comes back to where the reader
+    was. Everything else the address carries is kept (#161)
+
+*/}
+function writeItem(stream) {
+    const params = new URLSearchParams(window.location.search);
+
+    if (stream) {
+        params.set('item', stream);
+    } else {
+        params.delete('item');
+    }
+
+    const search = params.toString();
+
+    window.history.pushState(
+        window.history.state,
+        '',
+        `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`
+    );
+}
+
+
+{/*
+
+    how the reader arranged the figures, as layout-preference.js keeps it: the
+    page, and the screen it was arranged on. Only a screen wide enough for the
+    divider has one -- a phone lists the streams instead -- so there is only
+    the one variant (#161)
+
+*/}
+const LAYOUT = ['stream', 'wide'];
 
 
 {/*
@@ -331,6 +386,17 @@ class StreamLayout extends Component {
         */}
         const end = linkedEnd(document.location.search, rate);
 
+        {/*
+
+            the figures as the reader last arranged them: folded behind the
+            divider, and the width they were dragged to. A width narrower than
+            a drag would stop at came from somewhere else, and is dropped rather
+            than honored (#161)
+
+        */}
+        const layout = readLayout(...LAYOUT);
+        const kept_width = layout.size.figures;
+
         this.state = {
             local: is_local,
             'chart_data_stock-market': [],
@@ -350,12 +416,12 @@ class StreamLayout extends Component {
             rate: rate,
             end: end,
             //
-            // the stream an address names ('?item=sec'), whose row is marked --
-            // see the note on callbackGetData
+            // the stream shown on its own, as the address names it ('?item=sec'),
+            // or null for every stream (#161)
             //
-            current_stream: STREAMS.includes(new URLSearchParams(document.location.search).get('item'))
-                ? new URLSearchParams(document.location.search).get('item')
-                : null,
+            focus: linkedItem(document.location.search),
+            figures_folded: layout.fold.figures === true,
+            figures_width: kept_width >= FIGURES_MIN ? kept_width : null,
             'stream_source_stock-market': ['options', 'price'],
             'stream_source_stock-split': ['alpha', 'beta', 'gamma'],
             stream_source_bls: ['bls'],
@@ -425,6 +491,18 @@ class StreamLayout extends Component {
         this.chooseWindow = this.chooseWindow.bind(this);
         this.openBar = this.openBar.bind(this);
         this.onVisibility = this.onVisibility.bind(this);
+        this.openStream = this.openStream.bind(this);
+        this.showAll = this.showAll.bind(this);
+        this.onAddress = this.onAddress.bind(this);
+        this.foldFigures = this.foldFigures.bind(this);
+        this.resizeFigures = this.resizeFigures.bind(this);
+        this.saveLayout = this.saveLayout.bind(this);
+
+        //
+        // the page's own box, which a stream opened from far down a list is
+        // brought back to the top of -- see openStream
+        //
+        this.page = React.createRef();
 
         //
         // the request each stream is waiting on, by stream id: a count that goes up
@@ -456,6 +534,7 @@ class StreamLayout extends Component {
         Object.values(this.slow_timers).forEach((timer) => clearTimeout(timer));
         clearTimeout(this.refresh_timer);
         document.removeEventListener('visibilitychange', this.onVisibility);
+        window.removeEventListener('popstate', this.onAddress);
     }
 
     componentDidMount() {
@@ -470,6 +549,14 @@ class StreamLayout extends Component {
         }
 
         document.addEventListener('visibilitychange', this.onVisibility);
+
+        //
+        // the back and forward buttons, which move between the addresses a
+        // stream opened on its own pushed (#161). The page they land on is
+        // this one, at whatever the address they land on says -- see onAddress
+        //
+        this.path = window.location.pathname;
+        window.addEventListener('popstate', this.onAddress);
     }
 
     //
@@ -601,9 +688,10 @@ class StreamLayout extends Component {
     // every row redrawn over another window: a rate, and the start of the
     // window's last bucket, or null for the window ending now. Each stream is
     // cleared and asked for again, and the address says which window is on
-    // screen -- see writeWindow (#159)
+    // screen -- see writeWindow (#159). Unless the address is where the window
+    // came FROM, as it is when the back button lands on one (#161)
     //
-    chooseWindow(rate, end) {
+    chooseWindow(rate, end, write = true) {
         const same = rate === this.state.rate
             && (end && this.state.end ? end.valueOf() === this.state.end.valueOf() : !end && !this.state.end);
 
@@ -616,7 +704,9 @@ class StreamLayout extends Component {
         // asked for
         //
         this.setState({ rate: rate, end: end, refreshed_at: Date.now() }, () => {
-            writeWindow(rate, end);
+            if (write) {
+                writeWindow(rate, end);
+            }
 
             this.state.streams.forEach((stream) => {
                 this.reset_stream(stream);
@@ -648,6 +738,113 @@ class StreamLayout extends Component {
     //
     windowNow(rate = this.state.rate) {
         return this.state.end ? lastInstant(rate, this.state.end) : new Date();
+    }
+
+    //
+    // a stream shown on its own, from its name (#161). Every stream is still
+    // asked for and kept, so the way back to all of them draws at once.
+    //
+    // Note: a stream opened from far down a phone's list would open part way
+    //       down its own view, under a scroll the list needed and the view does
+    //       not. The page is brought back to its top when that is out of sight.
+    //       scrollIntoView is guarded since jsdom has none.
+    //
+    openStream(stream) {
+        if (stream === this.state.focus) {
+            return;
+        }
+
+        writeItem(stream);
+        this.setState({ focus: stream }, () => {
+            const page = this.page.current;
+
+            if (page && typeof page.scrollIntoView === 'function' && page.getBoundingClientRect().top < 0) {
+                page.scrollIntoView({ block: 'start' });
+            }
+        });
+    }
+
+    //
+    // every stream again, from the rail beside one shown on its own, or from the
+    // bar over its title on a phone
+    //
+    showAll() {
+        if (!this.state.focus) {
+            return;
+        }
+
+        writeItem(null);
+        this.setState({ focus: null });
+    }
+
+    //
+    // the back or forward button, landing on another of this page's addresses:
+    // the stream it opens, and the window it names, which is asked for again
+    // where it is not the one on screen. An address on another page is that
+    // page's to draw (#161)
+    //
+    onAddress() {
+        if (window.location.pathname !== this.path) {
+            return;
+        }
+
+        const search = window.location.search;
+        const rate = linkedRate(search) || 'Day';
+
+        this.setState({ focus: linkedItem(search) });
+        this.chooseWindow(rate, linkedEnd(search, rate), false);
+    }
+
+    //
+    // the address a stream's name links to: the page with that stream open on
+    // its own, at the window on screen. A plain click is handled without it --
+    // see openStream -- so this is what a new tab, or a copied link, opens
+    //
+    itemHref(stream) {
+        const params = new URLSearchParams();
+
+        params.set('item', stream);
+        params.set('rate', this.state.rate.toLowerCase());
+
+        if (this.state.end) {
+            params.set('end', localInstant(this.state.end));
+        }
+
+        return `${window.location.pathname}?${params}`;
+    }
+
+    //
+    // the figures folded behind the divider, or opened again (#161). A fold the
+    // DRAG made also lets the width go, so the figures open at their own width
+    // rather than at the narrowest they were dragged to on the way past it
+    //
+    foldFigures(folded, reset = false) {
+        this.setState(
+            (state) => ({
+                figures_folded: folded,
+                figures_width: reset ? null : state.figures_width,
+            }),
+            this.saveLayout
+        );
+    }
+
+    //
+    // the figures dragged wider or narrower. Every move is drawn, and only the
+    // last -- the pointer coming up -- is kept, since a drag is a hundred
+    // pointer events and localStorage is synchronous
+    //
+    resizeFigures(width, done) {
+        this.setState({ figures_width: width }, done ? this.saveLayout : undefined);
+    }
+
+    //
+    // how the figures are arranged, for the next visit -- see layout-preference.js
+    //
+    saveLayout() {
+        writeLayout(...LAYOUT, {
+            fold: { figures: this.state.figures_folded },
+            size: this.state.figures_width ? { figures: this.state.figures_width } : {},
+        });
     }
 
     //
@@ -1353,7 +1550,7 @@ class StreamLayout extends Component {
                 ? 'done'
                 : this.state[`slow_${stream}`] ? 'slow' : 'loading',
             retry: () => this.retryStream(stream),
-            current: stream === this.state.current_stream,
+            href: this.itemHref(stream),
             bars: streamBars(
                 this.state[`chart_data_${stream}`],
                 stream,
@@ -1377,6 +1574,21 @@ class StreamLayout extends Component {
         const end = this.state.end;
         const start = windowStart(rate, this.windowNow());
         const size = isMobile ? 'medium' : 'large';
+        const rows = this.rows();
+
+        //
+        // the stream shown on its own, when one is (#161)
+        //
+        const focused = this.state.focus
+            ? rows.find((row) => row.stream === this.state.focus) || null
+            : null;
+
+        const window_text = end
+            ? `${windowHeading(rate, end)}, by the ${rate.toLowerCase()}`
+            : `${windowLabel(rate)}, one bar per ${rate.toLowerCase()}`;
+
+        const first = start ? axisLabel(start, rate) : '';
+        const last = end ? axisLabel(end, rate) : 'Now';
 
         const sheet_class = isMobile
             ? 'container featured-sheet-mobile'
@@ -1384,71 +1596,111 @@ class StreamLayout extends Component {
 
         return (
             <ErrorBoundary FallbackComponent={ErrorFallback}>
-                <div className='container'>
+                <div
+                    ref={this.page}
+                    className={`container stream-layout${focused ? ' stream-layout-focused' : ''}`}
+                >
                     <div className='stream-rows-bar'>
-                        <div className='stream-rows-intro'>
-                            <h4>Streams</h4>
-                            <span>
-                                {end
-                                    ? `${windowHeading(rate, end)}, by the ${rate.toLowerCase()}`
-                                    : `${windowLabel(rate)}, one bar per ${rate.toLowerCase()}`}
-                            </span>
-                        </div>
-                        <div className='stream-rates' role='group' aria-label='Rate'>
-                            {RATES.map((r) => (
-                                <button
-                                    key={r}
-                                    type='button'
-                                    className='stream-rate'
-                                    aria-pressed={r === rate}
-                                    onClick={() => this.chooseRate(r)}
-                                >
-                                    {r}
+                        {/*
+
+                            the way back to every stream on a phone, over the
+                            title of the one shown on its own. A wider screen has
+                            the rail down the graph's side instead -- see
+                            stream-focus.jsx -- so the stylesheet shows this only
+                            on a phone (#161)
+
+                        */}
+                        {focused
+                            ? (
+                                <button type='button' className='stream-back' onClick={this.showAll}>
+                                    <ChevronLeftIcon fontSize='inherit' />
+                                    All streams
                                 </button>
-                            ))}
+                            ) : null}
+                        <div className='stream-rows-intro'>
+                            {focused
+                                ? (
+                                    <div className='stream-rows-title'>
+                                        <h4>{focused.name}</h4>
+                                        {focused.controls}
+                                    </div>
+                                ) : <h4>Streams</h4>}
+                            <span>{focused ? `${focused.schedule} · ${window_text}` : window_text}</span>
                         </div>
                         {/*
 
-                            a window back, a window forward -- forward stops at the
-                            window ending now -- and the way back to now from
-                            wherever the reader has gone (#159)
+                            the rate, a window back or forward, and on a phone the
+                            sort: one line of controls. A wide screen shows the
+                            rates as buttons, and a phone as a menu (#161)
 
                         */}
-                        <div className='stream-pager' role='group' aria-label='Window'>
-                            <button
-                                type='button'
-                                className='stream-page'
-                                aria-label={`Earlier ${windowLabel(rate).replace('Last ', '').toLowerCase()}`}
-                                onClick={() => this.chooseWindow(rate, pageWindow(rate, end, -1))}
-                            >
-                                <ChevronLeftIcon fontSize='inherit' />
-                            </button>
-                            <button
-                                type='button'
-                                className='stream-page'
-                                aria-label={`Later ${windowLabel(rate).replace('Last ', '').toLowerCase()}`}
-                                disabled={!end}
-                                onClick={() => this.chooseWindow(rate, pageWindow(rate, end, 1))}
-                            >
-                                <ChevronRightIcon fontSize='inherit' />
-                            </button>
-                            {end
-                                ? (
+                        <div className='stream-controls'>
+                            <div className='stream-rates' role='group' aria-label='Rate'>
+                                {RATES.map((r) => (
                                     <button
+                                        key={r}
                                         type='button'
-                                        className='stream-rate stream-now'
-                                        onClick={() => this.chooseWindow(rate, null)}
+                                        className='stream-rate'
+                                        aria-pressed={r === rate}
+                                        onClick={() => this.chooseRate(r)}
                                     >
-                                        Now
+                                        {r}
                                     </button>
-                                ) : null}
+                                ))}
+                            </div>
+                            <label className='stream-rate-menu'>
+                                <span className='visually-hidden'>Rate</span>
+                                <select value={rate} onChange={(event) => this.chooseRate(event.target.value)}>
+                                    {RATES.map((r) => (
+                                        <option key={r} value={r}>{r}</option>
+                                    ))}
+                                </select>
+                            </label>
+                            {/*
+
+                                a window back, a window forward -- forward stops at the
+                                window ending now -- and the way back to now from
+                                wherever the reader has gone (#159)
+
+                            */}
+                            <div className='stream-pager' role='group' aria-label='Window'>
+                                <button
+                                    type='button'
+                                    className='stream-page'
+                                    aria-label={`Earlier ${windowLabel(rate).replace('Last ', '').toLowerCase()}`}
+                                    onClick={() => this.chooseWindow(rate, pageWindow(rate, end, -1))}
+                                >
+                                    <ChevronLeftIcon fontSize='inherit' />
+                                </button>
+                                <button
+                                    type='button'
+                                    className='stream-page'
+                                    aria-label={`Later ${windowLabel(rate).replace('Last ', '').toLowerCase()}`}
+                                    disabled={!end}
+                                    onClick={() => this.chooseWindow(rate, pageWindow(rate, end, 1))}
+                                >
+                                    <ChevronRightIcon fontSize='inherit' />
+                                </button>
+                                {end
+                                    ? (
+                                        <button
+                                            type='button'
+                                            className='stream-rate stream-now'
+                                            onClick={() => this.chooseWindow(rate, null)}
+                                        >
+                                            Now
+                                        </button>
+                                    ) : null}
+                            </div>
+                            {focused ? null : <SortMenu sort={this.state.sort} onSort={this.chooseSort} />}
                         </div>
                         {/*
 
                             the docs, and the requests the rows were drawn from: one
                             per stream, so 'This request' opens a list of them rather
-                            than linking any one. Each is the url downloadData
-                            fetched, built by the same function
+                            than linking any one -- or just the one, for a stream
+                            shown on its own. Each is the url downloadData fetched,
+                            built by the same function
 
                         */}
                         <div className='stream-api-links'>
@@ -1470,7 +1722,7 @@ class StreamLayout extends Component {
                                 open={Boolean(this.state.requests_anchor)}
                                 onClose={() => this.setState({ requests_anchor: null })}
                             >
-                                {this.state.streams.map((stream) => (
+                                {(focused ? [focused.stream] : this.state.streams).map((stream) => (
                                     <MenuItem
                                         key={stream}
                                         component='a'
@@ -1510,15 +1762,32 @@ class StreamLayout extends Component {
                         </div>
                     </div>
 
-                    <StreamRows
-                        rows={this.rows()}
-                        rate={rate}
-                        sort={this.state.sort}
-                        onSort={this.chooseSort}
-                        onOpen={rate === 'Minute' ? null : this.openBar}
-                        first={start ? axisLabel(start, rate) : ''}
-                        last={end ? axisLabel(end, rate) : 'Now'}
-                    />
+                    {focused
+                        ? (
+                            <StreamFocus
+                                row={focused}
+                                rate={rate}
+                                first={first}
+                                last={last}
+                                onOpen={rate === 'Minute' ? null : this.openBar}
+                                onAll={this.showAll}
+                            />
+                        ) : (
+                            <StreamRows
+                                rows={rows}
+                                rate={rate}
+                                sort={this.state.sort}
+                                onSort={this.chooseSort}
+                                onOpen={rate === 'Minute' ? null : this.openBar}
+                                onFocus={this.openStream}
+                                folded={this.state.figures_folded}
+                                width={this.state.figures_width}
+                                onFold={this.foldFigures}
+                                onResize={this.resizeFigures}
+                                first={first}
+                                last={last}
+                            />
+                        )}
 
                     <Sheet
                         isOpen={this.state.bottom_sheet_open}

@@ -499,25 +499,25 @@ describe('a stream whose request fails', () => {
 });
 
 describe('the stream an address names', () => {
-    it('has its row marked', () => {
+    it('is shown on its own (#161)', () => {
         window.history.replaceState({}, '', '/stream?item=bls&rate=day');
 
         const { page } = setup();
 
-        expect(page.state.current_stream).toBe('bls');
+        expect(page.state.focus).toBe('bls');
     });
 
-    it('stays marked whatever stream a reply is for', () => {
+    it('stays on its own whatever stream a reply is for', () => {
         window.history.replaceState({}, '', '/stream?item=bls&rate=day');
 
         const { page } = setup();
 
         reply(page, {}, answer('sec', 'sec', [1]), ['sec', page.asked.sec]);
 
-        expect(page.state.current_stream).toBe('bls');
+        expect(page.state.focus).toBe('bls');
     });
 
-    it('marks no row when the address names no stream the page lists', () => {
+    it('leaves every stream showing when the address names no stream the page lists', () => {
         //
         // a name a stream used to go by never reaches the page -- the route
         // replaces it with the id first -- so anything else names nothing.
@@ -526,7 +526,7 @@ describe('the stream an address names', () => {
 
         const { page } = setup();
 
-        expect(page.state.current_stream).toBeNull();
+        expect(page.state.focus).toBeNull();
     });
 });
 
