@@ -40,6 +40,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 import { listSubscriptions } from '../../../import/general/account-api.js';
 import getData from '../../../import/general/get-data.js';
+import { KEY, VERSION } from '../../../import/general/listing-preference.js';
 import { STREAMS } from '../../../import/general/stream-id.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
 
@@ -311,6 +312,70 @@ describe('each row\'s bell', () => {
         expect(bell('bls')).toHaveAttribute('data-testid', 'NotificationsIcon');
 
         quiet.mockRestore();
+    });
+});
+
+describe('the sort, kept for the next visit', () => {
+    //
+    // kept in localStorage, which lasts the whole of this file, so each case
+    // starts from an empty one -- see listing-preference.js
+    //
+    beforeEach(() => {
+        window.localStorage.clear();
+    });
+
+    afterAll(() => {
+        window.localStorage.clear();
+    });
+
+    const keep = (sort) => window.localStorage.setItem(KEY, JSON.stringify({ v: VERSION, stream: { sort: sort } }));
+    const kept = () => (JSON.parse(window.localStorage.getItem(KEY) || '{}').stream || {}).sort;
+    const pressed = () => [...document.querySelectorAll('.stream-rows-sort[aria-pressed="true"]')]
+        .map((button) => button.firstChild.textContent);
+
+    it('opens in the page\'s own order when nothing is kept', () => {
+        setup();
+
+        expect(pressed()).toEqual([]);
+        expect(screen.getByRole('combobox')).toHaveValue('');
+    });
+
+    it('opens sorted as the reader left it', () => {
+        keep({ key: 'total', dir: 'asc' });
+
+        setup();
+
+        expect(pressed()).toEqual(['Total Records']);
+        expect(screen.getByRole('combobox')).toHaveValue('total:asc');
+    });
+
+    it('keeps a sort the reader chooses, and lets it go on the third click', () => {
+        setup();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Sort by Health' }));
+        expect(kept()).toEqual({ key: 'health', dir: 'desc' });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Sort by Health' }));
+        expect(kept()).toEqual({ key: 'health', dir: 'asc' });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Sort by Health' }));
+        expect(kept()).toBeUndefined();
+    });
+
+    it('keeps a sort chosen from the phone\'s menu', () => {
+        setup();
+
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: 'coverage:desc' } });
+
+        expect(kept()).toEqual({ key: 'coverage', dir: 'desc' });
+    });
+
+    it('ignores a kept sort naming a figure it no longer offers', () => {
+        keep({ key: 'lag', dir: 'desc' });
+
+        setup();
+
+        expect(pressed()).toEqual([]);
     });
 });
 
