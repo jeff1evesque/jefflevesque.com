@@ -23,9 +23,9 @@ import ListingTable from './listing-table.jsx';
 class ArticleListing extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
     //
-    // `columns`, `name_label`, `order` and `onReorder` are the table's -- see
-    // listing-table.jsx. A caller that passes `columns` gets its rows as a
-    // table; one that does not, /model's, gets the cards below.
+    // `columns`, `name_label`, `order`, `onReorder` and `actions` are the
+    // table's -- see listing-table.jsx. A caller that passes `columns` gets its
+    // rows as a table; one that does not, /model's, gets the cards below.
     //
     static propTypes = {
         title: PropTypes.string,
@@ -35,7 +35,8 @@ class ArticleListing extends Component {
         columns: PropTypes.array,
         name_label: PropTypes.string,
         order: PropTypes.arrayOf(PropTypes.string),
-        onReorder: PropTypes.func
+        onReorder: PropTypes.func,
+        actions: PropTypes.node
     }
 
     constructor() {
@@ -680,6 +681,7 @@ class ArticleListing extends Component {
                     order={this.props.order || null}
                     onReorder={this.props.onReorder || null}
                     label={this.props.stream_labels ? streamName : (name) => name}
+                    actions={this.props.actions || null}
                 />
             );
         }
