@@ -20,6 +20,11 @@
  *                 holding now, or one older than the first row the report
  *                 returned. See 'missingIntervals' for why neither counts.
  *
+ * Note: 'now' is where the window ends, and 'clock' the present. They are one
+ *       instant for the window ending now. A window that has ended (#159) ends
+ *       before the clock, so its last interval is not still filling, and can be
+ *       missed like any other.
+ *
  * Note: the bars take the rows the page has already scaled -- bucketed to the
  *       rate, narrowed to its window, the report's padding off and the missing
  *       intervals zeroed (see toggleChartScale in stream.jsx). A zeroed row
@@ -79,7 +84,7 @@ function rowTotals(item, stream_source) {
 // every interval of the window, oldest first, as a bar -- see the top of this
 // file for what each kind means
 //
-export function streamBars(chart_data, stream, rate, field_datetime, stream_source, now = new Date()) {
+export function streamBars(chart_data, stream, rate, field_datetime, stream_source, now = new Date(), clock = now) {
     const r = String(rate || '').toLowerCase();
     const start = windowStart(r, now);
 
@@ -110,7 +115,7 @@ export function streamBars(chart_data, stream, rate, field_datetime, stream_sour
     //
     const rows = [...reported.values()].map((row) => ({ [field_datetime]: row.when }));
     const missing = new Set(
-        missingIntervals(rows, stream, r, field_datetime, now).map((when) => when.valueOf())
+        missingIntervals(rows, stream, r, field_datetime, now, clock).map((when) => when.valueOf())
     );
     const covered = new Set(
         rows.map((row) => coverageBucket(stream, r, row[field_datetime]).valueOf())
