@@ -31,7 +31,7 @@ them.
 | Route | | API |
 |---|---|---|
 | `/` | landing page: a D3 force-directed cluster of the default knowledge graph build, and nothing over it | knowledge graph |
-| `/stream` | every stream as a row of bars, one per interval of a trailing month / day / hour / minute window: a bar as tall as the records that succeeded, shaded by the share that did, and a crossed box where a run was due and nothing reported. Each row ends with its health, ingest coverage and total records, which sort the rows, and its bell rings, in green, for a signed-in reader subscribed to the stream's alarm. `?rate=` opens it at a rate, and `?item=` marks a stream's row | performance, account |
+| `/stream` | every stream as a row of bars, one per interval of a trailing month / day / hour / minute window: a bar as tall as the records that succeeded, shaded by the share that did, and a crossed box where a run was due and nothing reported. Each row ends with its health, ingest coverage and total records, which sort the rows, and its bell rings, in green, for a signed-in reader subscribed to the stream's alarm. It asks for every stream again every 5 minutes while it is showing, which a button beside the api icons turns off. `?rate=` opens it at a rate, and `?item=` marks a stream's row | performance, account |
 | `/stream/:stream/trigger` | trigger conditions for one stream, charted against its history | |
 | `/stream/:stream/alarm` | a stream's ingest alarms, which a signed-in reader switches on and off once they have accepted the terms | account |
 | `/data` | each stream's data as it is stored, with its distribution for a chosen month. It reopens on the stream last charted, with the rows in the order the reader dragged them into, in that browser | datalake |

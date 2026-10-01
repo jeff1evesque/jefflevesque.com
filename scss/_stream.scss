@@ -475,8 +475,9 @@
 }
 
 //
-// the docs link and the 'This request' button beside it, which opens a menu of
-// the requests. The button takes the link's gray, so the two read as a pair.
+// the docs link, the 'This request' button beside it, which opens a menu of the
+// requests, and the button that switches the five-minute refresh off and on.
+// The buttons take the link's gray, so the three read as one set.
 //
 .stream-api-links {
   align-items: center;
@@ -484,7 +485,8 @@
   gap: 0.5rem;
 }
 
-.stream-requests {
+.stream-requests,
+.stream-refresh {
   background: none;
   border: 0;
   color: #555;

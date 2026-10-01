@@ -16,18 +16,10 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import LoopIcon from '@mui/icons-material/Loop';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ArticleListing from '../../general/article-listing.jsx';
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer
-} from 'recharts';
+import Sunburst from '../../general/sunburst.jsx';
+import distributionTree from '../../general/distribution-tree.js';
 import trim from '../../general/trim-object.js';
 import { default as getStockMarketDistribution } from '../../general/get-data/distribution/stock-market.js';
 import { default as getUsWeatherAlertDistribution } from '../../general/get-data/distribution/us-weather-alert.js';
@@ -59,33 +51,11 @@ import {
     US_NATIONAL_WEATHER,
     STREAMS,
 } from '../../general/stream-id.js';
-import { toRGB, colors_categorical, color_tail, themeColors, translucent } from '../../general/colors.js';
+import { themeColors, translucent } from '../../general/colors.js';
 import { readChart, writeChart, readOrder, writeOrder } from '../../general/listing-preference.js';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import chartHeight, {
-    CHART_X_AXIS_HEIGHT,
-    CHART_X_AXIS_HEIGHT_MOBILE,
-    CHART_X_AXIS_ANGLE,
-    CHART_X_AXIS_ANCHOR
-} from '../../general/chart-height.js';
+import chartHeight from '../../general/chart-height.js';
 
-{/*
-
-    custom distribution tooltip: recharts colors each row's TEXT with the series
-    color, which is hard to read (the "rainbow text") on the many-series streams
-    like stock-market and us-national-weather. render the color as a small swatch
-    instead and keep the label/value in neutral, readable text. also drop the
-    empty (zero/undefined) segments so a hovered bar only lists the series it
-    actually contains
-
-*/}
-{/*
-
-    nws severity is an ordered scale, so the x-axis reads worst-first rather than
-    alphabetically. anything not on the scale ranks after every scale member and
-    falls back to alphabetical among its peers
-
-*/}
 {/*
 
     whether a stream's datalake table carries an rdf column, so the listing can
@@ -215,26 +185,8 @@ export function blsLandingDate(selected, now, lag = BLS_PUBLICATION_LAG_MONTHS) 
 
 {/*
 
-    snap points for the distribution detail sheet, shared with the scroller.
-
-    react-modal-sheet sizes the container to the LARGEST snap point and reaches
-    the smaller ones by translating the sheet downwards, so at a partial snap the
-    lower part of the container sits below the screen edge. its scroller is
-    'height: 100%' of that full container, so the last rows can never be scrolled
-    into view. sizing the scroller to the CURRENT snap instead keeps the
-    scrollable area equal to what is actually visible
-
-*/}
-const DETAIL_SNAP_POINTS = [0.9, 0.6, 0.4];
-const DETAIL_INITIAL_SNAP = 1;
-
-{/* the library's own drag header, subtracted so the scroller fits inside it */}
-const DETAIL_HEADER_HEIGHT = 40;
-
-{/*
-
     how long the loader takes to fade once the query resolves. the element stays
-    mounted and animates its opacity, so the dots ease out as the bars arrive
+    mounted and animates its opacity, so the dots ease out as the ring arrives
     rather than being unmounted mid-frame
 
 */}
@@ -258,11 +210,34 @@ const LISTING_COLUMNS = [
 ];
 
 
-const SEVERITY_ORDER = ['extreme', 'severe', 'moderate', 'minor', 'unknown'];
+{/*
 
-function severity_rank(label) {
-    const index = SEVERITY_ORDER.indexOf(String(label).trim().toLowerCase());
-    return index === -1 ? SEVERITY_ORDER.length : index;
+    what the ring calls a stream's groups, what each group holds, and what it
+    counts, singular and plural: 'All sectors', '12 industries', '3,125,430
+    records'. A stream missing from this map is named by its aggregate key, so a
+    new stream still draws with a name rather than with none
+
+*/}
+const DISTRIBUTION_NAMES = {
+    [STOCK_MARKET]: { group: ['sector', 'sectors'], member: ['industry', 'industries'], unit: ['record', 'records'] },
+    [STOCK_SPLIT]: { group: ['day', 'days'], member: ['ticker', 'tickers'], unit: ['split', 'splits'] },
+    [BLS]: { group: ['series', 'series'], member: ['category', 'categories'], unit: ['record', 'records'] },
+    [SEC]: { group: ['form', 'forms'], member: ['category', 'categories'], unit: ['filing', 'filings'] },
+    [US_NATIONAL_WEATHER]: {
+        group: ['severity', 'severities'],
+        member: ['event type', 'event types'],
+        unit: ['event', 'events'],
+    },
+};
+
+export function distributionNames(stream, aggregate_key) {
+    if (DISTRIBUTION_NAMES[stream]) {
+        return DISTRIBUTION_NAMES[stream];
+    }
+
+    const group = checkValidString(aggregate_key) ? aggregate_key : 'group';
+
+    return { group: [group, `${group}s`], member: ['member', 'members'], unit: ['record', 'records'] };
 }
 
 
@@ -348,165 +323,10 @@ export function recordsLabel(stream, value, selected, now, lag = BLS_PUBLICATION
 }
 
 
-{/*
-
-    split the api's 'nvdl 3:1, mull 25:1' into [{ticker, ratio}], so both the
-    hover and the click-through sheet can render the ticker left and its ratio
-    right rather than one unreadable run-on string
-
-*/}
-export function splitTickerPairs(tickers) {
-    if (!checkValidString(tickers)) {
-        return [];
-    }
-
-    return tickers
-        .split(',')
-        .map((entry) => {
-            const parts = entry.trim().split(/\s+/);
-            return { ticker: parts[0], ratio: parts.slice(1).join(' ') };
-        })
-        .filter((entry) => entry.ticker);
-}
-
-
-export function DistributionTooltip({ active, payload, label }) {
-    // read before anything returns, as every hook has to be
-    const shade = themeColors(React.useContext(ThemeModeContext).theme);
-
-    if (!active || !checkValidArray(payload)) {
-        return null;
-    }
-
-    const rows = payload.filter((entry) => entry && entry.value != null && entry.value !== 0);
-    if (!rows.length) {
-        return null;
-    }
-
-    {/*
-
-        a recharts tooltip is pinned to the cursor and dismisses the moment the
-        pointer leaves the plotting area, so a scrollbar on the wrapper is not
-        actually reachable and any overflow is silently clipped. instead, sort by
-        value and cap the number of rows, collapsing the remainder into a single
-        "+N more" line so nothing rendered is ever cut off
-
-    */}
-    const MAX_ROWS = 12;
-    const sorted = rows.slice().sort((a, b) => Number(b.value) - Number(a.value));
-    const visible = sorted.slice(0, MAX_ROWS);
-    const hidden = sorted.slice(MAX_ROWS);
-    const hidden_total = hidden.reduce((sum, entry) => sum + Number(entry.value), 0);
-
-    {/*
-
-        stock-split carries the tickers that split on this date as
-        'ticker ratio' pairs. a single date reaches 100 tickers, so the hover
-        lists only the first few and defers the rest to the click-through sheet,
-        mirroring how the stacked series above are capped
-
-    */}
-    const MAX_TICKERS = 6;
-    const ticker_pairs = splitTickerPairs(rows[0] && rows[0].payload ? rows[0].payload.tickers : null);
-    const ticker_visible = ticker_pairs.slice(0, MAX_TICKERS);
-    const ticker_hidden = ticker_pairs.length - ticker_visible.length;
-
-    return (
-        <div
-            //
-            // in the page's own colors -- '#fff', '#ccc', '#333' on a light
-            // page -- so the tooltip follows the theme with the page. See
-            // themeColors.
-            //
-            style={{
-                background: shade['white-1'],
-                border: `1px solid ${shade['gray-3']}`,
-                borderRadius: 4,
-                padding: '8px 10px',
-                boxShadow: '0 1px 4px rgba(0, 0, 0, 0.15)',
-                fontSize: 12,
-                lineHeight: 1.5,
-                color: shade['gray-7']
-            }}
-        >
-            <div style={{ fontWeight: 600, marginBottom: 4, color: shade['gray-8'] }}>{label}</div>
-            {visible.map((entry, index) => (
-                <div
-                    key={`tooltip-row-${index}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                    <span
-                        style={{
-                            display: 'inline-block',
-                            width: 10,
-                            height: 10,
-                            borderRadius: 2,
-                            backgroundColor: entry.color,
-                            flex: '0 0 auto'
-                        }}
-                    />
-                    {/*
-
-                        a per-bar ranked series is keyed 'slot_n' and carries the name
-                        it holds in THIS bar alongside it; fall back to the series key
-                        for the streams that are not ranked per bar
-
-                    */}
-                    <span style={{ flex: '1 1 auto', color: shade['gray-7'] }}>
-                        {(entry.payload && entry.payload[`${entry.dataKey}_name`]) || entry.name}
-                    </span>
-                    <span style={{ marginLeft: 12, fontVariantNumeric: 'tabular-nums', color: shade['gray-7'] }}>
-                        {Number(entry.value).toLocaleString()}
-                    </span>
-                </div>
-            ))}
-            {ticker_visible.length > 0 && (
-                <div style={{ marginTop: 4, paddingTop: 4, borderTop: `1px solid ${shade['gray-1']}` }}>
-                    {ticker_visible.map((entry, index) => (
-                        <div
-                            key={`tooltip-ticker-${index}`}
-                            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                        >
-                            <span style={{ flex: '1 1 auto', color: shade['gray-7'] }}>{entry.ticker}</span>
-                            <span style={{ marginLeft: 12, fontVariantNumeric: 'tabular-nums', color: shade['gray-7'] }}>
-                                {entry.ratio}
-                            </span>
-                        </div>
-                    ))}
-                    {ticker_hidden > 0 && (
-                        <div style={{ marginTop: 2, color: shade['gray-6'], fontStyle: 'italic' }}>
-                            {`+${ticker_hidden} more · click bar for all`}
-                        </div>
-                    )}
-                </div>
-            )}
-            {hidden.length > 0 && (
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        marginTop: 4,
-                        paddingTop: 4,
-                        borderTop: `1px solid ${shade['gray-1']}`,
-                        color: shade['gray-6'],
-                        fontStyle: 'italic'
-                    }}
-                >
-                    <span style={{ flex: '1 1 auto' }}>{`+${hidden.length} more · click bar for all`}</span>
-                    <span style={{ marginLeft: 12, fontVariantNumeric: 'tabular-nums' }}>
-                        {hidden_total.toLocaleString()}
-                    </span>
-                </div>
-            )}
-        </div>
-    );
-}
-
 class DataLayout extends Component {
     //
-    // the page's theme, which the long tail of a distribution's series is
-    // shaded for, and the loading chip's green is drawn in. See theme-mode.jsx.
+    // the page's theme, which the ring's colors are drawn for, and the loading
+    // chip's green is drawn in. See theme-mode.jsx.
     //
     static contextType = ThemeModeContext;
 
@@ -616,17 +436,19 @@ class DataLayout extends Component {
 
         this.getControlTray = this.getControlTray.bind(this);
         this.reset_stream = this.reset_stream.bind(this);
-        this.openDistributionDetail = this.openDistributionDetail.bind(this);
         this.updateChartHeight = this.updateChartHeight.bind(this);
         this.reorderListing = this.reorderListing.bind(this);
+        this.treeFor = this.treeFor.bind(this);
+
+        //
+        // the tree each stream's ring was last drawn from, with the rows, key and
+        // theme it was built for -- see treeFor
+        //
+        this.trees = {};
 
         this.state = {
             local: is_local,
             bottom_sheet_open: false,
-            distribution_detail_open: false,
-            distribution_detail_title: '',
-            distribution_detail_rows: [],
-            distribution_detail_snap: DETAIL_INITIAL_SNAP,
             promise_data_distribution: false,
             'promise_get_data_stock-market': false,
             'promise_get_data_stock-split': false,
@@ -682,11 +504,6 @@ class DataLayout extends Component {
             data_distribution_bls: [],
             data_distribution_sec: [],
             'data_distribution_us-national-weather': [],
-            'data_distribution_stock-market_bar': [],
-            'data_distribution_stock-split_bar': [],
-            data_distribution_bls_bar: [],
-            data_distribution_sec_bar: [],
-            'data_distribution_us-national-weather_bar': [],
             listing_graphic_title: opening,
             artifact_link: 'https://www.jefflevesque.com/artifact',
             chart_height: chartHeight()
@@ -991,255 +808,27 @@ class DataLayout extends Component {
 
                     {/*
 
-                        aggregate_key must be stored per-stream: on initial load all streams
-                        download in parallel, so a single shared aggregate_key ends up holding
-                        whichever stream responded last, and the x-axis dataKey then points at a
-                        column absent from the selected stream's rows (blank axis labels until
-                        the stream is re-selected)
+                        aggregate_key is stored per stream: on the first load all five
+                        streams download in parallel, so a single shared key would end
+                        up holding whichever stream answered last, and the ring would
+                        group the selected stream's rows by a column they do not have.
+
+                        the rows are kept as the worker answered them. The ring is
+                        drawn from a tree built as the page renders -- see treeFor --
+                        because its colors follow the page's theme, which can change
+                        with the rows already on screen
 
                     */}
                     this.setState({
                         [`records_${selected_stream}`]: event.data.records,
                         'Month': getData('list-months')[month_index],
                         'Year': yyyy,
-                        [`aggregate_key_${selected_stream}`]: aggregate_key
+                        [`aggregate_key_${selected_stream}`]: aggregate_key,
+                        [`data_distribution_${selected_stream}`]: event.data.data_distribution,
+                        [`promise_get_data_${selected_stream}`]: true
                     }, () => {
                         this.updateStreamListing();
                     });
-
-                    {/*
-
-                        not const: the series cap below rebuilds these rows to fold
-                        the long tail into a single 'Other' series
-
-                    */}
-                    let data_distribution = event.data.data_distribution;
-
-                    {/*
-
-                        collect the distinct stacked keys (everything except the x-axis
-                        aggregate_key) as the union across every row, in first-seen order. the
-                        previous logic pushed a <Bar> per key per row, which produced duplicate
-                        bars (and position-dependent colors) once a stream had more than one row
-
-                    */}
-                    {/*
-
-                        only numeric values are plottable: stock-split rows carry a
-                        'tickers' string for the tooltip to read, which would otherwise
-                        become its own <Bar> and a duplicate tooltip row
-
-                    */}
-                    let data_keys = [];
-                    data_distribution.forEach((obj) => {
-                        Object.keys(obj).forEach(key => {
-                            if (
-                                key !== aggregate_key
-                                && !data_keys.includes(key)
-                                && typeof obj[key] === 'number'
-                            ) {
-                                data_keys.push(key);
-                            }
-                        });
-                    });
-
-                    {/*
-
-                        cap the number of stacked series. the previous code generated a
-                        hue per series off the hsv wheel once the palette ran out, which
-                        for us-weather-alert meant 58 fully saturated hues in one bar and
-                        127 for stock-market -- a rainbow no palette can rescue, because
-                        the problem is the count rather than the colors.
-
-                        keep the largest few by total, roll the remainder into a single
-                        neutral 'Other', and never cycle a hue: a repeated color would
-                        claim two series share an identity. this mirrors what the x-axis
-                        already does at MAX_BARS, and the full breakdown stays reachable
-                        by clicking the bar
-
-                    */}
-                    const MAX_SERIES = colors_categorical.length;
-                    const SERIES_SLOT = 'slot_';
-
-                    {/*
-
-                        one slot per palette hue. four left the remainder averaging 37%
-                        of every bar -- the largest segment in most of them, which reads
-                        as though 'Other' were the finding. eight drops it to 14%
-
-                    */}
-
-                    {/*
-
-                        the chart is folded, the drill-down is not: keep the complete
-                        pre-fold row per bar so clicking it still lists every series.
-                        without this the sheet would only ever show what survived the
-                        fold, which is exactly the detail the fold is hiding
-
-                    */}
-                    const series_detail = {};
-                    data_distribution.forEach((obj) => {
-                        series_detail[obj[aggregate_key]] = { ...obj };
-                    });
-
-                    if (data_keys.length > MAX_SERIES) {
-                        {/*
-
-                            rank within each bar rather than across all of them, and keep
-                            every series -- no 'Other' lump.
-
-                            a color means 'the nth largest part of THIS bar' rather than
-                            one fixed series, which is normally wrong, but here the bar is
-                            the entity, it is named on the axis, and every segment is named
-                            on hover and in the sheet, so nothing is identified by color
-                            alone. ranking globally instead left whole bars anonymous:
-                            us-weather-alert put every 'Extreme' event below the cut
-                            despite tornado warnings being 85% of that bar
-
-                        */}
-                        data_distribution = data_distribution.map((obj) => {
-                            const ranked_in_bar = Object.keys(obj)
-                                .filter((key) => key !== aggregate_key && typeof obj[key] === 'number')
-                                .sort((a, b) => obj[b] - obj[a]);
-
-                            const row = { [aggregate_key]: obj[aggregate_key] };
-
-                            ranked_in_bar.forEach((key, slot) => {
-                                row[`${SERIES_SLOT}${slot + 1}`] = obj[key];
-                                row[`${SERIES_SLOT}${slot + 1}_name`] = key;
-                            });
-
-                            return row;
-                        });
-
-                        const slot_count = data_distribution.reduce(
-                            (most, obj) => Math.max(
-                                most,
-                                Object.keys(obj).filter((key) => key.startsWith(SERIES_SLOT)
-                                    && !key.endsWith('_name')).length
-                            ),
-                            0
-                        );
-
-                        data_keys = Array.from(
-                            { length: slot_count },
-                            (ignored, slot) => `${SERIES_SLOT}${slot + 1}`
-                        ).filter((key) => data_distribution.some((obj) => obj[key] > 0));
-                    }
-
-                    const to_rgb_parts = (hex) => {
-                        const rgb = toRGB(hex).replace('rgb(', '').replace(')', '').split(',');
-                        return { r: rgb[0], g: rgb[1], b: rgb[2] };
-                    };
-
-                    {/*
-
-                        the first slots carry the categorical hues; anything past them is
-                        the long tail, which shares one desaturated hue and separates only
-                        by lightness. that keeps each member hoverable while reading as a
-                        single band rather than competing with the named series
-
-                    */}
-                    const tail_length = Math.max(data_keys.length - colors_categorical.length, 0);
-
-                    {/*
-
-                        both themes' colors, since the page can change theme with the
-                        bars on it and the tail is shaded toward whichever page it is
-                        on. See barColor, which picks.
-
-                    */}
-                    const shade = (index, theme) => (index < colors_categorical.length
-                        ? colors_categorical[index]
-                        : color_tail(index - colors_categorical.length, tail_length, theme));
-
-                    let data_distribution_bar = data_keys.map((key, index) => ({
-                        data_key: key,
-                        color: to_rgb_parts(shade(index, 'light')),
-                        color_dark: to_rgb_parts(shade(index, 'dark')),
-                    }));
-
-
-                    {/*
-
-                        cap the number of x-axis bars: some streams have hundreds of
-                        categories (e.g. ~250 distinct sec filing 'form' types), which render
-                        as an unreadable smear of razor-thin bars. select the top N by total,
-                        then roll the long tail into a single 'Other' bar. the bucketed rows are
-                        stashed so clicking 'Other' can list exactly what it contains.
-
-                        the bars themselves are ordered ALPHABETICALLY by label (not by value)
-                        so the axis doesn't read as an artificial descending staircase; 'Other'
-                        is always pinned last
-
-                    */}
-                    const MAX_BARS = 20;
-                    const row_total = (obj) =>
-                        data_keys.reduce((sum, key) => sum + (Number(obj[key]) || 0), 0);
-                    {/*
-
-                        numeric collation, so labels carrying a number sort by its
-                        value rather than digit by digit: plain localeCompare ordered
-                        the stock-split axis '1, 10, 12, ... 2, 20, 23, 5', and orders
-                        sec as 'Form 13F-HR' before 'Form 4'
-
-                        severity is ranked rather than collated: it is an ordered
-                        scale, and sorting it as text interleaves the ranks
-                        ('Extreme, Minor, Moderate, Severe'). a label outside the
-                        scale keeps its alphabetical position after the ranked ones,
-                        so an unrecognised severity is still drawn rather than
-                        silently pinned to an end
-
-                    */}
-                    const by_label = (a, b) => {
-                        const label_a = String(a[aggregate_key]);
-                        const label_b = String(b[aggregate_key]);
-
-                        const rank_a = severity_rank(label_a);
-                        const rank_b = severity_rank(label_b);
-
-                        if (rank_a !== rank_b) {
-                            return rank_a - rank_b;
-                        }
-
-                        return label_a.localeCompare(label_b, undefined, { numeric: true });
-                    };
-
-                    let chart_distribution;
-                    let other_rows = [];
-                    if (data_distribution.length > MAX_BARS) {
-                        const by_value_desc = data_distribution
-                            .slice()
-                            .sort((a, b) => row_total(b) - row_total(a));
-                        const head = by_value_desc.slice(0, MAX_BARS - 1).sort(by_label);
-                        const tail = by_value_desc.slice(MAX_BARS - 1);
-
-                        const other = { [aggregate_key]: 'Other' };
-                        data_keys.forEach((key) => {
-                            other[key] = tail.reduce((sum, obj) => sum + (Number(obj[key]) || 0), 0);
-                        });
-
-                        chart_distribution = head.concat([other]);
-                        other_rows = tail
-                            .map((obj) => ({
-                                name: obj[aggregate_key],
-                                value: row_total(obj),
-                                color: null
-                            }))
-                            .sort((a, b) => b.value - a.value);
-                    } else {
-                        chart_distribution = data_distribution.slice().sort(by_label);
-                    }
-
-                    if (selected_stream) {
-                        this.setState({
-                            [`data_distribution_${selected_stream}`]: chart_distribution,
-                            [`data_distribution_${selected_stream}_bar`]: data_distribution_bar,
-                            [`data_distribution_${selected_stream}_other`]: other_rows,
-                            [`data_distribution_${selected_stream}_series`]: series_detail,
-                            [`promise_get_data_${selected_stream}`]: true
-                        });
-                    }
                 }
             };
 
@@ -1276,127 +865,24 @@ class DataLayout extends Component {
     }
 
     //
-    // a bar's color, as the page's theme draws it: the dark theme's where the
-    // page is dark and the bar has one. See where the bars are built.
+    // the tree a stream's ring is drawn from: its groups, what each holds, and
+    // their colors -- see distribution-tree.js. Built again only when the rows,
+    // the key they are grouped by or the page's theme change, so pointing at the
+    // ring does not rebuild it on every render
     //
-    barColor(bar) {
-        return this.context.theme === 'dark' && bar.color_dark ? bar.color_dark : bar.color;
-    }
+    treeFor(stream, theme) {
+        const rows = this.state[`data_distribution_${stream}`];
+        const key = this.state[`aggregate_key_${stream}`];
+        const held = this.trees[stream];
 
-    /*
-
-        the hover tooltip is pinned to the cursor and cannot hold interactive
-        controls, so "expand" lives on a bar click instead: clicking any segment of
-        a bar opens the bottom sheet with the FULL sorted breakdown for that x-axis
-        entry, scrollable and reachable regardless of how many series it contains
-
-    */
-    openDistributionDetail(payload) {
-        const stream = this.state.selected_stream;
-        const aggregate_key = this.state[`aggregate_key_${stream}`];
-
-        {/* validate the clicked row is an object carrying the x-axis key */}
-        if (!aggregate_key || !payload || !checkValidObject(aggregate_key, payload)) {
-            return;
+        if (held && held.rows === rows && held.key === key && held.theme === theme) {
+            return held.tree;
         }
 
-        const title = payload[aggregate_key];
+        const tree = distributionTree(rows, key, theme);
+        this.trees[stream] = { rows: rows, key: key, theme: theme, tree: tree };
 
-        {/*
-
-            clicking the same bar again closes the sheet (toggle); clicking a
-            different bar while open swaps in the new breakdown instead of closing
-
-        */}
-        if (this.state.distribution_detail_open && this.state.distribution_detail_title === title) {
-            this.setState({ distribution_detail_open: false });
-            return;
-        }
-
-        {/*
-
-            the 'Other' bar is the bucketed long tail; clicking it lists the x-axis
-            entries it rolled up (already sorted by value). every other bar shows its
-            stacked-category breakdown
-
-        */}
-        const other = this.state[`data_distribution_${stream}_other`] || [];
-        let rows;
-        if (title === 'Other' && other.length) {
-            rows = other;
-        } else {
-            const bars = this.state[`data_distribution_${stream}_bar`] || [];
-
-            {/*
-
-                key the swatches by the name the sheet actually lists.
-
-                a per-bar ranked series is keyed 'slot_n', and which series that is
-                depends on the bar, so the clicked row carries the name alongside it.
-                mapping straight off the bar's data_key leaves every swatch unmatched
-                and the whole sheet renders gray
-
-            */}
-            const color_map = {};
-            bars.forEach((bar) => {
-                const series_name = payload[`${bar.data_key}_name`] || bar.data_key;
-                color_map[series_name] = this.barColor(bar);
-            });
-
-            {/*
-
-                stock-split has a single 'splits' series, so the stacked breakdown
-                would just restate the bar. list the tickers that split instead,
-                each against its ratio; this is the full list the hover truncates
-
-            */}
-            const ticker_pairs = splitTickerPairs(payload.tickers);
-
-            if (ticker_pairs.length) {
-                rows = ticker_pairs.map((entry) => ({
-                    name: entry.ticker,
-                    value: entry.ratio,
-                    color: color_map['splits']
-                }));
-            } else {
-                {/*
-
-                    numeric values only: a non-numeric field would otherwise list
-                    as NaN
-
-                */}
-                {/*
-
-                    prefer the pre-fold row: the chart caps its stacked series at the
-                    palette size, so the clicked payload only carries what survived
-                    that cap plus an 'Other' lump. the sheet is where the folded
-                    detail is meant to reappear
-
-                */}
-                const series_detail = this.state[`data_distribution_${stream}_series`] || {};
-                const source_row = series_detail[title] || payload;
-
-                rows = Object.keys(source_row)
-                    .filter((key) =>
-                        key !== aggregate_key
-                        && source_row[key] != null
-                        && source_row[key] !== 0
-                        && typeof source_row[key] === 'number'
-                    )
-                    .map((key) => ({
-                        name: key,
-                        value: Number(source_row[key]),
-                        color: color_map[key]
-                    }))
-                    .sort((a, b) => b.value - a.value);
-            }
-        }
-
-        this.setState({
-            distribution_detail_open: true,
-            distribution_detail_title: title,
-            distribution_detail_rows: rows
-        });
+        return tree;
     }
 
     filterColumn(style='default', btn=false) {
@@ -1555,15 +1041,11 @@ class DataLayout extends Component {
             : null;
 
         //
-        // the loader is rendered before the chart, so without a stacking order the
-        // chart paints over it and the dots sit behind the bars. '.refresh' in
-        // _area_chart.scss uses z-index 1 for the same reason; this sits above both
-        // while a refresh is in flight
-        //
+        // over the ring, above its middle, while the month on screen is on its way.
         //
         // visible strictly while the query is in flight, so the dots begin fading
-        // the moment the bars land rather than sitting on top of a chart that has
-        // already rendered.
+        // the moment the ring lands rather than sitting on top of one that has
+        // already drawn.
         //
         // there was a minimum hold here to stop a fast response flickering, but a
         // cache hit measures ~500ms end to end -- long enough to read as loading
@@ -1580,11 +1062,7 @@ class DataLayout extends Component {
             <div
                 style={{
                     //
-                    // cover the whole chart area and center within it, rather than
-                    // relying on the static position an absolutely positioned flex
-                    // child happens to land on. '.recharts-wrapper' is itself
-                    // position:relative, so a bare 'position:absolute; margin:auto'
-                    // was resolving against a moving target
+                    // cover the whole ring and center within it
                     //
                     position: 'absolute',
                     top: 0,
@@ -1595,8 +1073,7 @@ class DataLayout extends Component {
                     alignItems: 'center',
                     justifyContent: 'center',
                     //
-                    // above '.refresh' (z-index 1) and above the chart wrapper,
-                    // which is positioned but carries no z-index of its own
+                    // above the ring and its middle, which is positioned over it
                     //
                     zIndex: 10,
                     opacity: loader_visible ? 1 : 0,
@@ -1606,22 +1083,10 @@ class DataLayout extends Component {
             >
                 {/*
 
-                    a chip behind the dots, not a full-area wash.
-
-                    the dots are the slot 1 hue, which is also the fill of bar
-                    series 0 -- and because the bars are stacked, series 0 is the
-                    bottom segment of every bar. on a stream whose data lands
-                    inside the minimum hold (weather resolves almost at once) the
-                    dots end up painted in the exact color of the bar behind
-                    them, which reads as the loader sitting *under* the chart
-                    rather than over it. a few wide bars make it certain; many
-                    thin bars leave gaps for the dots to show through, which is
-                    why the slower default stream looked correct.
-
-                    the chip restores a known surface under the dots so they hold
-                    their 5.72:1 regardless of what the chart is showing. it is
-                    sized to the dots rather than the chart so the spinning
-                    '.refresh' icon is not dimmed while the query is in flight
+                    a chip behind the dots, not a full-area wash: it restores a
+                    known surface under them, so they hold their 5.72:1 whatever
+                    color of the ring is behind, and it is sized to the dots so
+                    the ring still shows around it
 
                 */}
                 <div
@@ -1655,206 +1120,42 @@ class DataLayout extends Component {
             </div>
         );
 
-        const refresh_class = this.state[`promise_get_data_${stream}`]
-            ? 'refresh'
-            : 'refresh-disabled';
-
-        const y_axis = isMobile
-            ? (
-                // mobile: keep the solid axis line on the left edge, but no ticks
-                // and no value labels (width just enough for the line, so bars stay
-                // flush left)
-                <YAxis tick={false} tickLine={false} width={1} />
-            )
-            : (
-                <YAxis
-                    tickFormatter={(value) => Number(value).toExponential(0)}
-                    width={60}
-                />
-            );
-
         if (
             ! this.state.hide_all
             && this.state.display_data_distribution
         ) {
-                const height = this.state.chart_height;
-                const nBars = (this.state[`data_distribution_${stream}`] || []).length;
-                const agg_key = this.state[`aggregate_key_${stream}`];
-                const max_label_len = (this.state[`data_distribution_${stream}`] || [])
-                    .reduce((max, row) => Math.max(max, String((row && row[agg_key]) || '').length), 0);
+            const month = `${getData('list-months')[parseInt(this.state.mm) - 1]} ${this.state.yyyy}`;
 
-                {/*
+            {/*
 
-                    only wrap the chart in the horizontal-scroll container when the bars would
-                    actually exceed the viewport; few-bar streams (weather, stock-split) render
-                    the chart bare so it fills the full width like the desktop chart
+                keyed by the stream and the month on screen, so choosing another
+                closes a group left open on the last one rather than carrying it
+                over to rows that may not hold it
 
-                */}
-                const viewport_width = typeof window !== 'undefined' ? window.innerWidth : 400;
-                const needs_scroll = isMobile && (nBars * 48) > viewport_width;
-
-                {/*
-
-                    label style controls how much edge margin the chart must reserve:
-                      - desktop: angled down-left (textAnchor end)
-                      - mobile scrolling: angled down-right (needs right margin, but it lives in
-                        the scrollable overflow so it doesn't steal visible width)
-                      - mobile NON-scrolling: horizontal, centered under the wide bars, so NO edge
-                        margin is reserved and the bars fill the full width edge to edge
-
-                */}
-                const x_axis_angle = !isMobile ? CHART_X_AXIS_ANGLE : (needs_scroll ? 35 : 0);
-                const x_axis_anchor = !isMobile ? CHART_X_AXIS_ANCHOR : (needs_scroll ? 'start' : 'middle');
-                const x_axis_height = !isMobile
-                    ? CHART_X_AXIS_HEIGHT
-                    : needs_scroll
-                        ? Math.min(78, Math.max(30, Math.round(max_label_len * 3) + 14))
-                        : CHART_X_AXIS_HEIGHT_MOBILE;
-
-                const chart_element = (
-                            <ResponsiveContainer height={height} width='100%'>
-                            <BarChart
-                                width='100%'
-                                height={height}
-                                data={this.state[`data_distribution_${stream}`]}
-                                margin={{
-                                    top: 20,
-                                    // reserve edge room only for angled labels; a non-scrolling
-                                    // mobile chart uses horizontal labels, so no edge margin is
-                                    // needed and the bars fill the full width
-                                    right: !isMobile ? 25 : (needs_scroll ? 40 : 8),
-                                    left: !isMobile ? -10 : (needs_scroll ? 0 : 8),
-                                    bottom: isMobile ? 12 : 8,
-                                }}
-                            >
-                                <CartesianGrid strokeDasharray='3 3' />
-                                {/*
-
-                                    recharts defaults to interval='preserveEnd', which silently
-                                    drops tick labels that would overlap; the gics sector names
-                                    are long enough that every label was being hidden, so force
-                                    all ticks and angle them to fit
-
-                                */}
-                                {/*
-
-                                    mobile: labels start at the tick and drop to the lower-right
-                                    (angle +35, textAnchor start), so the left-most label never
-                                    extends past the left edge and the bars can sit flush left.
-                                    desktop keeps the conventional lower-left angle (unchanged)
-
-                                */}
-                                <XAxis
-                                    dataKey={this.state[`aggregate_key_${stream}`]}
-                                    interval={0}
-                                    angle={x_axis_angle}
-                                    textAnchor={x_axis_anchor}
-                                    height={x_axis_height}
-                                    tick={{ fontSize: isMobile ? 9 : 11 }}
-                                />
-                                {y_axis}
-                                {/*
-
-                                    desktop only: keep the tooltip on-screen and scrollable so a
-                                    bar with many stacked segments no longer pushes its labels off
-                                    the bottom of the page. on mobile the hover tooltip and the
-                                    tap-to-expand sheet fire together and their dismissal is
-                                    entangled, so mobile relies on the sheet alone
-
-                                */}
-                                {!isMobile && (
-                                    <Tooltip
-                                        content={<DistributionTooltip />}
-                                        allowEscapeViewBox={{ x: false, y: false }}
-                                        wrapperStyle={{ maxHeight: 340, overflowY: 'auto', overflowX: 'hidden' }}
-                                    />
-                                )}
-                                {
-                                    this.state[`data_distribution_${stream}_bar`].map((entry, index) => (
-                                        <Bar
-                                              key={`bar-${index}`}
-                                              fill={((color) => `rgb(${color.r}, ${color.g}, ${color.b})`)(this.barColor(entry))}
-                                              dataKey={entry.data_key}
-                                              stackId='a'
-                                              cursor='pointer'
-                                              onClick={(data) =>
-                                                  this.openDistributionDetail(
-                                                      data && data.payload ? data.payload : data
-                                                  )
-                                              }
-                                        />
-                                ))}
-                            </BarChart>
-                            </ResponsiveContainer>
-                );
-
-                var data_distribution = (
+            */}
+            var data_distribution = (
                 <div className='col-lg-12 mx-auto'>
-                    <div className='area-chart-parent'>
-                        <LoopIcon
-                            className={refresh_class}
-                            fontSize={ isMobile ? 'medium' : 'large' }
-                            onClick={() => {
-                                this.reset_stream(stream);
-                                this.updateStreamListing();
-                                this.downloadData(stream);
-                            }}
-                            sx={{
-                                animation: ! this.state[`promise_get_data_${stream}`]
-                                    ? 'spin 2s linear infinite' : 'none',
-                                '@keyframes spin': ! this.state[`promise_get_data_${stream}`]
-                                    ? {
-                                        '0%': {
-                                            transform: 'rotate(360deg)',
-                                        },
-                                        '100%': {
-                                            transform: 'rotate(0deg)',
-                                        },
-                                    } : 'none'
-                            }}
-                        />
-                        {/*
-
-                            on mobile, give each bar a fixed readable width and let the axis
-                            scroll horizontally (the chart is left-aligned and overflows the
-                            viewport) so bars stay full width and the left-most angled label
-                            isn't clipped. desktop renders the bare responsive chart, unchanged
-
-                        */}
-                        {needs_scroll
-                            ? (
-                                <div style={{ width: '100%', overflowX: 'auto' }}>
-                                    <div style={{ width: `${nBars * 48}px` }}>
-                                        {chart_element}
-                                    </div>
-                                </div>
-                            )
-                            : chart_element}
-                        {/*
-
-                            rendered after the chart, not before it.
-
-                            recharts wraps the plot in its own positioned container, and
-                            on the streams that keep a previous chart mounted while
-                            refetching, that container won a z-index race the loader was
-                            supposed to win. painting the loader later in tree order
-                            settles it without depending on how recharts stacks itself
-
-                        */}
-                        {loader}
-                        {/*
-
-                            beside the refresh icon, at its size. The request is the
-                            url downloadData fetches for the dataset and month on
-                            screen, so it opens the response these bars were drawn from
-
-                        */}
-                        <ApiLinks
-                            docs={API_DOCS.datalake}
-                            request={datalakeUrl(this.state.data_map[stream][0], this.state.yyyy, this.state.mm)}
-                            size={isMobile ? 'medium' : 'large'}
-                        />
-                    </div>
+                    <Sunburst
+                        key={`${stream}|${this.state.yyyy}|${this.state.mm}`}
+                        tree={this.treeFor(stream, this.context.theme)}
+                        names={distributionNames(stream, this.state[`aggregate_key_${stream}`])}
+                        caption={month}
+                        size={isMobile ? null : this.state.chart_height}
+                        phone={Boolean(isMobile)}
+                        overlay={loader}
+                        actions={
+                            //
+                            // the api's documentation, and the url downloadData
+                            // fetches for the dataset and month on screen, so the
+                            // request opens the response this ring was drawn from
+                            //
+                            <ApiLinks
+                                docs={API_DOCS.datalake}
+                                request={datalakeUrl(this.state.data_map[stream][0], this.state.yyyy, this.state.mm)}
+                                size={isMobile ? 'medium' : 'large'}
+                            />
+                        }
+                    />
                 </div>
             );
         } else {
@@ -1892,147 +1193,6 @@ class DataLayout extends Component {
                             <Sheet.Content>Hold onto your seat, more to come!</Sheet.Content>
                         </Sheet.Container>
                         <Sheet.Backdrop />
-                    </Sheet>
-                    {/*
-
-                        click-to-expand: full, sorted, scrollable breakdown for the clicked
-                        bar. unlike the hover tooltip this surface is interactive, so it holds
-                        every series regardless of count
-
-                    */}
-                    <Sheet
-                        isOpen={this.state.distribution_detail_open}
-                        onClose={() => this.setState({ distribution_detail_open: false })}
-                        snapPoints={DETAIL_SNAP_POINTS}
-                        initialSnap={DETAIL_INITIAL_SNAP}
-                        onSnap={(index) => this.setState({ distribution_detail_snap: index })}
-                    >
-                        <Sheet.Container>
-                            <Sheet.Header />
-                            {/*
-
-                                no floating exit here: this sheet has a pinned heading,
-                                so the close control rides inside it and stays reachable
-                                at any scroll position. the sheet without a heading keeps
-                                the absolutely positioned one
-
-                            */}
-                            <Sheet.Content>
-                                <Sheet.Scroller
-                                    style={{
-                                        height: `calc(${
-                                            DETAIL_SNAP_POINTS[
-                                                this.state.distribution_detail_snap
-                                            ] * 100
-                                        }vh - ${DETAIL_HEADER_HEIGHT}px)`
-                                    }}
-                                >
-                                    <div style={{ padding: '0 20px 32px' }}>
-                                        {/*
-
-                                            pin the heading to the top of the scroller: a
-                                            bar can hold a hundred rows, and once the
-                                            title scrolls away there is nothing left
-                                            saying which bar is being read.
-
-                                            opaque background and a rule so rows pass
-                                            underneath rather than showing through
-
-                                        */}
-                                        <div
-                                            style={{
-                                                position: 'sticky',
-                                                top: 0,
-                                                zIndex: 2,
-                                                background: themeColors(this.context.theme)['white-1'],
-                                                margin: '0 -20px 12px',
-                                                padding: '4px 20px 8px',
-                                                borderBottom: `1px solid ${themeColors(this.context.theme)['gray-1']}`,
-                                                display: 'flex',
-                                                alignItems: 'flex-start',
-                                                justifyContent: 'space-between',
-                                                gap: 12
-                                            }}
-                                        >
-                                            <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-                                            <h5 style={{ margin: 0 }}>
-                                                {this.state.distribution_detail_title}
-                                            </h5>
-                                            {/*
-
-                                                stock-split lists tickers against their
-                                                ratio, so the values are not summable;
-                                                head it with the split count instead of
-                                                a series/record total
-
-                                            */}
-                                            <div style={{ fontSize: 12, color: themeColors(this.context.theme)['gray-6'], marginTop: 2 }}>
-                                                {this.state.distribution_detail_rows.every(
-                                                    (row) => typeof row.value === 'number'
-                                                )
-                                                    ? `${this.state.distribution_detail_rows.length} series · ${
-                                                        this.state.distribution_detail_rows
-                                                            .reduce((sum, row) => sum + row.value, 0)
-                                                            .toLocaleString()
-                                                    } records`
-                                                    : `splits · ${this.state.distribution_detail_rows.length}`}
-                                            </div>
-                                            </div>
-                                            {/*
-
-                                                laid out inline rather than reusing the
-                                                '.exit' class, whose svg is absolutely
-                                                positioned against the sheet and would
-                                                escape this flex row
-
-                                            */}
-                                            <span
-                                                style={{ cursor: 'pointer', flex: '0 0 auto', lineHeight: 1 }}
-                                                onClick={() =>
-                                                    this.setState({ distribution_detail_open: false })
-                                                }
-                                            >
-                                                <SvgExit />
-                                            </span>
-                                        </div>
-                                        {this.state.distribution_detail_rows.map((row, i) => (
-                                            <div
-                                                key={`detail-row-${i}`}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: 8,
-                                                    padding: '6px 0',
-                                                    borderBottom: '1px solid #eee'
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        display: 'inline-block',
-                                                        width: 12,
-                                                        height: 12,
-                                                        borderRadius: 2,
-                                                        backgroundColor: row.color
-                                                            ? `rgb(${row.color.r}, ${row.color.g}, ${row.color.b})`
-                                                            : themeColors(this.context.theme)['gray-3'],
-                                                        flex: '0 0 auto'
-                                                    }}
-                                                />
-                                                <span style={{ flex: '1 1 auto' }}>{row.name}</span>
-                                                <span style={{ marginLeft: 12, fontVariantNumeric: 'tabular-nums' }}>
-                                                    {typeof row.value === 'number'
-                                                        ? row.value.toLocaleString()
-                                                        : row.value}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </Sheet.Scroller>
-                            </Sheet.Content>
-                        </Sheet.Container>
-                        <Sheet.Backdrop onTap={() =>
-                            this.setState({ distribution_detail_open: false })
-                        } />
                     </Sheet>
                 </div>
             </ErrorBoundary>

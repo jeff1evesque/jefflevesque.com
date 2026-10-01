@@ -166,4 +166,97 @@ function color_tail(index, count, theme = 'light') {
     return `hsl(${COLOR_TAIL_HUE}, ${COLOR_TAIL_SATURATION}%, ${lightness.toFixed(1)}%)`;
 }
 
-export { toRGB, colors, colors_dark, themeColors, ink, translucent, colors_categorical, color_other, color_tail };
+/**
+ * weather severity, from the most severe to the least: Extreme, Severe,
+ * Moderate, Minor.
+ *
+ * one hue in steps of lightness rather than four categorical colors, because
+ * severity is an ordered scale, and a reader should see the order in the color
+ * rather than learn it from a legend. validated as an ordinal ramp against each
+ * page: the lightness runs one way, neighboring steps sit at least 0.06 apart
+ * (OKLCH), and the step nearest the page still clears 2:1 against it.
+ *
+ * on a dark page the ramp runs the other way, so the most severe is still the
+ * step furthest from the page.
+ */
+const colors_severity = ['#9b2014', '#bd4334', '#de6150', '#fe7d6b'];
+const colors_severity_dark = ['#feac9e', '#f47c6b', '#d15d4d', '#af3e30'];
+
+/**
+ * the severity ramp, as `theme` draws it.
+ */
+function severityColors(theme) {
+    return theme === 'dark' ? colors_severity_dark : colors_severity;
+}
+
+/**
+ * a color's red, green and blue, 0 to 255, from '#rgb', '#rrggbb', or the
+ * 'hsl(h, s%, l%)' that color_tail writes.
+ */
+function channels(color) {
+    const hsl = /^hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*\)$/.exec(color);
+
+    if (hsl) {
+        const h = Number(hsl[1]);
+        const s = Number(hsl[2]) / 100;
+        const l = Number(hsl[3]) / 100;
+        const k = (n) => (n + (h / 30)) % 12;
+        const a = s * Math.min(l, 1 - l);
+        const f = (n) => l - (a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)));
+
+        return [f(0), f(8), f(4)].map((value) => Math.round(value * 255));
+    }
+
+    const digits = color.replace('#', '');
+    const full = digits.length === 3 ? digits.split('').map((d) => d + d).join('') : digits;
+
+    return [0, 2, 4].map((at) => parseInt(full.slice(at, at + 2), 16));
+}
+
+/**
+ * `color` mixed `amount` of the way toward `toward`, as '#rrggbb'.
+ */
+function mix(color, toward, amount) {
+    const to = channels(toward);
+
+    return '#' + channels(color)
+        .map((value, at) => Math.round(value + ((to[at] - value) * amount)).toString(16).padStart(2, '0'))
+        .join('');
+}
+
+/**
+ * the ink a label takes on a fill: white, or the darkest text of a light page,
+ * whichever reads better against it.
+ */
+function onFill(color) {
+    const luminance = (value) => {
+        const [r, g, b] = channels(value).map((channel) => {
+            const c = channel / 255;
+            return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        });
+        return (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+    };
+    const contrast = (a, b) => {
+        const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+        return (high + 0.05) / (low + 0.05);
+    };
+
+    return contrast('#ffffff', color) >= contrast(colors['gray-8'], color) ? '#ffffff' : colors['gray-8'];
+}
+
+export {
+    toRGB,
+    colors,
+    colors_dark,
+    themeColors,
+    ink,
+    translucent,
+    colors_categorical,
+    color_other,
+    color_tail,
+    colors_severity,
+    colors_severity_dark,
+    severityColors,
+    mix,
+    onFill,
+};

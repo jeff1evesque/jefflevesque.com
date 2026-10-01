@@ -2,11 +2,12 @@
  * data-callback.test.jsx: what the data layout does with a worker's answer.
  *
  * data.test.jsx covers the listing a visitor sees before any data arrives. This
- * covers the other half: callbackGetData, a ~330 line method that picks a worker
- * per stream and then reshapes whatever comes back into the chart. That reshaping
- * is the real logic in the file -- series capping, bar capping, severity ordering,
- * palette assignment -- and none of it is reachable through the rendered page,
- * because the workers never answer under jsdom.
+ * covers the other half: callbackGetData, which picks a worker per stream and
+ * keeps what comes back for the ring -- the rows, the key they group by, the
+ * count and the month -- none of which is reachable through the rendered page,
+ * because the workers never answer under jsdom. How the rows become the ring's
+ * groups is distribution-tree.test.js's to pin; this pins that the page hands
+ * them over.
  *
  * So the worker is mocked to capture the instance, and its onmessage is called
  * directly with the payloads the real workers post. The component is driven through
@@ -33,7 +34,7 @@ jest.mock('../../../import/worker/web-worker.js', () => ({
     },
 }));
 
-import DataLayout from '../../../import/layout/data/data.jsx';
+import DataLayout, { distributionNames } from '../../../import/layout/data/data.jsx';
 
 function setup() {
     const held = React.createRef();
@@ -53,19 +54,6 @@ function setup() {
 function deliver(worker, data) {
     act(() => {
         worker.onmessage({ data });
-    });
-}
-
-//
-// build a row set with 'count' distinct numeric series, to push past the series cap.
-//
-function wideRows(count, bars = 1) {
-    return Array.from({ length: bars }, (ignored, bar) => {
-        const row = { category: `bar-${bar}` };
-        for (let i = 1; i <= count; i++) {
-            row[`series_${i}`] = (count - i + 1) * (bar + 1);
-        }
-        return row;
     });
 }
 
@@ -267,60 +255,32 @@ describe('the distribution payload', () => {
         expect(load(page).aggregate_key_bls).toBe('category');
     });
 
-    it('collects the numeric columns as the stacked series', () => {
+    it('keeps the rows as the worker answered them', () => {
+        const page = setup();
+
+        expect(load(page).data_distribution_bls).toEqual(PAYLOAD.data_distribution);
+    });
+
+    it('draws the ring from them, grouped by the key it was handed', () => {
         const page = setup();
         load(page);
 
-        const keys = page.state.data_distribution_bls_bar.map(b => b.data_key);
-        expect(keys).toEqual(['cpi', 'ppi']);
+        const tree = page.treeFor('bls', 'light');
+        expect(tree.groups.map((group) => group.name)).toEqual(['Surveys', 'Reports']);
+        expect(tree.total).toBe(18);
     });
 
-    it('excludes the axis column from the series', () => {
-        const page = setup();
-        load(page);
-
-        const keys = page.state.data_distribution_bls_bar.map(b => b.data_key);
-        expect(keys).not.toContain('category');
-    });
-
-    it('excludes non-numeric columns from the series', () => {
+    it('builds the tree once for the same rows and theme, and again for another theme', () => {
         //
-        // stock-split rows carry a 'tickers' string for the tooltip. Without the
-        // typeof test it would become its own bar and a duplicate tooltip row.
-        //
-        const page = setup();
-        load(page, {
-            data_distribution: [{ category: 'A', total: 5, tickers: 'AAPL, MSFT' }],
-        });
-
-        const keys = page.state.data_distribution_bls_bar.map(b => b.data_key);
-        expect(keys).toEqual(['total']);
-    });
-
-    it('gives every series an rgb triple from the palette', () => {
-        const page = setup();
-        load(page);
-
-        page.state.data_distribution_bls_bar.forEach(bar => {
-            expect(bar.color).toEqual({
-                r: expect.stringMatching(/\s*\d+/),
-                g: expect.stringMatching(/\s*\d+/),
-                b: expect.stringMatching(/\s*\d+/),
-            });
-        });
-    });
-
-    it('keeps the complete pre-fold row for the drill-down', () => {
-        //
-        // the chart is folded, the sheet is not: the sheet has to list every series,
-        // including any the fold hid.
+        // pointing at the ring renders the page on every move, and rebuilding
+        // the tree each time would hand the ring a new one it has to lay out
         //
         const page = setup();
         load(page);
 
-        expect(page.state.data_distribution_bls_series.Reports).toEqual({
-            category: 'Reports', cpi: 5, ppi: 3,
-        });
+        const light = page.treeFor('bls', 'light');
+        expect(page.treeFor('bls', 'light')).toBe(light);
+        expect(page.treeFor('bls', 'dark')).not.toBe(light);
     });
 
     it('ignores a payload with no aggregate_key', () => {
@@ -336,216 +296,49 @@ describe('the distribution payload', () => {
     });
 });
 
-describe('capping the stacked series', () => {
-    //
-    // past eight series the code stops naming them and switches to per-bar ranking:
-    // slot_1 is the largest part of THAT bar, slot_2 the next, and so on. A color
-    // then means a rank rather than a series, which is only acceptable because every
-    // segment is named on hover and in the sheet.
-    //
-    function loadWide(page, series, bars = 1) {
-        page.callbackGetData({ stream: 'bls' });
+describe('the ring on the page', () => {
+    it('lists the groups of the stream on screen once its answer lands', () => {
+        const page = setup();
+        page.callbackGetData({ stream: 'stock-market' });
+
         deliver(global.__workers[0], {
-            selected_stream: 'bls',
-            aggregate_key: 'category',
-            records: 1,
-            data_distribution: wideRows(series, bars),
+            selected_stream: 'stock-market',
+            aggregate_key: 'sector',
+            records: 9,
+            data_distribution: [
+                { sector: 'Energy', Refining: 3, 'Oil & Gas Storage': 2 },
+                { sector: 'Utilities', 'Water Utilities': 4 },
+            ],
         });
-        return page.state;
-    }
 
-    it('names the series when there are eight or fewer', () => {
-        const page = setup();
-
-        const keys = loadWide(page, 8).data_distribution_bls_bar.map(b => b.data_key);
-        expect(keys).toEqual(['series_1', 'series_2', 'series_3', 'series_4',
-            'series_5', 'series_6', 'series_7', 'series_8']);
-    });
-
-    it('switches to ranked slots past eight', () => {
-        const page = setup();
-
-        const keys = loadWide(page, 9).data_distribution_bls_bar.map(b => b.data_key);
-        expect(keys.every(k => /^slot_\d+$/.test(k))).toBe(true);
-    });
-
-    it('ranks within each bar, largest first', () => {
-        //
-        // wideRows makes series_1 the largest, so slot_1 must hold its value.
-        //
-        const page = setup();
-
-        const [row] = loadWide(page, 9).data_distribution_bls;
-        expect(row.slot_1).toBe(9);
-        expect(row.slot_2).toBe(8);
-    });
-
-    it('keeps the original series name alongside each slot', () => {
-        //
-        // the name is what the tooltip and sheet show, so the rank has to carry it or
-        // the segment becomes anonymous.
-        //
-        const page = setup();
-
-        const [row] = loadWide(page, 9).data_distribution_bls;
-        expect(row.slot_1_name).toBe('series_1');
-    });
-
-    it('loses no series to the cap', () => {
-        //
-        // the cap re-labels rather than discards: nine series in, nine slots out.
-        //
-        const page = setup();
-
-        const keys = loadWide(page, 9).data_distribution_bls_bar.map(b => b.data_key);
-        expect(keys).toHaveLength(9);
-    });
-
-    it('gives the tail past the palette a desaturated hsl shade', () => {
-        //
-        // the first eight slots take the categorical hues; the rest share one hue and
-        // separate by lightness, so they read as a band rather than competing.
-        //
-        const page = setup();
-        loadWide(page, 12);
-
-        const bars = page.state.data_distribution_bls_bar;
-        expect(bars).toHaveLength(12);
-        expect(bars[11].color.r).toBeDefined();
+        expect(screen.getByRole('button', { name: /^Energy, 5 records, 56% of all/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Utilities, 4 records/ })).toBeInTheDocument();
     });
 });
 
-describe('capping the bars', () => {
-    //
-    // past twenty bars the axis becomes a smear, so the top nineteen are kept and the
-    // rest are rolled into one 'Other' bar whose contents stay reachable by clicking.
-    //
-    function loadBars(page, count) {
-        const rows = Array.from({ length: count }, (ignored, i) => ({
-            category: `cat-${String(i).padStart(3, '0')}`,
-            total: count - i,
-        }));
+describe('the names the ring uses', () => {
+    it.each([
+        ['stock-market', 'sectors', 'industries', 'records'],
+        ['stock-split', 'days', 'tickers', 'splits'],
+        ['bls', 'series', 'categories', 'records'],
+        ['sec', 'forms', 'categories', 'filings'],
+        ['us-national-weather', 'severities', 'event types', 'events'],
+    ])('names %s\'s groups, members and counts', (stream, groups, members, unit) => {
+        const named = distributionNames(stream, 'ignored');
 
-        page.callbackGetData({ stream: 'bls' });
-        deliver(global.__workers[0], {
-            selected_stream: 'bls',
-            aggregate_key: 'category',
-            records: count,
-            data_distribution: rows,
+        expect([named.group[1], named.member[1], named.unit[1]]).toEqual([groups, members, unit]);
+    });
+
+    it('names a stream it does not know by the key its rows are grouped by', () => {
+        expect(distributionNames('new-stream', 'region')).toEqual({
+            group: ['region', 'regions'],
+            member: ['member', 'members'],
+            unit: ['record', 'records'],
         });
-        return page.state;
-    }
-
-    it('leaves twenty bars alone', () => {
-        const page = setup();
-
-        const chart = loadBars(page, 20).data_distribution_bls;
-        expect(chart).toHaveLength(20);
-        expect(chart.map(r => r.category)).not.toContain('Other');
     });
 
-    it('folds twenty-one into nineteen plus Other', () => {
-        const page = setup();
-
-        const chart = loadBars(page, 21).data_distribution_bls;
-        expect(chart).toHaveLength(20);
-        expect(chart[chart.length - 1].category).toBe('Other');
-    });
-
-    it('pins Other last, after the alphabetical bars', () => {
-        const page = setup();
-
-        const chart = loadBars(page, 30).data_distribution_bls;
-        expect(chart[chart.length - 1].category).toBe('Other');
-        expect(chart.slice(0, -1).map(r => r.category)).toEqual(
-            [...chart.slice(0, -1).map(r => r.category)].sort()
-        );
-    });
-
-    it('sums the folded bars into Other', () => {
-        //
-        // 30 rows with totals 30..1; the top 19 are kept, so Other holds the sum of
-        // the remaining 11 smallest: 11+10+...+1.
-        //
-        const page = setup();
-
-        const chart = loadBars(page, 30).data_distribution_bls;
-        const other = chart[chart.length - 1];
-        expect(other.total).toBe(66);
-    });
-
-    it('keeps what Other contains, for the drill-down', () => {
-        const page = setup();
-
-        const rows = loadBars(page, 30).data_distribution_bls_other;
-        expect(rows).toHaveLength(11);
-        expect(rows[0].value).toBeGreaterThanOrEqual(rows[rows.length - 1].value);
-    });
-
-    it('leaves the other-rows empty when nothing was folded', () => {
-        const page = setup();
-
-        expect(loadBars(page, 5).data_distribution_bls_other).toEqual([]);
-    });
-});
-
-describe('bar ordering', () => {
-    function loadLabels(page, labels) {
-        page.callbackGetData({ stream: 'bls' });
-        deliver(global.__workers[0], {
-            selected_stream: 'bls',
-            aggregate_key: 'category',
-            records: labels.length,
-            data_distribution: labels.map((category, i) => ({ category, total: i + 1 })),
-        });
-        return page.state.data_distribution_bls.map(r => r.category);
-    }
-
-    it('sorts labels alphabetically rather than by value', () => {
-        //
-        // by value the axis reads as an artificial descending staircase, which invites
-        // the reader to see a trend in what is really just sort order.
-        //
-        const page = setup();
-
-        expect(loadLabels(page, ['Charlie', 'Alpha', 'Bravo'])).toEqual(
-            ['Alpha', 'Bravo', 'Charlie']
-        );
-    });
-
-    it('sorts embedded numbers by value, not digit by digit', () => {
-        //
-        // plain localeCompare ordered the stock-split axis '1, 10, 12, 2, 20, 5'.
-        //
-        const page = setup();
-
-        expect(loadLabels(page, ['10', '2', '1', '20', '5'])).toEqual(
-            ['1', '2', '5', '10', '20']
-        );
-    });
-
-    it('ranks severity as a scale instead of collating it as text', () => {
-        //
-        // alphabetically these interleave as Extreme, Minor, Moderate, Severe, which
-        // reverses the middle of an ordered scale.
-        //
-        const page = setup();
-
-        const order = loadLabels(page, ['Minor', 'Extreme', 'Moderate', 'Severe']);
-        expect(order.indexOf('Extreme')).toBeLessThan(order.indexOf('Severe'));
-        expect(order.indexOf('Severe')).toBeLessThan(order.indexOf('Moderate'));
-        expect(order.indexOf('Moderate')).toBeLessThan(order.indexOf('Minor'));
-    });
-
-    it('keeps an unrecognised label alphabetical, after the ranked ones', () => {
-        //
-        // an unknown severity is still drawn rather than pinned silently to an end.
-        //
-        const page = setup();
-
-        const order = loadLabels(page, ['Minor', 'Aardvark', 'Extreme']);
-        expect(order.indexOf('Extreme')).toBeLessThan(order.indexOf('Minor'));
-        expect(order).toContain('Aardvark');
+    it('falls back to groups when there is no key either', () => {
+        expect(distributionNames('new-stream', undefined).group).toEqual(['group', 'groups']);
     });
 });
 

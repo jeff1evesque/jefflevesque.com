@@ -6,9 +6,9 @@
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
 //
-// Note: the icons take the refresh icon's color and sit in its row, so the
-//       chart's corner reads as one set of controls. `_area_chart.scss` places
-//       the refresh icon; nothing here moves it.
+// Note: the icons sit where each page puts them -- at the right end of the row
+//       above the /data ring (see '_sunburst.scss'), in the /stream header, and
+//       heading the graph's canvas column, below. Nothing here moves them.
 
 .api-links {
   align-items: center;
@@ -19,7 +19,7 @@
 //
 // scoped under '#bootstrap-override' because the global link color is, and an id
 // outranks any number of classes: unscoped, every icon painted in the hyperlink
-// blue beside a gray refresh icon.
+// blue.
 //
 #bootstrap-override .api-links a.api-link {
   color: #555;
@@ -33,9 +33,8 @@
   }
 
   //
-  // the refresh icon's own gray on a dark page, which is the color these take
-  // from it: '#555' is 2.2:1 on the dark page, under the 3:1 a control needs,
-  // and '$gray-6' is 6.4:1 there.
+  // a lighter gray on a dark page: '#555' is 2.2:1 there, under the 3:1 a
+  // control needs, and '$gray-6' is 6.4:1.
   //
   // Note: the hover is said again, because this rule outranks the one above.
   //
@@ -47,32 +46,6 @@
       color: $gray-9;
     }
   }
-}
-
-//
-// over a chart: in the refresh icon's row, just left of it. The offset is the
-// refresh icon's own right inset (2rem), its width at the size the page draws it
-// (MUI's 'large' is 2.1875rem, 'medium' 1.5rem), and a gap.
-//
-//
-// the chip behind them is for a narrow screen, where a tall bar or a rising area
-// reaches the corner and an icon drawn straight onto it cannot be read
-//
-.area-chart-parent .api-links {
-  background-color: var(--white-1-85);
-  border-radius: 999px;
-  padding: 0 0.25rem;
-  position: absolute;
-  top: 2rem;
-  z-index: 1;
-}
-
-.area-chart-parent .api-links-large {
-  right: calc(2rem + 2.1875rem + 0.75rem);
-}
-
-.area-chart-parent .api-links-medium {
-  right: calc(2rem + 1.5rem + 0.75rem);
 }
 
 //
