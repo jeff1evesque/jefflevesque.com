@@ -55,6 +55,7 @@ import {
 } from '../../general/stream-id.js';
 import { themeColors, translucent } from '../../general/colors.js';
 import { readChart, writeChart, readOrder, writeOrder } from '../../general/listing-preference.js';
+import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import chartHeight from '../../general/chart-height.js';
 
@@ -366,6 +367,16 @@ function writeDataset(stream) {
 }
 
 
+{/*
+
+    where this page keeps how its chart is arranged -- see
+    layout-preference.js. Only a wide screen draws the bars of cubes, so only
+    it has the names to fold (#167)
+
+*/}
+const LAYOUT = ['data', 'wide'];
+
+
 class DataLayout extends Component {
     //
     // the page's theme, which the ring's colors are drawn for, and the loading
@@ -486,6 +497,7 @@ class DataLayout extends Component {
         this.reset_stream = this.reset_stream.bind(this);
         this.updateChartHeight = this.updateChartHeight.bind(this);
         this.reorderListing = this.reorderListing.bind(this);
+        this.keepNames = this.keepNames.bind(this);
         this.treeFor = this.treeFor.bind(this);
         this.chart = this.chart.bind(this);
         this.openDataset = this.openDataset.bind(this);
@@ -541,6 +553,11 @@ class DataLayout extends Component {
             // page's own -- see listing-preference.js
             //
             listing_order: readOrder('data', STREAMS),
+            //
+            // whether the chart's group names are shown under it (#167): folded
+            // into a green bar unless this browser kept them shown
+            //
+            names_shown: readLayout(...LAYOUT).fold.names === false,
             list_article: list_article,
             //
             // each stream's datalake dataset, which is its own name for the data
@@ -691,6 +708,15 @@ class DataLayout extends Component {
     reorderListing(order) {
         this.setState({ listing_order: order });
         writeOrder('data', order);
+    }
+
+    //
+    // the chart's names shown or folded, kept for this browser's next visit,
+    // and for the chart drawn again for another dataset or month (#167)
+    //
+    keepNames(shown) {
+        this.setState({ names_shown: shown });
+        writeLayout(...LAYOUT, { fold: { names: !shown } });
     }
 
     //
@@ -1331,6 +1357,8 @@ class DataLayout extends Component {
                             key={`${stream}|${this.state.yyyy}|${this.state.mm}`}
                             {...chart}
                             height={this.state.chart_height}
+                            namesShown={this.state.names_shown}
+                            onNames={this.keepNames}
                         />
                     )}
                 </div>
