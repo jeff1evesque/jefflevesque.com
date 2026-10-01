@@ -33,7 +33,12 @@ import {
     colors,
     colors_categorical,
     colors_dark,
+    colors_severity,
+    colors_severity_dark,
     ink,
+    mix,
+    onFill,
+    severityColors,
     themeColors,
     toRGB,
     translucent
@@ -424,5 +429,104 @@ describe('toRGB', () => {
         // throw.
         //
         expect(toRGB('not-a-color')).toBe('');
+    });
+});
+
+describe('colors_severity', () => {
+    //
+    // WCAG 2 contrast, from relative luminance
+    //
+    function contrast(a, b) {
+        const luminance = (hex) => {
+            const [r, g, b] = hexToLinear(hex);
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+
+        return (hi + 0.05) / (lo + 0.05);
+    }
+
+    const lightness = (hex) => linearToOklab(hexToLinear(hex))[0];
+    const hue = (hex) => {
+        const [, a, b] = linearToOklab(hexToLinear(hex));
+        return (Math.atan2(b, a) * 180) / Math.PI;
+    };
+
+    it.each([
+        ['a light page', colors_severity],
+        ['a dark page', colors_severity_dark],
+    ])('holds four six-digit steps for %s', (name, ramp) => {
+        expect(ramp).toHaveLength(4);
+        ramp.forEach((step) => expect(step).toMatch(/^#[0-9a-f]{6}$/i));
+    });
+
+    it('runs from darkest at Extreme to lightest at Minor on a light page', () => {
+        const steps = colors_severity.map(lightness);
+
+        steps.slice(1).forEach((value, index) => expect(value).toBeGreaterThan(steps[index]));
+    });
+
+    it('runs the other way on a dark page, so the most severe is still the furthest from it', () => {
+        const steps = colors_severity_dark.map(lightness);
+
+        steps.slice(1).forEach((value, index) => expect(value).toBeLessThan(steps[index]));
+    });
+
+    it.each([
+        ['a light page', colors_severity],
+        ['a dark page', colors_severity_dark],
+    ])('keeps neighboring steps at least 0.06 apart on %s', (name, ramp) => {
+        ramp.slice(1).forEach((step, index) => {
+            expect(Math.abs(lightness(step) - lightness(ramp[index]))).toBeGreaterThanOrEqual(0.06);
+        });
+    });
+
+    it('clears 2:1 against each page with the step nearest it', () => {
+        expect(contrast(colors_severity[3], colors['white-1'])).toBeGreaterThanOrEqual(2);
+        expect(contrast(colors_severity_dark[3], colors_dark['white-1'])).toBeGreaterThanOrEqual(2);
+    });
+
+    it('is one hue, so the order reads in the lightness alone', () => {
+        const hues = [...colors_severity, ...colors_severity_dark].map(hue);
+
+        expect(Math.max(...hues) - Math.min(...hues)).toBeLessThan(5);
+    });
+
+    it('is picked by the page\'s theme', () => {
+        expect(severityColors('dark')).toBe(colors_severity_dark);
+        expect(severityColors('light')).toBe(colors_severity);
+        expect(severityColors(undefined)).toBe(colors_severity);
+    });
+});
+
+describe('mix', () => {
+    it('is the color itself at none of the way, and the other at all of it', () => {
+        expect(mix('#2a78d6', '#000000', 0)).toBe('#2a78d6');
+        expect(mix('#2a78d6', '#000000', 1)).toBe('#000000');
+    });
+
+    it('meets halfway at half', () => {
+        expect(mix('#000000', '#ffffff', 0.5)).toBe('#808080');
+    });
+
+    it('reads three-digit hex', () => {
+        expect(mix('#fff', '#000', 0)).toBe('#ffffff');
+    });
+
+    it('reads the hsl the long tail is written in', () => {
+        expect(mix(color_tail(0, 1), '#000000', 0)).toBe('#acb5be');
+    });
+});
+
+describe('onFill', () => {
+    it('writes white on a dark fill', () => {
+        expect(onFill('#000000')).toBe('#ffffff');
+        expect(onFill(colors_categorical[0])).toBe('#ffffff');
+    });
+
+    it('writes the darkest text on a light fill', () => {
+        expect(onFill('#ffffff')).toBe(colors['gray-8']);
+        expect(onFill('#eda100')).toBe(colors['gray-8']);
+        expect(onFill(color_tail(3, 4))).toBe(colors['gray-8']);
     });
 });
