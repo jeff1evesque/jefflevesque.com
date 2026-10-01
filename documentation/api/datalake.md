@@ -45,7 +45,9 @@ whole; the application always sends one.
 
 On a wide screen, `/data` draws the distribution as stacked bars built from
 cubes, one bar per group, each cube a round number of records. Clicking a bar
-lists what it holds under the chart. On a phone, the page opens on the listing,
+lists what it holds under the chart. The groups' names start folded into a
+green bar under the chart, which shows them, and clicking them folds them
+again. On a phone, the page opens on the listing,
 and a dataset's graph icon opens its sunburst, with the groups on the inner ring
 and what each holds on the outer ring. Either way, the listing gives the
 partition count against the stream.
