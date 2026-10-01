@@ -129,8 +129,33 @@ describe('performanceUrl', () => {
         expect(performanceUrl('bls', 'day', 'Asia/Tokyo').searchParams.get('Timezone')).toBe('Asia/Tokyo');
     });
 
+    it('sends End for a window that has ended, with the viewer\'s own offset', () => {
+        //
+        // jest.config.js pins New York, so a September evening is -04:00
+        //
+        const url = performanceUrl('bls', 'hour', 'America/New_York', new Date(2026, 8, 17, 23));
+
+        expect(url.searchParams.get('End')).toBe('2026-09-17T23:00:00-04:00');
+        expect(String(url)).toContain('End=2026-09-17T23%3A00%3A00-04%3A00');
+    });
+
+    it('sends an End it is handed as text as it is', () => {
+        expect(performanceUrl('bls', 'hour', 'UTC', '2026-09-17T23:00:00Z').searchParams.get('End'))
+            .toBe('2026-09-17T23:00:00Z');
+    });
+
+    it('sends no End for the window ending now', () => {
+        expect(performanceUrl('bls', 'day', 'UTC').searchParams.has('End')).toBe(false);
+        expect(performanceUrl('bls', 'day', 'UTC', null).searchParams.has('End')).toBe(false);
+    });
+
+    it('encodes a + offset, which a query string would read as a space', () => {
+        expect(String(performanceUrl('bls', 'day', 'Asia/Kolkata', '2026-09-17T23:00:00+05:30')))
+            .toContain('End=2026-09-17T23%3A00%3A00%2B05%3A30');
+    });
+
     it('can be pointed elsewhere', () => {
-        expect(String(performanceUrl('bls', 'day', 'UTC', 'https://example.com/p')))
+        expect(String(performanceUrl('bls', 'day', 'UTC', null, 'https://example.com/p')))
             .toMatch(/^https:\/\/example\.com\/p\?Stream=bls/);
     });
 });
@@ -424,21 +449,19 @@ describe('the endpoints and the documentation', () => {
 });
 
 describe('what is sent is what is documented', () => {
-    it('performance: exactly the parameters its report route declares, but End', () => {
+    it('performance: exactly the parameters its report route declares', () => {
         //
         // per route, now that the document holds the archive's routes too. They
         // take no query string, so a document-wide answer would still agree --
         // but only by accident.
         //
-        // Note: End is documented for a reader to try (#156), and no page sends it
-        //       yet: /stream asks for every window ending now. When a page does
-        //       send it, it leaves this exception, and the two lists agree whole.
+        // Note: End is sent for a window that has ended (#159), and the window
+        //       ending now leaves it off, which is what the api reads as now.
         //
         const declared = declaredFor(documentOf('performance'), '/performance');
 
-        expect(declared).toContain('End');
-        expect(sent(performanceUrl('bls', 'day', 'UTC')))
-            .toEqual(declared.filter((name) => name !== 'End'));
+        expect(sent(performanceUrl('bls', 'day', 'UTC', new Date(2026, 8, 17)))).toEqual(declared);
+        expect(sent(performanceUrl('bls', 'day', 'UTC'))).toEqual(declared.filter((name) => name !== 'End'));
     });
 
     it('performance archive: sends no query parameter, because its routes declare none', () => {
