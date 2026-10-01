@@ -6,8 +6,9 @@ A signed-in reader's own data, starting with the ingest alarms they subscribe to
 
 - The alarm page for each stream, `/stream/:stream/alarm`, lists the stream's alarms with
   a switch for each.
-- The bell on each `/stream` row shows whether the reader holds any of that stream's
-  alarms.
+- The bell beside each stream on `/stream` shows whether the reader holds any of that
+  stream's alarms: on its row, and beside its title once it is open on its own -- which
+  is where a phone shows it.
 - Account Settings, `/:user/settings`, verifies the reader's email address, and lists
   every subscription with a way out.
 

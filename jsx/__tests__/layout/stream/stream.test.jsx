@@ -337,7 +337,7 @@ describe('the sort, kept for the next visit', () => {
         setup();
 
         expect(pressed()).toEqual([]);
-        expect(screen.getByRole('combobox')).toHaveValue('');
+        expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('');
     });
 
     it('opens sorted as the reader left it', () => {
@@ -346,7 +346,7 @@ describe('the sort, kept for the next visit', () => {
         setup();
 
         expect(pressed()).toEqual(['Total Records']);
-        expect(screen.getByRole('combobox')).toHaveValue('total:asc');
+        expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('total:asc');
     });
 
     it('keeps a sort the reader chooses, and lets it go on the third click', () => {
@@ -365,7 +365,7 @@ describe('the sort, kept for the next visit', () => {
     it('keeps a sort chosen from the phone\'s menu', () => {
         setup();
 
-        fireEvent.change(screen.getByRole('combobox'), { target: { value: 'coverage:desc' } });
+        fireEvent.change(screen.getByRole('combobox', { name: 'Sort' }), { target: { value: 'coverage:desc' } });
 
         expect(kept()).toEqual({ key: 'coverage', dir: 'desc' });
     });
@@ -394,11 +394,12 @@ describe('the controls on each row', () => {
         expect(screen.queryByRole('button', { name: /^Chart / })).toBeNull();
     });
 
-    it('marks the row of the stream an address names', () => {
+    it('shows the stream an address names on its own (#161)', () => {
         window.history.replaceState({}, '', '/?item=bls');
         setup();
 
-        expect(document.querySelector('.stream-row-current').dataset.stream).toBe('bls');
+        expect(document.querySelector('.stream-focus').dataset.stream).toBe('bls');
+        expect(document.querySelectorAll('.stream-row')).toHaveLength(0);
     });
 });
 

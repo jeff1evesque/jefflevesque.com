@@ -314,12 +314,14 @@ describe('the address', () => {
         expect(window.history.length).toBe(depth);
     });
 
-    it('keeps the stream it marks', () => {
+    it('keeps the stream shown on its own, opened from its own graph (#161)', () => {
         setup('/stream?item=bls');
 
-        fireEvent.click(slot(0, 0));
+        fireEvent.click(document.querySelector('.stream-focus .stream-bar-slot'));
 
         expect(address().get('item')).toBe('bls');
+        expect(address().get('rate')).toBe('hour');
+        expect(document.querySelector('.stream-focus').dataset.stream).toBe('bls');
     });
 });
 

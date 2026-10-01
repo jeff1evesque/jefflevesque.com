@@ -7,9 +7,15 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 
-import StreamRows, { SORT_KEYS, nextSort } from '../../../import/layout/stream/stream-rows.jsx';
+import StreamRows, {
+    FIGURES_FOLD,
+    FIGURES_MIN,
+    SORT_KEYS,
+    SortMenu,
+    nextSort,
+} from '../../../import/layout/stream/stream-rows.jsx';
 
 const at = (d) => new Date(2026, 8, d);
 
@@ -23,7 +29,6 @@ function stream(name, overrides = {}) {
         schedule: 'weekdays, once a day',
         status: 'done',
         retry: () => {},
-        current: false,
         bars: [],
         figures: { health: 'n/a', coverage: 'n/a', total: 'n/a' },
         controls: <button type='button'>{`Alarms for ${name}`}</button>,
@@ -66,23 +71,88 @@ describe('a row', () => {
         expect(within(row).getByRole('button', { name: 'Alarms for SEC Filings' })).toBeInTheDocument();
     });
 
-    it('ends with its three figures, and says them again under its name for a phone', () => {
+    it('ends with its three figures', () => {
         setup([stream('SEC Filings', { figures: { health: '99%', coverage: '95%', total: '1,234' } })]);
 
         const row = rowOf('SEC Filings');
 
         expect([...row.querySelectorAll('.stream-row-figure')].map((cell) => cell.textContent))
             .toEqual(['99%', '95%', '1,234']);
-        expect(row.querySelector('.stream-row-inline'))
-            .toHaveTextContent('Health 99% · Coverage 95% · Records 1,234');
     });
 
+    it('names its stream as plain text when it has nowhere to link', () => {
+        setup([stream('SEC Filings')]);
 
-    it('is marked when it is the stream the address names', () => {
-        setup([stream('SEC Filings', { current: true }), stream('BLS')]);
+        expect(rowOf('SEC Filings').querySelector('.stream-row-link')).toBeNull();
+    });
+});
 
-        expect(rowOf('SEC Filings')).toHaveClass('stream-row-current');
-        expect(rowOf('BLS')).not.toHaveClass('stream-row-current');
+describe('a stream\'s name (#161)', () => {
+    function link(name = 'SEC Filings') {
+        return within(rowOf(name)).getByRole('link', { name: name });
+    }
+
+    //
+    // a click on the name, and whether the page kept it for itself rather than
+    // leaving it to the browser. Kept from the browser here either way, since
+    // jsdom cannot follow a link and says so as an error
+    //
+    function handled(element, init = {}) {
+        let prevented = null;
+        const look = (event) => {
+            prevented = event.defaultPrevented;
+            event.preventDefault();
+        };
+
+        window.addEventListener('click', look);
+        fireEvent.click(element, init);
+        window.removeEventListener('click', look);
+
+        return prevented;
+    }
+
+    it('links to the address that shows it on its own', () => {
+        setup([stream('SEC Filings', { href: '/stream?item=sec&rate=day' })]);
+
+        expect(link()).toHaveAttribute('href', '/stream?item=sec&rate=day');
+    });
+
+    it('shows the stream on its own on a plain click, without loading the page again', () => {
+        const onFocus = jest.fn();
+
+        setup([stream('SEC Filings', { href: '/stream?item=sec&rate=day' })], { onFocus: onFocus });
+
+        expect(handled(link())).toBe(true);
+        expect(onFocus).toHaveBeenCalledWith('sec-filings');
+    });
+
+    it.each([
+        ['metaKey'],
+        ['ctrlKey'],
+        ['shiftKey'],
+        ['altKey'],
+    ])('leaves a click with %s to the browser, for a new tab or window', (key) => {
+        const onFocus = jest.fn();
+
+        setup([stream('SEC Filings', { href: '/stream?item=sec&rate=day' })], { onFocus: onFocus });
+
+        expect(handled(link(), { [key]: true })).toBe(false);
+        expect(onFocus).not.toHaveBeenCalled();
+    });
+
+    it('leaves a middle click to the browser', () => {
+        const onFocus = jest.fn();
+
+        setup([stream('SEC Filings', { href: '/stream?item=sec&rate=day' })], { onFocus: onFocus });
+
+        expect(handled(link(), { button: 1 })).toBe(false);
+        expect(onFocus).not.toHaveBeenCalled();
+    });
+
+    it('is a link the browser follows when the page has no way to show a stream on its own', () => {
+        setup([stream('SEC Filings', { href: '/stream?item=sec&rate=day' })]);
+
+        expect(handled(link())).toBe(false);
     });
 });
 
@@ -316,20 +386,21 @@ describe('sorting by a figure', () => {
 
     //
     // the rows, holding their sort the way the page does: what they are handed,
-    // and what they hand back through 'onSort'
+    // and what they hand back through 'onSort'. With the phone's menu beside
+    // them, as the page puts it on its line of controls
     //
     function Sortable({ initial = null, told = () => {}, ...props }) {
         const [sort, setSort] = React.useState(initial);
+        const onSort = (next) => {
+            told(next);
+            setSort(next);
+        };
 
         return (
-            <StreamRows
-                {...props}
-                sort={sort}
-                onSort={(next) => {
-                    told(next);
-                    setSort(next);
-                }}
-            />
+            <>
+                <SortMenu sort={sort} onSort={onSort} />
+                <StreamRows {...props} sort={sort} onSort={onSort} />
+            </>
         );
     }
 
@@ -436,7 +507,7 @@ describe('sorting by a figure', () => {
 
     describe('from the phone\'s menu', () => {
         function menu() {
-            return screen.getByRole('combobox');
+            return screen.getByRole('combobox', { name: 'Sort' });
         }
 
         it('offers the page\'s order, and each figure both ways', () => {
@@ -517,5 +588,335 @@ describe('around the rows', () => {
 
         ['All', '95-99%', '80-94%', '50-79%', 'Under 50%', 'Missed', 'Some failed', 'Not scheduled']
             .forEach((key) => expect(legend).toContain(key));
+    });
+});
+
+describe('the phone\'s menu on its own', () => {
+    it('starts at the page\'s order, and asks for nothing until a choice is made', () => {
+        render(<SortMenu />);
+
+        const menu = screen.getByRole('combobox', { name: 'Sort' });
+
+        expect(menu).toHaveValue('');
+        fireEvent.change(menu, { target: { value: 'health:asc' } });
+        expect(menu).toHaveValue('');
+    });
+});
+
+describe('a phone\'s list (#161)', () => {
+    const ROWS = [stream('A', { figures: { health: '90.00%', coverage: '50%', total: '1,000' } })];
+
+    function pick(name) {
+        const slot = rowOf(name).querySelector('.stream-row-pick');
+
+        return [
+            slot.querySelector('.stream-row-pick-value').textContent,
+            slot.querySelector('.stream-row-pick-name').textContent,
+        ];
+    }
+
+    it('shows each row\'s coverage while the list is in the page\'s order', () => {
+        setup(ROWS);
+
+        expect(pick('A')).toEqual(['50%', 'coverage']);
+    });
+
+    it('shows the figure the list is sorted by, so the order is one the reader can see', () => {
+        setup(ROWS, { sort: { key: 'total', dir: 'desc' } });
+
+        expect(pick('A')).toEqual(['1,000', 'records']);
+    });
+
+    it('shows no figure until the row\'s report is in', () => {
+        setup([stream('A', { status: 'loading' })]);
+
+        expect(pick('A')).toEqual(['', 'coverage']);
+    });
+
+    it('marks each row as one that opens, and says how', () => {
+        setup(ROWS);
+
+        expect(rowOf('A').querySelector('.stream-row-chevron')).toHaveAttribute('aria-hidden', 'true');
+        expect(document.querySelector('.stream-rows-hint')).toHaveTextContent('Tap a stream to see its graph.');
+    });
+});
+
+describe('the color key on a phone (#161)', () => {
+    it('folds under its own button, which opens and closes it', () => {
+        setup([stream('A')]);
+
+        const toggle = screen.getByRole('button', { name: 'What the colors mean' });
+
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        expect(document.querySelector('.stream-rows-legend')).toHaveClass('stream-rows-legend-open');
+
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        expect(document.querySelector('.stream-rows-legend')).not.toHaveClass('stream-rows-legend-open');
+    });
+});
+
+describe('the divider between the bars and the figures (#161)', () => {
+    const ROWS = [stream('A', { bars: BARS }), stream('B')];
+
+    function box() {
+        return document.querySelector('.stream-rows');
+    }
+
+    function grip() {
+        return document.querySelector('.stream-rows-grip');
+    }
+
+    function fold() {
+        return screen.getByRole('button', { name: 'Fold Health, Coverage and Total Records' });
+    }
+
+    function rail() {
+        return screen.queryByRole('button', { name: 'Show Health, Coverage and Total Records' });
+    }
+
+    //
+    // a drag, as a pointer makes one: down on the strip, then moving, and up,
+    // on the window
+    //
+    function press(x, init = {}) {
+        fireEvent(grip(), new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: x, button: 0, ...init }));
+    }
+
+    function move(x) {
+        act(() => {
+            window.dispatchEvent(new MouseEvent('pointermove', { clientX: x }));
+        });
+    }
+
+    function release() {
+        act(() => {
+            window.dispatchEvent(new MouseEvent('pointerup'));
+        });
+    }
+
+    //
+    // what a browser would measure: the rows' box `across` wide, and the
+    // figures' headings at the stylesheet's width
+    //
+    function measured(across, figures) {
+        return jest.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function measure() {
+            const width = this.classList.contains('stream-rows')
+                ? across
+                : this.classList.contains('stream-rows-head-figures') ? figures : 0;
+
+            return { width: width, height: 0, top: 0, left: 0, right: width, bottom: 0, x: 0, y: 0 };
+        });
+    }
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it('folds the figures from the arrow halfway down it', () => {
+        const onFold = jest.fn();
+
+        setup(ROWS, { onFold: onFold });
+        fireEvent.click(fold());
+
+        expect(onFold).toHaveBeenCalledWith(true);
+    });
+
+    it('draws no rail while the figures are open', () => {
+        setup(ROWS);
+
+        expect(rail()).toBeNull();
+        expect(box()).not.toHaveClass('stream-rows-folded');
+    });
+
+    it('gives way to the rail the figures fold into, which opens them again', () => {
+        const onFold = jest.fn();
+
+        setup(ROWS, { folded: true, onFold: onFold });
+
+        expect(box()).toHaveClass('stream-rows-folded');
+        expect(document.querySelector('.stream-rows-divider')).toBeNull();
+
+        fireEvent.click(rail());
+
+        expect(onFold).toHaveBeenCalledWith(false);
+    });
+
+    it('is not a stop for a keyboard or a screen reader, where the arrow is', () => {
+        setup(ROWS);
+
+        expect(grip()).toHaveAttribute('aria-hidden', 'true');
+        expect(fold()).toBeInTheDocument();
+    });
+
+    it('carries a width it was dragged to on the rows\' box, and none of its own otherwise', () => {
+        const { rerender } = setup(ROWS, { width: 300 });
+
+        expect(box().style.getPropertyValue('--stream-figures')).toBe('300px');
+
+        rerender(<StreamRows rows={ROWS} rate='day' first='Sep 11' last='Now' />);
+
+        expect(box().style.getPropertyValue('--stream-figures')).toBe('');
+    });
+
+    it('carries no width while the figures are folded', () => {
+        setup(ROWS, { width: 300, folded: true });
+
+        expect(box().style.getPropertyValue('--stream-figures')).toBe('');
+    });
+
+    it('widens the figures as it goes left and narrows them as it goes right, keeping where it settles', () => {
+        const onResize = jest.fn();
+
+        setup(ROWS, { width: 300, onResize: onResize });
+
+        press(500);
+        move(450);
+        expect(onResize).toHaveBeenLastCalledWith(350, false);
+
+        move(520);
+        expect(onResize).toHaveBeenLastCalledWith(280, false);
+
+        release();
+        expect(onResize).toHaveBeenLastCalledWith(280, true);
+        expect(onResize).toHaveBeenCalledTimes(3);
+    });
+
+    it('lets go of the pointer once it is up', () => {
+        const onResize = jest.fn();
+
+        setup(ROWS, { width: 300, onResize: onResize });
+
+        press(500);
+        move(450);
+        release();
+        move(400);
+
+        expect(onResize).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops the figures at the narrowest they can be', () => {
+        const onResize = jest.fn();
+
+        setup(ROWS, { width: 300, onResize: onResize });
+
+        press(500);
+        move(500 + (300 - FIGURES_MIN) + 10);
+
+        expect(onResize).toHaveBeenLastCalledWith(FIGURES_MIN, false);
+    });
+
+    it('folds them once dragged far enough past the narrowest, and lets their width go', () => {
+        const onResize = jest.fn();
+        const onFold = jest.fn();
+
+        setup(ROWS, { width: 300, onResize: onResize, onFold: onFold });
+
+        press(500);
+        move(500 + (300 - (FIGURES_MIN - FIGURES_FOLD)) + 1);
+
+        expect(onFold).toHaveBeenCalledWith(true, true);
+        expect(onResize).not.toHaveBeenCalled();
+
+        move(400);
+        release();
+
+        expect(onResize).not.toHaveBeenCalled();
+    });
+
+    it('stops the figures at half the row', () => {
+        const onResize = jest.fn();
+
+        measured(800, 322);
+        setup(ROWS, { width: 300, onResize: onResize });
+
+        press(500);
+        move(100);
+
+        expect(onResize).toHaveBeenLastCalledWith(400, false);
+    });
+
+    it('starts from the width the stylesheet gave the figures, when none was dragged', () => {
+        const onResize = jest.fn();
+
+        measured(1200, 322);
+        setup(ROWS, { onResize: onResize });
+
+        press(500);
+        move(490);
+
+        expect(onResize).toHaveBeenLastCalledWith(332, false);
+    });
+
+    it('starts from the narrowest, where there is nothing to measure', () => {
+        const onResize = jest.fn();
+
+        setup(ROWS, { onResize: onResize });
+
+        press(500);
+        move(490);
+
+        expect(onResize).toHaveBeenLastCalledWith(FIGURES_MIN + 10, false);
+    });
+
+    it('keeps nothing from a grab that never moved', () => {
+        const onResize = jest.fn();
+
+        setup(ROWS, { width: 300, onResize: onResize });
+
+        press(500);
+        release();
+
+        expect(onResize).not.toHaveBeenCalled();
+    });
+
+    it('answers only the main button', () => {
+        const onResize = jest.fn();
+
+        setup(ROWS, { width: 300, onResize: onResize });
+
+        press(500, { button: 2 });
+        move(450);
+
+        expect(onResize).not.toHaveBeenCalled();
+    });
+
+    it('drags once for a second grab, which takes over from the first', () => {
+        const onResize = jest.fn();
+
+        setup(ROWS, { width: 300, onResize: onResize });
+
+        press(500);
+        press(600);
+        move(590);
+
+        expect(onResize).toHaveBeenCalledTimes(1);
+        expect(onResize).toHaveBeenLastCalledWith(310, false);
+    });
+
+    it('folds and drags harmlessly when nothing keeps the arrangement', () => {
+        setup(ROWS, { width: 300 });
+
+        fireEvent.click(fold());
+        press(500);
+        move(450);
+        release();
+
+        expect(box()).not.toHaveClass('stream-rows-folded');
+    });
+
+    it('lets go of the window when the rows go away mid-drag', () => {
+        const onResize = jest.fn();
+        const { unmount } = setup(ROWS, { width: 300, onResize: onResize });
+
+        press(500);
+        unmount();
+
+        window.dispatchEvent(new MouseEvent('pointermove', { clientX: 400 }));
+
+        expect(onResize).not.toHaveBeenCalled();
     });
 });
