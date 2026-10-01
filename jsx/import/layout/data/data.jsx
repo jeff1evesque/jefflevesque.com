@@ -19,6 +19,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ArticleListing from '../../general/article-listing.jsx';
 import Sunburst from '../../general/sunburst.jsx';
+import CubeChart from '../../general/cube-chart.jsx';
 import distributionTree from '../../general/distribution-tree.js';
 import trim from '../../general/trim-object.js';
 import { default as getStockMarketDistribution } from '../../general/get-data/distribution/stock-market.js';
@@ -1125,37 +1126,47 @@ class DataLayout extends Component {
             && this.state.display_data_distribution
         ) {
             const month = `${getData('list-months')[parseInt(this.state.mm) - 1]} ${this.state.yyyy}`;
+            const chart = {
+                tree: this.treeFor(stream, this.context.theme),
+                names: distributionNames(stream, this.state[`aggregate_key_${stream}`]),
+                caption: month,
+                overlay: loader,
+                actions: (
+                    //
+                    // the api's documentation, and the url downloadData fetches
+                    // for the dataset and month on screen, so the request opens
+                    // the response this chart was drawn from
+                    //
+                    <ApiLinks
+                        docs={API_DOCS.datalake}
+                        request={datalakeUrl(this.state.data_map[stream][0], this.state.yyyy, this.state.mm)}
+                        size={isMobile ? 'medium' : 'large'}
+                    />
+                ),
+            };
 
             {/*
 
+                a wide screen draws the stacked bars of cubes, and a phone the
+                sunburst, since a row of bars does not fit a phone's width -- see
+                cube-chart.jsx.
+
                 keyed by the stream and the month on screen, so choosing another
-                closes a group left open on the last one rather than carrying it
-                over to rows that may not hold it
+                closes a group or a list left open on the last one rather than
+                carrying it over to rows that may not hold it
 
             */}
             var data_distribution = (
                 <div className='col-lg-12 mx-auto'>
-                    <Sunburst
-                        key={`${stream}|${this.state.yyyy}|${this.state.mm}`}
-                        tree={this.treeFor(stream, this.context.theme)}
-                        names={distributionNames(stream, this.state[`aggregate_key_${stream}`])}
-                        caption={month}
-                        size={isMobile ? null : this.state.chart_height}
-                        phone={Boolean(isMobile)}
-                        overlay={loader}
-                        actions={
-                            //
-                            // the api's documentation, and the url downloadData
-                            // fetches for the dataset and month on screen, so the
-                            // request opens the response this ring was drawn from
-                            //
-                            <ApiLinks
-                                docs={API_DOCS.datalake}
-                                request={datalakeUrl(this.state.data_map[stream][0], this.state.yyyy, this.state.mm)}
-                                size={isMobile ? 'medium' : 'large'}
-                            />
-                        }
-                    />
+                    {isMobile ? (
+                        <Sunburst key={`${stream}|${this.state.yyyy}|${this.state.mm}`} {...chart} phone />
+                    ) : (
+                        <CubeChart
+                            key={`${stream}|${this.state.yyyy}|${this.state.mm}`}
+                            {...chart}
+                            height={this.state.chart_height}
+                        />
+                    )}
                 </div>
             );
         } else {
