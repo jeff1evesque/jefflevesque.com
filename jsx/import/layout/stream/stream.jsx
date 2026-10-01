@@ -13,6 +13,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import DataObjectIcon from '@mui/icons-material/DataObject';
+import UpdateIcon from '@mui/icons-material/Update';
+import UpdateDisabledIcon from '@mui/icons-material/UpdateDisabled';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import StockMarketFeatured from './featured/stock-market.jsx';
 import StreamRows from './stream-rows.jsx';
@@ -36,6 +38,7 @@ import viewerTimeZone from '../../general/viewer-timezone.js';
 import { performanceUrl, API_DOCS } from '../../general/api-url.js';
 import { listSubscriptions } from '../../general/account-api.js';
 import ApiLinks from '../../general/api-links.jsx';
+import { readRefresh, writeRefresh } from '../../general/refresh-preference.js';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
 import { STOCK_MARKET, STOCK_SPLIT, STREAMS } from '../../general/stream-id.js';
 import { streamBars, scheduleLabel } from '../../general/stream-bars.js';
@@ -94,6 +97,27 @@ const RATES = ['Month', 'Day', 'Hour', 'Minute'];
 
 */}
 export const SLOW_AFTER_MS = 10000;
+
+
+{/*
+
+    how often the page asks for every stream again on its own, while it is
+    showing and the reader has left it on. A refresh is quiet: each row keeps
+    what it shows until its new answer lands -- see refresh
+
+*/}
+export const REFRESH_MS = 5 * 60 * 1000;
+
+
+{/*
+
+    the time of day a refresh was asked for, in the reader's own clock, for the
+    button's tooltip: '10:35 AM'
+
+*/}
+function clock(time) {
+    return new Date(time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
 
 
 {/*
@@ -307,7 +331,14 @@ class StreamLayout extends Component {
             // how many of each stream's alarms the reader holds, by stream id --
             // see loadSubscriptions. Empty signed out, and until they arrive.
             //
-            subscriptions: {}
+            subscriptions: {},
+            //
+            // whether the page asks for every stream again every five minutes,
+            // as the reader last left it -- see refresh-preference.js -- and when
+            // it last asked, which the page opening counts as
+            //
+            auto_refresh: readRefresh(),
+            refreshed_at: Date.now()
         }
 
         this.updateMetrics = this.updateMetrics.bind(this);
@@ -320,6 +351,9 @@ class StreamLayout extends Component {
         this.chooseRate = this.chooseRate.bind(this);
         this.retryStream = this.retryStream.bind(this);
         this.failedData = this.failedData.bind(this);
+        this.refresh = this.refresh.bind(this);
+        this.toggleRefresh = this.toggleRefresh.bind(this);
+        this.onVisibility = this.onVisibility.bind(this);
 
         //
         // the request each stream is waiting on, by stream id: a count that goes up
@@ -329,6 +363,15 @@ class StreamLayout extends Component {
         //
         this.asked = {};
         this.slow_timers = {};
+
+        //
+        // the next refresh, and by stream id the quiet request a refresh made and
+        // the request whose first answer has landed -- see refresh and
+        // callbackGetData
+        //
+        this.refresh_timer = null;
+        this.quiet = {};
+        this.landed = {};
     }
 
     componentWillUnmount() {
@@ -340,6 +383,8 @@ class StreamLayout extends Component {
             this.asked[stream] += 1;
         });
         Object.values(this.slow_timers).forEach((timer) => clearTimeout(timer));
+        clearTimeout(this.refresh_timer);
+        document.removeEventListener('visibilitychange', this.onVisibility);
     }
 
     componentDidMount() {
@@ -348,6 +393,88 @@ class StreamLayout extends Component {
         });
 
         this.loadSubscriptions();
+
+        if (this.state.auto_refresh) {
+            this.scheduleRefresh(REFRESH_MS);
+        }
+
+        document.addEventListener('visibilitychange', this.onVisibility);
+    }
+
+    //
+    // the next refresh, `delay` from now, in place of any that was due
+    //
+    scheduleRefresh(delay) {
+        clearTimeout(this.refresh_timer);
+        this.refresh_timer = setTimeout(this.refresh, delay);
+    }
+
+    //
+    // every stream asked for again, quietly: a row keeps its bars and figures
+    // while the new answer is on its way. A stream still waiting on its first
+    // answer is left to it, and a hidden tab asks for nothing -- it catches up
+    // when it is shown again, see onVisibility.
+    //
+    refresh() {
+        this.refresh_timer = null;
+
+        if (document.hidden) {
+            return;
+        }
+
+        this.state.streams.forEach((stream) => {
+            if (this.state[`promise_get_data_${stream}`] || this.state[`failed_${stream}`]) {
+                this.downloadData(stream, this.state.rate, true);
+            }
+        });
+
+        this.setState({ refreshed_at: Date.now() }, () => this.scheduleRefresh(REFRESH_MS));
+    }
+
+    //
+    // switched on again, or shown again: at once where five minutes have gone
+    // by since the page last asked, and otherwise when they have
+    //
+    resumeRefresh() {
+        const since = Date.now() - this.state.refreshed_at;
+
+        if (since >= REFRESH_MS) {
+            this.refresh();
+        } else {
+            this.scheduleRefresh(REFRESH_MS - since);
+        }
+    }
+
+    //
+    // the button beside the api icons: refreshing on its own, or not, kept for
+    // the reader's next visit -- see refresh-preference.js
+    //
+    toggleRefresh() {
+        const on = !this.state.auto_refresh;
+
+        writeRefresh(on);
+        this.setState({ auto_refresh: on }, () => {
+            if (on) {
+                this.resumeRefresh();
+            } else {
+                clearTimeout(this.refresh_timer);
+                this.refresh_timer = null;
+            }
+        });
+    }
+
+    //
+    // a hidden tab asks for nothing, so its clock stops; shown again, it picks up
+    // where the five minutes left off
+    //
+    onVisibility() {
+        if (document.hidden || !this.state.auto_refresh) {
+            clearTimeout(this.refresh_timer);
+            this.refresh_timer = null;
+            return;
+        }
+
+        this.resumeRefresh();
     }
 
     //
@@ -384,11 +511,19 @@ class StreamLayout extends Component {
             return;
         }
 
-        this.setState({ rate: rate }, () => {
+        //
+        // and the five minutes start over, since every stream has just been
+        // asked for
+        //
+        this.setState({ rate: rate, refreshed_at: Date.now() }, () => {
             this.state.streams.forEach((stream) => {
                 this.reset_stream(stream);
                 this.downloadData(stream, rate);
             });
+
+            if (this.state.auto_refresh) {
+                this.scheduleRefresh(REFRESH_MS);
+            }
         });
     }
 
@@ -406,7 +541,11 @@ class StreamLayout extends Component {
     // another.
     //
     failedData(stream, asked) {
-        if (this.asked[stream] !== asked) {
+        //
+        // Note: and a refresh that fails says nothing either: the row keeps what
+        //       it showed, and the next refresh tries again
+        //
+        if (this.asked[stream] !== asked || this.quiet[stream] === asked) {
             return;
         }
 
@@ -579,25 +718,32 @@ class StreamLayout extends Component {
         }
     };
 
-    downloadData(type, stream_rate) {
+    //
+    // Note: `quiet` is a refresh's: the row is left as it is -- no 'Loading', no
+    //       n/a, no 'Still loading' -- until the answer lands and takes its place.
+    //
+    downloadData(type, stream_rate, quiet = false) {
         stream_rate = stream_rate.toLowerCase();
 
         const asked = (this.asked[type] || 0) + 1;
         this.asked[type] = asked;
+        this.quiet[type] = quiet ? asked : null;
 
         //
         // Note: the figures go back to n/a with the rows, so a row waiting on a
         //       new report never shows the old one's figures beside 'Loading'.
         //
-        this.setState({
-            [`stream_rate_${type}`]: stream_rate,
-            [`promise_get_data_${type}`]: false,
-            [`slow_${type}`]: false,
-            [`failed_${type}`]: false,
-            [`stream_${type}_health`]: 'n/a',
-            [`stream_${type}_coverage`]: 'n/a',
-            [`stream_${type}_total`]: 'n/a'
-        });
+        if (!quiet) {
+            this.setState({
+                [`stream_rate_${type}`]: stream_rate,
+                [`promise_get_data_${type}`]: false,
+                [`slow_${type}`]: false,
+                [`failed_${type}`]: false,
+                [`stream_${type}_health`]: 'n/a',
+                [`stream_${type}_coverage`]: 'n/a',
+                [`stream_${type}_total`]: 'n/a'
+            });
+        }
 
         const request = this.STREAM_REQUEST[type];
 
@@ -606,12 +752,14 @@ class StreamLayout extends Component {
             return;
         }
 
-        clearTimeout(this.slow_timers[type]);
-        this.slow_timers[type] = setTimeout(() => {
-            if (this.asked[type] === asked && !this.state[`promise_get_data_${type}`]) {
-                this.setState({ [`slow_${type}`]: true });
-            }
-        }, SLOW_AFTER_MS);
+        if (!quiet) {
+            clearTimeout(this.slow_timers[type]);
+            this.slow_timers[type] = setTimeout(() => {
+                if (this.asked[type] === asked && !this.state[`promise_get_data_${type}`]) {
+                    this.setState({ [`slow_${type}`]: true });
+                }
+            }, SLOW_AFTER_MS);
+        }
 
         {/*
 
@@ -734,8 +882,22 @@ class StreamLayout extends Component {
 
                 */}
 
+                {/*
+
+                    a refresh's first answer takes the place of the rows it found,
+                    rather than joining them, since nothing cleared them before it
+                    was asked for; any later batch of the same answer joins it.
+                    Decided here, as the answer is handled, so batches handled in
+                    one tick each read the right side of it
+
+                */}
+                const replace = asked !== null
+                    && this.quiet[selected_stream] === asked
+                    && this.landed[selected_stream] !== asked;
+                this.landed[selected_stream] = asked;
+
                 this.setState((state) => {
-                    const held = merge_held && state[`chart_data_${selected_stream}`]
+                    const held = merge_held && !replace && state[`chart_data_${selected_stream}`]
                         ? state[`chart_data_${selected_stream}`]
                         : [];
 
@@ -760,9 +922,13 @@ class StreamLayout extends Component {
             if (selected_stream) {
                 clearTimeout(this.slow_timers[selected_stream]);
 
+                //
+                // Note: a refresh that lands clears a failure its row was showing
+                //
                 this.setState({
                     [`promise_get_data_${selected_stream}`]: true,
-                    [`slow_${selected_stream}`]: false
+                    [`slow_${selected_stream}`]: false,
+                    [`failed_${selected_stream}`]: false
                 }, () => {
                     //
                     // the listing counts describe the chart, so they are computed
@@ -1138,6 +1304,30 @@ class StreamLayout extends Component {
                                     </MenuItem>
                                 ))}
                             </Menu>
+                            {/*
+
+                                the page asking for every stream again every five
+                                minutes, switched off and on. Its tooltip says when
+                                it last asked, or that it is off
+
+                            */}
+                            <Tooltip
+                                title={this.state.auto_refresh
+                                    ? `Refreshes every 5 minutes, last at ${clock(this.state.refreshed_at)}`
+                                    : 'Auto-refresh is off'}
+                            >
+                                <button
+                                    type='button'
+                                    className='api-link stream-refresh'
+                                    aria-label='Refresh every 5 minutes'
+                                    aria-pressed={this.state.auto_refresh}
+                                    onClick={this.toggleRefresh}
+                                >
+                                    {this.state.auto_refresh
+                                        ? <UpdateIcon fontSize={size} />
+                                        : <UpdateDisabledIcon fontSize={size} />}
+                                </button>
+                            </Tooltip>
                         </div>
                     </div>
 
