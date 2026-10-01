@@ -4,6 +4,10 @@
  * stream-bars.test.js decides what each bar is. This covers how a row draws the
  * bars it is handed -- their heights on the row's own scale, their shades, what a
  * bar says when it is pointed at -- and how the figures sort the rows.
+ *
+ * Note: jsdom has no PointerEvent, so a pointer event is a MouseEvent with its
+ *       'pointerType' laid on -- which is what React reads -- and an enter or a
+ *       leave is the 'pointerover' or 'pointerout' React makes them from.
  */
 
 import React from 'react';
@@ -12,8 +16,10 @@ import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import StreamRows, {
     FIGURES_FOLD,
     FIGURES_MIN,
+    SHADES,
     SORT_KEYS,
     SortMenu,
+    heightShade,
     nextSort,
 } from '../../../import/layout/stream/stream-rows.jsx';
 
@@ -256,12 +262,24 @@ describe('the bars', () => {
         expect(bars()[0].style.height).toBe('8%');
     });
 
-    it('are shaded by their health, and dotted where some failed', () => {
+    it('are shaded by their height, and dotted where some failed (#167)', () => {
         setup([stream('SEC Filings', { bars: BARS })]);
 
-        expect(bars()[1]).toHaveClass('stream-bar-reported', 'stream-health-0');
+        expect(bars()[1]).toHaveClass('stream-bar-reported', 'stream-shade-0');
         expect(bars()[1]).not.toHaveClass('stream-bar-failed');
-        expect(bars()[2]).toHaveClass('stream-health-3', 'stream-bar-failed');
+        expect(bars()[2]).toHaveClass('stream-shade-3', 'stream-bar-failed');
+    });
+
+    it('are shaded the same, whatever their health, when they stand the same (#167)', () => {
+        setup([stream('SEC Filings', {
+            bars: [
+                { start: at(28), kind: 'reported', records: 100, failed: 0, health: 1 },
+                { start: at(29), kind: 'reported', records: 100, failed: 100, health: 0.5 },
+            ],
+        })]);
+
+        expect(bars()[0]).toHaveClass('stream-shade-0');
+        expect(bars()[1]).toHaveClass('stream-shade-0', 'stream-bar-failed');
     });
 
     it('draw a miss and an unscheduled interval by their kind, with no height of their own', () => {
@@ -279,6 +297,31 @@ describe('the bars', () => {
 
         expect(rowOf('SEC Filings').querySelector('.stream-row-bars')).toHaveClass('stream-row-bars-dense');
         expect(rowOf('BLS').querySelector('.stream-row-bars')).not.toHaveClass('stream-row-bars-dense');
+    });
+});
+
+describe('a bar\'s shade by its height (#167)', () => {
+    it.each([
+        [100, 100, 0],
+        [81, 100, 0],
+        [80, 100, 1],
+        [60, 100, 2],
+        [50, 100, 2],
+        [21, 100, 3],
+        [20, 100, 4],
+        [1, 100, 4],
+        [0, 100, 4],
+    ])('draws %s of a row peaking at %s in step %s', (records, peak, step) => {
+        expect(heightShade(records, peak)).toBe(step);
+    });
+
+    it('draws the lightest step for a row with nothing reported, which has no scale', () => {
+        expect(heightShade(0, 0)).toBe(SHADES - 1);
+        expect(heightShade(5, undefined)).toBe(SHADES - 1);
+    });
+
+    it('never steps past the darkest, even for more than the peak', () => {
+        expect(heightShade(120, 100)).toBe(0);
     });
 });
 
@@ -303,6 +346,175 @@ describe('pointing at a bar', () => {
         fireEvent.click(rowOf('SEC Filings').querySelectorAll('.stream-bar-slot')[3]);
 
         expect(readout()).toBe('SEC Filings, Wed, Sep 30Missed: a run was due, and nothing reported');
+    });
+});
+
+describe('the popup by a bar a mouse points at (#167)', () => {
+    function slots(name = 'SEC Filings') {
+        return rowOf(name).querySelectorAll('.stream-bar-slot');
+    }
+
+    function tip() {
+        return document.querySelector('.stream-bar-tip');
+    }
+
+    //
+    // a pointer coming onto a bar from outside the rows, and leaving it for
+    // outside them again
+    //
+    function point(slot, pointerType = 'mouse') {
+        fireEvent(slot, Object.assign(
+            new MouseEvent('pointerover', { bubbles: true, relatedTarget: document.body }),
+            { pointerType: pointerType }
+        ));
+    }
+
+    function leave(slot) {
+        fireEvent(slot, Object.assign(
+            new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }),
+            { pointerType: 'mouse' }
+        ));
+    }
+
+    //
+    // what a browser would measure: a row of bars 600px across, and the bar
+    // pointed at 20px wide at `left`, standing 32px tall in its 72px slot
+    //
+    function measured(left) {
+        const rect = (x, y, width, height) => ({
+            left: x, top: y, width: width, height: height, right: x + width, bottom: y + height, x: x, y: y,
+        });
+
+        return jest.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function measure() {
+            if (this.classList.contains('stream-row-bars-wrap')) {
+                return rect(0, 0, 600, 72);
+            }
+
+            if (this.classList.contains('stream-bar-slot')) {
+                return rect(left, 0, 20, 72);
+            }
+
+            return this.classList.contains('stream-bar') ? rect(left, 40, 20, 32) : rect(0, 0, 0, 0);
+        });
+    }
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it('says when the bar was, what it holds, and what a click opens', () => {
+        setup([stream('SEC Filings', { bars: BARS })], { onOpen: () => {} });
+
+        point(slots()[2]);
+
+        expect(tip().querySelector('.stream-bar-tip-when')).toHaveTextContent('Tue, Sep 29');
+        expect(tip().querySelector('.stream-bar-tip-what')).toHaveTextContent('50 records, 50 failed (health 50%)');
+        expect(tip().querySelector('.stream-bar-tip-hint')).toHaveTextContent('Click to see its hours');
+    });
+
+    it('says what a miss is, as the line under the rows does', () => {
+        setup([stream('SEC Filings', { bars: BARS })]);
+
+        point(slots()[3]);
+
+        expect(tip().querySelector('.stream-bar-tip-what')).toHaveTextContent('Missed: a run was due, and nothing reported');
+    });
+
+    it.each([
+        ['month', 'Click to see its days'],
+        ['day', 'Click to see its hours'],
+        ['hour', 'Click to see its minutes'],
+    ])('names what a bar by the %s opens', (rate, hint) => {
+        setup([stream('SEC Filings', { bars: BARS })], { rate: rate, onOpen: () => {} });
+
+        point(slots()[1]);
+
+        expect(tip().querySelector('.stream-bar-tip-hint')).toHaveTextContent(hint);
+    });
+
+    it('says nothing of a click where a bar opens nothing', () => {
+        setup([stream('SEC Filings', { bars: BARS })], { rate: 'minute', onOpen: () => {} });
+        point(slots()[1]);
+        expect(tip().querySelector('.stream-bar-tip-hint')).toBeNull();
+
+        leave(slots()[1]);
+        setup([stream('BLS', { bars: BARS })]);
+        point(slots('BLS')[1]);
+        expect(rowOf('BLS').querySelector('.stream-bar-tip-hint')).toBeNull();
+    });
+
+    it('comes up for a mouse only: a finger has the line under the rows', () => {
+        setup([stream('SEC Filings', { bars: BARS })]);
+
+        point(slots()[1], 'touch');
+
+        expect(tip()).toBeNull();
+    });
+
+    it('is hidden from a screen reader, which each bar names itself to', () => {
+        setup([stream('SEC Filings', { bars: BARS })]);
+
+        point(slots()[1]);
+
+        expect(tip()).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('keeps the bar it is by lit, and goes when the pointer leaves the bars', () => {
+        setup([stream('SEC Filings', { bars: BARS })]);
+
+        point(slots()[1]);
+        expect(slots()[1]).toHaveClass('is-pointed');
+
+        leave(slots()[1]);
+        expect(tip()).toBeNull();
+        expect(slots()[1]).not.toHaveClass('is-pointed');
+    });
+
+    it('goes when a click opens the bar', () => {
+        setup([stream('SEC Filings', { bars: BARS })], { onOpen: () => {} });
+
+        point(slots()[1]);
+        fireEvent.click(slots()[1]);
+
+        expect(tip()).toBeNull();
+    });
+
+    it('stands over the bar\'s top, centered on it', () => {
+        measured(290);
+        setup([stream('SEC Filings', { bars: BARS })]);
+
+        point(slots()[1]);
+
+        expect(tip()).toHaveClass('stream-bar-tip-middle');
+        expect(tip().style.left).toBe('300px');
+        expect(tip().style.top).toBe('40px');
+    });
+
+    it('lines up with the row\'s start or end near it, so it stays inside the row', () => {
+        measured(0);
+        setup([stream('SEC Filings', { bars: BARS }), stream('BLS', { bars: BARS })]);
+
+        point(slots()[1]);
+        expect(tip()).toHaveClass('stream-bar-tip-start');
+
+        jest.restoreAllMocks();
+        measured(570);
+        point(slots('BLS')[1]);
+        expect(rowOf('BLS').querySelector('.stream-bar-tip')).toHaveClass('stream-bar-tip-end');
+    });
+
+    it('stands just over the baseline for a bar with no height', () => {
+        jest.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function measure() {
+            const height = this.classList.contains('stream-row-bars-wrap') || this.classList.contains('stream-bar-slot') ? 72 : 0;
+            const top = this.classList.contains('stream-bar') ? 72 : 0;
+
+            return { left: 0, top: top, width: 20, height: height, right: 20, bottom: top + height, x: 0, y: top };
+        });
+        setup([stream('SEC Filings', { bars: [{ start: at(30), kind: 'pending' }] })]);
+
+        point(slots()[0]);
+
+        expect(tip().style.top).toBe('70px');
     });
 });
 
@@ -581,13 +793,23 @@ describe('around the rows', () => {
         expect(document.querySelector('.stream-rows-axis').textContent).toBe('Sep 11Now');
     });
 
-    it('has a legend for every shade and every kind of bar', () => {
+    it('has a legend for the shades and every kind of bar', () => {
         setup([stream('A')]);
 
         const legend = document.querySelector('.stream-rows-legend').textContent;
 
-        ['All', '95-99%', '80-94%', '50-79%', 'Under 50%', 'Missed', 'Some failed', 'Not scheduled']
+        ['Height and shade', 'Fewer', 'More', 'Missed', 'Some failed', 'Not scheduled']
             .forEach((key) => expect(legend).toContain(key));
+    });
+
+    it('draws the shades as one ramp, from the fewest records to the most (#167)', () => {
+        setup([stream('A')]);
+
+        const steps = [...document.querySelectorAll('.stream-rows-ramp-steps .stream-rows-swatch')];
+
+        expect(steps).toHaveLength(SHADES);
+        expect(steps.map((step) => step.className.match(/stream-shade-(\d)/)[1]))
+            .toEqual(['4', '3', '2', '1', '0']);
     });
 });
 
@@ -723,6 +945,26 @@ describe('the divider between the bars and the figures (#161)', () => {
         fireEvent.click(fold());
 
         expect(onFold).toHaveBeenCalledWith(true);
+    });
+
+    it('stands beside the rows only, so it stops at the last row (#167)', () => {
+        setup(ROWS);
+
+        const table = document.querySelector('.stream-rows-table');
+
+        expect(table).toContainElement(document.querySelector('.stream-rows-divider'));
+        expect(table).toContainElement(rowOf('B'));
+        expect(table).not.toContainElement(document.querySelector('.stream-rows-readout'));
+        expect(table).not.toContainElement(document.querySelector('.stream-rows-legend'));
+    });
+
+    it('leaves a rail beside the rows only, as well (#167)', () => {
+        setup(ROWS, { folded: true });
+
+        const table = document.querySelector('.stream-rows-table');
+
+        expect(table).toContainElement(rail());
+        expect(table).not.toContainElement(document.querySelector('.stream-rows-legend'));
     });
 
     it('draws no rail while the figures are open', () => {
