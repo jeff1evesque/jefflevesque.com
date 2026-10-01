@@ -21,7 +21,13 @@ import {
     intervalStart,
     stepInterval,
     windowLabel,
-    windowStart
+    windowStart,
+    localInstant,
+    lastInstant,
+    shiftInterval,
+    pageWindow,
+    finerWindow,
+    windowHeading
 } from '../../import/general/rolling-window.js';
 
 //
@@ -286,5 +292,138 @@ describe('windowLabel', () => {
         expect(windowLabel('second')).toBeNull();
         expect(windowLabel('week')).toBeNull();
         expect(windowLabel(null)).toBeNull();
+    });
+});
+
+
+//
+// a window that has ended (#159): kept as the start of its last bucket, and
+// measured from that bucket's last instant
+//
+const SEP = (day, hour = 0, minute = 0) => new Date(2026, 8, day, hour, minute);
+const LATER = new Date(2026, 8, 30, 18, 15);
+
+//
+// newer ICU puts a narrow no-break space before the AM or PM
+//
+const plain = (text) => text.replace(/\u202f/g, ' ');
+
+describe('localInstant', () => {
+    it('writes an instant with the viewer\'s own offset', () => {
+        //
+        // jest.config.js pins New York, so September is -04:00 and January -05:00
+        //
+        expect(localInstant(SEP(17, 23))).toBe('2026-09-17T23:00:00-04:00');
+        expect(localInstant(new Date(2026, 0, 5, 7, 8, 9))).toBe('2026-01-05T07:08:09-05:00');
+    });
+
+    it('names the instant it was given', () => {
+        const when = SEP(17, 23, 30);
+
+        expect(new Date(localInstant(when)).valueOf()).toBe(when.valueOf());
+    });
+});
+
+describe('lastInstant', () => {
+    it('is the millisecond before the next bucket', () => {
+        expect(lastInstant('day', SEP(10))).toEqual(new Date(2026, 8, 10, 23, 59, 59, 999));
+        expect(lastInstant('hour', SEP(17, 23))).toEqual(new Date(2026, 8, 17, 23, 59, 59, 999));
+        expect(lastInstant('month', new Date(2025, 8, 1))).toEqual(new Date(2025, 8, 30, 23, 59, 59, 999));
+    });
+
+    it('measures the window that ends there as the window ending now would be', () => {
+        expect(windowStart('day', lastInstant('day', SEP(10)))).toEqual(new Date(2026, 7, 22));
+    });
+
+    it('is null for a rate it does not know', () => {
+        expect(lastInstant('week', SEP(10))).toBeNull();
+    });
+});
+
+describe('shiftInterval', () => {
+    it('moves a date whole intervals, on the calendar', () => {
+        expect(shiftInterval(SEP(10), 'day', -20)).toEqual(new Date(2026, 7, 21));
+        expect(shiftInterval(SEP(17, 5), 'hour', 24)).toEqual(SEP(18, 5));
+        expect(shiftInterval(SEP(17, 12, 59), 'minute', -60)).toEqual(SEP(17, 11, 59));
+        expect(shiftInterval(new Date(2025, 8, 1), 'month', 12)).toEqual(new Date(2026, 8, 1));
+    });
+
+    it('is null for a rate it does not know', () => {
+        expect(shiftInterval(SEP(10), 'week', 1)).toBeNull();
+    });
+});
+
+describe('pageWindow', () => {
+    it('steps back a whole window from the window ending now', () => {
+        //
+        // the window ending now runs Sep 11 to Sep 30, so the page before ends on
+        // Sep 10, and runs from Aug 22
+        //
+        expect(pageWindow('day', null, -1, LATER)).toEqual(SEP(10));
+    });
+
+    it('steps back again from a window that has ended', () => {
+        expect(pageWindow('day', SEP(10), -1, LATER)).toEqual(new Date(2026, 7, 21));
+        expect(pageWindow('hour', SEP(17, 23), -1, LATER)).toEqual(SEP(16, 23));
+        expect(pageWindow('minute', SEP(17, 12, 59), -1, LATER)).toEqual(SEP(17, 11, 59));
+        expect(pageWindow('month', new Date(2025, 8, 1), -1, LATER)).toEqual(new Date(2024, 8, 1));
+    });
+
+    it('steps forward, and stops at the window ending now', () => {
+        expect(pageWindow('day', new Date(2026, 7, 21), 1, LATER)).toEqual(SEP(10));
+        expect(pageWindow('day', SEP(10), 1, LATER)).toBeNull();
+    });
+
+    it('takes an end anywhere in its last bucket', () => {
+        expect(pageWindow('day', SEP(10, 15, 30), -1, LATER)).toEqual(new Date(2026, 7, 21));
+    });
+
+    it('is null for a rate it does not know', () => {
+        expect(pageWindow('week', null, -1, LATER)).toBeNull();
+    });
+});
+
+describe('finerWindow', () => {
+    it('opens a day into its 24 hours', () => {
+        expect(finerWindow('day', SEP(17), LATER)).toEqual({ rate: 'hour', end: SEP(17, 23) });
+    });
+
+    it('opens an hour into its 60 minutes', () => {
+        expect(finerWindow('hour', SEP(17, 12), LATER)).toEqual({ rate: 'minute', end: SEP(17, 12, 59) });
+    });
+
+    it('opens a month into the days ending on its last', () => {
+        expect(finerWindow('month', new Date(2026, 1, 1), LATER)).toEqual({ rate: 'day', end: new Date(2026, 1, 28) });
+    });
+
+    it('opens a bar still running into the window ending now', () => {
+        expect(finerWindow('day', SEP(30), LATER)).toEqual({ rate: 'hour', end: null });
+        expect(finerWindow('hour', SEP(30, 18), LATER)).toEqual({ rate: 'minute', end: null });
+    });
+
+    it('opens nothing from a minute', () => {
+        expect(finerWindow('minute', SEP(17, 12, 5), LATER)).toBeNull();
+    });
+});
+
+describe('windowHeading', () => {
+    it.each([
+        ['a day by the hour', 'hour', SEP(17, 23), 'Sep 17, 2026'],
+        ['an hour by the minute', 'minute', SEP(17, 12, 59), 'Sep 17, 2026, 12:00 PM to 12:59 PM'],
+        ['20 days', 'day', SEP(10), 'Aug 22 to Sep 10, 2026'],
+        ['12 months', 'month', new Date(2025, 8, 1), 'Oct 2024 to Sep 2025'],
+        ['24 hours across two days', 'hour', SEP(17, 18), 'Sep 16, 7 PM to Sep 17, 6 PM, 2026'],
+        ['20 days across a new year', 'day', new Date(2026, 0, 5), 'Dec 17, 2025 to Jan 5, 2026'],
+    ])('names %s', (_, rate, end, heading) => {
+        expect(plain(windowHeading(rate, end))).toBe(heading);
+    });
+
+    it('names an hour by the minute across midnight in full', () => {
+        expect(plain(windowHeading('minute', SEP(18, 0, 30)))).toBe('Sep 17, 11:31 PM to Sep 18, 12:30 AM, 2026');
+    });
+
+    it('is null for the window ending now, which windowLabel names', () => {
+        expect(windowHeading('day', null)).toBeNull();
+        expect(windowHeading('week', SEP(10))).toBeNull();
     });
 });

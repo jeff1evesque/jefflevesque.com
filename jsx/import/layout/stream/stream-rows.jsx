@@ -23,6 +23,13 @@
  *       the page; each bar names itself to a screen reader instead, and the
  *       figures carry the row's summary.
  *
+ * Note: a bar opens through 'onOpen', when the page offers one (#159): a click
+ *       on a desktop, where pointing already described it, and on a phone a
+ *       SECOND tap on the same bar, since the first is how a phone points at
+ *       it. Whether this tap is a second one is read when the tap begins,
+ *       before the mouse events a touch screen sends after it can describe the
+ *       bar and make every tap look like a second.
+ *
  * Note: each row loads on its own, and says where it is over its bars until its
  *       report is in: loading, still loading once it has taken a while, or that
  *       it could not load, with a button to ask again. A slow stream never holds
@@ -31,7 +38,7 @@
  *
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import CircularProgress from '@mui/material/CircularProgress';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -103,8 +110,9 @@ function barLook(bar, peak) {
     };
 }
 
-function StreamRow({ row, rate, onPoint }) {
+function StreamRow({ row, rate, onPoint, pointed = null, onOpen = null }) {
     const peak = Math.max(0, ...row.bars.filter((bar) => bar.kind === 'reported').map((bar) => bar.records));
+    const tap = useRef({ type: 'mouse', described: false });
     //
     // the figures as a phone says them, under the name: in shorter words, so the
     // three keep to one line
@@ -131,11 +139,12 @@ function StreamRow({ row, rate, onPoint }) {
             </div>
             <div className='stream-row-controls'>{row.controls}</div>
             <div className={`stream-row-bars-wrap${row.status in STATUS ? ' stream-row-bars-waiting' : ''}`}>
-                <div className={`stream-row-bars${row.bars.length > 30 ? ' stream-row-bars-dense' : ''}`}>
+                <div className={`stream-row-bars${row.bars.length > 30 ? ' stream-row-bars-dense' : ''}${onOpen ? ' stream-row-bars-open' : ''}`}>
                     {row.bars.map((bar) => {
                         const look = barLook(bar, peak);
                         const title = `${row.name}, ${barWhen(bar.start, rate)}`;
                         const summary = barSummary(bar);
+                        const key = `${row.stream}:${bar.start.valueOf()}`;
 
                         return (
                             <span
@@ -143,8 +152,19 @@ function StreamRow({ row, rate, onPoint }) {
                                 className='stream-bar-slot'
                                 role='img'
                                 aria-label={`${title}: ${summary}`}
-                                onMouseEnter={() => onPoint({ title, summary })}
-                                onClick={() => onPoint({ title, summary })}
+                                onPointerDown={(event) => {
+                                    tap.current = { type: event.pointerType || 'mouse', described: pointed === key };
+                                }}
+                                onMouseEnter={() => onPoint({ title, summary, key })}
+                                onClick={() => {
+                                    const touched = tap.current.type === 'touch' || tap.current.type === 'pen';
+
+                                    if (onOpen && (!touched || tap.current.described)) {
+                                        onOpen(bar);
+                                    } else {
+                                        onPoint({ title, summary, key });
+                                    }
+                                }}
                             >
                                 <span className={look.className} style={look.style} />
                             </span>
@@ -180,6 +200,8 @@ StreamRow.propTypes = {
     row: PropTypes.object.isRequired,
     rate: PropTypes.string.isRequired,
     onPoint: PropTypes.func.isRequired,
+    pointed: PropTypes.string,
+    onOpen: PropTypes.func,
 };
 
 //
@@ -192,7 +214,7 @@ function sortValue(figure) {
     return Number.isFinite(value) ? value : null;
 }
 
-function StreamRows({ rows, rate, first, last, sort = null, onSort = () => {} }) {
+function StreamRows({ rows, rate, first, last, sort = null, onSort = () => {}, onOpen = null }) {
     const [pointed, setPointed] = useState(null);
 
     const ordered = sort && sort.key
@@ -256,7 +278,14 @@ function StreamRows({ rows, rate, first, last, sort = null, onSort = () => {} })
             </div>
 
             {ordered.map((row) => (
-                <StreamRow key={row.stream} row={row} rate={rate} onPoint={setPointed} />
+                <StreamRow
+                    key={row.stream}
+                    row={row}
+                    rate={rate}
+                    onPoint={setPointed}
+                    pointed={pointed ? pointed.key : null}
+                    onOpen={onOpen}
+                />
             ))}
 
             <div className='stream-rows-readout' aria-live='polite'>
@@ -316,6 +345,10 @@ StreamRows.propTypes = {
         dir: PropTypes.oneOf(['asc', 'desc']).isRequired,
     }),
     onSort: PropTypes.func,
+    //
+    // what a bar opens, when it opens anything -- see the note at the top
+    //
+    onOpen: PropTypes.func,
 };
 
 export default StreamRows;

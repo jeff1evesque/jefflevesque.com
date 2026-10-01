@@ -165,3 +165,181 @@ export function windowLabel(rate) {
         ? `Last ${ROLLING_WINDOW[r]} ${unit[r]}`
         : null;
 }
+
+
+{/*
+
+    a window that has ENDED, rather than one trailing now (#159). The page keeps
+    such a window as the start of its last bucket -- the bar furthest right --
+    and null for the window ending now. What follows turns that into what the
+    rest of the page works with.
+
+*/}
+
+
+{/*
+
+    an instant as ISO 8601 text with the viewer's own offset, such as
+    '2026-09-17T23:00:00-04:00': the form the performance api's 'End' takes, and
+    the page's '?end=' in the address. Local rather than utc, so it names the
+    same wall-clock time the bar it came from was drawn at.
+
+*/}
+export function localInstant(date) {
+    const pad = (n) => String(Math.abs(Math.trunc(n))).padStart(2, '0');
+    const offset = -date.getTimezoneOffset();
+
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+        + `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+        + `${offset < 0 ? '-' : '+'}${pad(offset / 60)}:${pad(offset % 60)}`;
+}
+
+
+{/*
+
+    the last instant of the bucket starting at 'bucket': the 'now' a window
+    ending there is measured from, so 'windowStart' and the schedule helpers
+    answer for it as they would for the window ending now
+
+*/}
+export function lastInstant(rate, bucket) {
+    const next = stepInterval(bucket, rate);
+
+    return next ? new Date(next.getTime() - 1) : null;
+}
+
+
+{/*
+
+    'date' moved 'count' intervals of the rate, on the calendar, as
+    'stepInterval' moves it by one
+
+*/}
+export function shiftInterval(date, rate, count) {
+    const r = String(rate || '').toLowerCase();
+    const d = new Date(date.getTime());
+
+    if (r === 'minute') {
+        d.setMinutes(d.getMinutes() + count);
+    } else if (r === 'hour') {
+        d.setHours(d.getHours() + count);
+    } else if (r === 'day') {
+        d.setDate(d.getDate() + count);
+    } else if (r === 'month') {
+        d.setMonth(d.getMonth() + count);
+    } else {
+        return null;
+    }
+
+    return d;
+}
+
+
+{/*
+
+    the window a page back ('direction' -1) or forward (+1) from the one ending
+    at 'end' -- null for now -- as the start of its last bucket. A step is the
+    window's own length, so no bucket is skipped or shown twice. Forward stops at
+    now: a window that would reach the bucket holding now is the window ending
+    now, null again.
+
+*/}
+export function pageWindow(rate, end, direction, now = new Date()) {
+    const r = String(rate || '').toLowerCase();
+
+    if (!(r in ROLLING_WINDOW)) {
+        return null;
+    }
+
+    const current = intervalStart(r, now);
+    const moved = shiftInterval(end ? intervalStart(r, end) : current, r, direction * ROLLING_WINDOW[r]);
+
+    return moved >= current ? null : moved;
+}
+
+
+{/*
+
+    the window a bar opens: the interval it covers, one rate finer, as
+    { rate, end }. A day opens its hours, ending at 23:00; an hour its minutes,
+    ending at :59; a month the days ending on its last one -- a Day window is 20
+    days long, so a long month's first days are a page back. A minute opens
+    nothing, null.
+
+    Note: a bar still running -- today, this hour -- opens the finer window
+          ending now, since the one it names has not finished yet
+
+*/}
+export function finerWindow(rate, start, now = new Date()) {
+    const r = String(rate || '').toLowerCase();
+    const [y, m, d, h] = [start.getFullYear(), start.getMonth(), start.getDate(), start.getHours()];
+    let opened;
+
+    if (r === 'month') {
+        opened = { rate: 'day', end: new Date(y, m + 1, 0) };
+    } else if (r === 'day') {
+        opened = { rate: 'hour', end: new Date(y, m, d, 23) };
+    } else if (r === 'hour') {
+        opened = { rate: 'minute', end: new Date(y, m, d, h, 59) };
+    } else {
+        return null;
+    }
+
+    return intervalStart(opened.rate, opened.end) >= intervalStart(opened.rate, now)
+        ? { rate: opened.rate, end: null }
+        : opened;
+}
+
+
+{/*
+
+    how a window that has ended reads, from its first bucket to its last:
+
+      - 'Sep 17, 2026' for a day by the hour
+      - 'Sep 16, 7 PM to Sep 17, 6 PM, 2026' for 24 hours across two days
+      - 'Sep 17, 2026, 12:00 PM to 12:59 PM' for an hour by the minute
+      - 'Aug 22 to Sep 10, 2026' for days
+      - 'Oct 2024 to Sep 2025' for months
+
+    null for the window ending now, which 'windowLabel' names
+
+*/}
+export function windowHeading(rate, end) {
+    const r = String(rate || '').toLowerCase();
+
+    if (!(r in ROLLING_WINDOW) || !end) {
+        return null;
+    }
+
+    const first = windowStart(r, lastInstant(r, end));
+    const last = intervalStart(r, end);
+    const sameDay = first.toDateString() === last.toDateString();
+    const sameYear = first.getFullYear() === last.getFullYear();
+    const year = last.getFullYear();
+    const date = (d, withYear) => d.toLocaleString('en-US', withYear
+        ? { month: 'short', day: 'numeric', year: 'numeric' }
+        : { month: 'short', day: 'numeric' });
+    const time = (d, minutes) => d.toLocaleString('en-US', minutes
+        ? { hour: 'numeric', minute: '2-digit' }
+        : { hour: 'numeric' });
+
+    if (r === 'month') {
+        const month = (d) => d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+
+        return `${month(first)} to ${month(last)}`;
+    }
+
+    if (r === 'day') {
+        return `${date(first, !sameYear)} to ${date(last, true)}`;
+    }
+
+    if (sameDay && r === 'hour') {
+        return date(last, true);
+    }
+
+    if (sameDay) {
+        return `${date(last, true)}, ${time(first, true)} to ${time(last, true)}`;
+    }
+
+    return `${date(first, !sameYear)}, ${time(first, r === 'minute')} to ${date(last, false)}, ${time(last, r === 'minute')}, ${year}`;
+}

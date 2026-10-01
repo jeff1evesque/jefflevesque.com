@@ -487,3 +487,33 @@ describe('dropPaddedEmpties', () => {
         expect(dropPaddedEmpties(null, 'minute', FIELD, WEATHER)).toBeNull();
     });
 });
+
+
+describe('a window that has ended (#159)', () => {
+    //
+    // 'now' is where the window ends and 'clock' the present. A window ending at
+    // the last instant of Mar 18, asked for on a later day, has no interval still
+    // filling: its last day can be missed like any other.
+    //
+    const END = new Date(2026, 2, 18, 23, 59, 59, 999);
+    const LATER = new Date(2026, 3, 2, 10, 0, 0, 0);
+    const BEFORE_THE_LAST = WEEKDAYS.slice(0, -1).map((when) => row(when));
+
+    it('calls the last interval missed once the clock has left it', () => {
+        expect(dates(missingIntervals(BEFORE_THE_LAST, 'stock-market', 'day', FIELD, END, LATER)))
+            .toEqual([[2026, 3, 18]]);
+    });
+
+    it('still does not while the clock is in it, as for the window ending now', () => {
+        expect(missingIntervals(BEFORE_THE_LAST, 'stock-market', 'day', FIELD, END)).toEqual([]);
+        expect(missingIntervals(BEFORE_THE_LAST, 'stock-market', 'day', FIELD, END, NOW)).toEqual([]);
+    });
+
+    it('draws that last interval as a zero', () => {
+        const filled = fillMissingIntervals(BEFORE_THE_LAST, 'stock-market', 'day', FIELD, SOURCE, END, LATER);
+
+        expect(filled).toHaveLength(BEFORE_THE_LAST.length + 1);
+        expect(filled[filled.length - 1][FIELD]).toEqual(day(2026, 3, 18));
+        expect(filled[filled.length - 1].options).toBe(0);
+    });
+});

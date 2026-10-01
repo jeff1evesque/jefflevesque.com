@@ -474,6 +474,11 @@
     min-height: 2.75rem;
   }
 
+  .stream-page {
+    height: 2.75rem;
+    width: 2.75rem;
+  }
+
   .stream-row-figure {
     display: none;
   }
@@ -550,6 +555,48 @@
       color: $gray-9;
     }
   }
+}
+
+//
+// a window back, a window forward, and the way back to now (#159). Forward is
+// dimmed on the window ending now, where there is nowhere further to go
+//
+.stream-pager {
+  align-items: center;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.stream-page {
+  align-items: center;
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 50%;
+  color: $gray-7;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 1.4rem;
+  height: 2.25rem;
+  justify-content: center;
+  padding: 0;
+  width: 2.25rem;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: $gray-7;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.4;
+  }
+}
+
+//
+// a bar that opens its interval says so under the pointer
+//
+.stream-row-bars-open .stream-bar-slot {
+  cursor: pointer;
 }
 
 .stream-rates {

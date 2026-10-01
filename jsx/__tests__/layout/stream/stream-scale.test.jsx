@@ -301,6 +301,34 @@ describe('toggleChartScale windowing', () => {
 
         expect(result).toHaveLength(1);
     });
+
+    it('measures a window that has ended from its end, and keeps no row past it (#159)', () => {
+        //
+        // the 20 days ending Sep 10: a row on Aug 22 is its first day, one on
+        // Aug 21 is a day too old, and one on Sep 11 is past its end. The api
+        // answers no row past End, and the page bounds the window itself too, so
+        // a row past it is never counted in the figures beside bars not drawn
+        //
+        const page = setup();
+
+        act(() => {
+            page.setState({ end: new Date(2026, 8, 10) });
+        });
+
+        const result = scale(page, 'day', [
+            row('2026/08/21 10:00'),
+            row('2026/08/22 10:00'),
+            row('2026/09/10 22:00'),
+            row('2026/09/11 01:00'),
+        ]);
+
+        const carried = result.filter((item) => item[THROUGHPUT] > 0);
+        const days = result.map((item) => item[FIELD].valueOf());
+
+        expect(carried.map((item) => item[FIELD].getDate())).toEqual([22, 10]);
+        expect(Math.min(...days)).toBe(new Date(2026, 7, 22).valueOf());
+        expect(Math.max(...days)).toBe(new Date(2026, 8, 10).valueOf());
+    });
 });
 
 describe('toggleChartScale gap filling', () => {

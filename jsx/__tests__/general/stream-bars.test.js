@@ -201,6 +201,30 @@ describe('the bars by the minute', () => {
     });
 });
 
+describe('a window that has ended (#159)', () => {
+    //
+    // 'now' is where the window ends and 'clock' the present. Asked for after
+    // the window has ended, its last day is no longer filling: a weekday with
+    // nothing is a miss, where in the window ending now it waits
+    //
+    const END = new Date(2026, 8, 29, 23, 59, 59, 999);
+    const CLOCK = new Date(2026, 9, 5, 9, 0);
+    const rows = [row('sec', day(14), 120), row('sec', day(15), 90, 100)];
+
+    it('draws the last day as missed once the clock has left it', () => {
+        const bars = streamBars(rows, 'sec', 'day', FIELD, ['sec'], END, CLOCK);
+
+        expect(bars[bars.length - 1].start).toEqual(day(29));
+        expect(bars[bars.length - 1].kind).toBe('missed');
+    });
+
+    it('leaves it pending while the clock is still in it', () => {
+        const bars = streamBars(rows, 'sec', 'day', FIELD, ['sec'], END);
+
+        expect(bars[bars.length - 1].kind).toBe('pending');
+    });
+});
+
 describe('a rate it has no window for', () => {
     it('draws nothing', () => {
         expect(streamBars([], 'sec', 'second', FIELD, ['sec'], NOW)).toEqual([]);

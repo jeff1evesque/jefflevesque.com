@@ -13,7 +13,7 @@ trailing window: one ending now, or one ending at an earlier [`End`](#an-earlier
 | `Stream` | `bls`, `sec`, `stock-market`, `stock-split`, `us-national-weather` | each stream in turn, one request per row |
 | `Interval` | `minute`, `hour`, `day`, `month`; `minute` when omitted | the rate chosen over the rows |
 | `Timezone` | an IANA time zone, such as `America/New_York`; `UTC` when omitted | the reader's own, from the browser |
-| `End` | an ISO 8601 date-time with a UTC offset or `Z`, such as `2026-09-17T23:00:00-04:00`; now when omitted | nothing yet |
+| `End` | an ISO 8601 date-time with a UTC offset or `Z`, such as `2026-09-17T23:00:00-04:00`; now when omitted | the start of the last bar on screen, once a reader opens a bar or pages back; nothing for the window ending now |
 
 `Stream` takes a stream's id, the same id the website names the stream by in its own
 urls. Three streams went by other names before -- `stockmarket`, `stockmarketstocksplit`

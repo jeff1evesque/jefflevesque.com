@@ -236,6 +236,77 @@ describe('pointing at a bar', () => {
     });
 });
 
+describe('opening a bar (#159)', () => {
+    //
+    // a bar opens through 'onOpen' when the page offers one: a click where a
+    // pointer described it first, and on a phone a second tap on the same bar
+    //
+    function slots(name = 'SEC Filings') {
+        return rowOf(name).querySelectorAll('.stream-bar-slot');
+    }
+
+    //
+    // a touch, as a phone sends one: the pointer goes down, the mouse is said to
+    // enter, and the click follows
+    //
+    function tap(slot) {
+        fireEvent(slot, Object.assign(new MouseEvent('pointerdown', { bubbles: true }), { pointerType: 'touch' }));
+        fireEvent.mouseEnter(slot);
+        fireEvent.click(slot);
+    }
+
+    it('opens the bar clicked, and hands the page the bar', () => {
+        const onOpen = jest.fn();
+
+        setup([stream('SEC Filings', { bars: BARS })], { onOpen: onOpen });
+        fireEvent.mouseEnter(slots()[1]);
+        fireEvent.click(slots()[1]);
+
+        expect(onOpen).toHaveBeenCalledTimes(1);
+        expect(onOpen.mock.calls[0][0]).toBe(BARS[1]);
+    });
+
+    it('opens on a phone only on the second tap of the same bar', () => {
+        const onOpen = jest.fn();
+
+        setup([stream('SEC Filings', { bars: BARS })], { onOpen: onOpen });
+
+        tap(slots()[2]);
+        expect(onOpen).not.toHaveBeenCalled();
+        expect(readout()).toBe('SEC Filings, Tue, Sep 2950 records, 50 failed (health 50%)');
+
+        tap(slots()[2]);
+        expect(onOpen).toHaveBeenCalledWith(BARS[2]);
+    });
+
+    it('describes a different bar on a phone rather than opening it', () => {
+        const onOpen = jest.fn();
+
+        setup([stream('SEC Filings', { bars: BARS })], { onOpen: onOpen });
+
+        tap(slots()[2]);
+        tap(slots()[3]);
+
+        expect(onOpen).not.toHaveBeenCalled();
+        expect(readout()).toBe('SEC Filings, Wed, Sep 30Missed: a run was due, and nothing reported');
+    });
+
+    it('only describes, when the page offers nothing to open', () => {
+        setup([stream('SEC Filings', { bars: BARS })]);
+
+        fireEvent.click(slots()[1]);
+
+        expect(readout()).toBe('SEC Filings, Mon, Sep 28200 records');
+        expect(rowOf('SEC Filings').querySelector('.stream-row-bars')).not.toHaveClass('stream-row-bars-open');
+    });
+
+    it('marks the bars as ones that open', () => {
+        setup([stream('SEC Filings', { bars: BARS })], { onOpen: () => {} });
+
+        expect(rowOf('SEC Filings').querySelector('.stream-row-bars')).toHaveClass('stream-row-bars-open');
+    });
+});
+
 describe('sorting by a figure', () => {
     const ROWS = [
         stream('A', { figures: { health: '90.00%', coverage: '50%', total: '1,000' } }),
