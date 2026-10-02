@@ -6,7 +6,7 @@
  *   layout.type === 'login'    -> a bare home icon
  *   layout.type === 'register' -> home icon + login link
  *   viewport > small           -> the full desktop bar
- *   otherwise                  -> the collapsed mobile bar
+ *   otherwise                  -> the phone's bar, and the menu it drops
  *
  * The first two are the interesting ones, because the value they test is not the
  * value the store holds until a SET-LAYOUT action has been dispatched. The layout
@@ -24,7 +24,7 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { Provider } from 'react-redux';
@@ -251,70 +251,159 @@ describe('the desktop header', () => {
 });
 
 describe('the mobile header', () => {
-    it('replaces the section links with a collapsed Session dropdown', () => {
+    //
+    // the phone's bar and the menu it drops over the page (#173): one list of
+    // the pages, Login and Register as buttons under it, and three ways out --
+    // the bar's own button, the arrow on the menu's foot, and a tap on the
+    // dimmed page.
+    //
+    const menuButton = () => document.querySelector('.navbar-toggler');
+    const menu = () => screen.getByRole('navigation', { name: 'Site' });
+    const scrim = () => document.querySelector('.phone-menu-scrim');
+
+    async function openMenu() {
+        await userEvent.click(menuButton());
+    }
+
+    it('starts closed, and says what its button will do', async () => {
         renderHeader({ width: MOBILE });
 
-        expect(screen.getByText('Session')).toBeInTheDocument();
-        expect(screen.queryByRole('link', { name: 'Data' })).not.toBeInTheDocument();
+        expect(menuButton()).toHaveAttribute('aria-label', 'Open the menu');
+        expect(menuButton()).toHaveClass('collapsed');
+        expect(scrim()).toBeNull();
+
+        await openMenu();
+
+        expect(menuButton()).toHaveAttribute('aria-label', 'Close the menu');
+        expect(menuButton()).not.toHaveClass('collapsed');
+        expect(scrim()).not.toBeNull();
     });
 
-    it('shows login and register as icons rather than buttons', () => {
+    it('lists every page, in the wide header\'s order, with no Session and no Graph heading', async () => {
         renderHeader({ width: MOBILE });
 
-        expect(screen.getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login');
-        expect(screen.getByRole('link', { name: 'Register' })).toHaveAttribute('href', '/register');
-    });
+        await openMenu();
 
-    it('reveals every section once the dropdown is opened', async () => {
-        renderHeader({ width: MOBILE });
+        const rows = [...menu().querySelectorAll('.phone-menu-link')];
 
-        await userEvent.click(screen.getByRole('button', { name: /Session/ }));
-
-        expect(screen.getByRole('link', { name: 'Data' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Stream' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Model' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Training Graph' })).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'Retrieval Graph' })).toBeInTheDocument();
-    });
-
-    it('lists the two graph pages under a Graph heading of their own', async () => {
-        //
-        // a dropdown inside this dropdown would be a menu a phone cannot hold
-        // open while the reader moves between them, so the one Graph entry
-        // became a heading over two.
-        //
-        renderHeader({ width: MOBILE });
-
-        await userEvent.click(screen.getByRole('button', { name: /Session/ }));
-
-        const entries = [...document.querySelectorAll('.session .dropdown-menu > *')]
-            .map((entry) => `${entry.classList.contains('dropdown-header') ? '# ' : ''}${entry.textContent}`);
-
-        expect(entries).toEqual([
+        expect(rows.map((row) => row.textContent)).toEqual([
             'Stream',
             'Data',
-            '# Graph',
             'Training Graph',
             'Retrieval Graph',
             'Model',
         ]);
-        expect(screen.getByRole('link', { name: 'Training Graph' })).toHaveAttribute('href', '/graph');
-        expect(screen.getByRole('link', { name: 'Retrieval Graph' })).toHaveAttribute('href', '/graph/retrieval');
+        expect(rows.map((row) => row.getAttribute('href'))).toEqual([
+            '/stream',
+            '/data',
+            '/graph',
+            '/graph/retrieval',
+            '/model',
+        ]);
+        expect(screen.queryByText('Session')).not.toBeInTheDocument();
+        expect(document.querySelector('.dropdown-header, .menu-sub-item')).toBeNull();
     });
 
-    it('navigates the mobile sections with plain hrefs, not the router', async () => {
-        //
-        // WORTH KNOWING: the desktop bar uses NavLink (client-side), the mobile
-        // dropdown uses NavDropdown.Item href (a full page load). The same
-        // destinations behave differently depending on viewport width.
-        //
+    it('ends every row in an arrow a screen reader passes over', async () => {
         renderHeader({ width: MOBILE });
 
-        await userEvent.click(screen.getByRole('button', { name: /Session/ }));
+        await openMenu();
 
-        const data = screen.getByRole('link', { name: 'Data' });
-        expect(data).toHaveAttribute('href', '/data');
-        expect(data).toHaveAttribute('data-rr-ui-dropdown-item');
+        menu().querySelectorAll('.phone-menu-link').forEach((row) => {
+            expect(row.querySelector('.phone-menu-arrow')).toHaveAttribute('aria-hidden', 'true');
+        });
+    });
+
+    it('offers Login and Register as the wide header\'s two buttons, at the menu\'s foot', async () => {
+        renderHeader({ width: MOBILE });
+
+        await openMenu();
+
+        const login = within(menu()).getByRole('link', { name: 'Login' });
+        const register = within(menu()).getByRole('link', { name: 'Register' });
+
+        expect(login).toHaveAttribute('href', '/login');
+        expect(login).toHaveClass('btn');
+        expect(login).not.toHaveClass('btn-primary');
+        expect(register).toHaveAttribute('href', '/register');
+        expect(register).toHaveClass('btn', 'btn-primary');
+        expect(login.closest('.phone-menu-actions')).toBe(register.closest('.phone-menu-actions'));
+    });
+
+    it('goes through the router, and closes the menu on the way', async () => {
+        //
+        // the wide header's links always did; the phone's were plain hrefs, and
+        // loaded the whole site again
+        //
+        renderHeader({ width: MOBILE, path: '/stream' });
+
+        await openMenu();
+        await userEvent.click(within(menu()).getByRole('link', { name: 'Data' }));
+
+        expect(screen.getByTestId('where')).toHaveTextContent('/data');
+        expect(menuButton()).toHaveAttribute('aria-label', 'Open the menu');
+        expect(scrim()).toBeNull();
+    });
+
+    it('closes from the arrow on the menu\'s foot', async () => {
+        renderHeader({ width: MOBILE });
+
+        await openMenu();
+        await userEvent.click(within(menu()).getByRole('button', { name: 'Close the menu' }));
+
+        expect(menuButton()).toHaveAttribute('aria-label', 'Open the menu');
+        expect(scrim()).toBeNull();
+    });
+
+    it('closes from a tap on the dimmed page, which a screen reader is not shown', async () => {
+        renderHeader({ width: MOBILE });
+
+        await openMenu();
+
+        expect(scrim()).toHaveAttribute('aria-hidden', 'true');
+
+        await userEvent.click(scrim());
+
+        expect(menuButton()).toHaveAttribute('aria-label', 'Open the menu');
+        expect(scrim()).toBeNull();
+    });
+
+    it('closes from its own button on the bar', async () => {
+        renderHeader({ width: MOBILE });
+
+        await openMenu();
+        await userEvent.click(menuButton());
+
+        expect(menuButton()).toHaveAttribute('aria-label', 'Open the menu');
+        expect(scrim()).toBeNull();
+    });
+
+    it.each([
+        ['/stream', 'Stream'],
+        ['/stream/sec/alarm', 'Stream'],
+        ['/data', 'Data'],
+        ['/graph', 'Training Graph'],
+        ['/graph/all-sources.2026-09.20260924T050042Z.1024d', 'Training Graph'],
+        ['/graph/retrieval', 'Retrieval Graph'],
+        ['/graph/retrieval/2026-09-23', 'Retrieval Graph'],
+        ['/model', 'Model'],
+    ])('marks %s as on %s, and nothing else', async (path, label) => {
+        renderHeader({ width: MOBILE, path: path });
+
+        await openMenu();
+
+        const marked = [...menu().querySelectorAll('[aria-current="page"]')];
+
+        expect(marked.map((row) => row.textContent)).toEqual([label]);
+        expect(marked[0]).toHaveClass('active');
+    });
+
+    it('marks nothing on the home page', async () => {
+        renderHeader({ width: MOBILE, path: '/' });
+
+        await openMenu();
+
+        expect(menu().querySelector('[aria-current], .active')).toBeNull();
     });
 });
 
@@ -358,8 +447,14 @@ describe('the theme switch', () => {
         renderHeader({ width: MOBILE });
 
         expect(toggle().closest('.navbar-collapse')).toBeNull();
-        expect(toggle()).toHaveClass('theme-toggle-bar');
         expect(before(toggle(), document.querySelector('.navbar-toggler'))).toBe(true);
+    });
+
+    it('wears its page look on a phone\'s bar, which is no longer black (#173)', () => {
+        renderHeader({ width: MOBILE });
+
+        expect(toggle()).toHaveClass('theme-toggle', 'theme-toggle-phone');
+        expect(toggle()).not.toHaveClass('theme-toggle-bar');
     });
 
     it('takes the corner of the sign-in page\'s header', () => {
