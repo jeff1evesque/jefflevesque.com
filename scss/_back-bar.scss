@@ -11,11 +11,12 @@
 //
 // the bar's look, which both pages extend rather than copy, so the two cannot
 // drift apart. A solid green, lighter by day and darker by night, rather than
-// a rail's fade: across the width of a phone a fade read as a stain
+// a fade: across the width of a phone a fade read as a stain. The folded
+// columns' rails are the same green since #169 -- see '$green-bar'
 //
 %back-bar {
   align-items: center;
-  background-color: mix($green-2, #fff, 20%);
+  background-color: $green-bar;
   border: 0;
   border-radius: 0.5rem;
   color: $green-6;
@@ -26,10 +27,6 @@
   min-height: 2.75rem;
   padding: 0 0.9rem;
   width: 100%;
-
-  @include dark {
-    background-color: mix($green-2, $dark-white-1, 18%);
-  }
 
   &:focus-visible {
     outline: 2px solid $focus;
