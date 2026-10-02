@@ -41,7 +41,7 @@ html {
 // It is drawn straight onto the body, outside the react container, so without a
 // color of its own it takes the page's text color -- which on a dark page is a
 // light gray, 1.1:1 on this yellow. Held at '$gray-9-fixed' it is 13.5:1 in both
-// themes, as the ink on the header's black bars is held.
+// themes, as the ink on the signed-in header's black bar is held.
 //
 .under-construction {
   background-color: #ffd733;
