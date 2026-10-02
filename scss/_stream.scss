@@ -1158,7 +1158,9 @@ $stream-held: rgba($green-2, 0.32);
   //
   // the title and the icons, then one line of controls: the rate's menu, the
   // pager, and the sort's menu. A stream on its own has the way back over its
-  // title, and no icons -- its title has its own controls beside it
+  // title, and the icons at the end of the controls' line, since its title has
+  // its bell beside it (#171). That line has no sort's menu, so they fit on the
+  // narrowest phone, and a pager too wide for them wraps under the rate's menu
   //
   .stream-rows-bar {
     align-items: start;
@@ -1207,10 +1209,10 @@ $stream-held: rgba($green-2, 0.32);
 
   .stream-layout-focused .stream-rows-bar {
     grid-template-areas:
-      'back'
-      'intro'
-      'controls';
-    grid-template-columns: minmax(0, 1fr);
+      'back back'
+      'intro intro'
+      'controls links';
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .stream-back {
@@ -1219,7 +1221,7 @@ $stream-held: rgba($green-2, 0.32);
   }
 
   .stream-layout-focused .stream-api-links {
-    display: none;
+    align-self: center;
   }
 
   .stream-rows-title h4 {
