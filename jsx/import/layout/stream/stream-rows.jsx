@@ -67,12 +67,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import CircularProgress from '@mui/material/CircularProgress';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import CheckIcon from '@mui/icons-material/Check';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import SwapVertIcon from '@mui/icons-material/SwapVert';
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import { barSummary, barWhen } from '../../general/stream-bars.js';
 
@@ -205,28 +209,59 @@ const TIP_EDGE = 110;
 
 /**
  * the phone's way to sort, since it has no room for the headings: the same
- * choices, from a menu. The page puts it on its line of controls.
+ * choices, from a round button at the end of the page's line of controls
+ * (#173). It was a menu showing the choice in use, which took the room of four
+ * buttons, and pushed onto a line of its own whenever Now joined the arrows.
  *
- * Note: its name is for a screen reader only. The line it shares has room for
- *       three controls and no labels, and 'Default order' says what it is.
+ * The choice in use has a check by it in the menu, and names the button for a
+ * screen reader -- 'Sort: Default order'. While the list is sorted the button
+ * is green, as a sort heading is lit on a wide screen, so a sorted list says so
+ * without the menu being opened.
  */
 export function SortMenu({ sort = null, onSort = () => {} }) {
-    return (
-        <label className='stream-rows-sort-menu'>
-            <span className='visually-hidden'>Sort</span>
-            <select
-                value={sort ? `${sort.key}:${sort.dir}` : ''}
-                onChange={(event) => {
-                    const [key, dir] = event.target.value.split(':');
+    const [anchor, setAnchor] = useState(null);
+    const value = sort ? `${sort.key}:${sort.dir}` : '';
+    const current = SORT_CHOICES.find((choice) => choice.value === value) || SORT_CHOICES[0];
 
-                    onSort(key ? { key: key, dir: dir } : null);
-                }}
+    return (
+        <div className='stream-rows-sort-menu'>
+            <button
+                type='button'
+                className={sort ? 'stream-sort stream-sort-on' : 'stream-sort'}
+                aria-label={`Sort: ${current.label}`}
+                aria-haspopup='menu'
+                aria-expanded={Boolean(anchor)}
+                onClick={(event) => setAnchor(event.currentTarget)}
+            >
+                <SwapVertIcon fontSize='inherit' />
+            </button>
+            <Menu
+                anchorEl={anchor}
+                open={Boolean(anchor)}
+                onClose={() => setAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                MenuListProps={{ className: 'stream-sort-list' }}
             >
                 {SORT_CHOICES.map((choice) => (
-                    <option key={choice.value} value={choice.value}>{choice.label}</option>
+                    <MenuItem
+                        key={choice.value}
+                        selected={choice === current}
+                        onClick={() => {
+                            const [key, dir] = choice.value.split(':');
+
+                            setAnchor(null);
+                            onSort(key ? { key: key, dir: dir } : null);
+                        }}
+                    >
+                        <span className='stream-sort-check' aria-hidden='true'>
+                            {choice === current ? <CheckIcon fontSize='inherit' /> : null}
+                        </span>
+                        {choice.label}
+                    </MenuItem>
                 ))}
-            </select>
-        </label>
+            </Menu>
+        </div>
     );
 }
 
