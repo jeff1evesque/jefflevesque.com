@@ -1,7 +1,7 @@
 /**
  * svg.test.jsx: the icon components, and the hover contract they share.
  *
- * Six components, one shape: a color in state, an onMouseOver that swaps it, an
+ * Five components, one shape: a color in state, an onMouseOver that swaps it, an
  * onMouseOut that puts it back. None of them had a test, so the whole family sat
  * at 50-71% functions -- the handlers are bound in the constructor and passed to
  * the svg as props, which is enough for a renderer to count the constructor and
@@ -26,7 +26,6 @@ import SvgBooks from '../../import/svg/svg-books.jsx';
 import SvgExit from '../../import/svg/svg-exit.jsx';
 import SvgHome from '../../import/svg/svg-home.jsx';
 import SvgOrder from '../../import/svg/svg-order.jsx';
-import SvgPencilNote from '../../import/svg/svg-pencil-note.jsx';
 import SvgUser from '../../import/svg/svg-user.jsx';
 
 //
@@ -49,13 +48,12 @@ function fills() {
 
 describe('the hover contract, shared by every icon', () => {
     //
-    // table-driven because the six differ only in which color moves. Written out
+    // table-driven because the five differ only in which color moves. Written out
     // per icon rather than looped over a single component, so a failure names the
     // file that broke.
     //
     const icons = [
         { name: 'books', Component: SvgBooks, css: 'books', hover: colors['green-3'], rest: colors['gray-6'] },
-        { name: 'pencil note', Component: SvgPencilNote, css: 'pencil', hover: colors['green-3'], rest: colors['gray-5'] },
         { name: 'user', Component: SvgUser, css: 'user', hover: colors['green-3'], rest: colors['gray-5'] },
         { name: 'home', Component: SvgHome, css: 'home', hover: colors['green-3'], rest: colors['gray-5'] },
     ];

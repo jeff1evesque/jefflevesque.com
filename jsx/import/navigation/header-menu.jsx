@@ -5,9 +5,10 @@
  */
 
 import React, { Component } from 'react';
-import SvgBooks from '../svg/svg-books.jsx';
-import SvgUser from '../svg/svg-user.jsx';
-import SvgPencilNote from '../svg/svg-pencil-note.jsx';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CloseIcon from '@mui/icons-material/Close';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import MenuIcon from '@mui/icons-material/Menu';
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import HomeLink, { HomeBrand } from './menu-items/home.jsx';
 import ThemeToggle from './theme-toggle.jsx';
@@ -76,6 +77,86 @@ function GraphMenu() {
     );
 }
 
+//
+// the phone's menu: every page in one list, in the order the wide header gives
+// them (#173). The Graph section's two pages are entries of their own, with no
+// heading over them, since each name already says it is a graph.
+//
+const PHONE_PAGES = [
+    { to: '/stream', label: 'Stream' },
+    { to: '/data', label: 'Data' },
+    ...GRAPH_PAGES,
+    { to: '/model', label: 'Model' },
+];
+
+//
+// which of them an address is on, or null for none: the Graph section's own
+// rule for its two pages, and otherwise the page the address starts with -- so
+// a stream's alarm page, '/stream/<stream>/alarm', is on Stream.
+//
+// Note: Login and Register are never the page on screen. Their pages draw a
+//       header of their own -- see renderContent.
+//
+function phonePage(pathname) {
+    const graph = graphPage(pathname);
+
+    if (graph) {
+        return graph;
+    }
+
+    const page = PHONE_PAGES.find(
+        (entry) => pathname === entry.to || pathname.startsWith(`${entry.to}/`)
+    );
+
+    return page ? page.to : null;
+}
+
+/**
+ * the phone's menu, opened from the bar (#173): a panel dropped over the page,
+ * one row per page, each ending in the arrow a row that goes somewhere ends in
+ * on /stream's list. The page on screen is a green band across the panel, as the
+ * phone's way back to every stream is green. Login and Register are the wide
+ * header's two buttons, at its foot, and the round arrow /graph and /data fold
+ * with sits on its bottom edge.
+ *
+ * Every way out of it -- a pick, either button, the arrow -- goes through
+ * 'onClose', so the page the reader lands on is never covered by the menu.
+ *
+ * Note: a function component beside the class, as GraphMenu is, because it
+ *       reads the address.
+ */
+function PhoneMenu({ onClose }) {
+    const current = phonePage(useLocation().pathname);
+
+    return (
+        <nav className='phone-menu' aria-label='Site'>
+            {PHONE_PAGES.map((page) => (
+                <Link
+                    key={page.to}
+                    to={page.to}
+                    className={current === page.to ? 'phone-menu-link active' : 'phone-menu-link'}
+                    aria-current={current === page.to ? 'page' : undefined}
+                    onClick={onClose}
+                >
+                    <span>{page.label}</span>
+                    <ChevronRightIcon className='phone-menu-arrow' fontSize='inherit' aria-hidden='true' />
+                </Link>
+            ))}
+            <div className='phone-menu-actions'>
+                <Link to='/login' className='btn' onClick={onClose}>Login</Link>
+                <Link to='/register' className='btn btn-primary' onClick={onClose}>Register</Link>
+            </div>
+            <button type='button' className='phone-menu-fold' aria-label='Close the menu' onClick={onClose}>
+                <ExpandLessIcon fontSize='inherit' />
+            </button>
+        </nav>
+    );
+}
+
+PhoneMenu.propTypes = {
+    onClose: PropTypes.func.isRequired,
+};
+
 class HeaderMenu extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
     static propTypes = {
@@ -85,6 +166,28 @@ class HeaderMenu extends Component {
                 type: PropTypes.string,
             })
         ])
+    }
+
+    constructor(props) {
+        super(props);
+
+        //
+        // whether the phone's menu is open: held here rather than left to the
+        // navbar, so a pick, the arrow on the menu's foot and a tap on the
+        // dimmed page can all close it, and the bar's button can show which it
+        // will do
+        //
+        this.state = { menu_open: false };
+        this.toggleMenu = this.toggleMenu.bind(this);
+        this.closeMenu = this.closeMenu.bind(this);
+    }
+
+    toggleMenu(open) {
+        this.setState({ menu_open: open });
+    }
+
+    closeMenu() {
+        this.setState({ menu_open: false });
     }
 
     showDesktopHeader() {
@@ -136,16 +239,22 @@ class HeaderMenu extends Component {
         )
     }
 
+    //
+    // the phone's header (#173): the page's own color, as the wide one is, with
+    // the house, the theme's switch, and the button that opens the menu. The
+    // menu drops over the page from under it -- see PhoneMenu -- with the page
+    // dimmed behind it, and a tap on the dimmed page closes it.
+    //
     showMobileHeader() {
-        const session = (
-            <span>
-                <span><SvgBooks /></span>
-                <span className='menu-label'>{'Session'}</span>
-            </span>
-        );
+        const open = this.state.menu_open;
 
         return (
-            <Navbar collapseOnSelect expand='lg' className='main-navigation menu-home menu-home-mobile'>
+            <Navbar
+                expand='lg'
+                expanded={open}
+                onToggle={this.toggleMenu}
+                className='main-navigation menu-home menu-home-mobile phone-header'
+            >
                 <Navbar.Brand><HomeBrand /></Navbar.Brand>
                 {/*
 
@@ -155,46 +264,33 @@ class HeaderMenu extends Component {
                     covers the page to do it.
 
                 */}
-                <ThemeToggle className='theme-toggle-bar' />
-                <Navbar.Toggle aria-controls='basic-navbar-nav' />
-                <Navbar.Collapse id='mr-auto'>
-                    <NavDropdown
-                        id='basic-nav-dropdown'
-                        className='session'
-                        title={session}
-                    >
-                        <NavDropdown.Item href='/stream'>{'Stream'}</NavDropdown.Item>
-                        <NavDropdown.Item href='/data'>{'Data'}</NavDropdown.Item>
-                        {/*
+                <ThemeToggle className='theme-toggle-phone' />
+                {/*
 
-                            the Graph section is two pages, so its one entry
-                            becomes a heading over two. A dropdown inside this
-                            dropdown would be a menu a phone cannot hold open
-                            while the reader moves between them.
+                    its name says what a press will do. react-bootstrap takes
+                    the name as 'label', and writes it over an 'aria-label'
 
-                        */}
-                        <NavDropdown.Header>{'Graph'}</NavDropdown.Header>
-                        {GRAPH_PAGES.map((page) => (
-                            <NavDropdown.Item key={page.to} className='menu-sub-item' href={page.to}>
-                                {page.label}
-                            </NavDropdown.Item>
-                        ))}
-                        <NavDropdown.Item href='/model'>{'Model'}</NavDropdown.Item>
-                    </NavDropdown>
-                    <Nav>
-                        <Link to='/login' className='login'>
-                            <div className='nav-item'>
-                                <span><SvgUser /></span>
-                                <span className='menu-label'>{'Login'}</span>
-                            </div>
-                        </Link>
-                        <Link to='/register' className='register'>
-                            <div className='nav-item'>
-                                <span><SvgPencilNote /></span>
-                                <span className='menu-label'>{'Register'}</span>
-                            </div>
-                        </Link>
-                    </Nav>
+                */}
+                <Navbar.Toggle
+                    aria-controls='phone-menu'
+                    label={open ? 'Close the menu' : 'Open the menu'}
+                    className='phone-menu-toggle'
+                >
+                    {open ? <CloseIcon fontSize='inherit' /> : <MenuIcon fontSize='inherit' />}
+                </Navbar.Toggle>
+                {/*
+
+                    the page under the open menu, dimmed. Not a button of its
+                    own: the menu's arrow and the bar's button are the ways out
+                    a keyboard and a screen reader are given, and this is only
+                    the tap a finger reaches for
+
+                */}
+                {open
+                    ? <div className='phone-menu-scrim' aria-hidden='true' onClick={this.closeMenu} />
+                    : null}
+                <Navbar.Collapse id='phone-menu'>
+                    <PhoneMenu onClose={this.closeMenu} />
                 </Navbar.Collapse>
             </Navbar>
         )

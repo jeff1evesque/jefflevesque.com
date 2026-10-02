@@ -6,19 +6,20 @@
 // paint -- see theme-preference.js. Everything here keys on that attribute.
 //
 // The neutral ramp -- '$white-1' and '$white-2', '$gray-1' to '$gray-9' -- the
-// accents read as text on the page, and the green a folded column is filled
-// with are pointed at custom properties at the bottom of this partial, so every
-// partial imported after it writes 'var(--gray-6)' where it says '$gray-6'.
-// Those properties hold the light theme's values, which are the values
-// '_variables.scss' gives the same names, and the dark theme's while the page
-// is dark. A rule written for the light theme draws the dark one without
-// knowing about it, and draws the light one exactly as it always has.
+// accents read as text on the page, the green a folded column is filled with,
+// and the phone header's shade (#173) are pointed at custom properties at the
+// bottom of this partial, so every partial imported after it writes
+// 'var(--gray-6)' where it says '$gray-6'. Those properties hold the light
+// theme's values, which are the values '_variables.scss' gives the same names,
+// and the dark theme's while the page is dark. A rule written for the light
+// theme draws the dark one without knowing about it, and draws the light one
+// exactly as it always has.
 //
-// Note: only the page's own colors change. The phone's header and the signed-in
-//       header are black bars in either theme, and the ink on them is held
-//       fixed -- see the '-fixed' names below. So are the greens of a button,
-//       and every color of a namespace, which means the same thing on either
-//       page.
+// Note: only the page's own colors change. The signed-in header is a black bar
+//       in either theme, and the ink on it is held fixed -- see the '-fixed'
+//       names below. So are the greens of a button, and every color of a
+//       namespace, which means the same thing on either page. The phone's
+//       header was black too, until it took the theme's colors (#173).
 //
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
@@ -26,9 +27,8 @@
 
 //
 // the colors a rule holds FIXED, whichever theme is showing: the ink on the
-// black bars of the phone's header and the signed-in one, and on a green
-// button. Taken while the names still hold values, before they are pointed at
-// the theme below.
+// signed-in header's black bar, and on a green button. Taken while the names
+// still hold values, before they are pointed at the theme below.
 //
 $white-1-fixed: $white-1;
 $white-2-fixed: $white-2;
@@ -56,6 +56,7 @@ $theme-colors: (
   'green-6': ($green-6, $dark-green-6),
   'green-bar': ($green-bar, $dark-green-bar),
   'green-bar-hover': ($green-bar-hover, $dark-green-bar-hover),
+  'header-bar': ($header-bar, $dark-header-bar),
   'blue-hyperlink': ($blue-hyperlink, $dark-blue-hyperlink),
   'red-1': ($red-1, $dark-red-1),
   'red-2': ($red-2, $dark-red-2),
@@ -133,6 +134,7 @@ $gray-9: var(--gray-9);
 $green-6: var(--green-6);
 $green-bar: var(--green-bar);
 $green-bar-hover: var(--green-bar-hover);
+$header-bar: var(--header-bar);
 $blue-hyperlink: var(--blue-hyperlink);
 $red-1: var(--red-1);
 $red-2: var(--red-2);
