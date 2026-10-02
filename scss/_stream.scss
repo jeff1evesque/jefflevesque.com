@@ -184,9 +184,13 @@ $stream-held: rgba($green-2, 0.32);
 
 //
 // a phone's way to sort, since it has no room for the headings: the same
-// choices, from a menu on the line of controls. Hidden wherever the headings
-// show. The rate's menu beside it is the phone's in place of the rate buttons
-// (#161)
+// choices, from a round button on the line of controls (#173). Hidden wherever
+// the headings show. The rate's menu beside it is the phone's in place of the
+// rate buttons (#161)
+//
+// The rate's menu is a pill, as round as the buttons beside it, with a chevron
+// of its own, so every browser draws it alike -- iOS and Android each draw a
+// menu's arrow their own way, and a box among round buttons (#173).
 //
 .stream-rows-sort-menu,
 .stream-rate-menu {
@@ -198,14 +202,88 @@ $stream-held: rgba($green-2, 0.32);
   margin: 0;
 
   select {
+    -webkit-appearance: none;
+    appearance: none;
     background-color: $white-1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23888' stroke-width='1.6'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
     border: 1px solid $gray-3;
-    border-radius: 0.375rem;
+    border-radius: 999px;
     color: $gray-8;
     font: inherit;
     min-height: 2.75rem;
-    padding: 0 0.75rem;
+    padding: 0 1.9rem 0 0.9rem;
   }
+}
+
+//
+// the phone's sort: a round button at the end of the line of controls, the
+// pager's size there. Green while the list is sorted, in the look of the
+// phone's way back to every stream, as a lit heading says it on a wide screen
+//
+.stream-sort {
+  align-items: center;
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 50%;
+  color: $gray-7;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 1.4rem;
+  height: 2.75rem;
+  justify-content: center;
+  padding: 0;
+  width: 2.75rem;
+
+  &:hover,
+  &:focus-visible {
+    border-color: $gray-7;
+  }
+}
+
+.stream-sort-on {
+  background-color: $green-bar;
+  border-color: mix($green-4, #fff, 40%);
+  color: $green-6;
+
+  &:hover,
+  &:focus-visible {
+    border-color: mix($green-4, #fff, 70%);
+  }
+
+  @include dark {
+    border-color: mix($green-4, $dark-white-1, 40%);
+
+    &:hover,
+    &:focus-visible {
+      border-color: mix($green-4, $dark-white-1, 70%);
+    }
+  }
+}
+
+//
+// its choices, a check by the one in use. The check says which, so the row
+// takes no fill of its own: mui's is a blue the site has nowhere else.
+//
+// Note: two classes past the menu's own, or mui's styles win -- they arrive
+//       after this sheet, as one class and the state's.
+//
+.stream-sort-list .stream-sort-check {
+  color: $green-6;
+  display: inline-flex;
+  font-size: 1.15rem;
+  margin-right: 0.6rem;
+  width: 1.15rem;
+}
+
+.stream-sort-list .MuiMenuItem-root.Mui-selected {
+  background-color: transparent;
+}
+
+.stream-sort-list .MuiMenuItem-root.Mui-selected:hover,
+.stream-sort-list .MuiMenuItem-root.Mui-selected.Mui-focusVisible {
+  background-color: rgba(var(--ink-rgb), 0.04);
 }
 
 .stream-row-name {
@@ -1157,10 +1235,12 @@ $stream-held: rgba($green-2, 0.32);
 @media (max-width: 767.98px) {
   //
   // the title and the icons, then one line of controls: the rate's menu, the
-  // pager, and the sort's menu. A stream on its own has the way back over its
-  // title, and the icons at the end of the controls' line, since its title has
-  // its bell beside it (#171). That line has no sort's menu, so they fit on the
-  // narrowest phone, and a pager too wide for them wraps under the rate's menu
+  // pager, and the sort's button. Every control is 2.75rem tall and round, and
+  // the line fits the narrowest phone with Now in it (#173). A stream on its
+  // own has the way back over its title, and the icons at the end of the
+  // controls' line, since its title has its bell beside it (#171). That line
+  // has no sort's button, and a pager too wide for it wraps under the rate's
+  // menu
   //
   .stream-rows-bar {
     align-items: start;
@@ -1190,21 +1270,24 @@ $stream-held: rgba($green-2, 0.32);
   }
 
   //
-  // the sort's menu at the end of the line, and only as wide as the line has
-  // room for. Its longest choice is cut short while it is closed, and read in
-  // full in the list the phone opens for it
+  // the sort's button at the end of the line
   //
   .stream-rows-sort-menu {
     margin-left: auto;
-
-    select {
-      max-width: 8.5rem;
-    }
   }
 
   .stream-page {
     height: 2.75rem;
     width: 2.75rem;
+  }
+
+  //
+  // Now as tall as the arrows beside it, and a little narrower than a rate
+  // button, so the line keeps it, and the sort's button, on a 320px phone
+  //
+  .stream-now {
+    min-height: 2.75rem;
+    padding: 0 0.85rem;
   }
 
   .stream-layout-focused .stream-rows-bar {
