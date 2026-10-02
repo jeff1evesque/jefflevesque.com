@@ -337,7 +337,7 @@ describe('the sort, kept for the next visit', () => {
         setup();
 
         expect(pressed()).toEqual([]);
-        expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('');
+        expect(screen.getByRole('button', { name: /^Sort: / })).toHaveAccessibleName('Sort: Default order');
     });
 
     it('opens sorted as the reader left it', () => {
@@ -346,7 +346,8 @@ describe('the sort, kept for the next visit', () => {
         setup();
 
         expect(pressed()).toEqual(['Total Records']);
-        expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('total:asc');
+        expect(screen.getByRole('button', { name: /^Sort: / }))
+            .toHaveAccessibleName('Sort: Total Records, fewest first');
     });
 
     it('keeps a sort the reader chooses, and lets it go on the third click', () => {
@@ -362,10 +363,11 @@ describe('the sort, kept for the next visit', () => {
         expect(kept()).toBeUndefined();
     });
 
-    it('keeps a sort chosen from the phone\'s menu', () => {
+    it('keeps a sort chosen from the phone\'s button', () => {
         setup();
 
-        fireEvent.change(screen.getByRole('combobox', { name: 'Sort' }), { target: { value: 'coverage:desc' } });
+        fireEvent.click(screen.getByRole('button', { name: /^Sort: / }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Coverage, highest first' }));
 
         expect(kept()).toEqual({ key: 'coverage', dir: 'desc' });
     });
