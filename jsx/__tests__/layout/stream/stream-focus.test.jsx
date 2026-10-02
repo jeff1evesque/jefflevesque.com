@@ -245,7 +245,7 @@ describe('a stream the address names', () => {
     it('has no sort, since there is one stream to show', () => {
         setup('/stream?item=sec');
 
-        expect(screen.queryByRole('combobox', { name: 'Sort' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Sort: / })).toBeNull();
         expect(screen.getByRole('combobox', { name: 'Rate' })).toHaveValue('Day');
     });
 });
