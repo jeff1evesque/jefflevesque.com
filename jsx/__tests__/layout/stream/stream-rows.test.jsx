@@ -729,15 +729,22 @@ describe('sorting by a figure', () => {
         ]);
     });
 
-    describe('from the phone\'s menu', () => {
-        function menu() {
-            return screen.getByRole('combobox', { name: 'Sort' });
+    describe('from the phone\'s button (#173)', () => {
+        function button() {
+            return screen.getByRole('button', { name: /^Sort: / });
+        }
+
+        function choose(label) {
+            fireEvent.click(button());
+            fireEvent.click(screen.getByRole('menuitem', { name: label }));
         }
 
         it('offers the page\'s order, and each figure both ways', () => {
             sortable();
 
-            expect([...menu().querySelectorAll('option')].map((option) => option.textContent)).toEqual([
+            fireEvent.click(button());
+
+            expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
                 'Default order',
                 'Health, highest first',
                 'Health, lowest first',
@@ -751,11 +758,11 @@ describe('sorting by a figure', () => {
         it('sorts as the headings do', () => {
             sortable();
 
-            fireEvent.change(menu(), { target: { value: 'coverage:asc' } });
+            choose('Coverage, lowest first');
 
             expect(names()).toEqual(['A', 'B', 'C']);
 
-            fireEvent.change(menu(), { target: { value: 'health:desc' } });
+            choose('Health, highest first');
 
             expect(names()).toEqual(['C', 'A', 'B']);
             expect(mark('Health')).toBe('desc');
@@ -766,18 +773,41 @@ describe('sorting by a figure', () => {
 
             sortable({ initial: { key: 'health', dir: 'desc' }, told: told });
 
-            fireEvent.change(menu(), { target: { value: '' } });
+            choose('Default order');
 
             expect(names()).toEqual(['A', 'B', 'C']);
             expect(told).toHaveBeenLastCalledWith(null);
         });
 
-        it('shows the sort the headings chose', () => {
+        it('names itself for the sort the headings chose, and checks it in its menu', () => {
             sortable();
 
             fireEvent.click(heading('Total Records'));
 
-            expect(menu()).toHaveValue('total:desc');
+            expect(button()).toHaveAccessibleName('Sort: Total Records, most first');
+
+            fireEvent.click(button());
+
+            const checked = screen.getAllByRole('menuitem')
+                .filter((item) => item.querySelector('.stream-sort-check svg'))
+                .map((item) => item.textContent);
+
+            expect(checked).toEqual(['Total Records, most first']);
+        });
+
+        it('is green only while the list is sorted', () => {
+            sortable();
+
+            expect(button()).not.toHaveClass('stream-sort-on');
+
+            fireEvent.click(heading('Health'));
+
+            expect(button()).toHaveClass('stream-sort-on');
+
+            fireEvent.click(heading('Health'));
+            fireEvent.click(heading('Health'));
+
+            expect(button()).not.toHaveClass('stream-sort-on');
         });
     });
 });
@@ -825,15 +855,37 @@ describe('around the rows', () => {
     });
 });
 
-describe('the phone\'s menu on its own', () => {
+describe('the phone\'s sort button on its own', () => {
     it('starts at the page\'s order, and asks for nothing until a choice is made', () => {
         render(<SortMenu />);
 
-        const menu = screen.getByRole('combobox', { name: 'Sort' });
+        const button = screen.getByRole('button', { name: 'Sort: Default order' });
 
-        expect(menu).toHaveValue('');
-        fireEvent.change(menu, { target: { value: 'health:asc' } });
-        expect(menu).toHaveValue('');
+        expect(button).toHaveAttribute('aria-haspopup', 'menu');
+        expect(button).toHaveAttribute('aria-expanded', 'false');
+
+        fireEvent.click(button);
+
+        expect(button).toHaveAttribute('aria-expanded', 'true');
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Health, lowest first' }));
+
+        expect(button).toHaveAttribute('aria-expanded', 'false');
+        expect(button).toHaveAccessibleName('Sort: Default order');
+    });
+
+    it('closes on Escape, and leaves the sort as it was', () => {
+        const onSort = jest.fn();
+
+        render(<SortMenu sort={{ key: 'coverage', dir: 'asc' }} onSort={onSort} />);
+
+        const button = screen.getByRole('button', { name: 'Sort: Coverage, lowest first' });
+
+        fireEvent.click(button);
+        fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+
+        expect(button).toHaveAttribute('aria-expanded', 'false');
+        expect(onSort).not.toHaveBeenCalled();
     });
 });
 
