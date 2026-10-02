@@ -121,6 +121,16 @@ $form-panel: #f7f5f7;
 $dark-form-panel: #252525;
 
 //
+// the phone's header and the menu it opens (#173): one surface, a shade off the
+// page in either theme, as far off it as the form panel's step -- about 1.1:1.
+// A very light gray by day, and darker than the page by night, so the bar reads
+// as a bar in either: the page's own color left it a house and two icons
+// floating on the page. '_theme.scss' pairs them by theme.
+//
+$header-bar: #f5f5f5;
+$dark-header-bar: #151515;
+
+//
 // the green a folded column is filled with -- /stream's figures, /data's group
 // names, /graph's side columns -- and a phone's way back to a list, which
 // '_theme.scss' pairs by theme. Flat rather than a fade: the '$green-6' label
