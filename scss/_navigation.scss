@@ -7,19 +7,12 @@
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
 //
-// Note: the ink on the header's black bars and menus is held '-fixed' -- they
-//       are black in either theme. What sits on the page, the desktop header's
-//       own links among them, follows the theme. See '_theme.scss'.
+// Note: the ink on the signed-in header's black bar and its menus is held
+//       '-fixed' -- they are black in either theme. What sits on the page
+//       follows the theme, the anonymous headers among them: the wide one, and
+//       the phone's since #173. See '_theme.scss'.
 
 #bootstrap-override {
-  .small-viewport {
-    .menu-container {
-      .main-navigation {
-        background-color: black;
-      }
-    }
-  }
-
   .small-viewport,
   .medium-viewport {
     .menu-container {
@@ -182,15 +175,19 @@
 //
 // 1.5rem is the size of the site's other mui icons -- 21px at this site's 14px
 // root -- and the padding around it makes a 35px target. The right margin is the
-// one the phone's menu button keeps off the edge of the screen: the switch sits
-// that far from the button on a phone, and from 'Login in' on a wide screen.
-// Nearer than that it read as one of theirs -- beside 'Login in', which has no
-// outline of its own, the moon could pass for Login's icon.
+// one the signed-in bar's menu button keeps off the edge of the screen: the
+// switch sits that far from the button there, and from 'Login in' on a wide
+// screen. Nearer than that it read as one of theirs -- beside 'Login in', which
+// has no outline of its own, the moon could pass for Login's icon.
+//
+// The phone's own bar sets it right beside its menu button instead, the two a
+// pair of plain icons drawn alike -- see '.phone-header' in
+// '_navigation_anonymous.scss' (#173).
 //
 // Under the pointer a wash rounds out the target, in the page's own ink.
 //
 // Note: the ink follows the page wherever the switch sits on the page, and is
-//       held '-fixed' where it sits on one of the black bars.
+//       held '-fixed' where it sits on the signed-in header's black bar.
 //
 .theme-toggle {
   align-items: center;
@@ -216,8 +213,9 @@
 }
 
 //
-// on a black bar: the phone's header, and the signed-in one at every width,
-// pushed to the far end beside what ends the bar.
+// on a black bar: the signed-in header's, at every width, pushed to the far end
+// beside what ends the bar. The phone's header was one too, until it took the
+// page's own color (#173).
 //
 // Note: its wash is white in either theme, as the bar is black in either. The
 //       page's '--ink-rgb' is black by day, and would not show here.
