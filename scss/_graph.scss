@@ -1551,6 +1551,9 @@ $graph-held-edge: $green-4;
   // what makes it read as a control rather than as a label, and the whole rail is
   // the target that opens it.
   //
+  // Note: one flat green, not the fade it was. Its label was 2.75:1 on the fade's
+  //       strong end by night, and is 5.1:1 on this -- see '$green-bar' (#169).
+  //
   // Note: stretched to the row, which is the canvas's height, as an open panel
   //       is for its tint -- see below. A rail as tall as its own two words would
   //       be a green sticker beside a 600px graph rather than a column that is
@@ -1562,21 +1565,13 @@ $graph-held-edge: $green-4;
   //
   .graph-panel-closed {
     align-self: stretch;
-    background-image: linear-gradient(
-      to bottom,
-      rgba($green-2, 0.42),
-      rgba($green-4, 0.16)
-    );
+    background-color: $green-bar;
     border-radius: 0.25rem;
     display: flex;
     width: auto;
 
     &:hover {
-      background-image: linear-gradient(
-        to bottom,
-        rgba($green-2, 0.6),
-        rgba($green-4, 0.28)
-      );
+      background-color: $green-bar-hover;
     }
 
     .graph-panel-heading {
