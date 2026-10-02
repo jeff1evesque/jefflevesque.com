@@ -7,18 +7,16 @@
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
 //
-// Note: the ink on the header's black bars and menus is held '-fixed' -- they
-//       are black in either theme. What sits on the page, the desktop header's
-//       own links among them, follows the theme. See '_theme.scss'.
+// Note: the ink on the signed-in header's black bar and its menus is held
+//       '-fixed' -- they are black in either theme. What sits on the page
+//       follows the theme, this partial's headers among them: the wide one, and
+//       the phone's since #173. See '_theme.scss'.
 
 #bootstrap-override {
   .small-viewport {
     .anonymous {
       .menu-container {
         .main-navigation {
-          .dropdown-menu {
-            width: 100%;
-          }
           margin-bottom: 1.5rem;
         }
 
@@ -35,25 +33,213 @@
         }
 
         //
-        // the Graph section's two pages, under a heading of their own, and set
-        // in from it so they read as its entries. See showMobileHeader in
-        // header-menu.jsx.
+        // the phone's header (#173): a very light gray by day, and a shade
+        // darker than the page by night, so it reads as a bar in either -- see
+        // '$header-bar'. A line under it in either. It was a black bar in both,
+        // the one black thing on a white page.
         //
-        .main-navigation {
-          .dropdown-header {
-            padding: 1rem $anon-dropdown-item-side 0.25rem;
-            color: $gray-5-fixed;
-            font-size: 0.8rem;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
+        // The house is set on the page text's left edge. The theme's switch and
+        // the menu's button sit side by side at the far end, the button's icon
+        // ending on the page text's right edge, and the button is drawn as the
+        // switch is -- see '.theme-toggle' in '_navigation.scss' -- with no box
+        // of its own.
+        //
+        // Note: its background is set, not left to the page. The open menu's
+        //       dimmed layer lies under the bar, and would show through it.
+        //
+        .main-navigation.phone-header {
+          background-color: $header-bar;
+          border-bottom: 1px solid $gray-2;
+          flex-wrap: wrap;
+          padding: 0.4rem 0;
+
+          .navbar-brand {
+            margin: 0;
+            padding: 0 0 0 0.2rem;
+
+            a {
+              display: flex;
+              height: auto;
+            }
           }
 
-          .dropdown-item.menu-sub-item {
-            padding-left: $anon-dropdown-item-side + 1.25rem;
+          .theme-toggle-phone {
+            margin-left: auto;
+            margin-right: 0;
           }
 
-          .dropdown-item.menu-sub-item:hover {
-            padding-left: $anon-dropdown-item-side + 1.25rem - $menu-border-left;
+          .phone-menu-toggle {
+            align-items: center;
+            background: none;
+            border: 0;
+            border-radius: 50%;
+            box-shadow: none;
+            color: $gray-6;
+            display: inline-flex;
+            font-size: 1.5rem;
+            justify-content: center;
+            margin: 0 0.25rem 0 0;
+            padding: 0.5rem;
+
+            &:hover {
+              background-color: rgba(var(--ink-rgb), 0.06);
+              color: $green-5;
+            }
+
+            &:focus {
+              box-shadow: none;
+            }
+
+            &:focus-visible {
+              outline: 2px solid $focus;
+            }
+          }
+
+          //
+          // the open menu: a panel dropped over the page from under the bar,
+          // rather than a list pushing the page down, square as the bar is,
+          // with a shadow at its foot. In the bar's own color, so the two are
+          // one surface in either theme.
+          //
+          .navbar-collapse {
+            left: 0;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 1px);
+            z-index: 1;
+          }
+
+          .phone-menu {
+            background-color: $header-bar;
+            box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.14);
+            display: flex;
+            flex-direction: column;
+            padding: 0.5rem 0 1.6rem;
+            position: relative;
+            text-align: left;
+
+            @include dark {
+              box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.5);
+            }
+          }
+
+          //
+          // a page: its name, and the arrow a row that goes somewhere ends in,
+          // as /stream's list on a phone has. Everything in the panel keeps
+          // 1.25rem off its sides, so its text, its line and its buttons share
+          // an edge. The page on screen is a band of the green the phone's way
+          // back to every stream is, across the panel's whole width.
+          //
+          .phone-menu-link {
+            align-items: center;
+            color: $gray-8;
+            display: flex;
+            font-size: 1.15rem;
+            font-weight: 500;
+            height: auto;
+            justify-content: space-between;
+            padding: 0.7rem 0.7rem 0.7rem 1.25rem;
+            text-decoration: none;
+
+            &:hover {
+              background-color: rgba(var(--ink-rgb), 0.04);
+              color: $gray-9;
+            }
+
+            &.active {
+              background-color: $green-bar;
+              color: $green-6;
+            }
+          }
+
+          .phone-menu-arrow {
+            color: $gray-5;
+            font-size: 1.5rem;
+          }
+
+          .phone-menu-link.active .phone-menu-arrow {
+            color: inherit;
+          }
+
+          //
+          // Login and Register, as the wide header's two buttons, side by side
+          // under a line
+          //
+          // Note: their ink is set here. Every link in a navbar is given the
+          //       signed-in bar's white -- see '_navigation.scss' -- and this
+          //       panel is not black.
+          //
+          .phone-menu-actions {
+            border-top: 1px solid $gray-2;
+            display: grid;
+            gap: 0.6rem;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin: 0.6rem 1.25rem 0;
+            padding-top: 0.9rem;
+
+            .btn {
+              align-items: center;
+              border-radius: 0.5rem;
+              color: $gray-7;
+              display: flex;
+              font-size: 1rem;
+              justify-content: center;
+              min-height: 2.75rem;
+            }
+
+            .btn-primary {
+              color: $white-1-fixed;
+            }
+          }
+
+          //
+          // the round arrow /graph and /data fold with -- see '.graph-fold' --
+          // on the middle of the panel's bottom edge, a size up for a finger.
+          // It closes the menu.
+          //
+          .phone-menu-fold {
+            align-items: center;
+            background-color: $white-1;
+            border: 1px solid $gray-3;
+            border-radius: 50%;
+            bottom: 0;
+            color: $gray-6;
+            display: flex;
+            font-size: 1.5rem;
+            height: 2.25rem;
+            justify-content: center;
+            left: 50%;
+            padding: 0;
+            position: absolute;
+            transform: translate(-50%, 50%);
+            width: 2.25rem;
+
+            &:hover {
+              background-color: rgba($green-2, 0.32);
+              border-color: $green-4;
+              color: $green-6;
+            }
+
+            &:focus-visible {
+              outline: 2px solid $focus;
+            }
+          }
+
+          //
+          // the page under the open menu, dimmed. Fixed over the whole screen,
+          // and under everything else in '.menu-container' -- whose 'z-index:
+          // 1' makes it the stacking context here -- so it lies over the page,
+          // and under the bar and the panel.
+          //
+          .phone-menu-scrim {
+            background-color: rgba(0, 0, 0, 0.3);
+            inset: 0;
+            position: fixed;
+            z-index: -1;
+
+            @include dark {
+              background-color: rgba(0, 0, 0, 0.55);
+            }
           }
         }
       }
@@ -132,11 +318,10 @@
           // Bootstrap sets a navbar's menus static, for its collapsed navbar,
           // and this one would push the header down to make room for itself.
           //
-          // Light, as the header it opens from is. Every other menu in the
-          // header is the near-black '_navigation.scss' gives them, and each of
-          // those opens from a black bar -- the phone's header, or the signed-in
-          // one -- where it matches what is behind it. Under these pills, gray
-          // on white, it was a black box dropped onto a white page.
+          // Light, as the header it opens from is. The signed-in header's menus
+          // are the near-black '_navigation.scss' gives them, and open from its
+          // black bar, where they match what is behind them. Under these pills,
+          // gray on white, that was a black box dropped onto a white page.
           //
           .dropdown-menu {
             position: absolute;
@@ -236,29 +421,6 @@
       border-radius: 0;
       margin-bottom: 0;
 
-      > #mr-auto {
-        margin-top: 1rem;
-      }
-
-      .menu-label {
-        color: $header-font-color;
-      }
-
-      .menu-label:hover {
-        color: $header-font-color-hover;
-      }
-
-      .navbar-collapse {
-        > .show {
-          background-color: $gray-9-fixed;
-        }
-      }
-
-      #basic-nav-dropdown {
-        padding-right: 1rem;
-      }
-
-      #basic-nav-dropdown:hover,
       .navbar-brand:hover {
         color: $white-1-fixed;
       }
