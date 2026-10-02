@@ -106,6 +106,23 @@ $stream-held: rgba($green-2, 0.32);
   padding: 1rem 0;
 }
 
+//
+// a wide screen's row takes a faint gray while the pointer is on it, as /data's
+// and /graph's rows do, so a row is easy to follow from its name across to its
+// bars (#169). It is set out half a rem past its content on either side, so the
+// gray does not cut the name's first letter.
+//
+@media (min-width: 768px) {
+  .stream-rows-table .stream-row {
+    margin: 0 -0.5rem;
+    padding: 1rem 0.5rem;
+
+    &:hover {
+      background-color: rgba(var(--ink-rgb), 0.03);
+    }
+  }
+}
+
 .stream-row-controls {
   display: flex;
   justify-content: flex-end;
@@ -221,6 +238,26 @@ $stream-held: rgba($green-2, 0.32);
   &:focus-visible {
     text-decoration: underline;
   }
+}
+
+//
+// the arrow after a stream's name, which says before the pointer gets there
+// that the name opens (#169) -- the arrow a phone's list ends each row with.
+// Quiet at rest, and nearer the name's ink under the pointer.
+//
+// Note: two classes, since mui's own icon styles are one, and arrive after this
+//       stylesheet.
+//
+.stream-row-link .stream-row-open {
+  color: $gray-5;
+  font-size: 1.2rem;
+  margin-left: 0.15rem;
+  vertical-align: -0.2em;
+}
+
+#bootstrap-override .stream-row-link:hover .stream-row-open,
+#bootstrap-override .stream-row-link:focus-visible .stream-row-open {
+  color: $gray-8;
 }
 
 .stream-row-schedule {
@@ -678,11 +715,12 @@ $stream-held: rgba($green-2, 0.32);
 //
 // the green rail the folded figures leave, down the rows' right side, as
 // /graph's folded columns are drawn -- see '.graph-panel-closed'. The whole
-// rail is the button that opens them again.
+// rail is the button that opens them again. One flat green, so its label reads
+// -- see '$green-bar' (#169).
 //
 .stream-rows-rail {
   align-items: center;
-  background-image: linear-gradient(to bottom, rgba($green-2, 0.42), rgba($green-4, 0.16));
+  background-color: $green-bar;
   border: 0;
   border-radius: 0.25rem;
   color: $green-6;
@@ -698,7 +736,7 @@ $stream-held: rgba($green-2, 0.32);
   width: 2rem;
 
   &:hover {
-    background-image: linear-gradient(to bottom, rgba($green-2, 0.6), rgba($green-4, 0.28));
+    background-color: $green-bar-hover;
   }
 
   &:focus-visible {
@@ -951,7 +989,8 @@ $stream-held: rgba($green-2, 0.32);
 // title at the top left, where a way back is looked for. The title's line is a
 // grid so the pill can take a line to itself, with the rate's controls still
 // centered between the title and the api icons as they were. A step deeper
-// under the pointer: darker by day, brighter by night
+// under the pointer: darker by day, brighter by night -- '$green-bar-hover',
+// as the folded columns' rails take
 //
 @media (min-width: 768px) {
   .stream-layout-focused .stream-rows-bar {
@@ -989,7 +1028,7 @@ $stream-held: rgba($green-2, 0.32);
     }
 
     &:hover {
-      background-color: mix($green-2, #fff, 38%);
+      background-color: $green-bar-hover;
       border-color: mix($green-4, #fff, 70%);
     }
 
@@ -997,7 +1036,6 @@ $stream-held: rgba($green-2, 0.32);
       border-color: mix($green-4, $dark-white-1, 40%);
 
       &:hover {
-        background-color: mix($green-2, $dark-white-1, 32%);
         border-color: mix($green-4, $dark-white-1, 70%);
       }
     }
@@ -1221,12 +1259,33 @@ $stream-held: rgba($green-2, 0.32);
 
   //
   // Note: the bars and the line over them are hidden on the LIST's rows. A
-  //       stream's own view draws the same bars, and needs them.
+  //       stream's own view draws the same bars, and needs them. So is the
+  //       arrow after a name: the row ends in its own.
   //
   .stream-row-controls,
   .stream-row-figures,
-  .stream-row .stream-row-bars {
+  .stream-row .stream-row-bars,
+  .stream-row-link .stream-row-open {
     display: none;
+  }
+
+  //
+  // every other row a faint gray, as /graph's tables are on a phone (#145),
+  // with no line between rows, and each row set out half a rem on either side
+  // so the gray does not cut its text (#169)
+  //
+  // Note: 'odd' is the second row, the fourth and on. The headings' div comes
+  //       first, hidden or not.
+  //
+  .stream-rows-table .stream-row {
+    border-top-color: transparent;
+    margin: 0 -0.5rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .stream-rows-table .stream-row:nth-of-type(odd) {
+    background-color: rgba(var(--ink-rgb), 0.03);
   }
 
   .stream-row-pick {
