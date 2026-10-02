@@ -1,6 +1,7 @@
 /**
  * stylesheet.test.js: what the header's stylesheet promises about the light and
- * dark switch, read out of '_navigation.scss'.
+ * dark switch, read out of '_navigation.scss', and about the phone's bar and its
+ * menu, out of '_navigation_anonymous.scss' (#173).
  *
  * jsdom lays nothing out, so no suite can measure the room around the switch or
  * see the wash behind it under the pointer. What can be held is the rule that
@@ -15,9 +16,14 @@
 import fs from 'fs';
 import path from 'path';
 
-const SCSS = path.resolve(__dirname, '../../../scss/_navigation.scss');
+//
+// a partial's text, its comments taken out
+//
+function read(file) {
+    return fs.readFileSync(path.resolve(__dirname, '../../../scss', file), 'utf8').replace(/\/\/.*$/gm, '');
+}
 
-const source = fs.readFileSync(SCSS, 'utf8').replace(/\/\/.*$/gm, '');
+const source = read('_navigation.scss');
 
 //
 // the text between the braces of every block opened by `header`, at any depth
@@ -42,6 +48,21 @@ function blocks(text, header) {
     }
 
     return found;
+}
+
+//
+// a block's own declarations, the blocks nested in it taken out
+//
+function own(text) {
+    let out = text;
+    let last;
+
+    do {
+        last = out;
+        out = out.replace(/[^{};]*\{[^{}]*\}/g, '');
+    } while (out !== last);
+
+    return out;
 }
 
 describe('the switch', () => {
@@ -82,5 +103,33 @@ describe('the switch on a black bar', () => {
         // the page's own ink is black by day, and would not show on the bar
         //
         expect(hover).toMatch(/background-color\s*:\s*rgba\(255,\s*255,\s*255,\s*0\.12\)\s*;/);
+    });
+});
+
+describe('the phone\'s bar (#173)', () => {
+    const variables = read('_variables.scss');
+    const theme = read('_theme.scss');
+    const [bar] = blocks(read('_navigation_anonymous.scss'), '.main-navigation.phone-header');
+    const [panel] = bar ? blocks(bar, '.phone-menu') : [];
+
+    it('is a very light gray by day, and a shade darker than the page by night', () => {
+        expect(own(bar)).toMatch(/background-color\s*:\s*\$header-bar\s*;/);
+        expect(theme).toMatch(/'header-bar'\s*:\s*\(\s*\$header-bar\s*,\s*\$dark-header-bar\s*\)/);
+        expect(variables).toMatch(/\$header-bar\s*:\s*#f5f5f5\s*;/);
+        expect(variables).toMatch(/\$dark-header-bar\s*:\s*#151515\s*;/);
+    });
+
+    it('is black nowhere, and the shared partial paints no bar black', () => {
+        //
+        // the signed-in header is still a black bar, but its own partial
+        // paints it -- see '_navigation_authenticated.scss'
+        //
+        expect(bar).not.toMatch(/\bblack\b/);
+        expect(source).not.toMatch(/background-color\s*:\s*black/);
+    });
+
+    it('drops a square menu in its own color, so the two are one surface', () => {
+        expect(own(panel)).toMatch(/background-color\s*:\s*\$header-bar\s*;/);
+        expect(panel).not.toMatch(/border-radius/);
     });
 });
