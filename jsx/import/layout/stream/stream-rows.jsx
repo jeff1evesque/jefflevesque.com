@@ -462,6 +462,7 @@ function StreamRow({ row, rate, onPoint, pointed = null, onOpen = null, onFocus 
                                 }}
                             >
                                 {row.name}
+                                <ChevronRightIcon className='stream-row-open' fontSize='inherit' aria-hidden='true' />
                             </a>
                         ) : row.name}
                     {row.status === 'loading' || row.status === 'slow'

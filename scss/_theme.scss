@@ -5,14 +5,14 @@
 // index.html puts it on the root element, as `data-theme`, before the first
 // paint -- see theme-preference.js. Everything here keys on that attribute.
 //
-// The neutral ramp -- '$white-1' and '$white-2', '$gray-1' to '$gray-9' -- and
-// the accents read as text on the page are pointed at custom properties at the
-// bottom of this partial, so every partial imported after it writes
-// 'var(--gray-6)' where it says '$gray-6'. Those properties hold the light
-// theme's values, which are the values '_variables.scss' gives the same names,
-// and the dark theme's while the page is dark. A rule written for the light
-// theme draws the dark one without knowing about it, and draws the light one
-// exactly as it always has.
+// The neutral ramp -- '$white-1' and '$white-2', '$gray-1' to '$gray-9' -- the
+// accents read as text on the page, and the green a folded column is filled
+// with are pointed at custom properties at the bottom of this partial, so every
+// partial imported after it writes 'var(--gray-6)' where it says '$gray-6'.
+// Those properties hold the light theme's values, which are the values
+// '_variables.scss' gives the same names, and the dark theme's while the page
+// is dark. A rule written for the light theme draws the dark one without
+// knowing about it, and draws the light one exactly as it always has.
 //
 // Note: only the page's own colors change. The phone's header and the signed-in
 //       header are black bars in either theme, and the ink on them is held
@@ -54,6 +54,8 @@ $theme-colors: (
   'gray-8': ($gray-8, $dark-gray-8),
   'gray-9': ($gray-9, $dark-gray-9),
   'green-6': ($green-6, $dark-green-6),
+  'green-bar': ($green-bar, $dark-green-bar),
+  'green-bar-hover': ($green-bar-hover, $dark-green-bar-hover),
   'blue-hyperlink': ($blue-hyperlink, $dark-blue-hyperlink),
   'red-1': ($red-1, $dark-red-1),
   'red-2': ($red-2, $dark-red-2),
@@ -129,6 +131,8 @@ $gray-7: var(--gray-7);
 $gray-8: var(--gray-8);
 $gray-9: var(--gray-9);
 $green-6: var(--green-6);
+$green-bar: var(--green-bar);
+$green-bar-hover: var(--green-bar-hover);
 $blue-hyperlink: var(--blue-hyperlink);
 $red-1: var(--red-1);
 $red-2: var(--red-2);

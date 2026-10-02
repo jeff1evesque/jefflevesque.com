@@ -496,15 +496,32 @@
     }
   }
 
+  //
+  // the way back to the page's own order, a gray pill in the look of /stream's
+  // rate buttons -- see '.stream-rate' -- beside the filter (#169). It was the
+  // one blue link among the page's gray pills and icons
+  //
   .listing-table-reset {
+    align-items: center;
     background: none;
-    border: 0;
-    color: $blue-hyperlink;
-    padding: 0.25rem 0.5rem;
+    border: 1px solid $gray-3;
+    border-radius: 999px;
+    color: $gray-7;
+    cursor: pointer;
+    display: inline-flex;
+    font: inherit;
+    gap: 0.3rem;
+    min-height: 2.25rem;
+    padding: 0.3rem 0.9rem 0.3rem 0.65rem;
     white-space: nowrap;
 
-    &:hover {
-      text-decoration: underline;
+    svg {
+      font-size: 1.15rem;
+    }
+
+    &:hover,
+    &:focus-visible {
+      border-color: $gray-7;
     }
   }
 
@@ -810,6 +827,31 @@
 //
 .data-listing {
   padding-bottom: 2rem;
+}
+
+//
+// /data's rows striped as /graph's tables are (#145): every other row a faint
+// gray, and no line between rows, so a row is easy to follow from its name to
+// its figures (#169). The row under the pointer goes deeper, as /graph's does,
+// since the 0.03 it took is no change over a shaded row. The charted row keeps
+// its green, and takes neither.
+//
+// Note: a wide screen's table only. A phone draws the rows as cards.
+//
+// Note: the lines keep their 1px and lose their color, so no row changes height.
+//
+.large-viewport .data-listing .listing-table {
+  tbody tr:not(:last-child) > * {
+    border-bottom-color: transparent;
+  }
+
+  tbody tr:nth-of-type(even):not(.listing-table-selected) {
+    background-color: rgba(var(--ink-rgb), 0.03);
+  }
+
+  tbody tr:not(.listing-table-selected):hover {
+    background-color: rgba(var(--ink-rgb), 0.07);
+  }
 }
 
 //

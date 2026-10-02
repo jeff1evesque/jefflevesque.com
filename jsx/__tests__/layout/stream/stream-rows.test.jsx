@@ -123,6 +123,18 @@ describe('a stream\'s name (#161)', () => {
         expect(link()).toHaveAttribute('href', '/stream?item=sec&rate=day');
     });
 
+    it('ends in an arrow that says it opens, which a screen reader skips, so the link keeps its name (#169)', () => {
+        setup([stream('SEC Filings', { href: '/stream?item=sec&rate=day' })]);
+
+        expect(link().querySelector('.stream-row-open')).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('draws no arrow after a name with nowhere to link', () => {
+        setup([stream('SEC Filings')]);
+
+        expect(rowOf('SEC Filings').querySelector('.stream-row-open')).toBeNull();
+    });
+
     it('shows the stream on its own on a plain click, without loading the page again', () => {
         const onFocus = jest.fn();
 

@@ -16,15 +16,17 @@
 //
 // /data's chart out to the left edge the switch and the month under it start
 // at, past the column's own padding, so the value axis's figures line up with
-// them and the chart runs the row's width (#167)
+// them and the chart runs the row's width (#167). And 1rem under the header,
+// so the chart starts as far under it as /stream's title does (#169)
 //
 .listing-graphic .cube-chart {
   margin-left: calc(var(--bs-gutter-x) / -2);
+  margin-top: 1rem;
 }
 
 //
 // the plot takes the row's width, which the chart measures to lay out its bars,
-// and holds the tooltip, the api icons and the loader over it
+// and holds the caption, the api icons, the tooltip and the loader over it
 //
 .cube-chart-plot {
   position: relative;
@@ -55,11 +57,29 @@
   pointer-events: none;
 }
 
-.cube-chart-caption,
 .cube-chart-tick {
   fill: $gray-6;
   font-size: 12px;
   pointer-events: none;
+}
+
+//
+// what a cube is worth, inside the plot at its top left, on the line the api
+// icons take at its top right (#169). It had a line of its own over the plot.
+// On a little of the page, as the icons are, so a tall bar behind it cannot
+// hide it -- the chart sets where
+//
+.cube-chart-caption {
+  background-color: var(--white-1-85);
+  border-radius: 999px;
+  color: $gray-6;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 0.1rem 0.55rem;
+  pointer-events: none;
+  position: absolute;
+  white-space: nowrap;
+  z-index: 1;
 }
 
 .cube-chart-name {
@@ -131,11 +151,12 @@
 //
 // the green bar the folded names leave under the plot, the chart's full width,
 // in the look of /graph's folded columns -- see '.graph-panel-closed' -- laid
-// along rather than down. The whole bar is the button that shows them again
+// along rather than down. The whole bar is the button that shows them again.
+// One flat green, so its label reads -- see '$green-bar' (#169)
 //
 .cube-chart-rail {
   align-items: center;
-  background-image: linear-gradient(to right, rgba($green-2, 0.42), rgba($green-4, 0.16));
+  background-color: $green-bar;
   border: 0;
   border-radius: 0.25rem;
   color: $green-6;
@@ -151,7 +172,7 @@
   z-index: 1;
 
   &:hover {
-    background-image: linear-gradient(to right, rgba($green-2, 0.6), rgba($green-4, 0.28));
+    background-color: $green-bar-hover;
   }
 
   &:focus-visible {
@@ -195,16 +216,17 @@
 }
 
 //
-// the api icons in the plot's top right corner, as they sat over the old bars,
-// on a little of the page so a tall bar behind them cannot hide them
+// the api icons inside the plot's top right corner, on the caption's line, on a
+// little of the page so a tall bar behind them cannot hide them. The chart sets
+// where (#169). They sat 2rem from the chart's corner, across the plot's top
+// line
 //
 .cube-chart-actions {
   background-color: var(--white-1-85);
   border-radius: 999px;
+  line-height: 0;
   padding: 0 0.25rem;
   position: absolute;
-  right: 2rem;
-  top: 2rem;
   z-index: 1;
 }
 

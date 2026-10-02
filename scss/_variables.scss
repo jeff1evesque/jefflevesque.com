@@ -121,6 +121,22 @@ $form-panel: #f7f5f7;
 $dark-form-panel: #252525;
 
 //
+// the green a folded column is filled with -- /stream's figures, /data's group
+// names, /graph's side columns -- and a phone's way back to a list, which
+// '_theme.scss' pairs by theme. Flat rather than a fade: the '$green-6' label
+// is 5.1:1 on it in either theme, where a fade's strong end left it 4.47:1 by
+// day and 2.75:1 by night (#169).
+//
+// And the step deeper under the pointer. By night it is 22% rather than the
+// day's 38%: as far off the bar as the day's step is, about 1.1:1, with the
+// label still 4.59:1 on it, where 32% left it 3.55:1.
+//
+$green-bar: mix($green-2, #fff, 20%);
+$green-bar-hover: mix($green-2, #fff, 38%);
+$dark-green-bar: mix($green-2, $dark-white-1, 18%);
+$dark-green-bar-hover: mix($green-2, $dark-white-1, 22%);
+
+//
 // usermenu
 //
 $menu-border-left: 0.5rem;

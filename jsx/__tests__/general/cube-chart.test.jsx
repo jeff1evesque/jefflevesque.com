@@ -86,7 +86,7 @@ describe('the chart', () => {
         expect(texts(container, 'text.cube-chart-tick')).toEqual(['0', '3.5M', '7M', '10.5M', '14M']);
     });
 
-    it('titles neither axis: the line over the plot and the names say what each is (#167)', () => {
+    it('titles neither axis: the caption and the names say what each is (#167)', () => {
         const { container } = draw({ namesShown: true });
 
         expect(container.querySelector('text.cube-chart-title')).toBeNull();
@@ -128,6 +128,32 @@ describe('the chart', () => {
         const { container } = draw();
 
         expect(container.querySelector('.cube-chart-actions')).toBeNull();
+    });
+
+    it('sets the caption and the icons inside the plot, in from its top corners (#169)', () => {
+        const { container, tree } = draw({ actions: <a href='#docs'>API docs</a> });
+        const caption = container.querySelector('.cube-chart-caption');
+        const actions = container.querySelector('.cube-chart-actions');
+
+        expect(container.querySelector('text.cube-chart-caption')).toBeNull();
+        expect(caption.tagName).toBe('DIV');
+        expect(caption.style.left).toBe(`${axisRoom(tree) + 10}px`);
+        expect(caption.style.top).toBe('16px');
+        expect(actions.style.right).toBe('8px');
+        expect(actions.style.top).toBe('12px');
+    });
+
+    it('leaves the caption to the chart\'s own label for a screen reader, so it is heard once', () => {
+        const { container } = draw();
+
+        expect(container.querySelector('.cube-chart-caption')).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('starts the plot 8px under its top, with no line over it for the caption (#169)', () => {
+        const { container } = draw();
+        const [axis] = container.querySelectorAll('line.cube-chart-axis');
+
+        expect(axis.getAttribute('y1')).toBe('8');
     });
 });
 
@@ -486,9 +512,15 @@ describe('the names under the chart (#167)', () => {
 
         fireEvent.click(bar());
 
-        expect(folded.height).toBe('342');
-        expect(container.querySelector('svg')).toHaveAttribute('height', '392');
+        expect(folded.height).toBe('316');
+        expect(container.querySelector('svg')).toHaveAttribute('height', '366');
         expect(base()).toBe(folded.base);
+    });
+
+    it('stand 26px short of the height the chart is given, the caption\'s old line, either way (#169)', () => {
+        const { container } = draw({ namesShown: true });
+
+        expect(container.querySelector('svg')).toHaveAttribute('height', String(392 - 26));
     });
 
     it('leave the value axis alone: it never folds', () => {

@@ -20,7 +20,7 @@
  * Note: the axes (#167). The value axis is written in short figures -- '3.5M',
  *       '14M' -- where recharts' 'toExponential(0)' wrote 3.5M as '4e+6' and
  *       10.5M and 14M both as '1e+7', and it never folds. Neither axis has a
- *       title: the line over the plot says what a cube is worth, and the names
+ *       title: the caption on the plot says what a cube is worth, and the names
  *       say what a bar is. The names start folded into a green bar under the
  *       plot, which shows them again; shown, a click anywhere on them folds
  *       them, and the page keeps which -- see 'namesShown' and 'onNames'.
@@ -28,6 +28,10 @@
  * Note: the chart runs from the value axis's figures, at the page's left edge,
  *       to the listing's right edge (#167): the left margin is the figures' own
  *       width, and there is none at the right.
+ *
+ * Note: what a cube is worth, and the api icons, sit inside the plot on one
+ *       line, set in from its top corners (#169). The caption had a line of its
+ *       own over the plot, which the chart gives back -- see CAPTION_ROOM.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -40,13 +44,28 @@ import { share } from './sunburst.jsx';
 import { CHART_X_AXIS_HEIGHT, CHART_X_AXIS_ANGLE } from './chart-height.js';
 
 //
-// the plot's margins inside the chart, in px: room over the plot for the line
-// that says what a cube is worth -- about 20px between it and the plot (#167)
-// -- none at the right, so the plot runs to the listing's edge, and under the
-// names the band recharts kept. The left is the value axis's own figures --
-// see axisRoom
+// the plot's margins inside the chart, in px: over the plot, the room the value
+// axis's top figure needs, centered on the top line; none at the right, so the
+// plot runs to the listing's edge; and under the names the band recharts kept.
+// The left is the value axis's own figures -- see axisRoom
 //
-const MARGIN = { top: 34, right: 0, bottom: 8 };
+const MARGIN = { top: 8, right: 0, bottom: 8 };
+
+//
+// what the chart gives back of the height it is given, now the caption sits on
+// the plot (#169): the 34px over the plot that held the caption's line, less
+// the 8 still over it. The plot keeps its height, and what is under the chart
+// comes up by it
+//
+const CAPTION_ROOM = 26;
+
+//
+// where the caption and the api icons sit, set in from the plot's top left and
+// top right corners. The caption is down a little further, so its words center
+// on the icons' line
+//
+const CAPTION_INSET = { left: 10, top: 8 };
+const ACTIONS_INSET = { right: 8, top: 4 };
 
 //
 // the green bar the names fold into, and the room between it and the plot
@@ -173,10 +192,12 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
     // the plot is the same height either way. The names folded leave the green
     // bar under it in their place, and the chart is that much shorter, so what
     // is under the chart moves up. Shown, they take their band back, and a
-    // click anywhere in it folds them again
+    // click anywhere in it folds them again. Either way the chart is
+    // CAPTION_ROOM short of the height it is given
     //
-    const plot_bottom = height - MARGIN.bottom - CHART_X_AXIS_HEIGHT;
-    const total_height = shownNames ? height : plot_bottom + RAIL_GAP + RAIL;
+    const shown_height = height - CAPTION_ROOM;
+    const plot_bottom = shown_height - MARGIN.bottom - CHART_X_AXIS_HEIGHT;
+    const total_height = shownNames ? shown_height : plot_bottom + RAIL_GAP + RAIL;
 
     const layout = useMemo(() => cubeLayout(tree, {
         left: axisRoom(tree),
@@ -376,7 +397,6 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                         height={total_height}
                         onMouseEnter={() => setLit(null)}
                     />
-                    <text className='cube-chart-caption' x={plot.left} y={12}>{legend}</text>
                     {layout.ticks.map((tick) => (
                         <line
                             key={`grid-${tick}`}
@@ -513,7 +533,29 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                         <span>{capitalized(names.group[1])}</span>
                     </button>
                 )}
-                {actions ? <div className='cube-chart-actions'>{actions}</div> : null}
+                {/*
+
+                    what a cube is worth, and the api icons, inside the plot on
+                    one line, set in from its top corners (#169). The caption is
+                    hidden from a screen reader, which hears it in the chart's
+                    own label
+
+                */}
+                <div
+                    className='cube-chart-caption'
+                    style={{ left: plot.left + CAPTION_INSET.left, top: plot.top + CAPTION_INSET.top }}
+                    aria-hidden='true'
+                >
+                    {legend}
+                </div>
+                {actions ? (
+                    <div
+                        className='cube-chart-actions'
+                        style={{ right: width - plot.right + ACTIONS_INSET.right, top: plot.top + ACTIONS_INSET.top }}
+                    >
+                        {actions}
+                    </div>
+                ) : null}
                 {tip ? (
                     <div className='cube-chart-tip' style={tip.style} aria-hidden='true'>
                         <div className='cube-chart-tip-title'>{tip.title}</div>

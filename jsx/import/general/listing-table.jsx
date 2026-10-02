@@ -30,6 +30,7 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { Reorder, DragControls } from 'framer-motion';
 import SearchIcon from '@mui/icons-material/Search';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -537,6 +538,7 @@ class ListingTable extends Component {
                                 className='listing-table-reset'
                                 onClick={() => this.reorder(null)}
                             >
+                                <RestartAltIcon fontSize='inherit' />
                                 Reset order
                             </button>
                         ) : null}

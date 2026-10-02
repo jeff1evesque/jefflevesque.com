@@ -443,6 +443,16 @@ describe('the reader\'s order', () => {
         expect(onReorder).toHaveBeenCalledWith(null);
     });
 
+    it('draws Reset order as a pill with an icon before its words, still named by them (#169)', () => {
+        setup({ onReorder: jest.fn(), order: ['sec'] });
+
+        const reset = screen.getByRole('button', { name: 'Reset order' });
+
+        expect(reset).toHaveClass('listing-table-reset');
+        expect(reset.firstElementChild.tagName.toLowerCase()).toBe('svg');
+        expect(reset.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+    });
+
     it('draws no grips for a page that takes no order', () => {
         setup();
 
