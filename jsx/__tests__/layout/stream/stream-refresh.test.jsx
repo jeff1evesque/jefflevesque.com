@@ -426,6 +426,37 @@ describe('the button', () => {
     });
 });
 
+describe('a stream shown on its own (#171)', () => {
+    const before = window.location.pathname + window.location.search;
+
+    afterEach(() => {
+        window.history.replaceState({}, '', before);
+    });
+
+    it.each([
+        ['month'],
+        ['day'],
+        ['hour'],
+        ['minute'],
+    ])('keeps the button by the %s, which switches it off and keeps that', (rate) => {
+        window.history.replaceState({}, '', `/stream?item=sec&rate=${rate}`);
+
+        const { page } = setup();
+        settle(page);
+        getData.mockClear();
+
+        expect(document.querySelector('.stream-layout-focused')).not.toBeNull();
+
+        fireEvent.click(toggle());
+
+        expect(toggle()).toHaveAttribute('aria-pressed', 'false');
+        expect(window.localStorage.getItem(KEY)).toBe('off');
+
+        wait(2 * REFRESH_MS);
+        expect(asked()).toEqual([]);
+    });
+});
+
 describe('the rate', () => {
     it('starts the five minutes over when another is chosen', () => {
         const { page } = setup();
