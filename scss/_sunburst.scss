@@ -14,25 +14,16 @@
 }
 
 //
-// over the ring: how to open a group, on a ring with groups to open, and the
-// page's api icons at the row's end (#185)
+// over the ring, the page's api icons alone, at the row's end (#185)
 //
 .sunburst-head {
   align-items: center;
   display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-}
-
-.sunburst-meta {
-  color: $gray-6;
-  font-size: 0.93rem;
-  line-height: 1.4;
+  justify-content: flex-end;
 }
 
 .sunburst-actions {
   flex: none;
-  margin-left: auto;
 }
 
 .sunburst-body {
@@ -247,15 +238,11 @@ button.sunburst-center {
 
 //
 // below a tablet's width a phone's page draws the api icons at the end of its
-// month row (#185), so the ring's own copy is hidden, and a head with no hint
-// over it holds nothing to show. A tablet draws no month row, and keeps them
+// month row (#185), so the head over the ring, which holds only the ring's own
+// copy, is hidden. A tablet draws no month row, and keeps them
 //
 @media (max-width: 767.98px) {
-  .sunburst-phone .sunburst-actions {
-    display: none;
-  }
-
-  .sunburst-phone .sunburst-head:not(:has(.sunburst-meta)) {
+  .sunburst-phone .sunburst-head {
     display: none;
   }
 }
