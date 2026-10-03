@@ -116,6 +116,37 @@ afterAll(() => {
     window.localStorage.clear();
 });
 
+
+//
+// a computed style whose scroll-margin-top is the one the phone's pinned header
+// gives the element carrying `css_class` (#177) -- see '_navigation_anonymous.scss'.
+// jsdom computes no stylesheet. Every other element, and every other property,
+// is computed as jsdom would.
+//
+function pinnedMargin(css_class, margin = '78.4px') {
+    const real = window.getComputedStyle;
+
+    return jest.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+        const style = real.call(window, element, pseudo);
+
+        if (!element.classList || !element.classList.contains(css_class)) {
+            return style;
+        }
+
+        return new Proxy(style, {
+            get: (target, key) => {
+                if (key === 'scrollMarginTop') {
+                    return margin;
+                }
+
+                const value = Reflect.get(target, key, target);
+
+                return typeof value === 'function' ? value.bind(target) : value;
+            },
+        });
+    });
+}
+
 describe('a stream opened from its name', () => {
     it('is shown on its own, in place of the rows', () => {
         setup();
@@ -213,6 +244,40 @@ describe('a stream opened from its name', () => {
         });
 
         expect(box.scrollIntoView).not.toHaveBeenCalled();
+    });
+
+    it('brings the page\'s top down from under a phone\'s pinned header (#177)', () => {
+        const { page } = setup();
+        const box = document.querySelector('.stream-layout');
+        const style = pinnedMargin('stream-layout');
+
+        box.scrollIntoView = jest.fn();
+        box.getBoundingClientRect = () => ({ top: 40, bottom: 740, left: 0, right: 0, width: 0, height: 700 });
+
+        act(() => {
+            page.openStream('sec');
+        });
+
+        expect(box.scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+
+        style.mockRestore();
+    });
+
+    it('leaves the scroll alone when the page\'s top is in sight below a pinned header', () => {
+        const { page } = setup();
+        const box = document.querySelector('.stream-layout');
+        const style = pinnedMargin('stream-layout');
+
+        box.scrollIntoView = jest.fn();
+        box.getBoundingClientRect = () => ({ top: 120, bottom: 820, left: 0, right: 0, width: 0, height: 700 });
+
+        act(() => {
+            page.openStream('sec');
+        });
+
+        expect(box.scrollIntoView).not.toHaveBeenCalled();
+
+        style.mockRestore();
     });
 });
 

@@ -60,6 +60,37 @@ function bodyText() {
     return document.body.textContent.replace(/\s+/g, ' ');
 }
 
+
+//
+// a computed style whose scroll-margin-top is the one the phone's pinned header
+// gives the element carrying `css_class` (#177) -- see '_navigation_anonymous.scss'.
+// jsdom computes no stylesheet. Every other element, and every other property,
+// is computed as jsdom would.
+//
+function pinnedMargin(css_class, margin = '78.4px') {
+    const real = window.getComputedStyle;
+
+    return jest.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+        const style = real.call(window, element, pseudo);
+
+        if (!element.classList || !element.classList.contains(css_class)) {
+            return style;
+        }
+
+        return new Proxy(style, {
+            get: (target, key) => {
+                if (key === 'scrollMarginTop') {
+                    return margin;
+                }
+
+                const value = Reflect.get(target, key, target);
+
+                return typeof value === 'function' ? value.bind(target) : value;
+            },
+        });
+    });
+}
+
 describe('the listing on mobile', () => {
     it('renders without the desktop-only assumptions', () => {
         setup();
@@ -214,6 +245,38 @@ describe('a phone\'s listing first (#165)', () => {
 
         expect(scrolled).not.toHaveBeenCalled();
 
+        delete Element.prototype.scrollIntoView;
+    });
+
+    it('scrolls a dataset opened under a phone\'s pinned header down from under it (#177)', () => {
+        const scrolled = jest.fn();
+        Element.prototype.scrollIntoView = scrolled;
+        const top = jest.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ top: 40 });
+        const style = pinnedMargin('data-listing');
+
+        setup();
+        fireEvent.click(chartButton('US Weather'));
+
+        expect(scrolled).toHaveBeenCalledWith({ block: 'start' });
+
+        style.mockRestore();
+        top.mockRestore();
+        delete Element.prototype.scrollIntoView;
+    });
+
+    it('leaves a dataset opened in sight below a pinned header where it is', () => {
+        const scrolled = jest.fn();
+        Element.prototype.scrollIntoView = scrolled;
+        const top = jest.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ top: 120 });
+        const style = pinnedMargin('data-listing');
+
+        setup();
+        fireEvent.click(chartButton('US Weather'));
+
+        expect(scrolled).not.toHaveBeenCalled();
+
+        style.mockRestore();
+        top.mockRestore();
         delete Element.prototype.scrollIntoView;
     });
 

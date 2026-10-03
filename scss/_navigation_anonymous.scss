@@ -12,6 +12,28 @@
 //       follows the theme, this partial's headers among them: the wide one, and
 //       the phone's since #173. See '_theme.scss'.
 
+//
+// a Login button by night: a lighter gray than the site's button, whose fill is
+// about 1.1:1 off the dark page and 1.2:1 off the phone menu's #151515, and
+// showed as little more than its border. #444 is about 1.7:1 off the page and
+// 1.9:1 off the menu, its border 2.4:1 and 2.6:1, so it reads as a button. A
+// step lighter under the pointer, where the site's button turns darker.
+//
+// One gray for both Logins -- the phone menu's (#175) and the headers' 'Login
+// in' (#177) -- so the two cannot drift apart.
+//
+@mixin login-night {
+  background-color: $dark-gray-3;
+  background-image: none;
+  border-color: $dark-gray-5;
+
+  &:hover {
+    background-color: mix($dark-gray-3, $dark-gray-5, 50%);
+    background-image: none;
+    border-color: $dark-gray-5;
+  }
+}
+
 #bootstrap-override {
   .small-viewport {
     .anonymous {
@@ -201,25 +223,14 @@
             }
 
             //
-            // Login by night: a lighter gray than the site's button, which is
-            // about 1.2:1 off the panel's #151515 and showed as little more
-            // than its border. #444 is about 1.9:1 off it, and its border
-            // 2.6:1, so it reads as a button beside Register's green (#175).
-            // Under the pointer a step lighter again, where the site's button
-            // turns darker.
+            // Login by night, beside Register's green (#175) -- see
+            // 'login-night'
             //
             .btn:not(.btn-primary) {
               @include dark {
-                background-color: $dark-gray-3;
-                background-image: none;
-                border-color: $dark-gray-5;
-                color: $dark-gray-9;
+                @include login-night;
 
-                &:hover {
-                  background-color: mix($dark-gray-3, $dark-gray-5, 50%);
-                  background-image: none;
-                  border-color: $dark-gray-5;
-                }
+                color: $dark-gray-9;
               }
             }
           }
@@ -259,8 +270,8 @@
 
           //
           // the page under the open menu, dimmed. Fixed over the whole screen,
-          // and under everything else in '.menu-container' -- whose 'z-index:
-          // 1' makes it the stacking context here -- so it lies over the page,
+          // and under everything else in '.menu-container' -- whose z-index
+          // makes it the stacking context here -- so it lies over the page,
           // and under the bar and the panel.
           //
           .phone-menu-scrim {
@@ -274,6 +285,31 @@
             }
           }
         }
+      }
+
+      //
+      // the phone's header, pinned to the top of the screen while the page
+      // scrolls under it (#177). The construction banner over it scrolls away.
+      // Only the phone's header: the sign-in and sign-up pages' own headers are
+      // transparent, and would let the page show through them.
+      //
+      // Its z-index is Bootstrap's for a sticky bar: over every layer a page
+      // draws, and under mui's menus and the stream sheet, which open over it.
+      //
+      > .menu-container:has(.phone-header) {
+        position: sticky;
+        top: 0;
+        z-index: 1020;
+      }
+
+      //
+      // the views that scroll themselves into sight when one stream or one
+      // dataset opens (#161, #165) stop below the pinned bar, not under it: its
+      // 57px, and the 1.5rem the page keeps under it. See scroll-margin.js.
+      //
+      .stream-layout,
+      .data-listing {
+        scroll-margin-top: calc(57px + 1.5rem);
       }
     }
   }
@@ -416,6 +452,17 @@
 
     .mn-2:hover {
       color: $gray-9 !important;
+    }
+
+    //
+    // the headers' 'Login in' by night (#177), the wide one's and the sign-up
+    // page's: the phone menu's Login gray -- see 'login-night'. Its text keeps
+    // the page's own, which '.mn-2' holds it to.
+    //
+    .menu-container a.btn.mn-2 {
+      @include dark {
+        @include login-night;
+      }
     }
 
     .main-navigation {

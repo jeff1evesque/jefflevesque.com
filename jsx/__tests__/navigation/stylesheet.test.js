@@ -145,13 +145,50 @@ describe('the phone\'s bar (#173)', () => {
         expect(arrow).toMatch(/(^|[\s;{])color\s*:\s*\$green-6\s*;/);
     });
 
-    it('gives Login a lighter gray by night, so it reads as a button on the dark panel (#175)', () => {
-        const [actions] = bar ? blocks(bar, '.phone-menu-actions') : [];
-        const [login] = actions ? blocks(actions, '.btn:not(.btn-primary)') : [];
-        const [night] = login ? blocks(login, '@include dark') : [];
+});
 
-        expect(own(night)).toMatch(/background-color\s*:\s*\$dark-gray-3\s*;/);
-        expect(own(night)).toMatch(/border-color\s*:\s*\$dark-gray-5\s*;/);
+describe('the phone\'s pinned header (#177)', () => {
+    const anonymous = read('_navigation_anonymous.scss');
+    const [pinned] = blocks(anonymous, '> .menu-container:has(.phone-header)');
+    const [views] = blocks(anonymous, '.data-listing');
+
+    it('stays at the top of the screen, over every layer a page draws', () => {
+        expect(pinned).toMatch(/position\s*:\s*sticky\s*;/);
+        expect(pinned).toMatch(/(^|[\s;{])top\s*:\s*0\s*;/);
+        expect(pinned).toMatch(/z-index\s*:\s*1020\s*;/);
+    });
+
+    it('is the phone\'s header alone: no other header a phone shows is pinned', () => {
+        expect(anonymous.match(/position\s*:\s*sticky/g)).toHaveLength(1);
+    });
+
+    it('stops the views that scroll themselves into sight below it, not under it', () => {
+        expect(anonymous).toMatch(/\.stream-layout,\s*\.data-listing\s*\{/);
+        expect(views).toMatch(/scroll-margin-top\s*:\s*calc\(57px \+ 1\.5rem\)\s*;/);
+    });
+});
+
+describe('the Login gray by night (#175, #177)', () => {
+    const anonymous = read('_navigation_anonymous.scss');
+    const variables = read('_variables.scss');
+    const [mixin] = blocks(anonymous, '@mixin login-night');
+    const rules = [
+        ['the phone menu\'s Login', blocks(anonymous, '.btn:not(.btn-primary)')[0]],
+        ['the headers\' Login in', blocks(anonymous, '.menu-container a.btn.mn-2')[0]],
+    ];
+
+    it('is one gray: a #444 fill and a #5a5a5a border, with no gradient', () => {
+        expect(own(mixin)).toMatch(/background-color\s*:\s*\$dark-gray-3\s*;/);
+        expect(own(mixin)).toMatch(/background-image\s*:\s*none\s*;/);
+        expect(own(mixin)).toMatch(/border-color\s*:\s*\$dark-gray-5\s*;/);
         expect(variables).toMatch(/\$dark-gray-3\s*:\s*#444\s*;/);
+        expect(variables).toMatch(/\$dark-gray-5\s*:\s*#5a5a5a\s*;/);
+    });
+
+    it.each(rules)('is worn by %s, by night only', (name, rule) => {
+        const [night] = blocks(rule, '@include dark');
+
+        expect(night).toMatch(/@include login-night\s*;/);
+        expect(own(rule)).not.toMatch(/login-night/);
     });
 });
