@@ -53,15 +53,9 @@ const arcOf = (container, name) => arcs(container).find((path) => path.getAttrib
 const labels = (container) => [...container.querySelectorAll('text.sunburst-label')].map((text) => text.textContent);
 const middle = (container) => container.querySelector('.sunburst-center').textContent;
 //
-// the hint over the ring, or null where there is none; the head it sits in,
-// or null where nothing is drawn over the ring; and what the middle names --
-// an open group, or 'All ...' -- while nothing is pointed at
+// the head over the ring, or null where nothing is drawn over it, and what the
+// middle names -- an open group, or 'All ...' -- while nothing is pointed at
 //
-const hint = (container) => {
-    const line = container.querySelector('.sunburst-meta');
-
-    return line ? line.textContent : null;
-};
 const head = (container) => container.querySelector('.sunburst-head');
 const opened = (container) => container.querySelector('.sunburst-center-title').textContent;
 const rowNames = (container) => [...container.querySelectorAll('.sunburst-row .sunburst-name')].map((name) => name.textContent);
@@ -80,23 +74,21 @@ describe('the whole month', () => {
     it('names the month in the middle', () => {
         const { container } = draw();
 
-        expect(middle(container)).toBe('All sectors3,100records');
+        expect(middle(container)).toBe('All sectors3,100recordsClick to zoom in');
     });
 
-    it('says how to open a group above it, and nothing else (#185)', () => {
+    it('says how to open a group in the middle, and draws nothing over the ring, which stays put (#185)', () => {
         const { container } = draw();
 
-        expect(hint(container)).toBe('Click a sector to zoom in');
-        expect(head(container).textContent).toBe('Click a sector to zoom in');
+        expect(container.querySelector('.sunburst-center-hint').textContent).toBe('Click to zoom in');
+        expect(head(container)).toBeNull();
         expect(container.querySelector('nav')).toBeNull();
     });
 
-    it('leaves the month to the page and the total to the middle, and names the month to a screen reader (#183)', () => {
+    it('names the month only to a screen reader, in the ring\'s label (#183)', () => {
         const { container } = draw();
 
-        expect(head(container).textContent).not.toContain('September 2026');
-        expect(head(container).textContent).not.toContain('3,100');
-        expect(middle(container)).toBe('All sectors3,100records');
+        expect(container.querySelector('.sunburst').textContent).not.toContain('September 2026');
         expect(screen.getByRole('img', { name: 'Records by sector and industry, September 2026' })).toBeInTheDocument();
     });
 
@@ -108,13 +100,14 @@ describe('the whole month', () => {
         expect(head(container)).toBeNull();
     });
 
-    it('keeps the page\'s actions over an open group, with no hint beside them (#185)', () => {
+    it('draws the page\'s actions over the ring alone, open group or not (#185)', () => {
         const { container } = draw({ actions: <a href='/docs'>API docs</a> });
+
+        expect(head(container).textContent).toBe('API docs');
 
         fireEvent.click(row('Energy'));
 
-        expect(hint(container)).toBeNull();
-        expect(within(head(container)).getByRole('link', { name: 'API docs' })).toBeInTheDocument();
+        expect(head(container).textContent).toBe('API docs');
     });
 
     it('describes the ring to a screen reader', () => {
@@ -198,7 +191,7 @@ describe('pointing', () => {
 
         expect(arcOf(container, 'Energy')).toHaveAttribute('fill', colors_categorical[1]);
         expect(arcOf(container, 'Utilities')).toHaveStyle({ opacity: '1' });
-        expect(middle(container)).toBe('All sectors3,100records');
+        expect(middle(container)).toBe('All sectors3,100recordsClick to zoom in');
     });
 
     it('does the same for a row reached from the keyboard', () => {
@@ -208,7 +201,7 @@ describe('pointing', () => {
         expect(middle(container)).toContain('Utilities700');
 
         fireEvent.blur(row('Utilities'));
-        expect(middle(container)).toBe('All sectors3,100records');
+        expect(middle(container)).toBe('All sectors3,100recordsClick to zoom in');
     });
 
     it('names a segment pointed at on the ring, with its share of its group', () => {
@@ -218,7 +211,7 @@ describe('pointing', () => {
         expect(middle(container)).toBe('Software300records · 30% of Information TechnologyClick to zoom in');
 
         fireEvent.mouseLeave(arcOf(container, 'Software'));
-        expect(middle(container)).toBe('All sectors3,100records');
+        expect(middle(container)).toBe('All sectors3,100recordsClick to zoom in');
     });
 
     it('brightens the segment instead on a dark page', () => {
@@ -340,7 +333,7 @@ describe('opening a group', () => {
         redraw(distributionTree(ROWS.slice(1), 'sector'));
 
         expect(rowNames(container)).toHaveLength(3);
-        expect(hint(container)).toBe('Click a sector to zoom in');
+        expect(middle(container)).toBe('All sectors2,100recordsClick to zoom in');
     });
 });
 
@@ -462,9 +455,10 @@ describe('on a phone', () => {
     it('describes a segment on the first tap, and opens its group on the second', () => {
         const { container } = draw({ phone: true });
 
+        expect(middle(container)).toBe('All sectors3,100recordsTap twice to zoom in');
+
         fireEvent.click(arcOf(container, 'Software'));
         expect(middle(container)).toContain('Tap again to zoom in');
-        expect(hint(container)).toBe('Tap a sector twice to zoom in');
 
         fireEvent.click(arcOf(container, 'Software'));
         expect(opened(container)).toBe('Information Technology');
@@ -475,7 +469,7 @@ describe('on a phone', () => {
 
         fireEvent.mouseEnter(arcOf(container, 'Energy'));
 
-        expect(middle(container)).toBe('All sectors3,100records');
+        expect(middle(container)).toBe('All sectors3,100recordsTap twice to zoom in');
     });
 
     it('opens a group from its row on the first tap', () => {
