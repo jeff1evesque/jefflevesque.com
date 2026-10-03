@@ -1606,7 +1606,12 @@ class StreamLayout extends Component {
                                         <h4>{focused.name}</h4>
                                         {focused.controls}
                                     </div>
-                                ) : <h4>Streams</h4>}
+                                ) : (
+                                    <div className='stream-rows-heading'>
+                                        <h4>Streams</h4>
+                                        <span className='stream-rows-count'>{this.state.streams.length}</span>
+                                    </div>
+                                )}
                             <span>{focused ? `${focused.schedule} · ${window_text}` : window_text}</span>
                         </div>
                         {/*

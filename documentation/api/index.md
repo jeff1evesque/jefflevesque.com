@@ -41,7 +41,7 @@ by `performanceUrl`, `datalakeUrl`, `knowledgeGraphUrl` and `knowledgeGraphTable
 and for the account API by `alarmsUrl`, `subscriptionsUrl` and `subscriptionUrl`.
 
 The charts on `/stream` and `/data`, and the graphs on `/graph` and `/graph/retrieval`,
-carry icons built from the same functions: a book, which opens that API's page here,
+carry icons built from the same functions: a page, which opens that API's page here,
 and a pair of braces for each request behind what is on screen, which opens it
 exactly. Because the page's fetch and the icon share one builder, the icon cannot name
 a request the page did not make. `/stream` draws a row from each of five requests, so

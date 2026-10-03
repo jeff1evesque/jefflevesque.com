@@ -77,7 +77,7 @@ function slot(row, index) {
 }
 
 function heading() {
-    return document.querySelector('.stream-rows-intro span').textContent.replace(/ /g, ' ');
+    return document.querySelector('.stream-rows-intro > span').textContent.replace(/ /g, ' ');
 }
 
 function address() {
