@@ -2,7 +2,7 @@
  * cube-layout.js: where the cubes of a month's distribution sit.
  *
  * A wide screen draws a month's distribution as the stacked bars it was drawn as
- * before the sunburst: one bar per group, each a stack of cubes worth a round
+ * before #154: one bar per group, each a stack of cubes worth a round
  * number of records. This lays them out -- the bars' order, the value axis, the
  * cubes' size, and where every cube sits -- from the tree distribution-tree.js
  * builds. It is pure, so the rules are held by tests without drawing anything.
