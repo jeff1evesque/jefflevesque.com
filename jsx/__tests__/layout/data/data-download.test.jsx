@@ -384,15 +384,15 @@ describe('every loader\'s answer', () => {
 
 describe('the chart a wide screen draws', () => {
     //
-    // the stacked bars of cubes, with the api icons over them; a phone draws the
-    // sunburst instead -- see data-mobile.test.jsx
+    // the stacked bars of cubes, with the api icons over them; a phone lays
+    // them on their side instead (#188) -- see data-mobile.test.jsx
     //
-    it('draws the bars of cubes rather than the sunburst', () => {
+    it('draws the bars of cubes standing up, rather than a phone\'s rows', () => {
         setup();
 
         expect(document.querySelector('.cube-chart')).not.toBeNull();
         expect(document.querySelector('.cube-chart .cube-chart-actions .api-links')).not.toBeNull();
-        expect(document.querySelector('.sunburst')).toBeNull();
+        expect(document.querySelector('.cube-rows')).toBeNull();
     });
 });
 
