@@ -268,6 +268,40 @@ describe('the stock-split stream', () => {
         expect(posted[0].data_distribution[0]).not.toHaveProperty('tickers');
     });
 
+    it('adds up a day that comes in several rows, a row per sector and industry (#190)', () => {
+        //
+        // once the datalake api names each split's company, a day answers a row
+        // per sector and industry. Kept whole, the last row of a day stood for it
+        //
+        send({
+            'data-distribution': [
+                { split_date: '19', sector: 'Office of Life Sciences', industry: 'PHARMACEUTICAL PREPARATIONS', total_tickers: '1', tickers: 'abcd 1:10' },
+                { split_date: '19', sector: 'other', industry: 'other', total_tickers: '2', tickers: 'bzq 1:2, ddm 2:1' },
+                { split_date: '20', sector: 'other', industry: 'other', total_tickers: '1', tickers: 'efgh 1:5' },
+            ],
+            stream: 'stock-split',
+        });
+
+        const day = posted[0].data_distribution.find((row) => row.sector === 'Day 19');
+        expect(posted[0].data_distribution).toHaveLength(2);
+        expect(day.splits).toBe(3);
+        expect(day.tickers).toBe('abcd 1:10, bzq 1:2, ddm 2:1');
+        expect(posted[0].records).toBe(4);
+    });
+
+    it('keeps a day\'s tickers where one of its rows has none', () => {
+        send({
+            'data-distribution': [
+                { split_date: '03', total_tickers: '2', tickers: 'nvdl 3:1, mull 25:1' },
+                { split_date: '03', total_tickers: '1' },
+            ],
+            stream: 'stock-split',
+        });
+
+        expect(posted[0].data_distribution[0].splits).toBe(3);
+        expect(posted[0].data_distribution[0].tickers).toBe('nvdl 3:1, mull 25:1');
+    });
+
     it('gives each split date its own bar', () => {
         send({
             'data-distribution': [
