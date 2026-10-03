@@ -55,10 +55,11 @@ function column(label) {
 }
 
 describe('the listing', () => {
-    it('is titled as a distribution view', () => {
+    it('is titled Data, with the month at the end of its title row (#192)', () => {
         setup();
 
-        expect(bodyText()).toContain('Data Distribution');
+        expect(document.querySelector('.listing-table-title h5').textContent).toBe('Data');
+        expect(document.querySelector('.listing-table-title .listing-table-actions .data-month')).not.toBeNull();
     });
 
     it('lists all five streams', () => {
@@ -177,29 +178,29 @@ describe('each row before data arrives', () => {
 });
 
 describe('the scale controls', () => {
-    it('offers a month and year range, as two inputs', () => {
-        //
-        // a range rather than a single period: the distribution is drawn across
-        // whatever span is chosen, so there is a from and a to.
-        //
+    it('offers the month as a month back, a menu of months, and a month forward, in place of a calendar (#192)', () => {
         setup();
 
-        const text = bodyText();
-        expect(text).toContain('mm/yyyy');
-        expect((text.match(/mm\/yyyy/g) || []).length).toBe(2);
+        const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const menu = document.querySelector('.data-month select');
+
+        expect(menu.options[menu.selectedIndex].textContent)
+            .toBe(`${today.toLocaleString('en-US', { month: 'long' })} ${today.getFullYear()}`);
+        expect(screen.getByRole('button', { name: /^Earlier month/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Later month/ })).toBeDisabled();
+        expect(bodyText()).not.toContain('mm/yyyy');
     });
 
-    it('steps its picker on from a year to that year\'s months, rather than closing on the year', () => {
-        //
-        // the views ran month then year, so picking a year was the picker's
-        // last step, and closed it before a month could be picked
-        //
+    it('steps a month back from its arrow, and downloads every stream for it', () => {
+        const spy = jest.spyOn(DataLayout.prototype, 'downloadData');
         setup();
+        spy.mockClear();
 
-        fireEvent.click(screen.getAllByRole('button', { name: /Choose date/ })[0]);
-        fireEvent.click(screen.getByRole('radio', { name: '2025' }));
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
 
-        expect(screen.getByRole('radio', { name: 'March' })).toBeInTheDocument();
+        expect(document.querySelector('.data-month select').selectedIndex).toBe(1);
+        expect(spy).toHaveBeenCalledTimes(5);
+        spy.mockRestore();
     });
 
     it('offers a filter and a sort', () => {
