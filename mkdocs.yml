@@ -139,6 +139,7 @@ nav:
       - Routes: application/routes.md
       - Architecture: application/architecture.md
       - Ingest coverage: application/ingest-coverage.md
+  - Terms: terms.md
   - Development:
       - Quick start: development/quick-start.md
       - Testing: development/testing.md
