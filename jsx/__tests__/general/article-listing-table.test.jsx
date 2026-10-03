@@ -217,18 +217,25 @@ describe('the title row', () => {
     // a page can put a control of its own at the end of the row -- the Filter,
     // on a phone's /data (#165)
     //
-    it('carries the page\'s own control at its end', () => {
+    it('carries the page\'s own control after its name and count, and marks the row (#194)', () => {
         const { container } = setup({ actions: <button type='button'>Filter</button> });
         const title = container.querySelector('.listing-table-title');
 
         expect(title).toHaveClass('has-actions');
+        expect(container.querySelector('.listing-table-head')).toHaveClass('has-actions');
+        expect(title.firstElementChild).toHaveClass('listing-table-name');
+        expect(title.querySelector('.listing-table-name h5')).not.toBeNull();
+        expect(title.querySelector('.listing-table-name .title-count')).not.toBeNull();
+        expect(title.lastElementChild).toHaveClass('listing-table-actions');
         expect(title.querySelector('.listing-table-actions').textContent).toBe('Filter');
+        expect(container.querySelector('.listing-table-head').lastElementChild).toHaveClass('listing-table-tools');
     });
 
     it('carries nothing else without one', () => {
         const { container } = setup();
 
         expect(container.querySelector('.listing-table-title')).not.toHaveClass('has-actions');
+        expect(container.querySelector('.listing-table-head')).not.toHaveClass('has-actions');
         expect(container.querySelector('.listing-table-actions')).toBeNull();
     });
 });
