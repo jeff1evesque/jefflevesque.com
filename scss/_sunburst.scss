@@ -14,8 +14,8 @@
 }
 
 //
-// the breadcrumb and what the ring is showing, with the api icons at the right
-// end of the same row
+// the breadcrumb and its count, and under them how to open a group, with the
+// api icons at the right end of the same row
 //
 .sunburst-head {
   align-items: flex-start;
@@ -29,6 +29,23 @@
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
+}
+
+//
+// the breadcrumb, and beside it in gray how many rows the list under the ring
+// holds, as the listing's title carries its count (#183)
+//
+.sunburst-title {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.sunburst-heading-count {
+  color: $gray-6;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .sunburst-crumb {
@@ -58,6 +75,9 @@
   font-weight: 400;
 }
 
+//
+// how to open a group, on a ring with groups to open
+//
 .sunburst-meta {
   color: $gray-6;
   font-size: 0.93rem;
