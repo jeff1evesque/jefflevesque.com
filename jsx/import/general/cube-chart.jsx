@@ -2,8 +2,8 @@
  * cube-chart.jsx: a month's distribution as stacked bars built from cubes.
  *
  * One bar per group of a distribution -- a stream's sectors, severities, forms,
- * series or days -- in the order the stacked bars before the sunburst ran, each
- * a stack of cubes worth a round number of records, against the same value axis,
+ * series or days -- in the order recharts' stacked bars ran before #154, each a
+ * stack of cubes worth a round number of records, against the same value axis,
  * dashed grid and slanted names. cube-layout.js places every cube, from the
  * groups, members and colors distribution-tree.js builds.
  *
@@ -14,8 +14,9 @@
  * the list's ×, clears the list, and pointing at a row lights its band as its
  * cubes would.
  *
- * Note: a wide screen's chart. A phone draws the sunburst instead -- see
- *       data.jsx -- since a row of bars does not fit its width.
+ * Note: a wide screen's chart. A phone draws the same bars laid on their side,
+ *       a row each, since a row of bars standing up does not fit its width --
+ *       see cube-rows.jsx (#188).
  *
  * Note: the axes (#167). The value axis is written in short figures -- '3.5M',
  *       '14M' -- where recharts' 'toExponential(0)' wrote 3.5M as '4e+6' and
@@ -40,7 +41,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import cubeLayout, { barsOf, ticksOf } from './cube-layout.js';
-import { share } from './sunburst.jsx';
+import { share } from './distribution-tree.js';
 import { CHART_X_AXIS_HEIGHT, CHART_X_AXIS_ANGLE } from './chart-height.js';
 
 //
@@ -100,18 +101,31 @@ export function axisRoom(tree) {
 const FALLBACK_WIDTH = 1100;
 
 //
-// how far the other cubes fade while a band is lit, as the sunburst fades its
-// other segments, and how far a tooltip sits from its bar
+// how far the other cubes fade while a band is lit, and how far a tooltip sits
+// from its bar
 //
 const FADED = 0.2;
 const TIP_GAP = 10;
 
 //
-// how many of a day's tickers the tooltip names before counting the rest, and
-// how many columns a bar's list runs down
+// how many of a day's tickers the tooltip names before its button for the rest,
+// and how many columns a bar's list runs down
 //
 const MAX_TICKERS = 6;
 const LIST_COLUMNS = 3;
+
+//
+// a long list takes more columns, so a day of 45 tickers stands in 5 columns of
+// 9 rather than 3 of 15: as many columns as rows of this many need, up to these
+//
+const LIST_ROWS = 9;
+const MAX_LIST_COLUMNS = 6;
+
+//
+// how long a tooltip stays once the pointer leaves its bar: time enough to cross
+// to its '+N more', which is the one thing on it that takes a click
+//
+const TIP_LINGER_MS = 250;
 
 function fmt(value) {
     return Number(value).toLocaleString('en-US');
@@ -147,8 +161,8 @@ function rowNoun(holds, names) {
 // changes: by a ResizeObserver where there is one, and on the window's resize
 // where there is not
 //
-function useWidth(ref) {
-    const [width, setWidth] = useState(FALLBACK_WIDTH);
+export function useWidth(ref, fallback = FALLBACK_WIDTH) {
+    const [width, setWidth] = useState(fallback);
 
     useEffect(() => {
         const node = ref.current;
@@ -179,6 +193,27 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
     const [lit, setLit] = useState(null);
     const [open, setOpen] = useState(null);
     const [shownNames, setShownNames] = useState(namesShown);
+    const linger = useRef(null);
+
+    useEffect(() => () => window.clearTimeout(linger.current), []);
+
+    //
+    // a band lit at once, or none after a moment: the pointer off its bar
+    // leaves the tooltip up for TIP_LINGER_MS, long enough to reach '+N more'
+    //
+    function light(next) {
+        window.clearTimeout(linger.current);
+        linger.current = null;
+        setLit(next);
+    }
+
+    function letGo() {
+        window.clearTimeout(linger.current);
+        linger.current = window.setTimeout(() => {
+            linger.current = null;
+            setLit(null);
+        }, TIP_LINGER_MS);
+    }
 
     //
     // the names shown or folded, and the page told, so it can keep which
@@ -239,10 +274,13 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
     // lights its band without one, since the row reads the same. It sits
     // beside the bar, on whichever side has the room
     //
-    // Note: it says nothing about a click (#179). It takes no clicks itself,
-    //       and goes as the pointer leaves the cube, so a line asking for one
-    //       read like a link that did not work. The hand cursor over a listable
-    //       bar says it can be clicked, and an open list has its own way out.
+    // Note: it says nothing about a click (#179). The hand cursor over a
+    //       listable bar says it can be clicked, and an open list has its own
+    //       way out. Its '+N more' is the one thing on it that takes a click:
+    //       it opens the day's whole list under the chart, as a click on the
+    //       bar does, and the tooltip stays a moment after the pointer leaves
+    //       the bar, so the pointer can reach it. The rest of it lets the
+    //       pointer through to the cubes under it.
     //
     let tip = null;
     if (band && lit.from === 'cube') {
@@ -263,6 +301,7 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
             style: bar.center > (plot.left + plot.right) / 2
                 ? { right: width - bar.x0 + TIP_GAP, top: middle }
                 : { left: bar.x0 + stack + TIP_GAP, top: middle },
+            bar: bar.key,
             title: bar.name,
             color: band.color,
             name: layout.ranked ? band.part.name : capitalized(unit[1]),
@@ -312,21 +351,28 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
             }));
         }
 
-        const meta = [
-            `${fmt(opened.value)} ${noun(opened.value, unit)}`,
-            `${holds.items.length} ${noun(holds.items.length, pair)}`,
-        ];
+        //
+        // what the bar holds, counted. A day's splits are its tickers, so it
+        // counts them once (#188): '24 splits · 26% of all'
+        //
+        const meta = [`${fmt(opened.value)} ${noun(opened.value, unit)}`];
+        if (holds.kind !== 'tickers') {
+            meta.push(`${holds.items.length} ${noun(holds.items.length, pair)}`);
+        }
         if (holds.kind !== 'groups') {
             meta.push(`${share(opened.value, tree.total)} of all`);
         }
 
-        const columns = Math.min(LIST_COLUMNS, rows.length);
+        const columns = Math.min(
+            rows.length,
+            Math.max(LIST_COLUMNS, Math.min(MAX_LIST_COLUMNS, Math.ceil(rows.length / LIST_ROWS))),
+        );
 
         list = (
             <section
                 className='cube-list'
                 aria-label={`${opened.name}: its ${pair[1]}`}
-                onMouseLeave={() => setLit(null)}
+                onMouseLeave={() => light(null)}
             >
                 <span className='cube-list-caret' style={{ left: opened.center - 6 }} aria-hidden='true' />
                 <div className='cube-list-head'>
@@ -355,7 +401,7 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                         <li
                             key={row.key}
                             className={`cube-list-row${row.band && lit && lit.key === row.band ? ' is-lit' : ''}`}
-                            onMouseEnter={row.band ? () => setLit({ key: row.band, from: 'row' }) : undefined}
+                            onMouseEnter={row.band ? () => light({ key: row.band, from: 'row' }) : undefined}
                         >
                             <span className='cube-list-swatch' style={{ background: row.color }} />
                             <span className='cube-list-name' title={row.name}>{row.name}</span>
@@ -379,7 +425,7 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                 }
             }}
         >
-            <div className='cube-chart-plot' ref={box} onMouseLeave={() => setLit(null)}>
+            <div className='cube-chart-plot' ref={box} onMouseLeave={() => light(null)}>
                 <svg
                     width={width}
                     height={total_height}
@@ -392,7 +438,7 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                         y={0}
                         width={width}
                         height={total_height}
-                        onMouseEnter={() => setLit(null)}
+                        onMouseEnter={letGo}
                     />
                     {layout.ticks.map((tick) => (
                         <line
@@ -486,7 +532,7 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                             rx={radius}
                             fill={cube.color}
                             style={{ opacity: shown(cube) ? 1 : FADED }}
-                            onMouseEnter={() => setLit({ key: cube.key, from: 'cube' })}
+                            onMouseEnter={() => light({ key: cube.key, from: 'cube' })}
                             onClick={() => toggle(bars.get(cube.bar))}
                         />
                     ))}
@@ -570,7 +616,21 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                                         <span>{member.note}</span>
                                     </div>
                                 ))}
-                                {tip.more ? <div className='cube-chart-tip-more'>{`+${tip.more} more`}</div> : null}
+                                {tip.more ? (
+                                    <button
+                                        type='button'
+                                        className='cube-chart-tip-more'
+                                        tabIndex={-1}
+                                        onMouseEnter={() => light(lit)}
+                                        onMouseLeave={letGo}
+                                        onClick={() => {
+                                            light(null);
+                                            setOpen(tip.bar);
+                                        }}
+                                    >
+                                        {`+${tip.more} more`}
+                                    </button>
+                                ) : null}
                             </div>
                         ) : null}
                     </div>
