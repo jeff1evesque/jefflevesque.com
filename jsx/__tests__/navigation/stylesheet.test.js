@@ -166,6 +166,12 @@ describe('the phone\'s pinned header (#177)', () => {
         expect(anonymous).toMatch(/\.stream-layout,\s*\.data-listing\s*\{/);
         expect(views).toMatch(/scroll-margin-top\s*:\s*calc\(57px \+ 1\.5rem\)\s*;/);
     });
+
+    it('holds the sunburst list\'s column names below it, not under it', () => {
+        const [head] = blocks(anonymous, '.sunburst-phone .sunburst-list-head');
+
+        expect(head).toMatch(/(^|[\s;{])top\s*:\s*57px\s*;/);
+    });
 });
 
 describe('the Login gray by night (#175, #177)', () => {
