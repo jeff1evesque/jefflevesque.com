@@ -98,15 +98,17 @@ describe('the listing on mobile', () => {
         expect(document.querySelector('.listing-table-title h5').textContent).toBe('Data');
     });
 
-    it('draws the sunburst rather than the bars of cubes, once a dataset is opened', () => {
+    it('draws the bars of cubes on their side, a row each, once a dataset is opened (#188)', () => {
         //
-        // a row of bars does not fit a phone's width, so a phone keeps the ring
+        // a row of bars standing up does not fit a phone's width, so a phone
+        // lays them on their side
         //
         setup();
         fireEvent.click(chartButton('S&P 500'));
 
-        expect(document.querySelector('.sunburst.sunburst-phone')).not.toBeNull();
+        expect(document.querySelector('.cube-rows')).toHaveAttribute('aria-label', expect.stringMatching(/^Records by sector, /));
         expect(document.querySelector('.cube-chart')).toBeNull();
+        expect(document.querySelector('.sunburst')).toBeNull();
     });
 
     it('lists every stream', () => {
@@ -183,8 +185,8 @@ function listingShown() {
     return document.querySelector('.listing-table') !== null;
 }
 
-function sunburstShown() {
-    return document.querySelector('.sunburst') !== null;
+function chartShown() {
+    return document.querySelector('.cube-rows') !== null;
 }
 
 //
@@ -202,7 +204,7 @@ describe('a phone\'s listing first (#165)', () => {
         setup();
 
         expect(listingShown()).toBe(true);
-        expect(sunburstShown()).toBe(false);
+        expect(chartShown()).toBe(false);
         expect(backBar()).toBeNull();
         expect(document.querySelector('.listing-graphic-title')).toBeNull();
         expect(document.querySelector('.listing-table-title.has-actions .listing-table-actions .data-month'))
@@ -217,7 +219,7 @@ describe('a phone\'s listing first (#165)', () => {
         expect(backBar().textContent).toBe('All data');
         expect(chartHeader()).toBe('SEC Filings');
         expect(document.querySelector('.filter-month .data-month')).not.toBeNull();
-        expect(sunburstShown()).toBe(true);
+        expect(chartShown()).toBe(true);
         expect(listingShown()).toBe(false);
         expect(window.location.search).toBe('?item=sec');
     });
@@ -287,7 +289,7 @@ describe('a phone\'s listing first (#165)', () => {
         fireEvent.click(backBar());
 
         expect(listingShown()).toBe(true);
-        expect(sunburstShown()).toBe(false);
+        expect(chartShown()).toBe(false);
         expect(document.querySelector('.listing-table-selected').textContent).toContain('SEC Filings');
         expect(window.location.search).toBe('');
     });
@@ -308,7 +310,7 @@ describe('a phone\'s listing first (#165)', () => {
         setup();
 
         expect(chartHeader()).toBe('US Weather Alerts');
-        expect(sunburstShown()).toBe(true);
+        expect(chartShown()).toBe(true);
         expect(listingShown()).toBe(false);
     });
 
@@ -333,7 +335,7 @@ describe('a phone\'s listing first (#165)', () => {
         //
         travel('/?item=bls');
         expect(chartHeader()).toBe('Bureau of Labor Statistics');
-        expect(sunburstShown()).toBe(true);
+        expect(chartShown()).toBe(true);
 
         travel('/?item=bls');
         expect(chartHeader()).toBe('Bureau of Labor Statistics');
@@ -472,7 +474,7 @@ describe('a phone\'s month', () => {
         expect(screen.getByRole('button', { name: 'Earlier month' })).toBeDisabled();
     });
 
-    it('ends its row over a dataset with the api icons, the ring\'s own kept for a tablet (#185)', () => {
+    it('ends its row over a dataset with the api icons, the chart\'s own kept for a tablet (#185)', () => {
         setup();
         fireEvent.click(chartButton('SEC Filings'));
 
@@ -481,7 +483,7 @@ describe('a phone\'s month', () => {
 
         expect(monthRow.firstElementChild).toHaveClass('data-month');
         expect(monthRow.lastElementChild).toHaveClass('api-links');
-        expect(hrefs(monthRow.lastElementChild)).toEqual(hrefs(document.querySelector('.sunburst-actions .api-links')));
+        expect(hrefs(monthRow.lastElementChild)).toEqual(hrefs(document.querySelector('.cube-rows-actions .api-links')));
         expect(hrefs(monthRow.lastElementChild).join(' ')).toContain('sec');
     });
 
@@ -496,6 +498,6 @@ describe('a phone\'s month', () => {
 
         expect(monthMenu().selectedIndex).toBe(4);
         expect(backBar()).not.toBeNull();
-        expect(sunburstShown()).toBe(true);
+        expect(chartShown()).toBe(true);
     });
 });
