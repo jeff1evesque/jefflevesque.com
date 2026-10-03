@@ -16,7 +16,7 @@ import React from 'react';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import CubeChart, { axisRoom } from '../../import/general/cube-chart.jsx';
 import distributionTree from '../../import/general/distribution-tree.js';
-import { colors_categorical } from '../../import/general/colors.js';
+import { colors_categorical, color_other } from '../../import/general/colors.js';
 
 const SECTORS = { group: ['sector', 'sectors'], member: ['industry', 'industries'], unit: ['record', 'records'] };
 const DAYS = { group: ['day', 'days'], member: ['ticker', 'tickers'], unit: ['split', 'splits'] };
@@ -32,6 +32,19 @@ const ROWS = [
 const SPLITS = [
     { split_date: 'Day 5', splits: 1, tickers: 'cris 1:20' },
     { split_date: 'Day 19', splits: 8, tickers: 'banl 1:13, ccg 1:35, prpl 1:25, tomz 1:3, abcd 2:1, efgh 3:1, ijkl 4:1, mnop 5:1' },
+];
+
+//
+// a month of stock splits once the api names each split's company: Day 8 of
+// three sectors, and Day 9 of one (#190)
+//
+const SECTORED = [
+    { split_date: 'Day 8', sectors: {
+        other: { splits: 3, tickers: 'ucar 1:10, aurwf 1:10, ucar 1:20' },
+        'Office of Trade & Services': { splits: 2, tickers: 'phge 1:10, jmpld 3:4' },
+        'Office of Life Sciences': { splits: 1, tickers: 'cycn 1:7' },
+    } },
+    { split_date: 'Day 9', sectors: { 'Office of Manufacturing': { splits: 2, tickers: 'qbtz 1:5, stsm 1:2' } } },
 ];
 
 function forms(count) {
@@ -568,6 +581,147 @@ describe('a bar\'s list', () => {
         expect(list(container).querySelector('.cube-list-rows').style.gridTemplateColumns).toBe(`repeat(${columns}, minmax(0, 1fr))`);
         expect(list(container).querySelector('.cube-list-rows').style.gridTemplateRows).toBe(`repeat(${rows}, auto)`);
         expect(list(container).querySelector('.cube-list-meta').textContent).toBe(`${count} splits · 100% of all`);
+    });
+});
+
+describe('a day banded by sector (#190)', () => {
+    const TRADE = 'Day 8\u0000Trade & Services';
+    const NONE = 'Day 8\u0000No sector';
+
+    it('names the month\'s sectors in a legend over the chart, each in its color, No sector last', () => {
+        const { container, tree } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+        const legend = container.querySelector('.cube-chart-legend');
+
+        expect(legend).toHaveAttribute('aria-label', 'Sectors');
+        expect(legend.nextElementSibling).toHaveClass('cube-chart-plot');
+        expect(legend.style.paddingLeft).toBe(`${axisRoom(tree) + 10}px`);
+        expect(texts(container, '.cube-chart-legend-item')).toEqual(['Life Sciences', 'Manufacturing', 'Trade & Services', 'No sector']);
+        expect([...legend.querySelectorAll('.cube-chart-legend-swatch')].map((swatch) => swatch.style.background)).toEqual([
+            'rgb(42, 120, 214)', 'rgb(27, 175, 122)', 'rgb(237, 161, 0)', 'rgb(211, 211, 206)',
+        ]);
+    });
+
+    it.each([
+        ['a month the api sent without sectors', { rows: SPLITS, key: 'split_date', names: DAYS }],
+        ['another stream', {}],
+    ])('draws no legend for %s', (name, props) => {
+        const { container } = draw(props);
+
+        expect(container.querySelector('.cube-chart-legend')).toBeNull();
+    });
+
+    it('colors each band of a day by its sector, and a day of the api\'s old answer in one blue', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        expect(bandOf(container, TRADE)).toHaveLength(2);
+        expect(bandOf(container, TRADE)[0]).toHaveAttribute('fill', colors_categorical[3]);
+        expect(bandOf(container, NONE)[0]).toHaveAttribute('fill', color_other);
+
+        const old = draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+        expect(bandOf(old.container, 'Day 19')[0]).toHaveAttribute('fill', colors_categorical[0]);
+    });
+
+    it('names a band\'s sector, its count, its share of the day, and its own tickers', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.mouseEnter(bandOf(container, TRADE)[0]);
+
+        expect(tip(container).textContent).toBe('Day 8Trade & Services233% of Day 8jmpld3:4phge1:10');
+        expect(tip(container).querySelector('.cube-chart-tip-swatch').style.background).toBe('rgb(237, 161, 0)');
+        expect(tip(container).querySelector('.cube-chart-tip-more')).toBeNull();
+    });
+
+    it('names six of a band\'s tickers, then +N more, which opens the day\'s whole list', () => {
+        const tickers = Array.from({ length: 8 }, (ignored, at) => `t${at} 1:2`).join(', ');
+        const { container } = draw({
+            rows: [{ split_date: 'Day 2', sectors: { 'Office of Technology': { splits: 8, tickers: tickers }, other: { splits: 1, tickers: 'zz 1:3' } } }],
+            key: 'split_date',
+            names: DAYS,
+        });
+
+        fireEvent.mouseEnter(bandOf(container, 'Day 2\u0000Technology')[0]);
+
+        expect(tip(container).querySelectorAll('.cube-chart-tip-ticker')).toHaveLength(6);
+        fireEvent.click(tip(container).querySelector('.cube-chart-tip-more'));
+        expect(tip(container)).toBeNull();
+        expect(list(container).querySelector('.cube-list-title').textContent).toBe('Day 2');
+        expect(rowTexts(container)).toHaveLength(9);
+    });
+
+    it('reads a day out with the tickers it lists, however many sectors hold them', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        expect(barOf(container, 'Day 8')).toHaveAttribute('aria-label', 'Day 8, 6 splits, 75% of all. Lists its 6 tickers');
+        expect(barOf(container, 'Day 9')).toHaveAttribute('aria-label', 'Day 9, 2 splits, 25% of all. Lists its 2 tickers');
+    });
+
+    it('heads a day\'s tickers with their sectors, in the bar\'s order, each ticker in its sector\'s color', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.click(barOf(container, 'Day 8'));
+
+        expect(list(container).querySelector('.cube-list-meta').textContent).toBe('6 splits · 75% of all');
+        expect(texts(container, '.cube-list-sector-head')).toEqual(['Trade & Services2', 'Life Sciences1', 'No sector3']);
+        expect([...list(container).querySelectorAll('.cube-list-rows')].map((rows) => rows.getAttribute('aria-label')))
+            .toEqual(['Trade & Services', 'Life Sciences', 'No sector']);
+        expect(rowTexts(container)).toEqual(['jmpld3:4', 'phge1:10', 'cycn1:7', 'aurwf1:10', 'ucar1:10', 'ucar1:20']);
+
+        const swatches = [...list(container).querySelectorAll('.cube-list-row .cube-list-swatch')];
+        expect(swatches[0].style.background).toBe('rgb(237, 161, 0)');
+        expect(swatches[5].style.background).toBe('rgb(211, 211, 206)');
+    });
+
+    it('runs a day\'s sectors down the list\'s columns, counting their heads, each heading a column of its tickers', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.click(barOf(container, 'Day 8'));
+
+        const lists = [...list(container).querySelectorAll('.cube-list-rows')];
+        expect(list(container).querySelector('.cube-list-sectors').getAttribute('style')).toMatch(/column-count: 3;/);
+        expect(lists.map((rows) => rows.style.gridTemplateColumns)).toEqual(Array(3).fill('repeat(1, minmax(0, 1fr))'));
+        expect(lists.map((rows) => rows.style.gridTemplateRows)).toEqual(['repeat(2, auto)', 'repeat(1, auto)', 'repeat(3, auto)']);
+        expect(list(container).querySelectorAll('.cube-list-sector.is-long')).toHaveLength(0);
+    });
+
+    it('lets a sector longer than a column run on into the next', () => {
+        const tickers = Array.from({ length: 12 }, (ignored, at) => `t${String(at).padStart(2, '0')} 1:2`).join(', ');
+        const { container } = draw({
+            rows: [{ split_date: 'Day 2', sectors: { 'Office of Technology': { splits: 12, tickers: tickers }, other: { splits: 1, tickers: 'zz 1:3' } } }],
+            key: 'split_date',
+            names: DAYS,
+        });
+
+        fireEvent.click(barOf(container, 'Day 2'));
+
+        expect([...list(container).querySelectorAll('.cube-list-sector')].map((sector) => sector.className))
+            .toEqual(['cube-list-sector is-long', 'cube-list-sector']);
+        expect(list(container).querySelector('.cube-list-sectors').getAttribute('style')).toMatch(/column-count: 3;/);
+    });
+
+    it('lights a sector\'s band from its heading or one of its tickers, and marks the heading', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.click(barOf(container, 'Day 8'));
+        fireEvent.mouseEnter(container.querySelector('.cube-list-sector-head'));
+
+        expect(lit(container)).toEqual(bandOf(container, TRADE));
+        expect(container.querySelector('.cube-list-sector-head')).toHaveClass('is-lit');
+        expect(tip(container)).toBeNull();
+
+        fireEvent.mouseEnter(list(container).querySelectorAll('.cube-list-row')[5]);
+
+        expect(lit(container)).toEqual(bandOf(container, NONE));
+        expect(container.querySelectorAll('.cube-list-sector-head')[2]).toHaveClass('is-lit');
+        expect(list(container).querySelectorAll('.cube-list-row.is-lit')).toHaveLength(0);
+    });
+
+    it('opens a day of one sector to its tickers', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.click(barOf(container, 'Day 9'));
+
+        expect(texts(container, '.cube-list-sector-head')).toEqual(['Manufacturing2']);
+        expect(rowTexts(container)).toEqual(['qbtz1:5', 'stsm1:2']);
     });
 });
 
