@@ -11,7 +11,7 @@ reader chooses.
 | Parameter | Values | The application sends |
 |---|---|---|
 | `Data` | `stock-market`, `stock-split`, `bls`, `sec`, `us-weather-alert` | the dataset of the stream selected in the listing |
-| `Scale` | JSON: `year`, a number, and `month`, two digits as a string | the month selected in the date picker, such as `{"year":2026,"month":"08"}` |
+| `Scale` | JSON: `year`, a number, and `month`, two digits as a string | the month on screen, from the month control's arrows or its menu, such as `{"year":2026,"month":"08"}` |
 
 `Data` names a **dataset**, not a stream. The two are the same string for four of the
 five streams, and not for the weather stream, whose id is answered with a 400:
