@@ -132,4 +132,16 @@ describe('the phone\'s bar (#173)', () => {
         expect(own(panel)).toMatch(/background-color\s*:\s*\$header-bar\s*;/);
         expect(panel).not.toMatch(/border-radius/);
     });
+
+    it('names the page on screen in the rows\' dark by day and green by night, its arrow green (#175)', () => {
+        const [link] = bar ? blocks(bar, '.phone-menu-link') : [];
+        const [active] = link ? blocks(link, '&.active') : [];
+        const [night] = active ? blocks(active, '@include dark') : [];
+        const [arrow] = bar ? blocks(bar, '.phone-menu-link.active .phone-menu-arrow') : [];
+
+        expect(own(active)).toMatch(/background-color\s*:\s*\$green-bar\s*;/);
+        expect(own(active)).toMatch(/(^|[\s;{])color\s*:\s*\$gray-8\s*;/);
+        expect(night).toMatch(/(^|[\s;{])color\s*:\s*\$green-6\s*;/);
+        expect(arrow).toMatch(/(^|[\s;{])color\s*:\s*\$green-6\s*;/);
+    });
 });
