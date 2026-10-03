@@ -193,6 +193,21 @@ describe('the groups', () => {
         expect(container.querySelectorAll('button.cube-rows-row')).toHaveLength(8);
     });
 
+    it('keeps the arrow\'s column for a row that opens nothing, among rows that open, so its figures line up', () => {
+        const { container } = draw({ rows: [...ROWS.slice(0, 3), { sector: 'other', 'Only One': 100 }] });
+
+        expect(container.querySelector('.cube-rows-list')).toHaveClass('has-arrows');
+        expect(names(container)).toContain('other');
+        expect(container.querySelector('div.cube-rows-row .cube-rows-name').textContent).toBe('other');
+        expect(container.querySelector('div.cube-rows-row .cube-rows-arrow')).toBeNull();
+    });
+
+    it('draws no arrow\'s column where no row opens', () => {
+        const { container } = draw({ rows: forms(3), key: 'form', names: FORMS });
+
+        expect(container.querySelector('.cube-rows-list')).not.toHaveClass('has-arrows');
+    });
+
     it('names the chart to a screen reader, with the month', () => {
         draw();
 
