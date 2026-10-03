@@ -632,12 +632,12 @@ $stream-held: rgba($green-2, 0.32);
 }
 
 //
-// the popup by a bar a mouse points at (#167): when it was, what it holds, and
-// what a click opens, over the bar's top with a point down at it, in the page's
-// surface with a hairline, as the cubes' tooltip on /data is. A popup by a bar
-// at a row's two ends lines up with the end rather than centering on the bar,
-// so it stays inside the row -- see TIP_EDGE in stream-rows.jsx -- and its
-// point moves along it to stay over the bar.
+// the popup by a bar a mouse points at (#167): when it was, and what it holds
+// (#179), over the bar's top with a point down at it, in the page's surface
+// with a hairline, as the cubes' tooltip on /data is. A popup by a bar at a
+// row's two ends lines up with the end rather than centering on the bar, so it
+// stays inside the row -- see TIP_EDGE in stream-rows.jsx -- and its point
+// moves along it to stay over the bar.
 //
 .stream-bar-tip {
   background-color: $white-1;
@@ -693,12 +693,6 @@ $stream-held: rgba($green-2, 0.32);
 
 .stream-bar-tip-what {
   font-variant-numeric: tabular-nums;
-}
-
-.stream-bar-tip-hint {
-  color: $gray-6;
-  font-size: 0.8rem;
-  margin-top: 0.15rem;
 }
 
 //
