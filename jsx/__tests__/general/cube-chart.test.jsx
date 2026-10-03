@@ -2,10 +2,14 @@
  * cube-chart.test.jsx: a month's distribution as stacked bars built from cubes.
  *
  * What a reader can do with it, as they would: point at a cube or at a row of a
- * bar's list, open a bar's list with a click or from the keyboard, and clear it
- * again with a second click, the ×, or Escape, and show the names under the
- * chart and fold them again (#167). Where each cube sits is held by
- * cube-layout.test.js; the tree it draws, by distribution-tree.test.js.
+ * bar's list, open a bar's list with a click or from the keyboard, or from a
+ * day's '+N more' (#188), and clear it again with a second click, the ×, or
+ * Escape, and show the names under the chart and fold them again (#167). Where
+ * each cube sits is held by cube-layout.test.js; the tree it draws, by
+ * distribution-tree.test.js.
+ *
+ * Note: the tooltip stays a moment once the pointer leaves its bar (#188). The
+ *       cases about that moment run on jest's clock.
  */
 
 import React from 'react';
@@ -34,6 +38,15 @@ function forms(count) {
     return Array.from({ length: count }, (ignored, index) => ({ form: `Form ${index + 1}`, Filings: (count - index) * 100 }));
 }
 
+//
+// a day of `count` splits, each a ticker of its own
+//
+function longDay(count) {
+    const tickers = Array.from({ length: count }, (ignored, index) => `x${String(index).padStart(2, '0')} 1:2`);
+
+    return [{ split_date: 'Day 2', splits: count, tickers: tickers.join(', ') }];
+}
+
 function draw({ rows = ROWS, key = 'sector', names = SECTORS, theme = 'light', ...props } = {}) {
     const tree = distributionTree(rows, key, theme);
 
@@ -54,7 +67,17 @@ const TECH = 'Information Technology\u0000Application Software';
 afterEach(() => {
     delete window.ResizeObserver;
     jest.restoreAllMocks();
+    jest.useRealTimers();
 });
+
+//
+// jest's clock moved on by `ms`, and whatever it sets off
+//
+function wait(ms) {
+    act(() => {
+        jest.advanceTimersByTime(ms);
+    });
+}
 
 describe('the chart', () => {
     it('draws a bar per group, in label order, each a stack of cubes', () => {
@@ -242,17 +265,54 @@ describe('pointing at a cube', () => {
         expect(tip(container).style.right).not.toBe('');
     });
 
-    it('lets go when the pointer leaves the cubes for the chart, or leaves the chart', () => {
+    it('lets go a moment after the pointer leaves the cubes for the chart, so it can reach the tooltip (#188)', () => {
+        jest.useFakeTimers();
         const { container } = draw();
 
         fireEvent.mouseEnter(bandOf(container, TECH)[0]);
         fireEvent.mouseEnter(container.querySelector('.cube-chart-backdrop'));
+        expect(tip(container)).not.toBeNull();
+
+        wait(249);
+        expect(tip(container)).not.toBeNull();
+
+        wait(1);
         expect(tip(container)).toBeNull();
         expect(lit(container)).toHaveLength(cubes(container).length);
+    });
+
+    it('lets go at once when the pointer leaves the chart', () => {
+        const { container } = draw();
 
         fireEvent.mouseEnter(bandOf(container, TECH)[0]);
         fireEvent.mouseLeave(container.querySelector('.cube-chart-plot'));
         expect(tip(container)).toBeNull();
+    });
+
+    it('moves straight to another cube pointed at within the moment, and stays there', () => {
+        jest.useFakeTimers();
+        const { container } = draw();
+
+        fireEvent.mouseEnter(bandOf(container, TECH)[0]);
+        fireEvent.mouseEnter(container.querySelector('.cube-chart-backdrop'));
+        fireEvent.mouseEnter(bandOf(container, 'Energy\u0000Refining')[0]);
+        expect(tip(container).querySelector('.cube-chart-tip-title').textContent).toBe('Energy');
+
+        wait(1000);
+        expect(tip(container).querySelector('.cube-chart-tip-title').textContent).toBe('Energy');
+    });
+
+    it('stops the moment\'s clock when the chart goes away', () => {
+        jest.useFakeTimers();
+        const cleared = jest.spyOn(window, 'clearTimeout');
+        const { container, unmount } = draw();
+
+        fireEvent.mouseEnter(bandOf(container, TECH)[0]);
+        fireEvent.mouseEnter(container.querySelector('.cube-chart-backdrop'));
+        unmount();
+
+        expect(cleared).toHaveBeenCalled();
+        expect(jest.getTimerCount()).toBe(0);
     });
 
     it('names a single series by what it counts, and its share of the month', () => {
@@ -271,6 +331,54 @@ describe('pointing at a cube', () => {
         const tickers = [...tip(container).querySelectorAll('.cube-chart-tip-ticker')].map((row) => row.textContent);
         expect(tickers).toEqual(['abcd2:1', 'banl1:13', 'ccg1:35', 'efgh3:1', 'ijkl4:1', 'mnop5:1']);
         expect(tip(container).querySelector('.cube-chart-tip-more').textContent).toBe('+2 more');
+    });
+
+    it('names six tickers whatever the day holds, so a long day is no taller (#188)', () => {
+        const { container } = draw({ rows: longDay(45), key: 'split_date', names: DAYS });
+
+        fireEvent.mouseEnter(bandOf(container, 'Day 2')[0]);
+
+        expect(tip(container).querySelectorAll('.cube-chart-tip-ticker')).toHaveLength(6);
+        expect(tip(container).querySelector('.cube-chart-tip-more').textContent).toBe('+39 more');
+    });
+
+    it('makes +N more a button, kept from the keyboard, which reaches the bar itself (#188)', () => {
+        const { container } = draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+
+        fireEvent.mouseEnter(bandOf(container, 'Day 19')[0]);
+
+        const more = tip(container).querySelector('.cube-chart-tip-more');
+        expect(more.tagName).toBe('BUTTON');
+        expect(more).toHaveAttribute('type', 'button');
+        expect(more).toHaveAttribute('tabindex', '-1');
+    });
+
+    it('opens the day\'s whole list from +N more, and lets the tooltip go (#188)', () => {
+        const { container } = draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+
+        fireEvent.mouseEnter(bandOf(container, 'Day 19')[0]);
+        fireEvent.click(tip(container).querySelector('.cube-chart-tip-more'));
+
+        expect(tip(container)).toBeNull();
+        expect(list(container).querySelector('.cube-list-title').textContent).toBe('Day 19');
+        expect(rowTexts(container)).toHaveLength(8);
+    });
+
+    it('stays while the pointer is on +N more, and lets go a moment after it leaves (#188)', () => {
+        jest.useFakeTimers();
+        const { container } = draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+
+        fireEvent.mouseEnter(bandOf(container, 'Day 19')[0]);
+        fireEvent.mouseEnter(container.querySelector('.cube-chart-backdrop'));
+        wait(200);
+        fireEvent.mouseEnter(tip(container).querySelector('.cube-chart-tip-more'));
+
+        wait(1000);
+        expect(tip(container)).not.toBeNull();
+
+        fireEvent.mouseLeave(tip(container).querySelector('.cube-chart-tip-more'));
+        wait(250);
+        expect(tip(container)).toBeNull();
     });
 
     it('lists a day of one ticker without counting more', () => {
@@ -417,7 +525,7 @@ describe('a bar\'s list', () => {
 
         fireEvent.click(barOf(container, 'Day 19'));
 
-        expect(list(container).querySelector('.cube-list-meta').textContent).toBe('8 splits · 8 tickers · 89% of all');
+        expect(list(container).querySelector('.cube-list-meta').textContent).toBe('8 splits · 89% of all');
         expect(rowTexts(container).slice(0, 2)).toEqual(['abcd2:1', 'banl1:13']);
         expect(list(container).querySelector('.cube-list-share')).toBeNull();
 
@@ -439,13 +547,27 @@ describe('a bar\'s list', () => {
         ]);
     });
 
-    it('runs down three columns at most', () => {
+    it('runs down three columns where it is short', () => {
         const { container } = draw({ rows: forms(25), key: 'form', names: FORMS });
 
         fireEvent.click(barOf(container, 'Other'));
 
         expect(list(container).querySelector('.cube-list-rows').style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))');
         expect(list(container).querySelector('.cube-list-rows').style.gridTemplateRows).toBe('repeat(2, auto)');
+    });
+
+    it.each([
+        [24, 3, 8],
+        [45, 5, 9],
+        [70, 6, 12],
+    ])('stands a day of %s tickers in %s columns of %s, a column to every 9 and 6 at most (#188)', (count, columns, rows) => {
+        const { container } = draw({ rows: longDay(count), key: 'split_date', names: DAYS });
+
+        fireEvent.click(barOf(container, 'Day 2'));
+
+        expect(list(container).querySelector('.cube-list-rows').style.gridTemplateColumns).toBe(`repeat(${columns}, minmax(0, 1fr))`);
+        expect(list(container).querySelector('.cube-list-rows').style.gridTemplateRows).toBe(`repeat(${rows}, auto)`);
+        expect(list(container).querySelector('.cube-list-meta').textContent).toBe(`${count} splits · 100% of all`);
     });
 });
 
