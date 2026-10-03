@@ -16,7 +16,7 @@ import cubeLayout, {
     apportion,
 } from '../../import/general/cube-layout.js';
 import distributionTree from '../../import/general/distribution-tree.js';
-import { colors_categorical, color_tail } from '../../import/general/colors.js';
+import { colors_categorical, color_other, color_tail } from '../../import/general/colors.js';
 
 const PLOT = { left: 62, right: 1275, top: 20, bottom: 304 };
 
@@ -38,6 +38,19 @@ const SEVERITIES = [
 const SPLITS = [
     { split_date: 'Day 19', splits: 4, tickers: 'banl 1:13, ccg 1:35, prpl 1:25, tomz 1:3' },
     { split_date: 'Day 5', splits: 1, tickers: 'cris 1:20' },
+];
+
+//
+// the same, once the api names each split's company: Day 8 of three sectors,
+// and Day 9 of one (#190)
+//
+const SECTORED = [
+    { split_date: 'Day 8', sectors: {
+        other: { splits: 3, tickers: 'ucar 1:10, aurwf 1:10, ucar 1:20' },
+        'Office of Trade & Services': { splits: 2, tickers: 'phge 1:10, jmpld 3:4' },
+        'Office of Life Sciences': { splits: 1, tickers: 'cycn 1:7' },
+    } },
+    { split_date: 'Day 9', sectors: { 'Office of Manufacturing': { splits: 2, tickers: 'qbtz 1:5, stsm 1:2' } } },
 ];
 
 //
@@ -111,6 +124,27 @@ describe('the cap on bars', () => {
         expect(names(bars.slice(0, -1))).toEqual(Array.from({ length: 19 }, (ignored, index) => `Form ${index + 1}`));
     });
 
+    it('bands Other by the sectors of the days it rolled up, each sector\'s splits added up (#190)', () => {
+        const rows = Array.from({ length: 19 }, (ignored, at) => ({
+            split_date: `Day ${at + 1}`,
+            sectors: { 'Office of Life Sciences': { splits: 10 + at } },
+        })).concat([
+            { split_date: 'Day 20', sectors: { 'Office of Finance': { splits: 1 }, other: { splits: 1 } } },
+            { split_date: 'Day 21', sectors: { 'Office of Technology': { splits: 2 } } },
+            { split_date: 'Day 22', sectors: { other: { splits: 1 }, 'Office of Finance': { splits: 1 } } },
+        ]);
+        const other = barsOf(distributionTree(rows, 'split_date')).bars.find((bar) => bar.name === 'Other');
+
+        expect(other.value).toBe(6);
+        expect(other.parts.map((part) => [part.name, part.value, part.color])).toEqual([
+            ['Finance', 2, colors_categorical[4]],
+            ['Technology', 2, colors_categorical[1]],
+            ['No sector', 2, color_other],
+        ]);
+        expect(new Set(other.parts.map((part) => part.key)).size).toBe(3);
+        expect(other.holds.kind).toBe('groups');
+    });
+
     it('keys Other apart from a group of its own named Other', () => {
         const rows = forms(25).concat([{ form: 'Other', Filings: 1000 }]);
         const { bars } = barsOf(distributionTree(rows, 'form'));
@@ -169,6 +203,50 @@ describe('what a bar is made of, and what it lists', () => {
         expect(day.holds.kind).toBe('tickers');
         expect(day.holds.items.map((member) => `${member.name} ${member.note}`))
             .toEqual(['banl 1:13', 'ccg 1:35', 'prpl 1:25', 'tomz 1:3']);
+    });
+
+    it('bands a day by its sectors, largest first and No sector last, each in its own color (#190)', () => {
+        const { ranked, bars } = barsOf(distributionTree(SECTORED, 'split_date'));
+        const day = bars.find((bar) => bar.name === 'Day 8');
+
+        expect(ranked).toBe(true);
+        expect(day.value).toBe(6);
+        expect(day.parts.map((part) => [part.name, part.value, part.color])).toEqual([
+            ['Trade & Services', 2, colors_categorical[3]],
+            ['Life Sciences', 1, colors_categorical[0]],
+            ['No sector', 3, color_other],
+        ]);
+    });
+
+    it('carries each sector\'s tickers on its band, for the tooltip (#190)', () => {
+        const day = barsOf(distributionTree(SECTORED, 'split_date')).bars.find((bar) => bar.name === 'Day 8');
+
+        expect(day.parts.map((part) => part.tickers.map((ticker) => ticker.name)))
+            .toEqual([['jmpld', 'phge'], ['cycn'], ['aurwf', 'ucar', 'ucar']]);
+    });
+
+    it('lists a day\'s tickers in its sectors\' order, with the sectors that hold them (#190)', () => {
+        const day = barsOf(distributionTree(SECTORED, 'split_date')).bars.find((bar) => bar.name === 'Day 8');
+
+        expect(day.holds.kind).toBe('tickers');
+        expect(day.holds.items.map((ticker) => ticker.name)).toEqual(['jmpld', 'phge', 'cycn', 'aurwf', 'ucar', 'ucar']);
+        expect(day.holds.sectors.map((sector) => sector.name)).toEqual(['Trade & Services', 'Life Sciences', 'No sector']);
+    });
+
+    it('lists the tickers of a day of one sector, so every day opens (#190)', () => {
+        const day = barsOf(distributionTree(SECTORED, 'split_date')).bars.find((bar) => bar.name === 'Day 9');
+
+        expect(day.parts).toHaveLength(1);
+        expect(day.holds.items.map((ticker) => ticker.name)).toEqual(['qbtz', 'stsm']);
+    });
+
+    it('lists a day\'s sectors where the api sent none of their tickers (#190)', () => {
+        const [day] = barsOf(distributionTree([
+            { split_date: 'Day 3', sectors: { 'Office of Finance': { splits: 2 }, other: { splits: 1 } } },
+        ], 'split_date')).bars;
+
+        expect(day.holds.kind).toBe('members');
+        expect(day.holds.items.map((member) => member.name)).toEqual(['Finance', 'No sector']);
     });
 
     it('draws no bars for a tree with no groups', () => {
