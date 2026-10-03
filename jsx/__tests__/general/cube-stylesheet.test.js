@@ -168,6 +168,20 @@ describe('the rows\' titles (#192)', () => {
     });
 });
 
+describe('the listing\'s name cells (#196)', () => {
+    it('stay table cells, vertically centered in their rows, outside a phone\'s cards', () => {
+        //
+        // the title's wrapper once shared their class, and its flex made every
+        // row's name sit at the top of its row on a wide screen
+        //
+        const article = read('_article.scss');
+        const outside = blocks(article, '.small-viewport').reduce((text, block) => text.replace(block, ''), article);
+
+        expect(blocks(outside, '.listing-table-name').some((block) => /display\s*:/.test(block))).toBe(false);
+        expect(blocks(article, '.listing-table-title-name')[0]).toMatch(/display\s*:\s*flex\s*;/);
+    });
+});
+
 describe('the listing\'s title row on a wide screen (#194)', () => {
     const wide = blocks(read('_article.scss'), '.large-viewport .listing-table')
         .find((block) => block.includes('.listing-table-head.has-actions'));
