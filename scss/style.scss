@@ -22,8 +22,6 @@
 @import 'api-links';
 @import 'form/input_phone';
 @import 'react-datepicker';
-@import 'alice-carousel';
-@import 'alice-carousel_custom';
 @import 'sunburst';
 @import 'cube_chart';
 @import 'stream';
@@ -74,8 +72,7 @@ html {
   margin: 0.4rem 0 1.5rem;
 }
 
-#bootstrap-override,
-.react-modal-sheet-container {
+#bootstrap-override {
   a,
   a:active,
   a:link,
@@ -323,25 +320,5 @@ html {
       margin-bottom: 1.25rem;
       width: 100%;
     }
-  }
-}
-
-// react-modal-sheet v2 renders '.react-modal-sheet-container' directly (there is
-// no 'div.sheet-container'), so the previous selector never matched and the exit
-// icon fell back to the generic left placement. the .exit span is made an empty
-// (svg is out of flow), full-width block so the icon anchors to the sheet's
-// top-right corner
-.react-modal-sheet-container {
-  .exit {
-    display: block;
-    width: 100%;
-  }
-
-  .exit > svg {
-    cursor: pointer;
-    position: absolute;
-    top: 1.5rem;
-    right: 1rem;
-    z-index: 1;
   }
 }
