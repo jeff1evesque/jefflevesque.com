@@ -52,7 +52,17 @@ const arcs = (container) => [...container.querySelectorAll('path.sunburst-arc')]
 const arcOf = (container, name) => arcs(container).find((path) => path.getAttribute('data-name') === name);
 const labels = (container) => [...container.querySelectorAll('text.sunburst-label')].map((text) => text.textContent);
 const middle = (container) => container.querySelector('.sunburst-center').textContent;
-const meta = (container) => container.querySelector('.sunburst-meta').textContent;
+//
+// the count beside the breadcrumb, with the noun a screen reader hears, and
+// the hint under it, or null where there is none
+//
+const count = (container) => container.querySelector('.sunburst-heading-count').textContent;
+const hint = (container) => {
+    const line = container.querySelector('.sunburst-meta');
+
+    return line ? line.textContent : null;
+};
+const opened = (container) => container.querySelector('.sunburst-crumb [aria-current="page"]').textContent;
 const rowNames = (container) => [...container.querySelectorAll('.sunburst-row .sunburst-name')].map((name) => name.textContent);
 const row = (name) => screen.getByRole('button', { name: new RegExp(`^${name.replace(/[&]/g, '\\$&')},`) });
 
@@ -75,9 +85,38 @@ describe('the whole month', () => {
     it('says what the ring holds, and how to open it, above it', () => {
         const { container } = draw();
 
-        expect(meta(container)).toBe('September 2026 · 3,100 records · 4 sectors · click a sector to zoom in');
+        expect(count(container)).toBe('4 sectors');
+        expect(hint(container)).toBe('Click a sector to zoom in');
         expect(within(container.querySelector('.sunburst-crumb')).getByText('All sectors'))
             .toHaveAttribute('aria-current', 'page');
+    });
+
+    it('counts its groups beside the breadcrumb, naming them only to a screen reader (#183)', () => {
+        const { container } = draw();
+        const shown = container.querySelector('.sunburst-heading-count');
+
+        expect(shown.closest('.sunburst-title')).not.toBeNull();
+        expect(shown.closest('nav')).toBeNull();
+        expect(shown.firstChild.textContent).toBe('4');
+        expect(shown.querySelector('.visually-hidden').textContent).toBe(' sectors');
+    });
+
+    it('leaves the month to the page and the total to the middle, and names the month to a screen reader (#183)', () => {
+        const { container } = draw();
+        const heading = container.querySelector('.sunburst-heading').textContent;
+
+        expect(heading).not.toContain('September 2026');
+        expect(heading).not.toContain('3,100');
+        expect(middle(container)).toBe('All sectors3,100records');
+        expect(screen.getByRole('img', { name: 'Records by sector and industry, September 2026' })).toBeInTheDocument();
+    });
+
+    it('draws no line under the breadcrumb once a group is open, with nothing left to open (#183)', () => {
+        const { container } = draw();
+
+        fireEvent.click(row('Energy'));
+
+        expect(hint(container)).toBeNull();
     });
 
     it('describes the ring to a screen reader', () => {
@@ -209,7 +248,7 @@ describe('opening a group', () => {
             'Hardware',
         ]);
         expect(rowNames(container)).toEqual(['Semiconductor Materials and Equipment', 'Software', 'Hardware']);
-        expect(meta(container)).toBe('September 2026 · 1,000 records · 3 industries');
+        expect(count(container)).toBe('3 industries');
         expect(middle(container)).toBe('Information Technology1,000recordsBack to all sectors');
     });
 
@@ -249,7 +288,7 @@ describe('opening a group', () => {
         fireEvent.click(row('Information Technology'));
         fireEvent.click(row('Software'));
 
-        expect(meta(container)).toBe('September 2026 · 1,000 records · 3 industries');
+        expect(count(container)).toBe('3 industries');
     });
 
     it('says how to close it while a member is pointed at', () => {
@@ -280,20 +319,22 @@ describe('opening a group', () => {
 
         fireEvent.click(within(container.querySelector('.sunburst-crumb')).getByRole('button', { name: 'All sectors' }));
 
-        expect(meta(container)).toContain('4 sectors');
+        expect(count(container)).toBe('4 sectors');
     });
 
     it('opens a member\'s group from the ring, and closes from any segment', () => {
         const { container } = draw();
 
         fireEvent.click(arcOf(container, 'Refining'));
-        expect(meta(container)).toBe('September 2026 · 800 records · 2 industries');
+        expect(opened(container)).toBe('Energy');
+        expect(count(container)).toBe('2 industries');
 
         fireEvent.click(arcOf(container, 'Refining'));
-        expect(meta(container)).toContain('4 sectors');
+        expect(count(container)).toBe('4 sectors');
 
         fireEvent.click(arcOf(container, 'Utilities'));
-        expect(meta(container)).toBe('September 2026 · 700 records · 1 industry');
+        expect(opened(container)).toBe('Utilities');
+        expect(count(container)).toBe('1 industry');
     });
 
     it('draws the whole month when the open group is no longer there', () => {
@@ -302,7 +343,8 @@ describe('opening a group', () => {
         fireEvent.click(row('Information Technology'));
         redraw(distributionTree(ROWS.slice(1), 'sector'));
 
-        expect(meta(container)).toBe('September 2026 · 2,100 records · 3 sectors · click a sector to zoom in');
+        expect(count(container)).toBe('3 sectors');
+        expect(hint(container)).toBe('Click a sector to zoom in');
     });
 });
 
@@ -426,10 +468,11 @@ describe('on a phone', () => {
 
         fireEvent.click(arcOf(container, 'Software'));
         expect(middle(container)).toContain('Tap again to zoom in');
-        expect(meta(container)).toContain('4 sectors · tap a sector twice to zoom in');
+        expect(count(container)).toBe('4 sectors');
+        expect(hint(container)).toBe('Tap a sector twice to zoom in');
 
         fireEvent.click(arcOf(container, 'Software'));
-        expect(meta(container)).toBe('September 2026 · 1,000 records · 3 industries');
+        expect(count(container)).toBe('3 industries');
     });
 
     it('takes no pointer on the ring, since a tap stands in for it', () => {
@@ -445,7 +488,8 @@ describe('on a phone', () => {
 
         fireEvent.click(row('Energy'));
 
-        expect(meta(container)).toBe('September 2026 · 800 records · 2 industries');
+        expect(opened(container)).toBe('Energy');
+        expect(count(container)).toBe('2 industries');
     });
 
     it('lays out as a phone', () => {
@@ -478,7 +522,8 @@ describe('a single series', () => {
         fireEvent.click(row('Form 4'));
         fireEvent.click(arcOf(container, 'Form 8-K'));
 
-        expect(meta(container)).toBe('September 2026 · 40 filings · 2 forms');
+        expect(count(container)).toBe('2 forms');
+        expect(hint(container)).toBeNull();
         expect(row('Form 4')).not.toHaveClass('is-zoomable');
     });
 
@@ -564,7 +609,8 @@ describe('an empty month', () => {
 
         expect(arcs(container)).toEqual([]);
         expect(middle(container)).toBe('All sectors0records');
-        expect(meta(container)).toBe('September 2026 · 0 records · 0 sectors');
+        expect(count(container)).toBe('0 sectors');
+        expect(hint(container)).toBeNull();
     });
 });
 
