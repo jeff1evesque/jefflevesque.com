@@ -42,6 +42,11 @@ const PREFERRED_PITCH = 10;
 const MIN_FILL = 0.5;
 
 //
+// how many cubes a stock-split day stands across, each still a split (#192)
+//
+export const SPLIT_ACROSS = 2;
+
+//
 // the round numbers of records a cube may stand for, as multiples of a power of
 // ten: the first four read at a glance, the rest only where none of those fit
 //
@@ -304,9 +309,37 @@ export default function cubeLayout(tree, plot) {
     const width = Math.max(1, plot.right - plot.left);
     const height = Math.max(1, plot.bottom - plot.top);
     const slot = width / Math.max(1, bars.length);
-    const ticks = ticksOf(Math.max(0, ...bars.map((bar) => bar.value)));
+    const room = slot * BAR_SHARE;
+    const largest = Math.max(0, ...bars.map((bar) => bar.value));
+    let ticks = ticksOf(largest);
+    let fit = fitCubes(ticks[ticks.length - 1], height, room);
+
+    //
+    // a month of stock splits stands two cubes across, each still a split
+    // (#192). Where its fit stands one across, its axis runs twice as high, so
+    // two cubes of today's size stand side by side and its busiest day reaches
+    // about halfway up. Where two of those are wider than a bar, the axis runs
+    // just high enough for two smaller ones to fit. A month that stands two
+    // across already -- 24 splits in a day -- keeps its fit
+    //
+    if (fit.across === 1 && fit.unit === 1 && bars.some((bar) => bar.holds && bar.holds.kind === 'tickers')) {
+        const fits = (pitch) => pitch >= MIN_PITCH && (SPLIT_ACROSS * pitch) - CUBE_GAP <= room + 0.01;
+        let next = ticks.map((tick) => tick * SPLIT_ACROSS);
+
+        if (!fits((SPLIT_ACROSS * height) / next[next.length - 1])) {
+            next = ticksOf((SPLIT_ACROSS * SPLIT_ACROSS * height) / (room + CUBE_GAP));
+        }
+
+        const pitch = (SPLIT_ACROSS * height) / next[next.length - 1];
+
+        if (fits(pitch)) {
+            ticks = next;
+            fit = { unit: 1, across: SPLIT_ACROSS, pitch: pitch };
+        }
+    }
+
     const top = ticks[ticks.length - 1];
-    const { unit, across, pitch } = fitCubes(top, height, slot * BAR_SHARE);
+    const { unit, across, pitch } = fit;
     const size = pitch - CUBE_GAP;
 
     const cubes = [];
