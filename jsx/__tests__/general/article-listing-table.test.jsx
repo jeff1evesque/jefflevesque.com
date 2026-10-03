@@ -223,9 +223,10 @@ describe('the title row', () => {
 
         expect(title).toHaveClass('has-actions');
         expect(container.querySelector('.listing-table-head')).toHaveClass('has-actions');
-        expect(title.firstElementChild).toHaveClass('listing-table-name');
-        expect(title.querySelector('.listing-table-name h5')).not.toBeNull();
-        expect(title.querySelector('.listing-table-name .title-count')).not.toBeNull();
+        expect(title.firstElementChild).toHaveClass('listing-table-title-name');
+        expect(title.querySelector('.listing-table-title-name h5')).not.toBeNull();
+        expect(title.querySelector('.listing-table-title-name .title-count')).not.toBeNull();
+        expect(title.querySelector('.listing-table-name')).toBeNull();
         expect(title.lastElementChild).toHaveClass('listing-table-actions');
         expect(title.querySelector('.listing-table-actions').textContent).toBe('Filter');
         expect(container.querySelector('.listing-table-head').lastElementChild).toHaveClass('listing-table-tools');
