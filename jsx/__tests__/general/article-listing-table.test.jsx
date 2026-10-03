@@ -135,13 +135,15 @@ describe('the table', () => {
         expect(cell('SEC Filings', 'RDF').querySelector('.listing-table-pill-on')).toHaveTextContent('Available');
     });
 
-    it('draws any other value of a yes column as a gray pill, an answer rather than a gap (#167)', () => {
+    it('draws any other value of a yes column as an outlined pill, an answer rather than a gap (#167, #192)', () => {
         setup();
 
         const none = cell('Stock Splits', 'RDF').querySelector('.listing-table-pill');
 
         expect(none).toHaveTextContent('None');
         expect(none).not.toHaveClass('listing-table-pill-on');
+        expect(none).toHaveClass('listing-table-pill-off');
+        expect(cell('SEC Filings', 'Rate').querySelector('.listing-table-pill')).not.toHaveClass('listing-table-pill-off');
     });
 
     it('marks the cells of a column some rows leave empty, so a card sets them after the rest (#167)', () => {
