@@ -92,11 +92,23 @@ export default () => {
                         && checkValidInt(v.total_tickers)
                     ) {
                         const split_key = `Day ${trim(v.split_date)}`;
-                        let record = {'sector': split_key};
-                        record['splits'] = parseInt(v.total_tickers);
+
+                        {/*
+
+                            a day can come in several rows -- a row per sector
+                            and industry, once the datalake api names each
+                            split's company -- so a day's rows add up: their
+                            splits summed and their tickers joined. One row a
+                            day, as the api answers today, reads the same (#190)
+
+                        */}
+                        let record = data_reformat[split_key] || {'sector': split_key, 'splits': 0};
+                        record['splits'] += parseInt(v.total_tickers);
 
                         if ('tickers' in v && checkValidString(v.tickers)) {
-                            record['tickers'] = trim(v.tickers);
+                            record['tickers'] = record['tickers']
+                                ? `${record['tickers']}, ${trim(v.tickers)}`
+                                : trim(v.tickers);
                         }
 
                         data_reformat[split_key] = record;
