@@ -132,15 +132,11 @@ describe('the listing on mobile', () => {
          */
         setup();
 
-        const before = [...document.querySelectorAll('input[type="text"]')].find(
-            (e) => /\w+\s+\d{4}/.test(e.value)
-        ).value;
+        const before = monthShown();
 
         fireEvent.click(chartButton('Bureau of Labor'));
 
-        const after = [...document.querySelectorAll('input[type="text"]')].find(
-            (e) => /\w+\s+\d{4}/.test(e.value)
-        ).value;
+        const after = monthShown();
 
         expect(after).not.toBe(before);
     });
@@ -375,14 +371,6 @@ function monthShown() {
 }
 
 //
-// the month the date picker shows -- hidden on a phone, but drawn -- which is
-// the month on screen
-//
-function pickerMonth() {
-    return [...document.querySelectorAll('input[type="text"]')].find((e) => /\w+\s+\d{4}/.test(e.value)).value;
-}
-
-//
 // pick the month the menu offers at `index`, newest first
 //
 function chooseMonth(index) {
@@ -412,7 +400,7 @@ describe('a phone\'s month', () => {
         const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
         const options = [...monthMenu().options].map((option) => option.textContent);
 
-        expect(monthShown()).toBe(pickerMonth());
+        expect(monthShown()).toBe(options[0]);
         expect(options[0]).toBe(`${today.toLocaleString('en-US', { month: 'long' })} ${today.getFullYear()}`);
         expect(options[options.length - 1]).toMatch(/^January \d{4}$/);
         expect(new Set(options).size).toBe(options.length);
@@ -427,7 +415,6 @@ describe('a phone\'s month', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
 
         expect(monthMenu().selectedIndex).toBe(4);
-        expect(pickerMonth()).toBe(monthShown());
         expect(spy).toHaveBeenCalledTimes(5);
         spy.mockRestore();
     });
@@ -450,7 +437,6 @@ describe('a phone\'s month', () => {
         chooseMonth(5);
 
         expect(monthShown()).toBe(chosen);
-        expect(pickerMonth()).toBe(chosen);
         expect(spy).toHaveBeenCalledTimes(5);
         spy.mockRestore();
     });
@@ -474,7 +460,7 @@ describe('a phone\'s month', () => {
         expect(screen.getByRole('button', { name: 'Earlier month' })).toBeDisabled();
     });
 
-    it('ends its row over a dataset with the api icons, the chart\'s own kept for a tablet (#185)', () => {
+    it('ends its row over a dataset with the api icons, a tablet\'s too, and the rows draw none of their own (#192)', () => {
         setup();
         fireEvent.click(chartButton('SEC Filings'));
 
@@ -483,8 +469,10 @@ describe('a phone\'s month', () => {
 
         expect(monthRow.firstElementChild).toHaveClass('data-month');
         expect(monthRow.lastElementChild).toHaveClass('api-links');
-        expect(hrefs(monthRow.lastElementChild)).toEqual(hrefs(document.querySelector('.cube-rows-actions .api-links')));
         expect(hrefs(monthRow.lastElementChild).join(' ')).toContain('sec');
+        expect(document.querySelector('.filter-month')).not.toHaveClass('d-md-none');
+        expect(document.querySelector('.cube-rows-actions')).toBeNull();
+        expect(document.querySelectorAll('.data-month')).toHaveLength(1);
     });
 
     it('sits beside a dataset\'s name over its chart, and steps the month there too', () => {
