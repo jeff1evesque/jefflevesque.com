@@ -12,7 +12,7 @@
  *       against the axis the way a solid bar did.
  */
 
-import { SEVERITY_ORDER } from './distribution-tree.js';
+import { NO_SECTOR, SEVERITY_ORDER } from './distribution-tree.js';
 import { colors_categorical } from './colors.js';
 
 //
@@ -73,12 +73,18 @@ export function byLabel(a, b) {
 //     members ranked in it    the S&P 500's industries, a severity's event
 //                             types: largest first from the bottom, each in the
 //                             color of its rank within the bar
+//     a day's sectors         the stock splits, once the api names their
+//                             companies: largest first, No sector last, each in
+//                             its own color, holding its tickers (#190)
 //     itself, as one series   a stream whose groups each hold one thing -- sec's
-//                             filings, bls's reports -- and the stock splits,
-//                             whose day is a count of the tickers that split
+//                             filings, bls's reports -- and the stock splits
+//                             the api sent without sectors, whose day is a count
+//                             of the tickers that split
 //
 // `holds` is what clicking the bar lists, or null where there is nothing under
-// it to list: a bar of one series with no tickers, or of one member alone
+// it to list: a bar of one series with no tickers, or of one member alone. A
+// day lists its tickers whatever its sectors, a day of one sector as well, and
+// carries the sectors that hold them, for its list to head them with
 //
 export function barsOf(tree) {
     const groups = tree && Array.isArray(tree.groups) ? tree.groups : [];
@@ -87,12 +93,22 @@ export function barsOf(tree) {
 
     const bars = groups.map((group) => {
         const tickers = group.members.filter((member) => member.note);
+        const sectors = group.members.filter((member) => member.tickers && member.tickers.length);
+        const held = sectors.reduce((all, member) => all.concat(member.tickers), []);
         const parts = ranked
-            ? group.members.map((member) => ({ key: member.key, name: member.name, value: member.value, color: member.shade }))
+            ? group.members.map((member) => ({
+                key: member.key,
+                name: member.name,
+                value: member.value,
+                color: member.shade,
+                ...(member.sector === undefined ? {} : { sector: member.sector, tickers: member.tickers }),
+            }))
             : [{ key: group.key, name: group.name, value: group.value, color: colors_categorical[0] }];
 
         let holds = null;
-        if (ranked && group.members.length > 1) {
+        if (held.length) {
+            holds = { kind: 'tickers', items: held, sectors: sectors };
+        } else if (ranked && group.members.length > 1) {
             holds = { kind: 'members', items: group.members };
         } else if (tickers.length) {
             holds = { kind: 'tickers', items: tickers };
@@ -117,11 +133,41 @@ export function barsOf(tree) {
         key: '\u0000other',
         name: 'Other',
         value: value,
-        parts: [{ key: '\u0000other', name: 'Other', value: value, color: colors_categorical[0] }],
+        parts: sectorParts(rest) || [{ key: '\u0000other', name: 'Other', value: value, color: colors_categorical[0] }],
         holds: { kind: 'groups', items: rest },
     };
 
     return { ranked: ranked, bars: by_size.slice(0, MAX_BARS - 1).sort(byLabel).concat([other]) };
+}
+
+//
+// Other's parts, where the days it rolls up are banded by sector: each sector's
+// splits in all of them, largest first and No sector last, as a day's are, so a
+// color means one sector across the whole chart (#190). Nothing for bars of
+// anything else, which Other draws as one series
+//
+function sectorParts(bars) {
+    const by_sector = new Map();
+
+    bars.forEach((bar) => bar.parts.forEach((part) => {
+        if (part.sector === undefined) {
+            return;
+        }
+
+        const held = by_sector.get(part.sector)
+            || { key: `\u0000other\u0000${part.sector}`, name: part.name, value: 0, color: part.color, sector: part.sector };
+
+        held.value += part.value;
+        by_sector.set(part.sector, held);
+    }));
+
+    if (!by_sector.size) {
+        return null;
+    }
+
+    return Array.from(by_sector.values()).sort((a, b) => (
+        ((a.sector === NO_SECTOR) - (b.sector === NO_SECTOR)) || (b.value - a.value) || a.name.localeCompare(b.name)
+    ));
 }
 
 //
