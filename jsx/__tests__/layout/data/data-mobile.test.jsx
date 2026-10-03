@@ -472,6 +472,19 @@ describe('a phone\'s month', () => {
         expect(screen.getByRole('button', { name: 'Earlier month' })).toBeDisabled();
     });
 
+    it('ends its row over a dataset with the api icons, the ring\'s own kept for a tablet (#185)', () => {
+        setup();
+        fireEvent.click(chartButton('SEC Filings'));
+
+        const monthRow = document.querySelector('.filter-month .data-month-row');
+        const hrefs = (root) => [...root.querySelectorAll('a')].map((link) => link.getAttribute('href'));
+
+        expect(monthRow.firstElementChild).toHaveClass('data-month');
+        expect(monthRow.lastElementChild).toHaveClass('api-links');
+        expect(hrefs(monthRow.lastElementChild)).toEqual(hrefs(document.querySelector('.sunburst-actions .api-links')));
+        expect(hrefs(monthRow.lastElementChild).join(' ')).toContain('sec');
+    });
+
     it('sits beside a dataset\'s name over its chart, and steps the month there too', () => {
         setup();
         fireEvent.click(chartButton('SEC Filings'));
