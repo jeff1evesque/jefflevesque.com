@@ -135,7 +135,8 @@ and `null`. When one is refused, the status says why:
 - **503:** busy. Wait the `Retry-After` seconds, then repeat. Every request is safe to
   repeat.
 - **`terms`:** the version of the terms you accept by subscribing, `2026-09` today
-  (`TERMS_VERSION`). Each stream's alarm page shows them.
+  (`TERMS_VERSION`). Each stream's alarm page shows them, and so does
+  [Terms](../terms.md).
 
 ## In the application
 

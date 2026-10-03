@@ -74,6 +74,13 @@ const API_DOCS = {
 };
 
 //
+// the terms a reader accepts by subscribing to an alarm, as a page of the
+// documentation: linked from every page's footer (#202). The text is
+// notice-terms.jsx's, and a test holds the two alike
+//
+const TERMS = `${DOCUMENTATION}/terms/`;
+
+//
 // the datalake's name for each stream's dataset, keyed by stream id. Both pages
 // that ask the datalake read their dataset from here.
 //
@@ -274,4 +281,4 @@ export function subscriptionUrl(stream, alarm, base = ACCOUNT) {
     return new URL(`${base}/subscriptions/${encodeURIComponent(stream)}/${encodeURIComponent(alarm)}`);
 }
 
-export { API, ENDPOINTS, ACCOUNT, DOCUMENTATION, API_DOCS, DATASETS, TABLES_VALUES };
+export { API, ENDPOINTS, ACCOUNT, DOCUMENTATION, API_DOCS, TERMS, DATASETS, TABLES_VALUES };

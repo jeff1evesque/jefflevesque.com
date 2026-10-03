@@ -19,6 +19,9 @@ import { MemoryRouter } from 'react-router-dom';
 
 import NoticeTerms, { TERMS_VERSION } from '../../import/general/notice-terms.jsx';
 
+const fs = require('fs');
+const path = require('path');
+
 function setup(props = {}) {
     const held = React.createRef();
 
@@ -342,5 +345,27 @@ describe('keeping up with changed props', () => {
         rerender({ subject: 'alarms', icon_color: 'green', className: 'x' });
 
         expect(heading()).toContain('alarms');
+    });
+});
+
+//
+// the terms as the documentation's Terms page holds them (#202), which every
+// page's footer links. The alarm page shows the notice's own text, with the
+// subject 'ingest alarms', and a subscribe sends TERMS_VERSION as the terms
+// accepted -- so the page has to say the same words under the same version, and
+// a change to either alone fails here
+//
+describe('the Terms page', () => {
+    const page = fs.readFileSync(path.join(__dirname, '../../../documentation/terms.md'), 'utf8');
+    const folded = page.replace(/^> ?/gm, '').replace(/\s+/g, ' ');
+
+    it('holds the alarm page\'s terms word for word', () => {
+        setup({ subject: 'ingest alarms' });
+
+        expect(folded).toContain(terms());
+    });
+
+    it('names the version a subscribe sends', () => {
+        expect(page).toContain(`**Version ${TERMS_VERSION}**`);
     });
 });

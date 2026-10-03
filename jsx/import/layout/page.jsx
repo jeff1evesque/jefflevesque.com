@@ -19,6 +19,24 @@ import { isMobile } from 'react-device-detect';
 import PropTypes from 'prop-types';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../formatter/boundary-error.jsx';
+import { DOCUMENTATION, TERMS } from '../general/api-url.js';
+
+//
+// whose site this is, as the footer's copyright line names it (#202). One
+// string, so a company formed later is a change here alone
+//
+const OWNER = 'Jeff Levesque';
+
+//
+// the year the site was first published, and the copyright's years from it to
+// this one: '2026' while they are the same, '2026\u20132027' once they are not
+// (#202)
+//
+const FIRST_YEAR = 2026;
+
+export function copyrightYears(year = new Date().getFullYear()) {
+    return year > FIRST_YEAR ? `${FIRST_YEAR}\u2013${year}` : `${FIRST_YEAR}`;
+}
 
 class PageLayout extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
@@ -72,6 +90,19 @@ class PageLayout extends Component {
                     <div className='content'>
                         <MainRoute/>
                     </div>
+                    {/*
+
+                        every page's last line: the copyright, its years read from
+                        the clock so they never need a hand, and the documentation
+                        and the terms, each in a tab of its own as the api icons'
+                        links are (#202)
+
+                    */}
+                    <footer className='site-footer'>
+                        <span>{`\u00A9 ${copyrightYears()} ${OWNER}`}</span>
+                        <a href={`${DOCUMENTATION}/`} target='_blank' rel='noopener noreferrer'>Docs</a>
+                        <a href={TERMS} target='_blank' rel='noopener noreferrer'>Terms</a>
+                    </footer>
                     {spinner}
                 </div>
             </div>
