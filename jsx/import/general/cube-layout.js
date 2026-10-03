@@ -151,14 +151,20 @@ export function ticksOf(max) {
 // A row of cubes is one pitch tall and worth `across` cubes, so the axis and the
 // stacks agree when pitch = unit * across * height / top. Of the round units and
 // counts across that fit the bar, the fit takes the one nearest a 10px pitch
-// that fills the most of the bar, and a round unit before a near-round one --
-// of those that fill at least half the bar, wherever any does.
+// that fills the most of the bar, and a round unit before a near-round one.
+// Where that one fills under half its bar, it takes the best that fills at
+// least half instead, of those whose cube is worth no more than its own.
 //
 // Note: the half is #188's. Held near 10px alone, a month of few records stood
-//       in thin stacks: the stock splits' days were a cube wide, a fifth of
-//       their bars, with the rest of each slot empty. They now stand two cubes
-//       across, each still a split. A month whose stacks fill most of their
-//       bars already -- the S&P 500's, sec's, the weather's -- keeps its fit
+//       in thin stacks: the stock splits' busiest month, 24 in a day, stood a
+//       cube wide, a fifth of each bar, where two across fit. A month whose
+//       stacks fill most of their bars already -- the S&P 500's, sec's, the
+//       weather's -- keeps its fit.
+//
+// Note: and never by a cube worth more (#190). Without that, a quieter month
+//       filled its bars with cubes of two splits each, and a day of 15 drew as
+//       8 of them, 16: where nothing finer fills half the bar, the stacks stay
+//       thin
 //
 export function fitCubes(top, height, width) {
     const units = [];
@@ -201,8 +207,10 @@ export function fitCubes(top, height, width) {
         return { unit: 1, across: 1, pitch: Math.min(width + CUBE_GAP, height) };
     }
 
-    const filling = fits.filter((fit) => fit.used >= width * MIN_FILL);
-    const best = (filling.length ? filling : fits).reduce((kept, fit) => (fit.score < kept.score ? fit : kept));
+    const lowest = (kept, fit) => (fit.score < kept.score ? fit : kept);
+    const nearest = fits.reduce(lowest);
+    const filling = fits.filter((fit) => fit.used >= width * MIN_FILL && fit.unit <= nearest.unit);
+    const best = nearest.used < width * MIN_FILL && filling.length ? filling.reduce(lowest) : nearest;
 
     return { unit: best.unit, across: best.across, pitch: best.pitch };
 }
