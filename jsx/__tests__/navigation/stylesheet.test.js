@@ -144,4 +144,14 @@ describe('the phone\'s bar (#173)', () => {
         expect(night).toMatch(/(^|[\s;{])color\s*:\s*\$green-6\s*;/);
         expect(arrow).toMatch(/(^|[\s;{])color\s*:\s*\$green-6\s*;/);
     });
+
+    it('gives Login a lighter gray by night, so it reads as a button on the dark panel (#175)', () => {
+        const [actions] = bar ? blocks(bar, '.phone-menu-actions') : [];
+        const [login] = actions ? blocks(actions, '.btn:not(.btn-primary)') : [];
+        const [night] = login ? blocks(login, '@include dark') : [];
+
+        expect(own(night)).toMatch(/background-color\s*:\s*\$dark-gray-3\s*;/);
+        expect(own(night)).toMatch(/border-color\s*:\s*\$dark-gray-5\s*;/);
+        expect(variables).toMatch(/\$dark-gray-3\s*:\s*#444\s*;/);
+    });
 });
