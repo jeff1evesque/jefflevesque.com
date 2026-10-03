@@ -12,7 +12,9 @@ import distributionTree, {
     NO_SECTOR,
     SECTORS,
     SEVERITY_ORDER,
+    byName,
     sectorName,
+    sectorOf,
     sectorShade,
     share,
     splitTickerPairs,
@@ -346,6 +348,38 @@ describe('a day\'s sectors (#190)', () => {
         expect(sectorName('Office of Industrial Applications and Services')).toBe('Industrial Applications and Services');
         expect(sectorName(NO_SECTOR)).toBe('No sector');
         expect(sectorName('Division of Corporation Finance')).toBe('Division of Corporation Finance');
+    });
+});
+
+describe('a sector spelled without its Office of (#192)', () => {
+    it('is the office SECTORS writes, as the SEC writes Industrial Applications and Services', () => {
+        expect(sectorOf('Industrial Applications and Services')).toBe('Office of Industrial Applications and Services');
+        expect(sectorShade('Industrial Applications and Services')).toBe(colors_categorical[6]);
+    });
+
+    it('keeps a sector it does not know, and No sector, as the api wrote them', () => {
+        expect(sectorOf('Office of Zoning')).toBe('Office of Zoning');
+        expect(sectorOf(NO_SECTOR)).toBe(NO_SECTOR);
+    });
+
+    it('makes the two spellings one band of a day, in its place, and one entry of the legend', () => {
+        const tree = distributionTree([{ sector: 'Day 1', sectors: {
+            'Industrial Applications and Services': { splits: 1, tickers: 'aaa 1:2' },
+            'Office of Industrial Applications and Services': { splits: 2, tickers: 'bbb 1:2, ccc 1:3' },
+            'Office of Crypto Assets': { splits: 1 },
+        } }], 'sector');
+
+        expect(tree.groups[0].members.map((member) => [member.name, member.value, member.tickers.length]))
+            .toEqual([['Industrial Applications and Services', 3, 3], ['Crypto Assets', 1, 0]]);
+        expect(tree.sectors.map((sector) => sector.name)).toEqual(['Industrial Applications and Services', 'Crypto Assets']);
+    });
+});
+
+describe('byName (#192)', () => {
+    it('puts names in order with the numbers in them by value', () => {
+        const names = ['Day 12', 'Form 10-K', 'Day 2', 'Form 3'].map((name) => ({ name: name }));
+
+        expect(names.sort(byName).map((item) => item.name)).toEqual(['Day 2', 'Day 12', 'Form 3', 'Form 10-K']);
     });
 });
 

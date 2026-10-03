@@ -38,13 +38,11 @@ function setup() {
     );
 }
 
-{/* the date picker is the only text input carrying a month/year value */}
+{/* the month on screen: what the month control's menu shows (#192 -- it was the date picker's field) */}
 function selectedMonth() {
-    const field = [...document.querySelectorAll('input[type="text"]')].find(
-        (e) => /\w+\s+\d{4}/.test(e.value)
-    );
+    const menu = document.querySelector('.data-month select');
 
-    return field ? field.value : null;
+    return menu ? menu.options[menu.selectedIndex].textContent : null;
 }
 
 {/* the chart button of the stream whose name starts `label` */}

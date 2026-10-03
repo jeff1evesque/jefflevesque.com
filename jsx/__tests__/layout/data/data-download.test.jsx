@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { render, act, screen, fireEvent, within } from '@testing-library/react';
+import { render, act, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 jest.mock('../../../import/general/get-data/distribution/stock-market.js', () => ({
@@ -396,58 +396,27 @@ describe('the chart a wide screen draws', () => {
     });
 });
 
-describe('the Data Distribution switch', () => {
-    it('hides the chart, and its api icons with it, from the Data Distribution switch', () => {
-        const page = setup();
-        const switched = within(document.querySelector('.checkbox-vertical-default'))
-            .getByRole('checkbox', { name: 'Data Distribution' });
-
-        act(() => {
-            fireEvent.click(switched);
-        });
-
-        expect(page.state.display_data_distribution).toBe(false);
-        expect(document.querySelector('.cube-chart')).toBeNull();
-        expect(document.querySelector('.api-links')).toBeNull();
-
-        act(() => {
-            fireEvent.click(switched);
-        });
+describe('a wide screen\'s page, without its switch, its Filter or its calendar (#192)', () => {
+    it('always draws the chart, with no Data Distribution switch to hide it', () => {
+        setup();
 
         expect(document.querySelector('.cube-chart')).not.toBeNull();
-        expect(document.querySelector('.api-links')).not.toBeNull();
-    });
-});
-
-describe('the mobile filter', () => {
-    it('hides the page while the filter is edited, and restores it when applied', () => {
-        const page = setup();
-
-        act(() => {
-            fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
-        });
-
-        expect(page.state.hide_all).toBe(true);
-        expect(screen.getByText('Edit Content Filter')).toBeInTheDocument();
-
-        act(() => {
-            fireEvent.click(screen.getByRole('button', { name: 'Apply Filter' }));
-        });
-
-        expect(page.state.hide_all).toBe(false);
+        expect(screen.queryByRole('checkbox', { name: 'Data Distribution' })).toBeNull();
     });
 
-    it('restores the page when the filter is dismissed', () => {
-        const page = setup();
+    it('gives the listing the page\'s full width, with no column beside it', () => {
+        setup();
 
-        act(() => {
-            fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
-        });
-        act(() => {
-            fireEvent.click(document.querySelector('.exit'));
-        });
+        expect(document.querySelector('.checkbox-vertical-default')).toBeNull();
+        expect(document.querySelector('.listing-general').children).toHaveLength(1);
+    });
 
-        expect(page.state.hide_all).toBe(false);
-        expect(page.state.display_filter_button).toBe(true);
+    it('has no Filter page to open, and no calendar, only the month control in the listing\'s title row', () => {
+        setup();
+
+        expect(screen.queryByRole('button', { name: 'Filter' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Choose date/ })).toBeNull();
+        expect(document.querySelectorAll('.data-month')).toHaveLength(1);
+        expect(document.querySelector('.listing-table-actions .data-month')).not.toBeNull();
     });
 });

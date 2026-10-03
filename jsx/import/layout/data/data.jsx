@@ -8,13 +8,6 @@
 import React, { Component } from 'react';
 import BeatLoader from 'react-spinners/BeatLoader';
 import PuffLoader from 'react-spinners/PuffLoader';
-import Switch from '@mui/material/Switch';
-import FormControl from '@mui/material/FormControl';
-import FormGroup from '@mui/material/FormGroup';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -35,7 +28,6 @@ import checkValidObject from '../../validator/valid-object.js';
 import checkValidString from '../../validator/valid-string.js';
 import checkValidInt from '../../validator/valid-int.js';
 import checkValidArray from '../../validator/valid-array.js';
-import SvgExit from '../../svg/svg-exit.jsx';
 import is_local from '../../../is_local.js';
 import WorkerBuilder from '../../worker/web-worker.js';
 import { default as workerStockMarket } from '../../worker/data/distribution/stock-market.js';
@@ -418,6 +410,14 @@ function monthName(date) {
 */}
 const LAYOUT = ['data', 'wide'];
 
+{/*
+
+    and where it keeps how a phone's rows of cubes are arranged: whether the
+    stock splits' legend is folded away over them (#192)
+
+*/}
+const PHONE_LAYOUT = ['data', 'phone'];
+
 
 class DataLayout extends Component {
     //
@@ -528,8 +528,7 @@ class DataLayout extends Component {
 
         this.updateStreamListing = this.updateStreamListing.bind(this);
         this.listing = this.listing.bind(this);
-        this.filterColumn = this.filterColumn.bind(this);
-        this.toggleDataDistibution = this.toggleDataDistibution.bind(this);
+        this.phoneHeader = this.phoneHeader.bind(this);
         this.callbackGetData = this.callbackGetData.bind(this);
         this.downloadData = this.downloadData.bind(this);
 
@@ -538,12 +537,13 @@ class DataLayout extends Component {
         this.updateChartHeight = this.updateChartHeight.bind(this);
         this.reorderListing = this.reorderListing.bind(this);
         this.keepNames = this.keepNames.bind(this);
+        this.keepRowsSort = this.keepRowsSort.bind(this);
+        this.keepSectors = this.keepSectors.bind(this);
         this.treeFor = this.treeFor.bind(this);
         this.chart = this.chart.bind(this);
         this.openDataset = this.openDataset.bind(this);
         this.showListing = this.showListing.bind(this);
         this.onAddress = this.onAddress.bind(this);
-        this.filterButton = this.filterButton.bind(this);
         this.pickMonth = this.pickMonth.bind(this);
         this.monthControl = this.monthControl.bind(this);
         this.apiLinks = this.apiLinks.bind(this);
@@ -573,14 +573,10 @@ class DataLayout extends Component {
             promise_get_data_sec: false,
             'promise_get_data_us-national-weather': false,
             promise_list_ticker_complete: false,
-            display_data_distribution: true,
-            display_filter_button: true,
-            display_apply_filter_button: false,
             item: 'n/a',
             ticker: 'n/a',
             tickers: null,
             aggregate_key: 'n/a',
-            hide_all: false,
             date: `${mm}/${dd}/${yyyy}`,
             start_date: today,
             dd: dd,
@@ -605,6 +601,17 @@ class DataLayout extends Component {
             // into a green bar unless this browser kept them shown
             //
             names_shown: readLayout(...LAYOUT).fold.names === false,
+            //
+            // the order a phone's rows were put in from their titles, by
+            // dataset, for the rest of the visit: the next month opens sorted
+            // the same way, and another dataset in its own order (#192)
+            //
+            rows_sort: {},
+            //
+            // whether a phone's legend of the stock splits' sectors is shown
+            // over the rows: shown unless this browser folded it away (#192)
+            //
+            sectors_shown: readLayout(...PHONE_LAYOUT).fold.sectors !== true,
             list_article: list_article,
             //
             // each stream's datalake dataset, which is its own name for the data
@@ -766,6 +773,23 @@ class DataLayout extends Component {
     keepNames(shown) {
         this.setState({ names_shown: shown });
         writeLayout(...LAYOUT, { fold: { names: !shown } });
+    }
+
+    //
+    // a phone's rows sorted from their titles, or put back in their own order,
+    // kept for the dataset while the reader steps from month to month (#192)
+    //
+    keepRowsSort(stream, sort) {
+        this.setState((state) => ({ rows_sort: { ...state.rows_sort, [stream]: sort } }));
+    }
+
+    //
+    // a phone's legend of the sectors shown or folded away, kept for this
+    // browser's next visit, as a wide screen keeps its names (#192)
+    //
+    keepSectors(shown) {
+        this.setState({ sectors_shown: shown });
+        writeLayout(...PHONE_LAYOUT, { fold: { sectors: !shown } });
     }
 
     //
@@ -1079,13 +1103,6 @@ class DataLayout extends Component {
         }
     }
 
-    toggleDataDistibution() {
-        const display_data_distribution = ! this.state.display_data_distribution;
-        this.setState({
-            display_data_distribution: display_data_distribution
-        });
-    }
-
     //
     // the tree a stream's chart is drawn from: its groups, what each holds, and
     // their colors -- see distribution-tree.js. Built again only when the rows,
@@ -1108,24 +1125,8 @@ class DataLayout extends Component {
     }
 
     //
-    // the button that opens the filter in place of the page, over the chart in
-    // a narrow window. A phone has the month control in its place
-    //
-    filterButton() {
-        return (
-            <button className='btn' type='button' onClick={() =>
-                this.setState({
-                    display_filter_button: false,
-                    display_apply_filter_button: true,
-                    hide_all: true
-                })
-            }>Filter</button>
-        );
-    }
-
-    //
-    // the month the page shows, from the month control or the date picker:
-    // every stream downloaded again for it
+    // the month the page shows, from the month control: every stream downloaded
+    // again for it
     //
     pickMonth(date) {
         this.setState({
@@ -1140,11 +1141,12 @@ class DataLayout extends Component {
     }
 
     //
-    // a phone's month: a month back, a menu of every month the data holds, and
-    // a month forward, in the title rows of the listing and of a dataset on its
-    // own -- in place of a Filter that opened a page of its own, where the month
-    // was a picker and an Apply button away. The arrows stop at the first month
-    // and at this one
+    // the month: a month back, a menu of every month the data holds, and a month
+    // forward. On a phone, in the title rows of the listing and of a dataset on
+    // its own, in place of a Filter that opened a page of its own, where the
+    // month was a picker and an Apply button away. On a wide screen, in the
+    // column beside the listing, in place of that picker's calendar (#192). The
+    // arrows stop at the first month and at this one
     //
     monthControl() {
         const months = monthsBetween(this.state.min_date, this.state.now);
@@ -1205,145 +1207,30 @@ class DataLayout extends Component {
         );
     }
 
-    filterColumn(style='default', btn=false) {
-        if (btn && this.state.display_filter_button) {
-            {/*
-
-                a phone names the dataset over its chart, with the month control
-                under it -- which says the month, as '(2026/09)' after the name
-                did. A narrow window has the Filter there
-
-            */}
-            const header = isMobile && this.state.listing_graphic_title
-                ? (
-                    <div className='listing-graphic-title'>
-                        <h5>{streamName(this.state.listing_graphic_title)}</h5>
-                    </div>
-                ) : '';
-
-            {/*
-
-                a phone's month row: the month control, and at its end the api
-                icons, which the chart's own head drew over it until #185
-
-            */}
-            var button_filter = (
-                <div className={`${isMobile ? 'd-flex filter-month' : 'd-block'} d-md-none filter`}>
-                    {header}
-                    {isMobile ? (
-                        <div className='data-month-row'>
-                            {this.monthControl()}
-                            {this.apiLinks(this.state.selected_stream)}
-                        </div>
-                    ) : this.filterButton()}
+    //
+    // a phone's dataset title: the dataset's name over its chart, with the month
+    // control under it -- which says the month, as '(2026/09)' after the name
+    // did -- and at the end of the month row the api icons, which the chart's own
+    // head drew over it until #185. A tablet's too, since #192: its month was a
+    // calendar in a column beside the listing, which is gone
+    //
+    phoneHeader() {
+        const header = this.state.listing_graphic_title
+            ? (
+                <div className='listing-graphic-title'>
+                    <h5>{streamName(this.state.listing_graphic_title)}</h5>
                 </div>
-            );
-            var filter = null;
-            var apply_filter = null;
-        } else {
-            const class_parent = style === 'default'
-                ? 'col-md-3 d-none d-md-block checkbox-vertical checkbox-vertical-default'
-                : 'checkbox-vertical checkbox-vertical-expanded';
+            ) : '';
 
-            const class_date_label = 'col-lg-12 col-md-12 col-sm-4 col-xs-4';
-
-            if (checkValidArray(this.state.tickers)) {
-            } else {
-            }
-
-            {/*
-
-                the picker steps through its views in this order: the year, then
-                its months. With the month first, picking a year was the last
-                step, and closed the picker before a month could be picked
-
-            */}
-            const views = ['year', 'month'];
-            const label_datepicker = 'mm/yyyy';
-
-            {/*
-
-                a phone has no Data Distribution switch: its listing is the page
-                without the chart, and a dataset opened on its own with the
-                chart off would have nothing to show (#165)
-
-            */}
-            var filter = (
-                <div className={class_parent}>
-                    {isMobile ? null : <div className='row'>
-                        <FormControl
-                            component='fieldset'
-                            variant='standard'
-                            className={`col-lg-${class_date_label} col-sm-${class_date_label}`}
-                        >
-                            <FormGroup>
-                                <FormControlLabel
-                                    control={
-                                        <Switch
-                                            checked={this.state.display_data_distribution}
-                                            onChange={() => this.toggleDataDistibution()}
-                                            name='Data Distribution'
-                                        />
-                                    }
-                                    label='Data Distribution'
-                                />
-                            </FormGroup>
-                        </FormControl>
-                    </div>}
-                    <div className='row'>
-                        <LocalizationProvider dateAdapter={AdapterDateFns}>
-                            <DatePicker
-                                label={label_datepicker}
-                                openTo='year'
-                                onChange={this.pickMonth}
-                                value={this.state.selected_date}
-                                minDate={this.state.min_date}
-                                maxDate={this.state.now}
-                                views={views}
-                            />
-                        </LocalizationProvider>
-                    </div>
+        return (
+            <div className='d-flex filter-month filter'>
+                {header}
+                <div className='data-month-row'>
+                    {this.monthControl()}
+                    {this.apiLinks(this.state.selected_stream)}
                 </div>
-            );
-
-            if (this.state.display_apply_filter_button) {
-                var button_exit = (
-                    <span className='exit' onClick={() =>
-                        this.setState({
-                            display_filter_button: true,
-                            display_apply_filter_button: false,
-                            hide_all: false
-                        })
-                    }>
-                        <SvgExit />
-                    </span>
-                );
-                var button_filter = <h5>Edit Content Filter</h5>;
-                var apply_filter = (
-                    <div className='apply-filter'>
-                        <button className='btn' type='button' onClick={() =>
-                            this.setState({
-                                display_filter_button: true,
-                                display_apply_filter_button: false,
-                                hide_all: false
-                            })
-                        }>Apply Filter</button>
-                    </div>
-                );
-            } else {
-                var button_exit = null;
-                var button_filter = null;
-            }
-        }
-
-        return(
-            <>
-                {button_exit}
-                {button_filter}
-                {filter}
-                {apply_filter}
-            </>
-        )
+            </div>
+        );
     }
 
     listing(actions=null) {
@@ -1379,12 +1266,7 @@ class DataLayout extends Component {
         const opened = isMobile ? this.state.opened : null;
         const listing_first = Boolean(isMobile) && ! opened;
 
-        const filter_column = listing_first && this.state.display_filter_button
-            ? null
-            : this.filterColumn('expanded', true);
-        const left_column = ! this.state.hide_all
-            ? this.filterColumn()
-            : null;
+        const filter_column = isMobile && ! listing_first ? this.phoneHeader() : null;
 
         //
         // over the chart while the month on screen is on its way.
@@ -1466,10 +1348,11 @@ class DataLayout extends Component {
             </div>
         );
 
-        if (
-            ! this.state.hide_all
-            && (isMobile ? !! opened : this.state.display_data_distribution)
-        ) {
+        //
+        // the chart: a wide screen's always, now its Data Distribution switch
+        // is gone (#192), and a phone's once a dataset is opened on its own
+        //
+        if (! isMobile || opened) {
             const month = `${getData('list-months')[parseInt(this.state.mm) - 1]} ${this.state.yyyy}`;
             const chart = {
                 tree: this.treeFor(stream, this.context.theme),
@@ -1494,7 +1377,15 @@ class DataLayout extends Component {
             var data_distribution = (
                 <div className='col-lg-12 mx-auto'>
                     {isMobile ? (
-                        <CubeRows key={`${stream}|${this.state.yyyy}|${this.state.mm}`} {...chart} />
+                        <CubeRows
+                            key={`${stream}|${this.state.yyyy}|${this.state.mm}`}
+                            {...chart}
+                            actions={null}
+                            sort={this.state.rows_sort[stream] || null}
+                            onSort={(sort) => this.keepRowsSort(stream, sort)}
+                            sectorsShown={this.state.sectors_shown}
+                            onSectors={this.keepSectors}
+                        />
                     ) : (
                         <CubeChart
                             key={`${stream}|${this.state.yyyy}|${this.state.mm}`}
@@ -1510,8 +1401,14 @@ class DataLayout extends Component {
             var data_distribution = null
         }
 
-        const listing = ! this.state.hide_all && ! opened
-            ? this.listing(listing_first ? this.monthControl() : null)
+        {/*
+
+            the listing, with the month in its title row: a phone's while it shows
+            the listing alone, and a wide screen's always (#192)
+
+        */}
+        const listing = ! opened
+            ? this.listing(listing_first || ! isMobile ? this.monthControl() : null)
             : null;
 
         {/*
@@ -1520,7 +1417,7 @@ class DataLayout extends Component {
             "All streams" bar is on a phone (#165)
 
         */}
-        const back = opened && ! this.state.hide_all
+        const back = opened
             ? (
                 <div className='data-back-row'>
                     <button type='button' className='data-back' onClick={this.showListing}>
@@ -1539,7 +1436,6 @@ class DataLayout extends Component {
                         {data_distribution}
                     </div>
                     <div className='row listing-general'>
-                        {left_column}
                         {listing}
                     </div>
                 </div>

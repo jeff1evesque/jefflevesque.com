@@ -341,6 +341,70 @@ describe('the cube', () => {
     });
 });
 
+describe('stock splits, two cubes across (#192)', () => {
+    //
+    // a month of `days` days of splits, the first of them the busiest
+    //
+    function month(days, busiest) {
+        return Array.from({ length: days }, (ignored, at) => {
+            const count = at === 0 ? busiest : (at % 3) + 1;
+            const tickers = Array.from({ length: count }, (none, index) => `d${at}t${index} 1:2`).join(', ');
+
+            return { split_date: `Day ${at + 1}`, splits: count, tickers: tickers };
+        });
+    }
+
+    it('stands September\'s days two across at today\'s cube size, on an axis twice as high', () => {
+        //
+        // 20 days, 15 splits at most: one across, each stood a cube wide in its bar
+        //
+        const layout = layoutOf(month(20, 15), 'split_date');
+
+        expect(layout.unit).toBe(1);
+        expect(layout.across).toBe(2);
+        expect(layout.ticks).toEqual([0, 8, 16, 24, 32]);
+        expect(layout.pitch).toBeCloseTo(284 / 16);
+    });
+
+    it('stands October\'s two across too: 8 days, 7 at most, in wide bars', () => {
+        const layout = layoutOf(month(8, 7), 'split_date');
+
+        expect(layout.across).toBe(2);
+        expect(layout.ticks).toEqual([0, 4, 8, 12, 16]);
+    });
+
+    it('takes smaller cubes where two of today\'s would be wider than a bar', () => {
+        //
+        // 20 days of 5 at most stood a cube wide at 35.5px, and two of those
+        // overrun a bar of 48.5px
+        //
+        const layout = layoutOf(month(20, 5), 'split_date');
+
+        expect(layout.across).toBe(2);
+        expect((2 * layout.pitch) - 2).toBeLessThanOrEqual(48.6);
+        expect(layout.ticks).toEqual([0, 6, 12, 18, 24]);
+    });
+
+    it('keeps the fit of a month that stands two across already, as November 2025 does', () => {
+        const layout = layoutOf(month(17, 24), 'split_date');
+
+        expect(layout.across).toBe(2);
+        expect(layout.ticks).toEqual([0, 6, 12, 18, 24]);
+    });
+
+    it('keeps one across where not even two small cubes fit a bar', () => {
+        const layout = layoutOf(month(20, 15), 'split_date', { left: 0, right: 200, top: 0, bottom: 284 });
+
+        expect(layout.across).toBe(1);
+        expect(layout.ticks).toEqual([0, 4, 8, 12, 16]);
+    });
+
+    it('leaves every other stream\'s axis where its busiest bar puts it', () => {
+        expect(layoutOf(forms(3), 'form').ticks).toEqual(ticksOf(30));
+        expect(layoutOf(SECTORS, 'sector').ticks).toEqual(ticksOf(6296980));
+    });
+});
+
 describe('sharing a bar\'s cubes among its parts', () => {
     it('splits them in proportion, the largest remainders taking the leftovers', () => {
         expect(apportion([50, 30, 20], 10)).toEqual([5, 3, 2]);

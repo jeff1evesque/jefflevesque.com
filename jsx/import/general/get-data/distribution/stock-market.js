@@ -258,23 +258,83 @@ function get(type, url, callback, worker, source, stream) {
             } else if (stream === STOCK_SPLIT) {
                 {/*
 
-                    production stock-split rows carry no sector/industry: the
-                    datalake api answers one row per split_date, with the tickers
-                    that split on it. mirror that shape here so localhost reflects
-                    what production actually renders
+                    the datalake api's stock-split answer for September 2026, as
+                    production draws it: a row per day, sector and industry, a
+                    split with no company on file 'other' in both (#192)
 
                 */}
-                var csv_data_distribution = `split_date,total_tickers,tickers,total_records
-                    1,2,"crwd 4:1, svc 1:5",2
-                    5,3,"cris 1:20, hkit 1:25, nipg 1:30",3
-                    8,1,"enlv 1:15",1
-                    13,3,"yxt 1:10, amdd 1:10, muu 20:1",3
-                    15,2,"snex 3:2, wlfc 3:1",2
-                    19,4,"banl 1:13, ccg 1:35, prpl 1:25, tomz 1:3",4
-                    20,2,"cang 1:10, biya 1:10",2
-                    22,1,"psqh 1:15",1
-                    27,1,"dbgi 1:40",1
-                    29,1,"ffai 1:150",1
+                var csv_data_distribution = `split_date,sector,industry,total_tickers,tickers,total_records
+                    1,Office of Manufacturing,"MISCELLANEOUS ELECTRICAL MACHINERY, EQUIPMENT & SUPPLIES",1,buru 1:40,1
+                    2,Office of Manufacturing,ELECTRONIC CONNECTORS,1,aph 2:1,1
+                    3,Industrial Applications and Services,INDUSTRIAL ORGANIC CHEMICALS,1,tanh 1:50,1
+                    3,Industrial Applications and Services,"ORTHOPEDIC, PROSTHETIC & SURGICAL APPLIANCES & SUPPLIES",1,clgn 1:10,1
+                    4,Industrial Applications and Services,"SERVICES-MISC HEALTH & ALLIED SERVICES, NEC",1,brtx 1:20,1
+                    4,Industrial Applications and Services,SURGICAL & MEDICAL INSTRUMENTS & APPARATUS,1,ctso 1:20,1
+                    4,Office of Energy & Transportation,TRUCKING & COURIER SERVICES (NO AIR),1,sfwl 1:15,1
+                    4,Office of Life Sciences,PHARMACEUTICAL PREPARATIONS,1,gtbp 1:25,1
+                    4,Office of Real Estate & Construction,REAL ESTATE AGENTS & MANAGERS (FOR OTHERS),1,lrhc 1:6,1
+                    4,Office of Technology,SERVICES-PREPACKAGED SOFTWARE,2,"aixi 1:7, wct 1:5",2
+                    4,Office of Trade & Services,SERVICES-ADVERTISING,1,tnmg 1:8,1
+                    4,other,other,3,"cptlf 1:10, igr 1:3, txxd 1:10",3
+                    8,Office of Finance,FINANCE SERVICES,1,alp 1:50,1
+                    8,Office of Life Sciences,PHARMACEUTICAL PREPARATIONS,1,krsa 1:7,1
+                    8,Office of Manufacturing,"MISCELLANEOUS ELECTRICAL MACHINERY, EQUIPMENT & SUPPLIES",2,"ucar 1:10, ucar 1:20",2
+                    8,Office of Technology,SERVICES-COMPUTER PROGRAMMING SERVICES,1,jfil 1:100,1
+                    8,other,other,10,"aurwf 1:10, avxx 1:5, cycn 1:7, ionz 1:10, jmpld 3:4, jmply 3:4, oscx 3:1, phge 1:10, rcax 1:5, rklz 1:5",10
+                    9,Office of Finance,"SECURITY BROKERS, DEALERS & FLOTATION COMPANIES",2,"lghl 1:20, lghl 1:9",2
+                    9,Office of Real Estate & Construction,REAL ESTATE INVESTMENT TRUSTS,1,lft 1:10,1
+                    9,other,other,9,"astn 1:4, damd 1:10, keex 4:1, lnok 2:1, okll 1:5, qbtz 1:5, rgtz 1:5, smcz 1:2, stsm 1:2",9
+                    10,Office of Energy & Transportation,BITUMINOUS COAL & LIGNITE MINING,1,metcb 1.025626:1,1
+                    10,Office of Life Sciences,PHARMACEUTICAL PREPARATIONS,1,goss 1:80,1
+                    10,Office of Manufacturing,"MISCELLANEOUS ELECTRICAL MACHINERY, EQUIPMENT & SUPPLIES",1,gauz 1:20,1
+                    10,other,other,2,"bjurf 1:30, gbgd 1:1000",2
+                    11,Office of Energy & Transportation,ELECTRIC SERVICES,1,optt 1:30,1
+                    11,Office of Energy & Transportation,METAL MINING,1,lcgmf 1:27,1
+                    11,Office of Energy & Transportation,NATURAL GAS DISTRIBUTION,1,nfe 1:50,1
+                    11,Office of Life Sciences,PHARMACEUTICAL PREPARATIONS,1,nrsn 1:20,1
+                    11,Office of Technology,COMPUTER COMMUNICATIONS EQUIPMENT,2,"hubc 1:20, hubc 1:25",2
+                    11,Office of Technology,"SERVICES-COMPUTER PROGRAMMING, DATA PROCESSING, ETC.",1,ipdn 1:30,1
+                    11,Office of Trade & Services,RETAIL-AUTO DEALERS & GASOLINE STATIONS,1,nxxt 1:10,1
+                    11,Office of Trade & Services,SERVICES-AMUSEMENT & RECREATION SERVICES,2,"cpop 1:10, cpop 1:15",2
+                    11,other,other,1,nktp 1:25,1
+                    14,Office of Trade & Services,"RETAIL-RADIO, TV & CONSUMER ELECTRONICS STORES",1,izm 1:5,1
+                    15,Office of Trade & Services,SERVICES-MISCELLANEOUS AMUSEMENT & RECREATION,1,fbydp 1.02:1,1
+                    15,Office of Trade & Services,SERVICES-MOTION PICTURE & VIDEO TAPE PRODUCTION,1,mpu 1:20,1
+                    16,Industrial Applications and Services,AGRICULTURAL PROD-LIVESTOCK & ANIMAL SPECIALTIES,1,mgn 1:30,1
+                    16,Office of Energy & Transportation,DEEP SEA FOREIGN TRANSPORTATION OF FREIGHT,1,nct 1:25,1
+                    16,Office of Life Sciences,PHARMACEUTICAL PREPARATIONS,1,jagx 1:15,1
+                    17,Office of Manufacturing,"MISCELLANEOUS ELECTRICAL MACHINERY, EQUIPMENT & SUPPLIES",1,epow 1:25,1
+                    17,other,other,2,"lecrf 1:10, pnxpf 1:5",2
+                    18,Office of Trade & Services,RETAIL-CATALOG & MAIL-ORDER HOUSES,1,uzx 1:23,1
+                    18,other,other,1,fexxf 1:8,1
+                    21,Office of Real Estate & Construction,REAL ESTATE INVESTMENT TRUSTS,2,"whlr 1:3, whlr 1:9",2
+                    21,Office of Technology,SERVICES-PREPACKAGED SOFTWARE,1,vwav 1:20,1
+                    21,other,other,9,"axtx 1:4, crmx 1:4, litz 1:4, nbiz 1:4, ondu 1:4, qbtx 1:4, qubx 1:4, smu 1:4, unx 4:1",9
+                    22,Office of Manufacturing,PAPERBOARD CONTAINERS & BOXES,2,"ibo 1:12, ibo 1:12.62",2
+                    24,Office of Technology,"GENERAL INDUSTRIAL MACHINERY & EQUIPMENT, NEC",1,kitt 1:6,1
+                    24,Office of Technology,SERVICES-PREPACKAGED SOFTWARE,1,rpgl 1:16,1
+                    24,other,other,1,frsaf 1:20,1
+                    25,Office of Life Sciences,PHARMACEUTICAL PREPARATIONS,2,"immp 1:20, mtnb 1:15",2
+                    25,Office of Manufacturing,MOTOR VEHICLES & PASSENGER CAR BODIES,1,dcx 1:160,1
+                    25,Office of Manufacturing,"SPORTING & ATHLETIC GOODS, NEC",2,"gmex 1:7, gmex 1:9",2
+                    25,Office of Real Estate & Construction,GENERAL BLDG CONTRACTORS - RESIDENTIAL BLDGS,1,fbgl 1:10,1
+                    25,Office of Technology,SERVICES-COMPUTER PROGRAMMING SERVICES,1,btln 1:8,1
+                    25,Office of Trade & Services,WHOLESALE-MOTOR VEHICLES & MOTOR VEHICLE PARTS & SUPPLIES,1,ctnt 1:150,1
+                    25,Office of Trade & Services,WHOLESALE-PETROLEUM & PETROLEUM PRODUCTS (NO BULK STATIONS),1,dlxy 1:5,1
+                    25,other,other,1,abepf 1:15,1
+                    28,Industrial Applications and Services,AGRICULTURAL PRODUCTION-CROPS,1,agrz 1:20,1
+                    28,Industrial Applications and Services,SERVICES-COMMERCIAL PHYSICAL & BIOLOGICAL RESEARCH,1,onmd 1:10,1
+                    28,Office of Finance,FINANCE SERVICES,1,vrme 1:10,1
+                    28,Office of Life Sciences,PHARMACEUTICAL PREPARATIONS,1,cdt 1:25,1
+                    28,Office of Manufacturing,"SPORTING & ATHLETIC GOODS, NEC",1,trug 1:10,1
+                    29,Office of Crypto Assets,COMMODITY CONTRACTS BROKERS & DEALERS,1,zcsh 3:1,1
+                    29,Office of Finance,FINANCE SERVICES,1,shfs 1:12,1
+                    29,Office of Real Estate & Construction,CONSTRUCTION - SPECIAL TRADE CONTRACTORS,1,cetxp 105:100,1
+                    29,other,other,2,"dhy 1:10, ibidy 2:1",2
+                    30,Office of Life Sciences,PHARMACEUTICAL PREPARATIONS,1,bgm 1:30,1
+                    30,Office of Manufacturing,RADIO & TV BROADCASTING & COMMUNICATIONS EQUIPMENT,1,kust 1:10,1
+                    30,Office of Technology,SERVICES-PREPACKAGED SOFTWARE,1,myps 1:10,1
+                    30,other,other,1,vbamf 1:10,1
                 ,,,`;
 
                 var csv_count = `count\n0,,,`;

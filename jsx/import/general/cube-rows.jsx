@@ -19,6 +19,9 @@
  * A long list shows its first rows and a button for the rest, so a sector of
  * twenty industries, or a month of a hundred forms, is not a page of scrolling.
  *
+ * The rows sit under titles that say what each column is, and a tap on one
+ * sorts the rows by it, as the listing's titles sort the listing (#192).
+ *
  * Note: it took the place of a sunburst (#154), whose names fit only the slices
  *       wide enough for them, at a slant, so a list under the ring did all the
  *       reading. A row's name is always there, and level.
@@ -29,13 +32,16 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import { apportion } from './cube-layout.js';
 import { useWidth } from './cube-chart.jsx';
-import { share } from './distribution-tree.js';
+import { byName, share } from './distribution-tree.js';
 import scrollMargin from './scroll-margin.js';
 import { colors_categorical } from './colors.js';
 
@@ -153,11 +159,85 @@ export function cubesOf(parts, count, depth = DEPTH) {
     return cubes;
 }
 
-export default function CubeRows({ tree, names, caption, actions, overlay }) {
+//
+// what each of the rows' titles sorts by (#192): the name, with the numbers in
+// it by value, as the rows' own order compares names, and the count -- which
+// the percent sorts by too, since it is the count's share
+//
+const SORTS = {
+    name: byName,
+    count: (a, b) => a.value - b.value,
+    share: (a, b) => a.value - b.value,
+};
+
+export const SORT_KEYS = Object.keys(SORTS);
+
+//
+// the sort a title's tap leaves, as the listing's titles sort: ascending, then
+// descending, then back to the rows' own order, as null
+//
+export function nextSort(sort, key) {
+    if (!sort || sort.key !== key) {
+        return { key: key, direction: 'ascending' };
+    }
+
+    return sort.direction === 'ascending' ? { key: key, direction: 'descending' } : null;
+}
+
+//
+// `rows` in `sort`'s order, or in their own where there is none. A tie keeps
+// the rows' own order, either way round
+//
+export function sortRows(rows, sort) {
+    if (!sort || !SORTS[sort.key]) {
+        return rows;
+    }
+
+    const compare = SORTS[sort.key];
+
+    return rows.slice().sort((a, b) => (sort.direction === 'descending' ? compare(b, a) : compare(a, b)));
+}
+
+export default function CubeRows({
+    tree,
+    names,
+    caption,
+    actions,
+    overlay,
+    sort = null,
+    onSort = () => {},
+    sectorsShown = true,
+    onSectors = () => {},
+}) {
     const box = useRef(null);
     const width = useWidth(box, FALLBACK_WIDTH);
     const [open, setOpen] = useState(null);
     const [whole, setWhole] = useState(false);
+
+    //
+    // the order the reader put the rows in from their titles, or null for the
+    // rows' own (#192). It starts as the page kept it, and goes back out to the
+    // page, which keeps it for the next month -- see 'sort' and 'onSort'
+    //
+    const [sorting, setSorting] = useState(sort);
+
+    function sortBy(key) {
+        const next = nextSort(sorting, key);
+
+        setSorting(next);
+        onSort(next);
+    }
+
+    //
+    // whether the sectors' legend is shown or folded away under its line, and
+    // the page told, so it can keep which (#192). It starts shown
+    //
+    const [sectors_shown, setSectorsShown] = useState(sectorsShown);
+
+    function showSectors(shown) {
+        setSectorsShown(shown);
+        onSectors(shown);
+    }
 
     //
     // where the keyboard goes once a group opens or closes, since the button
@@ -268,7 +348,14 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
         }));
     }
 
+    //
+    // the groups, or an open group's members, in the order the titles put
+    // them in, if any (#192)
+    //
+    rows = sortRows(rows, sorting);
+
     const opening = rows.some((row) => row.open);
+    const sectored = !opened && Boolean(tree.sectors && tree.sectors.length);
     const columns = Math.max(1, Math.floor((width - (opening ? ARROW_ROOM : 0) + GAP) / PITCH));
     const { unit: per_cube, depth } = rowCut(Math.max(1, ...rows.map((row) => row.value)), columns);
     const legend = per_cube === 1 ? `Each cube is 1 ${unit[0]}` : `Each cube ≈ ${fmt(per_cube)} ${unit[1]}`;
@@ -278,6 +365,9 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
     // rest the least of it. Days, and a severity scale, run in their own order,
     // and cut short they would hide whichever came last: November 2025's
     // busiest day, the 19th, was the 11th of its 17
+    //
+    // Note: and so is a list sorted from its titles (#192). Sorted largest
+    //       first, it shows its first 8, and sorted any other way, every row
     //
     const largest_first = rows.every((row, index) => index === 0 || rows[index - 1].value >= row.value);
     const items = tickers || rows;
@@ -336,6 +426,32 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
         );
     };
 
+    //
+    // a title that sorts: its name, and an arrow for the way the rows are sorted
+    // by it, or a faint pair of them while they are not, as the listing's
+    // titles are (#192)
+    //
+    const title = (key, text, className) => {
+        const on = !!sorting && sorting.key === key;
+        let Arrow = UnfoldMoreIcon;
+
+        if (on) {
+            Arrow = sorting.direction === 'ascending' ? ArrowUpwardIcon : ArrowDownwardIcon;
+        }
+
+        return (
+            <button
+                type='button'
+                className={`cube-rows-sort ${className}${on ? ' is-sorted' : ''}`}
+                aria-label={on ? `${text}, sorted ${sorting.direction}` : `Sort by ${text}`}
+                onClick={() => sortBy(key)}
+            >
+                {text}
+                <Arrow className='cube-rows-sort-arrow' aria-hidden='true' />
+            </button>
+        );
+    };
+
     const tickerList = (held, label) => (
         <ul className='cube-rows-tickers' aria-label={label}>
             {held.map((member) => (
@@ -388,14 +504,37 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
         >
             {actions ? <div className='cube-rows-actions'>{actions}</div> : null}
             {head}
-            {rows.length ? <p className='cube-rows-key'>{legend}</p> : null}
+            {/*
+
+                what a cube is worth, and, beside it, the fold for the sectors'
+                legend under it (#192)
+
+            */}
+            {rows.length ? (
+                <div className='cube-rows-key-row'>
+                    <p className='cube-rows-key'>{legend}</p>
+                    {sectored ? (
+                        <button
+                            type='button'
+                            className='cube-rows-legend-fold'
+                            aria-expanded={sectors_shown}
+                            onClick={() => showSectors(!sectors_shown)}
+                        >
+                            Sectors
+                            {sectors_shown
+                                ? <ExpandLessIcon fontSize='inherit' aria-hidden='true' />
+                                : <ExpandMoreIcon fontSize='inherit' aria-hidden='true' />}
+                        </button>
+                    ) : null}
+                </div>
+            ) : null}
             {/*
 
                 the sectors a month of stock splits is banded by, each in its
-                color, over the rows they band (#190)
+                color, over the rows they band (#190), unless folded away
 
             */}
-            {!opened && tree.sectors && tree.sectors.length ? (
+            {sectored && sectors_shown ? (
                 <ul className='cube-rows-legend' aria-label='Sectors'>
                     {tree.sectors.map((sector) => (
                         <li key={sector.key} className='cube-rows-legend-item'>
@@ -404,6 +543,20 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
                         </li>
                     ))}
                 </ul>
+            ) : null}
+            {/*
+
+                the rows' titles: what a row is, what it counts, and its share,
+                each over its own column, and each a button that sorts by it
+                (#192). An open day's tickers have none
+
+            */}
+            {!listed && rows.length ? (
+                <div className={`cube-rows-titles${opening ? ' has-arrows' : ''}`}>
+                    {title('name', capitalized(pair[0]), 'cube-rows-title-name')}
+                    {title('count', capitalized(unit[1]), 'cube-rows-title-count')}
+                    {title('share', 'Percent', 'cube-rows-title-share')}
+                </div>
             ) : null}
             {listed || (
                 <ul className={`cube-rows-list${opening ? ' has-arrows' : ''}`}>
@@ -484,4 +637,19 @@ CubeRows.propTypes = {
     caption: PropTypes.string.isRequired,
     actions: PropTypes.node,
     overlay: PropTypes.node,
+    //
+    // the order the rows start in, from their titles, and what is told when it
+    // changes -- the page keeps it for the next month (#192)
+    //
+    sort: PropTypes.shape({
+        key: PropTypes.oneOf(SORT_KEYS).isRequired,
+        direction: PropTypes.oneOf(['ascending', 'descending']).isRequired,
+    }),
+    onSort: PropTypes.func,
+    //
+    // whether the sectors' legend starts shown, and what is told when it is
+    // shown or folded -- the page keeps it for the next visit (#192)
+    //
+    sectorsShown: PropTypes.bool,
+    onSectors: PropTypes.func,
 };

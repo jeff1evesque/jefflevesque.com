@@ -81,7 +81,7 @@
                       "properties": {
                         "data-distribution": {
                           "type": "string",
-                          "description": "CSV with a header row. The grouping columns differ by dataset: bls has category and series; sec, category and form; stock-market, sector, industry and total_tickers; us-weather-alert, severity and event; stock-split, split_date, total_tickers and tickers."
+                          "description": "CSV with a header row. The grouping columns differ by dataset: bls has category and series; sec, category and form; stock-market, sector, industry and total_tickers; us-weather-alert, severity and event; stock-split, split_date, sector, industry, total_tickers and tickers."
                         },
                         "partition": {
                           "type": "string",

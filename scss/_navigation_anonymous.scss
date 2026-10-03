@@ -312,6 +312,14 @@
       .cube-rows {
         scroll-margin-top: calc(57px + 1.5rem);
       }
+
+      //
+      // a dataset's row titles, held under the pinned bar while its rows
+      // scroll by with the page, not under the bar, out of sight (#192)
+      //
+      .cube-rows-titles {
+        top: 57px;
+      }
     }
   }
 

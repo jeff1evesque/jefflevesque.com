@@ -54,7 +54,11 @@ export function splitTickerPairs(tickers) {
         .filter((entry) => entry.ticker);
 }
 
-function byName(a, b) {
+//
+// two names in order, the numbers in them by value: 'Day 2' before 'Day 12',
+// 'Form 3' before 'Form 10-K'. A phone's rows sort their names by it (#192)
+//
+export function byName(a, b) {
     return a.name.localeCompare(b.name, undefined, { numeric: true });
 }
 
@@ -87,12 +91,24 @@ export const SECTORS = [
 //
 export const NO_SECTOR = 'other';
 
+//
+// a sector as SECTORS writes it, where it is one of them spelled another way:
+// the SEC writes one office without its 'Office of' -- 'Industrial
+// Applications and Services' -- so a sector is matched by its name without it
+// (#192). A sector SECTORS does not know is kept as the api wrote it
+//
+const SECTOR_BY_NAME = new Map(SECTORS.map((sector) => [sectorName(sector), sector]));
+
+export function sectorOf(sector) {
+    return SECTOR_BY_NAME.get(sectorName(sector)) || sector;
+}
+
 function sectorRank(sector) {
     if (sector === NO_SECTOR) {
         return SECTORS.length + 1;
     }
 
-    const at = SECTORS.indexOf(sector);
+    const at = SECTORS.indexOf(sectorOf(sector));
     return at === -1 ? SECTORS.length : at;
 }
 
@@ -139,7 +155,7 @@ function sectorsOf(held) {
 
     return Object.keys(held)
         .map((sector) => ({
-            sector: sector,
+            sector: sectorOf(sector),
             value: Number(held[sector] && held[sector].splits),
             pairs: splitTickerPairs(held[sector] && held[sector].tickers),
         }))

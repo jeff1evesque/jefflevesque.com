@@ -35,9 +35,12 @@
  *       own over the plot, which the chart gives back -- see CAPTION_ROOM.
  *
  * Note: a day of stock splits the api names the companies of is banded by
- *       sector, each in its own color, which a legend over the chart names
- *       (#190). Pointing at a band names its sector and that sector's tickers,
- *       and the day's list heads its tickers with their sectors.
+ *       sector, each in its own color (#190). Pointing at a band lists the
+ *       bar's sectors in their colors, the one pointed at marked, over that
+ *       sector's tickers, and the day's list heads its tickers with their
+ *       sectors. The popup is where a wide screen says what each color is: a
+ *       legend over the chart wrapped onto a second line, and was folded into
+ *       it. A phone keeps its legend over the rows -- see cube-rows.jsx.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -89,10 +92,10 @@ const TICK = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFracti
 // of them, at about 6.8px a digit, 3.4px a point and 9.5px a letter in the 12px
 // they are drawn in, then the gap and the tick to the axis. Measured from the
 // figures rather than fixed, so a month of tens of millions and one of a few
-// splits each start the plot just clear of their own figures
+// splits each start the plot just clear of their own figures. `ticks` are the
+// axis's own where a layout has them -- the stock splits' runs higher (#192)
 //
-export function axisRoom(tree) {
-    const ticks = ticksOf(Math.max(0, ...barsOf(tree).bars.map((bar) => bar.value)));
+export function axisRoom(tree, ticks = ticksOf(Math.max(0, ...barsOf(tree).bars.map((bar) => bar.value)))) {
     const widest = Math.max(...ticks.map((tick) => [...TICK.format(tick)].reduce(
         (sum, char) => sum + (/[0-9]/.test(char) ? 6.8 : (char === '.' ? 3.4 : 9.5)), 0
     )));
@@ -239,12 +242,18 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
     const plot_bottom = shown_height - MARGIN.bottom - CHART_X_AXIS_HEIGHT;
     const total_height = shownNames ? shown_height : plot_bottom + RAIL_GAP + RAIL;
 
-    const layout = useMemo(() => cubeLayout(tree, {
-        left: axisRoom(tree),
-        right: width - MARGIN.right,
-        top: MARGIN.top,
-        bottom: plot_bottom,
-    }), [tree, width, plot_bottom]);
+    //
+    // laid out once on the room the bars' own figures need, and again on the
+    // room the axis drawn needs, where that is different: a month of stock
+    // splits runs its axis higher than its busiest day (#192)
+    //
+    const layout = useMemo(() => {
+        const plotOf = (left) => ({ left: left, right: width - MARGIN.right, top: MARGIN.top, bottom: plot_bottom });
+        const first = cubeLayout(tree, plotOf(axisRoom(tree)));
+        const left = axisRoom(tree, first.ticks);
+
+        return left === first.plot.left ? first : cubeLayout(tree, plotOf(left));
+    }, [tree, width, plot_bottom]);
 
     const { plot } = layout;
     const unit = names.unit;
@@ -307,15 +316,36 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
             detail = `${share(band.part.value, bar.value)} of ${bar.name}`;
         }
 
+        //
+        // the band's row: its color, what it is, and its count. A bar banded by
+        // sector lists every one of its sectors instead, each in its color and
+        // the one pointed at marked, so the popup says what each color is
+        // (#190) -- which a legend over the chart did, until it was folded in
+        //
+        const sectored = bar.parts.some((part) => part.sector !== undefined);
+        const rows = sectored
+            ? bar.parts.map((part) => ({
+                key: part.key,
+                color: part.color,
+                name: part.name,
+                value: fmt(part.value),
+                lit: part.key === band.key,
+            }))
+            : [{
+                key: band.key,
+                color: band.color,
+                name: layout.ranked ? band.part.name : capitalized(unit[1]),
+                value: fmt(band.part.value),
+                lit: false,
+            }];
+
         tip = {
             style: bar.center > (plot.left + plot.right) / 2
                 ? { right: width - bar.x0 + TIP_GAP, top: middle }
                 : { left: bar.x0 + stack + TIP_GAP, top: middle },
             bar: bar.key,
             title: bar.name,
-            color: band.color,
-            name: layout.ranked ? band.part.name : capitalized(unit[1]),
-            value: fmt(band.part.value),
+            rows: rows,
             detail: detail,
             tickers: tickers.slice(0, MAX_TICKERS),
             more: Math.max(0, tickers.length - MAX_TICKERS),
@@ -494,27 +524,6 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                 }
             }}
         >
-            {/*
-
-                the sectors a month of stock splits is banded by, each in its
-                color, on a line over the chart, set in to the caption's left
-                edge (#190)
-
-            */}
-            {tree.sectors && tree.sectors.length ? (
-                <ul
-                    className='cube-chart-legend'
-                    aria-label='Sectors'
-                    style={{ paddingLeft: plot.left + CAPTION_INSET.left }}
-                >
-                    {tree.sectors.map((sector) => (
-                        <li key={sector.key} className='cube-chart-legend-item'>
-                            <span className='cube-chart-legend-swatch' style={{ background: sector.shade }} />
-                            {sector.name}
-                        </li>
-                    ))}
-                </ul>
-            ) : null}
             <div className='cube-chart-plot' ref={box} onMouseLeave={() => light(null)}>
                 <svg
                     width={width}
@@ -692,11 +701,13 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                 {tip ? (
                     <div className='cube-chart-tip' style={tip.style} aria-hidden='true'>
                         <div className='cube-chart-tip-title'>{tip.title}</div>
-                        <div className='cube-chart-tip-row'>
-                            <span className='cube-chart-tip-swatch' style={{ background: tip.color }} />
-                            <span className='cube-chart-tip-name'>{tip.name}</span>
-                            <span className='cube-chart-tip-value'>{tip.value}</span>
-                        </div>
+                        {tip.rows.map((row) => (
+                            <div key={row.key} className={`cube-chart-tip-row${row.lit ? ' is-lit' : ''}`}>
+                                <span className='cube-chart-tip-swatch' style={{ background: row.color }} />
+                                <span className='cube-chart-tip-name'>{row.name}</span>
+                                <span className='cube-chart-tip-value'>{row.value}</span>
+                            </div>
+                        ))}
                         <div className='cube-chart-tip-detail'>{tip.detail}</div>
                         {tip.tickers.length ? (
                             <div className='cube-chart-tip-tickers'>
@@ -737,11 +748,6 @@ CubeChart.propTypes = {
         groups: PropTypes.arrayOf(PropTypes.object).isRequired,
         total: PropTypes.number.isRequired,
         nested: PropTypes.bool.isRequired,
-        sectors: PropTypes.arrayOf(PropTypes.shape({
-            key: PropTypes.string.isRequired,
-            name: PropTypes.string.isRequired,
-            shade: PropTypes.string.isRequired,
-        })),
     }).isRequired,
     names: PropTypes.shape({
         group: PropTypes.arrayOf(PropTypes.string).isRequired,

@@ -63,15 +63,16 @@ describe('a phone\'s rows (#188)', () => {
         expect(row).toMatch(/grid-template-areas\s*:\s*'name count share'\s*'bar bar bar'\s*;/);
     });
 
-    it('hold the share\'s column wide enough for a figure like 6.6%, so every row\'s count ends in one place', () => {
-        expect(row).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto minmax\(2\.6rem, auto\)\s*;/);
+    it('hold the share\'s column one width on every row, room for its title and a figure like 6.6%, so the counts line up (#192)', () => {
+        expect(rows).toMatch(/\$cube-rows-share\s*:\s*3\.8rem\s*;/);
+        expect(row).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto \$cube-rows-share\s*;/);
     });
 
     it('run the arrow down the end of every row of a list where any opens, so a row that opens nothing lines up', () => {
         const [arrows] = blocks(rows, '.cube-rows-list.has-arrows .cube-rows-row');
 
         expect(arrows).toMatch(/grid-template-areas\s*:\s*'name count share arrow'\s*'bar bar bar arrow'\s*;/);
-        expect(arrows).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto minmax\(2\.6rem, auto\) 1\.5rem\s*;/);
+        expect(arrows).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto \$cube-rows-share 1\.5rem\s*;/);
         expect(blocks(row, '&.is-opening')[0]).toMatch(/cursor\s*:\s*pointer\s*;/);
     });
 
@@ -113,14 +114,15 @@ describe('a month banded by sector (#190)', () => {
     const rows = read('_cube_rows.scss');
     const chart = read('_cube_chart.scss');
 
-    it('wrap the sectors\' legend over a phone\'s rows, and over the plot, nearer it than the chart\'s gap', () => {
-        const [phone] = blocks(rows, '.cube-rows-legend');
-        const [wide] = blocks(chart, '.cube-chart-legend');
+    it('wrap the sectors\' legend over a phone\'s rows, and keep none over a wide screen\'s chart (#192)', () => {
+        expect(blocks(rows, '.cube-rows-legend')[0]).toMatch(/flex-wrap\s*:\s*wrap\s*;/);
+        expect(chart).not.toMatch(/cube-chart-legend/);
+    });
 
-        expect(phone).toMatch(/flex-wrap\s*:\s*wrap\s*;/);
-        expect(wide).toMatch(/flex-wrap\s*:\s*wrap\s*;/);
-        expect(wide).toMatch(/margin\s*:\s*0 0 -0\.75rem\s*;/);
-        expect(blocks(chart, '.cube-chart')[0]).toMatch(/gap\s*:\s*1\.5rem\s*;/);
+    it('mark the sector pointed at among the popup\'s rows (#192)', () => {
+        const [tip] = blocks(chart, '.cube-chart-tip-row');
+
+        expect(blocks(tip, '&.is-lit')[0]).toMatch(/font-weight\s*:\s*600\s*;/);
     });
 
     it('head a day\'s tickers with their sectors: one under another on a phone, down the list\'s columns on a wide screen', () => {
@@ -138,6 +140,40 @@ describe('a month banded by sector (#190)', () => {
 
         expect(blocks(head, '&.is-lit')[0]).toMatch(/background\s*:\s*rgba\(var\(--ink-rgb\), 0\.06\)\s*;/);
         expect(blocks(head, '.cube-list-name')[0]).toMatch(/flex\s*:\s*0 1 auto\s*;/);
+    });
+});
+
+describe('the rows\' titles (#192)', () => {
+    const rows = read('_cube_rows.scss');
+    const [titles] = blocks(rows, '.cube-rows-titles');
+
+    it('take the rows\' own columns, so each title sits over its own', () => {
+        expect(titles).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto \$cube-rows-share\s*;/);
+        expect(blocks(titles, '&.has-arrows')[0]).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto \$cube-rows-share 1\.5rem\s*;/);
+        expect(blocks(titles, '.cube-rows-title-count')[0]).toMatch(/justify-self\s*:\s*end\s*;/);
+        expect(blocks(titles, '.cube-rows-title-share')[0]).toMatch(/justify-self\s*:\s*end\s*;/);
+    });
+
+    it('stay in sight while the rows scroll, over them, and 57px down under a phone\'s pinned bar', () => {
+        const [phone] = blocks(read('_navigation_anonymous.scss'), '.cube-rows-titles');
+
+        expect(titles).toMatch(/position\s*:\s*sticky\s*;/);
+        expect(titles).toMatch(/(^|[\s;{])top\s*:\s*0\s*;/);
+        expect(titles).toMatch(/background-color\s*:\s*\$white-1\s*;/);
+        expect(phone).toMatch(/top\s*:\s*57px\s*;/);
+    });
+
+    it('stand a fingertip tall, each title a button', () => {
+        expect(blocks(titles, '.cube-rows-sort')[0]).toMatch(/min-height\s*:\s*44px\s*;/);
+    });
+});
+
+describe('the listing\'s None pill (#192)', () => {
+    it('is outlined: a gray edge around the page\'s own color, drawn inside it', () => {
+        const [off] = blocks(read('_article.scss'), '.listing-table-pill-off');
+
+        expect(off).toMatch(/background-color\s*:\s*\$white-1\s*;/);
+        expect(off).toMatch(/box-shadow\s*:\s*inset 0 0 0 1px \$gray-5\s*;/);
     });
 });
 

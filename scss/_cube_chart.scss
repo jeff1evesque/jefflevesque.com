@@ -25,36 +25,6 @@
 }
 
 //
-// the sectors a month of stock splits is banded by, each with its swatch, on a
-// line over the plot that wraps where it runs out of room (#190). Nearer the
-// plot than the chart's gap, since it reads with it. The chart sets it in to
-// the caption's left edge
-//
-.cube-chart-legend {
-  color: $gray-7;
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 0.93rem;
-  gap: 0.35rem 1.1rem;
-  list-style: none;
-  margin: 0 0 -0.75rem;
-  padding: 0;
-}
-
-.cube-chart-legend-item {
-  align-items: center;
-  display: inline-flex;
-  gap: 0.4rem;
-}
-
-.cube-chart-legend-swatch {
-  border-radius: 3px;
-  flex: none;
-  height: 0.75rem;
-  width: 0.75rem;
-}
-
-//
 // the plot takes the row's width, which the chart measures to lay out its bars,
 // and holds the caption, the api icons, the tooltip and the loader over it
 //
@@ -290,6 +260,14 @@
   align-items: center;
   display: flex;
   gap: 6px;
+
+  //
+  // of a bar's sectors, the one pointed at (#192)
+  //
+  &.is-lit {
+    color: $gray-8;
+    font-weight: 600;
+  }
 }
 
 .cube-chart-tip-swatch {

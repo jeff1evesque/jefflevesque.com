@@ -360,15 +360,16 @@ class ListingTable extends Component {
         {/*
 
             a column with an 'on' value draws it as a green pill, and any other
-            value as a gray one (#167) -- /data's RDF 'None' was plain text
-            beside the green 'Available' pills, and read as a value missing
-            rather than as the answer
+            value as a pill of its own (#167) -- /data's RDF 'None' was plain
+            text beside the green 'Available' pills, and read as a value missing
+            rather than as the answer. It is outlined (#192): a gray pill sank
+            into the charted row's tint and into the stripes
 
         */}
         if (typeof column.on === 'string') {
             return text === column.on
                 ? <span className='listing-table-pill listing-table-pill-on'>{text}</span>
-                : <span className='listing-table-pill'>{text}</span>;
+                : <span className='listing-table-pill listing-table-pill-off'>{text}</span>;
         }
 
         if (column.pill) {
