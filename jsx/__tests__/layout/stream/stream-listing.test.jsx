@@ -498,9 +498,9 @@ describe('clearing a stream before it is refetched', () => {
 });
 
 describe('the per-row control tray', () => {
-    function tray(page, stream, url_trigger = false) {
+    function tray(page, stream) {
         const { container } = render(
-            <MemoryRouter>{page.getControlTray(stream, url_trigger)}</MemoryRouter>
+            <MemoryRouter>{page.getControlTray(stream)}</MemoryRouter>
         );
 
         return container;
@@ -508,9 +508,9 @@ describe('the per-row control tray', () => {
 
     it('offers the query stats control only for the stock-market stream', () => {
         //
-        // the bottom sheet it opens shows candlestick triggers, which only that stream
-        // produces. Every other row renders the tray without it rather than rendering a
-        // control that opens an empty sheet.
+        // the triggers page it leads to watches for candlestick patterns, which
+        // only that stream produces. Every other row renders the tray without it
+        // rather than a control that leads nowhere.
         //
         const page = setup();
 
@@ -531,29 +531,17 @@ describe('the per-row control tray', () => {
         expect(container.querySelector(`a[href="/stream/${stream}/alarm"]`)).toBeTruthy();
     });
 
-    it('routes the query stats control when asked for a url trigger', () => {
+    it('links the query stats control to the triggers page, where the sheet it opened went (#179)', () => {
         //
-        // the same control is a link on the trigger page and a sheet opener on
-        // /stream's rows, which is what 'url_trigger' selects between.
+        // it slid a sheet of featured patterns up over the bottom of the page,
+        // each card a link to the same triggers page, which has the patterns to
+        // pick from
         //
         const page = setup();
+        const link = tray(page, 'stock-market').querySelector('[data-testid="QueryStatsIcon"]').closest('a');
 
-        expect(tray(page, 'stock-market', true).querySelector('a[href="/stream/stock-market/trigger"]'))
-            .toBeTruthy();
-        expect(tray(page, 'stock-market', false).querySelector('a[href="/stream/stock-market/trigger"]'))
-            .toBeNull();
-    });
-
-    it('opens the sheet when the rows\' variant is clicked', () => {
-        const page = setup();
-        const container = tray(page, 'stock-market');
-
-        expect(page.state.bottom_sheet_open).toBe(false);
-
-        act(() => {
-            container.querySelector('[data-testid="QueryStatsIcon"]').parentElement.click();
-        });
-
-        expect(page.state.bottom_sheet_open).toBe(true);
+        expect(link).toHaveAttribute('href', '/stream/stock-market/trigger');
+        expect(link).toHaveAttribute('aria-label', 'Triggers for S&P 500');
+        expect(page.state).not.toHaveProperty('bottom_sheet_open');
     });
 });
