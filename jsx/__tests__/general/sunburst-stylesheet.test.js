@@ -9,8 +9,9 @@
  * days into a month of twenty.
  *
  * And about the stack over the ring on a phone (#185): the page draws the api
- * icons in its month row below a tablet's width, so the ring's copy is hidden
- * there, and the blocks over the ring keep room between them.
+ * icons in its month row below a tablet's width, so the head over the ring,
+ * which holds only the ring's copy, is hidden there, and the blocks over the
+ * ring keep room between them.
  *
  * Note: read the way navigation/stylesheet.test.js reads its partials:
  *       comments taken out, and a block found by its header, whole.
@@ -69,13 +70,8 @@ describe('the stack over the ring on a phone (#185)', () => {
     const sunburst = read('_sunburst.scss');
     const [phone] = blocks(sunburst, '@media (max-width: 767.98px)');
 
-    it('hides the ring\'s own api icons below a tablet\'s width, which the month row carries', () => {
-        expect(blocks(phone, '.sunburst-phone .sunburst-actions')[0]).toMatch(/display\s*:\s*none\s*;/);
-    });
-
-    it('hides a head with no hint there, which would hold nothing to show', () => {
-        expect(blocks(phone, '.sunburst-phone .sunburst-head:not(:has(.sunburst-meta))')[0])
-            .toMatch(/display\s*:\s*none\s*;/);
+    it('hides the head over the ring below a tablet\'s width, whose api icons the month row carries', () => {
+        expect(blocks(phone, '.sunburst-phone .sunburst-head')[0]).toMatch(/display\s*:\s*none\s*;/);
     });
 
     it('keeps 1.25rem under the green bar, 0.75rem under the name and 1.25rem under the month row', () => {
