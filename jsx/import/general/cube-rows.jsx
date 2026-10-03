@@ -12,6 +12,10 @@
  * its members, each a row and a bar of its own, or the tickers that split that
  * day. Its head names it, and its × goes back to every group.
  *
+ * A day of stock splits the api names the companies of is banded by sector,
+ * each in its own color, which a legend over the rows names, and opens to its
+ * tickers under their sectors' heads (#190).
+ *
  * A long list shows its first rows and a button for the rest, so a sector of
  * twenty industries, or a month of a hundred forms, is not a page of scrolling.
  *
@@ -215,12 +219,20 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
 
     let rows = [];
     let tickers = null;
+    let sectors = null;
 
     if (!opened) {
         rows = groups.map((group) => {
+            //
+            // a group opens to its members, or to a day's tickers: from its
+            // sectors, where it is banded by them, whatever their number, so a
+            // day of one sector opens as well (#190)
+            //
             const held = ranked && group.members.length > 1 ? group.members.length : 0;
-            const listed = group.members.filter((member) => member.note).length;
-            const opens = held || listed;
+            const listed = group.members.reduce(
+                (sum, member) => sum + (member.tickers ? member.tickers.length : 0) + (member.note ? 1 : 0), 0
+            );
+            const opens = listed || held;
 
             return {
                 key: group.key,
@@ -238,6 +250,13 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
         });
     } else if (noted) {
         tickers = opened.members;
+    } else if (opened.members.some((member) => member.tickers && member.tickers.length)) {
+        //
+        // a day banded by sector: its tickers under their sectors' heads, in the
+        // bar's order (#190)
+        //
+        sectors = opened.members.filter((member) => member.tickers && member.tickers.length);
+        tickers = sectors.reduce((all, member) => all.concat(member.tickers), []);
     } else {
         rows = opened.members.map((member) => ({
             key: member.key,
@@ -317,6 +336,49 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
         );
     };
 
+    const tickerList = (held, label) => (
+        <ul className='cube-rows-tickers' aria-label={label}>
+            {held.map((member) => (
+                <li key={member.key} className='cube-rows-ticker'>
+                    <span className='cube-rows-ticker-name'>{member.name}</span>
+                    <span className='cube-rows-ticker-ratio'>{member.note}</span>
+                </li>
+            ))}
+        </ul>
+    );
+
+    //
+    // a day's tickers, three to a line. Where the day is banded by sector, each
+    // sector heads its own with its swatch, name and count, as far as the
+    // tickers shown reach (#190)
+    //
+    let listed = null;
+    if (sectors) {
+        let left = shown;
+
+        listed = (
+            <div className='cube-rows-sectors' role='group' aria-label={`${opened.name}: its ${names.member[1]}`}>
+                {sectors.map((member) => {
+                    const held = member.tickers.slice(0, Math.max(0, left));
+                    left -= held.length;
+
+                    return held.length ? (
+                        <div key={member.key} className='cube-rows-sector'>
+                            <div className='cube-rows-sector-head'>
+                                <span className='cube-rows-swatch' style={{ background: member.shade }} />
+                                <span className='cube-rows-sector-name'>{member.name}</span>
+                                <span className='cube-rows-sector-count'>{fmt(member.value)}</span>
+                            </div>
+                            {tickerList(held, member.name)}
+                        </div>
+                    ) : null;
+                })}
+            </div>
+        );
+    } else if (tickers) {
+        listed = tickerList(tickers.slice(0, shown), `${opened.name}: its ${names.member[1]}`);
+    }
+
     return (
         <div
             className='cube-rows'
@@ -327,16 +389,23 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
             {actions ? <div className='cube-rows-actions'>{actions}</div> : null}
             {head}
             {rows.length ? <p className='cube-rows-key'>{legend}</p> : null}
-            {tickers ? (
-                <ul className='cube-rows-tickers' aria-label={`${opened.name}: its ${names.member[1]}`}>
-                    {tickers.slice(0, shown).map((member) => (
-                        <li key={member.key} className='cube-rows-ticker'>
-                            <span className='cube-rows-ticker-name'>{member.name}</span>
-                            <span className='cube-rows-ticker-ratio'>{member.note}</span>
+            {/*
+
+                the sectors a month of stock splits is banded by, each in its
+                color, over the rows they band (#190)
+
+            */}
+            {!opened && tree.sectors && tree.sectors.length ? (
+                <ul className='cube-rows-legend' aria-label='Sectors'>
+                    {tree.sectors.map((sector) => (
+                        <li key={sector.key} className='cube-rows-legend-item'>
+                            <span className='cube-rows-swatch' style={{ background: sector.shade }} />
+                            {sector.name}
                         </li>
                     ))}
                 </ul>
-            ) : (
+            ) : null}
+            {listed || (
                 <ul className={`cube-rows-list${opening ? ' has-arrows' : ''}`}>
                     {rows.slice(0, shown).map((row) => {
                         const inner = (
@@ -401,6 +470,11 @@ CubeRows.propTypes = {
         groups: PropTypes.arrayOf(PropTypes.object).isRequired,
         total: PropTypes.number.isRequired,
         nested: PropTypes.bool.isRequired,
+        sectors: PropTypes.arrayOf(PropTypes.shape({
+            key: PropTypes.string.isRequired,
+            name: PropTypes.string.isRequired,
+            shade: PropTypes.string.isRequired,
+        })),
     }).isRequired,
     names: PropTypes.shape({
         group: PropTypes.arrayOf(PropTypes.string).isRequired,
