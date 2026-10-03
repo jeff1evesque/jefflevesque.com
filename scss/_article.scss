@@ -539,7 +539,12 @@
   // the title's name and its count, kept together, so a wide screen can set
   // the page's control apart from them (#194) -- see '.large-viewport' below
   //
-  .listing-table-name {
+  // Note: a class of its own (#196). It was '.listing-table-name', which each
+  //       row's name cell already wears, so the cells became flex boxes and
+  //       lost a table cell's vertical centering: a dataset's name sat at the
+  //       top of its row
+  //
+  .listing-table-title-name {
     align-items: baseline;
     display: flex;
   }

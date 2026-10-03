@@ -528,7 +528,7 @@ class ListingTable extends Component {
             <div className='articles listing-table'>
                 <div className={`listing-table-head${actions ? ' has-actions' : ''}`}>
                     <div className={`listing-table-title${actions ? ' has-actions' : ''}`}>
-                        <span className='listing-table-name'>
+                        <span className='listing-table-title-name'>
                             <h5>{title}</h5>
                             <span className='title-count'>{rows.length}</span>
                         </span>
