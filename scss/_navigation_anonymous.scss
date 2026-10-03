@@ -130,6 +130,11 @@
           // an edge. The page on screen is a band of the green the phone's way
           // back to every stream is, across the panel's whole width.
           //
+          // By day the band's name is the rows' own dark, 15.5:1 on it, and
+          // its arrow keeps the green (#175). Green on the green read lighter
+          // than the rows around it, at 5.1:1, more a tag than a menu's entry.
+          // By night the name stays green, which reads on the dark band.
+          //
           .phone-menu-link {
             align-items: center;
             color: $gray-8;
@@ -148,7 +153,11 @@
 
             &.active {
               background-color: $green-bar;
-              color: $green-6;
+              color: $gray-8;
+
+              @include dark {
+                color: $green-6;
+              }
             }
           }
 
@@ -158,7 +167,7 @@
           }
 
           .phone-menu-link.active .phone-menu-arrow {
-            color: inherit;
+            color: $green-6;
           }
 
           //
