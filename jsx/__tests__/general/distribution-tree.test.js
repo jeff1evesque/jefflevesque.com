@@ -1,20 +1,20 @@
 /**
- * distribution-tree.test.js: the groups a month's sunburst draws, from a
- * worker's rows.
+ * distribution-tree.test.js: the groups a month's charts draw, from a worker's
+ * rows.
  *
- * The rules live here rather than in the ring, so each is pinned without
- * drawing anything: which rows become groups and members, when the ring nests,
- * the order it runs in, and the colors it wears.
+ * The rules live here rather than in the charts, so each is pinned without
+ * drawing anything: which rows become groups and members, when the groups
+ * nest, the order they run in, the colors the members wear, and how a share is
+ * written.
  */
 
 import distributionTree, {
     SEVERITY_ORDER,
+    share,
     splitTickerPairs,
 } from '../../import/general/distribution-tree.js';
 import {
     colors_categorical,
-    colors_severity,
-    colors_severity_dark,
     color_tail,
 } from '../../import/general/colors.js';
 
@@ -131,11 +131,11 @@ describe('the groups and what they hold', () => {
     });
 });
 
-describe('when the ring nests', () => {
-    it('draws a single ring when every group holds the same one thing', () => {
+describe('when the groups nest', () => {
+    it('does not nest when every group holds the same one thing', () => {
         //
-        // sec's rows each count 'Filings', and bls's 'Reports': an outer ring
-        // would only repeat the inner one
+        // sec's rows each count 'Filings', and bls's 'Reports': opening a group
+        // would only show it again
         //
         const tree = distributionTree([
             { form: '4', Filings: 30 },
@@ -186,7 +186,7 @@ describe('a day\'s tickers', () => {
         expect(distributionTree(ROWS, 'sector').total).toBe(3);
     });
 
-    it('keys a ticker a day lists twice apart, so each is a segment of its own', () => {
+    it('keys a ticker a day lists twice apart, so each is drawn on its own', () => {
         const [day] = distributionTree([
             { sector: 'Day 8', splits: 3, tickers: 'ucar 1:10, nvdl 3:1, ucar 1:20' },
         ], 'sector').groups;
@@ -211,7 +211,7 @@ describe('a day\'s tickers', () => {
     });
 });
 
-describe('the order around the ring', () => {
+describe('the order the groups run in', () => {
     it('runs largest first', () => {
         const tree = distributionTree([
             { sector: 'Small', total: 1 },
@@ -269,79 +269,43 @@ describe('the order around the ring', () => {
 });
 
 describe('the colors', () => {
-    function rowsOf(count) {
-        return Array.from({ length: count }, (ignored, at) => ({
-            sector: `Sector ${String.fromCharCode(65 + at)}`,
-            [`first ${at}`]: count - at,
-            [`second ${at}`]: 1,
-        }));
-    }
-
-    it('gives groups the chart colors largest first', () => {
-        const tree = distributionTree(rowsOf(3), 'sector');
-
-        expect(tree.groups.map((group) => group.color)).toEqual(colors_categorical.slice(0, 3));
-    });
-
-    it('shades the groups past the eighth color as the long tail, for the page\'s theme', () => {
-        const light = distributionTree(rowsOf(11), 'sector');
-        const dark = distributionTree(rowsOf(11), 'sector', 'dark');
-
-        expect(light.groups[8].color).toBe(color_tail(0, 3, 'light'));
-        expect(light.groups[10].color).toBe(color_tail(2, 3, 'light'));
-        expect(dark.groups[10].color).toBe(color_tail(2, 3, 'dark'));
-    });
-
-    it('draws a single series in the chart colors, largest first, so its slices tell apart (#167)', () => {
-        const tree = distributionTree([
-            { form: '4', Filings: 30 },
-            { form: '8-K', Filings: 10 },
-            { form: '10-Q', Filings: 5 },
-        ], 'form');
-
-        expect(tree.groups.map((group) => group.color)).toEqual(colors_categorical.slice(0, 3));
-    });
-
-    it('draws the stock splits\' days in the chart colors by their splits, in day order (#167)', () => {
-        const tree = distributionTree([
-            { sector: 'Day 1', splits: 1, tickers: 'cris 1:20' },
-            { sector: 'Day 5', splits: 2, tickers: 'crwd 4:1, svc 1:5' },
-        ], 'sector');
-
-        expect(tree.groups.map((group) => group.name)).toEqual(['Day 1', 'Day 5']);
-        expect(tree.groups.map((group) => group.color)).toEqual([colors_categorical[1], colors_categorical[0]]);
-    });
-
-    it('draws severity down one ramp, darkest for the most severe, and unknown in gray', () => {
-        const rows = ['Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'].map((severity, at) => ({
-            severity: severity,
-            [`event ${at}`]: 10,
-            other: 1,
-        }));
-
-        expect(distributionTree(rows, 'severity').groups.map((group) => group.color))
-            .toEqual([...colors_severity, color_tail(0, 1, 'light')]);
-        expect(distributionTree(rows, 'severity', 'dark').groups.map((group) => group.color))
-            .toEqual([...colors_severity_dark, color_tail(0, 1, 'dark')]);
-    });
-
-    it('dresses a member in its group\'s color on the ring', () => {
-        const tree = distributionTree(rowsOf(2), 'sector');
-
-        tree.groups.forEach((group) => {
-            group.members.forEach((member) => expect(member.color).toBe(group.color));
-        });
-    });
-
-    it('gives the members of an open group colors of their own, largest first, then the tail', () => {
+    function wide(theme) {
         const row = { sector: 'Wide' };
         for (let at = 0; at < 10; at += 1) {
             row[`member ${at}`] = 100 - at;
         }
-        const [group] = distributionTree([row, { sector: 'Other', thing: 1 }], 'sector').groups;
+
+        return distributionTree([row, { sector: 'Other', thing: 1 }], 'sector', theme).groups[0];
+    }
+
+    it('gives a group\'s members colors by their rank in it, largest first, then the tail', () => {
+        const group = wide();
 
         expect(group.members.slice(0, 8).map((member) => member.shade)).toEqual(colors_categorical);
         expect(group.members[8].shade).toBe(color_tail(0, 2, 'light'));
         expect(group.members[9].shade).toBe(color_tail(1, 2, 'light'));
+    });
+
+    it('shades the tail for the page\'s theme', () => {
+        expect(wide('dark').members[9].shade).toBe(color_tail(1, 2, 'dark'));
+    });
+
+    it('gives a group no color of its own, which only the sunburst drew (#188)', () => {
+        const [group] = distributionTree([{ severity: 'Severe', 'Flood Warning': 3, 'Wind Warning': 1 }], 'severity').groups;
+
+        expect(group.color).toBeUndefined();
+        expect(group.members[0].color).toBeUndefined();
+    });
+});
+
+describe('share', () => {
+    it.each([
+        [32, 100, '32%'],
+        [1.5, 100, '1.5%'],
+        [2, 100, '2%'],
+        [0.5, 100, 'under 1%'],
+        [5, 0, 'under 1%'],
+    ])('writes %s of %s as %s', (part, whole, written) => {
+        expect(share(part, whole)).toBe(written);
     });
 });
