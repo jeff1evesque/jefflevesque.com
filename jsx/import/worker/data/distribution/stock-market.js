@@ -76,12 +76,11 @@ export default () => {
 
                     {/*
 
-                        stock-split carries no sector or industry: the datalake
-                        api answers one row per split_date, with the tickers
-                        that split on it. the day is already the x-axis value,
-                        so a single fixed series name keeps one color per chart,
-                        and the tickers ride along on the record for the tooltip
-                        to read
+                        stock-split is keyed by day: the day is the x-axis value,
+                        and the tickers that split on it ride along on the record
+                        for the tooltip and the list to read. Where the datalake
+                        api names each split's company, the day also keeps its
+                        sectors apart -- see below (#190)
 
                     */}
                     if (
@@ -109,6 +108,34 @@ export default () => {
                             record['tickers'] = record['tickers']
                                 ? `${record['tickers']}, ${trim(v.tickers)}`
                                 : trim(v.tickers);
+                        }
+
+                        {/*
+
+                            and an answer with a sector column keeps each of a
+                            day's sectors apart, for its bar's bands: their
+                            splits and their tickers, the industries of one
+                            sector added into it. A split with no company on
+                            file is the api's 'other'. An answer without the
+                            column carries no sectors, and draws as it did (#190)
+
+                        */}
+                        if ('sector' in v) {
+                            const named = checkValidString(v.sector) ? trim(v.sector) : '';
+                            const sector = named || 'other';
+                            const sectors = record['sectors'] || {};
+                            const held = sectors[sector] || {'splits': 0};
+
+                            held['splits'] += parseInt(v.total_tickers);
+
+                            if ('tickers' in v && checkValidString(v.tickers)) {
+                                held['tickers'] = held['tickers']
+                                    ? `${held['tickers']}, ${trim(v.tickers)}`
+                                    : trim(v.tickers);
+                            }
+
+                            sectors[sector] = held;
+                            record['sectors'] = sectors;
                         }
 
                         data_reformat[split_key] = record;
