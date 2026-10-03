@@ -789,6 +789,17 @@
     color: $green-6;
   }
 
+  //
+  // the other value of a yes column -- /data's RDF 'None' -- outlined: a gray
+  // edge around the page's own color, white by day and dark by night, so it
+  // stands apart from the charted row's tint and from the stripes, where a
+  // gray pill sank into them (#192). Drawn inside the pill, so it is no bigger
+  //
+  .listing-table-pill-off {
+    background-color: $white-1;
+    box-shadow: inset 0 0 0 1px $gray-5;
+  }
+
   .listing-table-empty {
     color: $gray-6;
   }
