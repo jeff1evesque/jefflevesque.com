@@ -337,7 +337,7 @@ export default function CubeRows({ tree, names, caption, actions, overlay }) {
                     ))}
                 </ul>
             ) : (
-                <ul className='cube-rows-list'>
+                <ul className={`cube-rows-list${opening ? ' has-arrows' : ''}`}>
                     {rows.slice(0, shown).map((row) => {
                         const inner = (
                             <>
