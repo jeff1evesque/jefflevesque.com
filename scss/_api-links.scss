@@ -6,9 +6,10 @@
 // Note: '//' comment(s), will not appear in the corresponding compiled css,
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
 //
-// Note: the icons sit where each page puts them -- at the right end of the row
-//       above the /data ring (see '_sunburst.scss'), in the /stream header, and
-//       heading the graph's canvas column, below. Nothing here moves them.
+// Note: the icons sit where each page puts them -- inside the top right of the
+//       /data chart (see '_cube_chart.scss'), at the end of a phone's month row,
+//       in the /stream header, and heading the graph's canvas column, below.
+//       Nothing here moves them.
 
 .api-links {
   align-items: center;
