@@ -588,26 +588,11 @@ describe('a day banded by sector (#190)', () => {
     const TRADE = 'Day 8\u0000Trade & Services';
     const NONE = 'Day 8\u0000No sector';
 
-    it('names the month\'s sectors in a legend over the chart, each in its color, No sector last', () => {
-        const { container, tree } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
-        const legend = container.querySelector('.cube-chart-legend');
-
-        expect(legend).toHaveAttribute('aria-label', 'Sectors');
-        expect(legend.nextElementSibling).toHaveClass('cube-chart-plot');
-        expect(legend.style.paddingLeft).toBe(`${axisRoom(tree) + 10}px`);
-        expect(texts(container, '.cube-chart-legend-item')).toEqual(['Life Sciences', 'Manufacturing', 'Trade & Services', 'No sector']);
-        expect([...legend.querySelectorAll('.cube-chart-legend-swatch')].map((swatch) => swatch.style.background)).toEqual([
-            'rgb(42, 120, 214)', 'rgb(27, 175, 122)', 'rgb(237, 161, 0)', 'rgb(211, 211, 206)',
-        ]);
-    });
-
-    it.each([
-        ['a month the api sent without sectors', { rows: SPLITS, key: 'split_date', names: DAYS }],
-        ['another stream', {}],
-    ])('draws no legend for %s', (name, props) => {
-        const { container } = draw(props);
+    it('draws no legend over the chart: its popup names the sectors (#192)', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
 
         expect(container.querySelector('.cube-chart-legend')).toBeNull();
+        expect(container.querySelector('.cube-chart').firstElementChild).toHaveClass('cube-chart-plot');
     });
 
     it('colors each band of a day by its sector, and a day of the api\'s old answer in one blue', () => {
@@ -621,14 +606,37 @@ describe('a day banded by sector (#190)', () => {
         expect(bandOf(old.container, 'Day 19')[0]).toHaveAttribute('fill', colors_categorical[0]);
     });
 
-    it('names a band\'s sector, its count, its share of the day, and its own tickers', () => {
+    it('lists the bar\'s sectors in the popup, in their colors and the bar\'s order, the one pointed at marked (#192)', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.mouseEnter(bandOf(container, NONE)[0]);
+
+        const rows = [...tip(container).querySelectorAll('.cube-chart-tip-row')];
+        expect(rows.map((row) => row.textContent)).toEqual(['Trade & Services2', 'Life Sciences1', 'No sector3']);
+        expect(rows.map((row) => row.querySelector('.cube-chart-tip-swatch').style.background))
+            .toEqual(['rgb(237, 161, 0)', 'rgb(42, 120, 214)', 'rgb(211, 211, 206)']);
+        expect(rows.map((row) => row.classList.contains('is-lit'))).toEqual([false, false, true]);
+    });
+
+    it('names, under the sectors, the share of the day and the tickers of the one pointed at', () => {
         const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
 
         fireEvent.mouseEnter(bandOf(container, TRADE)[0]);
 
-        expect(tip(container).textContent).toBe('Day 8Trade & Services233% of Day 8jmpld3:4phge1:10');
-        expect(tip(container).querySelector('.cube-chart-tip-swatch').style.background).toBe('rgb(237, 161, 0)');
+        expect(tip(container).querySelector('.cube-chart-tip-detail').textContent).toBe('33% of Day 8');
+        expect([...tip(container).querySelectorAll('.cube-chart-tip-ticker')].map((row) => row.textContent))
+            .toEqual(['jmpld3:4', 'phge1:10']);
+        expect(tip(container).querySelector('.cube-chart-tip-row.is-lit').textContent).toBe('Trade & Services2');
         expect(tip(container).querySelector('.cube-chart-tip-more')).toBeNull();
+    });
+
+    it('keeps a single row in the popup for a bar of any other kind', () => {
+        const { container } = draw();
+
+        fireEvent.mouseEnter(bandOf(container, TECH)[0]);
+
+        expect(tip(container).querySelectorAll('.cube-chart-tip-row')).toHaveLength(1);
+        expect(tip(container).querySelector('.cube-chart-tip-row.is-lit')).toBeNull();
     });
 
     it('names six of a band\'s tickers, then +N more, which opens the day\'s whole list', () => {
@@ -808,6 +816,46 @@ describe('the names under the chart (#167)', () => {
 
         expect(texts(container, 'text.cube-chart-tick')).toHaveLength(5);
         expect(screen.queryByRole('button', { name: /axis/ })).toBeNull();
+    });
+});
+
+describe('a month of stock splits, two cubes across (#192)', () => {
+    //
+    // twenty days, as September 2026 has, the busiest of them 15 splits
+    //
+    function month(busiest) {
+        return Array.from({ length: 20 }, (ignored, at) => {
+            const count = at === 9 ? busiest : (at % 3) + 1;
+            const tickers = Array.from({ length: count }, (none, index) => `d${at}t${index} 1:2`).join(', ');
+
+            return { split_date: `Day ${at + 1}`, splits: count, tickers: tickers };
+        });
+    }
+
+    it('stands a quiet month\'s days two cubes across, a split a cube, on an axis twice as high', () => {
+        const { container } = draw({ rows: month(15), key: 'split_date', names: DAYS });
+        const day = bandOf(container, 'Day 10');
+
+        expect(container.querySelector('.cube-chart-caption').textContent).toBe('Each cube is 1 split');
+        expect(texts(container, 'text.cube-chart-tick')).toEqual(['0', '8', '16', '24', '32']);
+        expect(day).toHaveLength(15);
+        expect(new Set(day.map((cube) => cube.getAttribute('x'))).size).toBe(2);
+    });
+
+    it('leaves the room the axis it draws needs, though its figures run past the busiest day\'s', () => {
+        const { container, tree } = draw({ rows: month(5), key: 'split_date', names: DAYS });
+        const ticks = texts(container, 'text.cube-chart-tick').map(Number);
+        const axis = container.querySelector('line.cube-chart-axis');
+
+        expect(ticks[ticks.length - 1]).toBeGreaterThan(9);
+        expect(axisRoom(tree)).toBeLessThan(axisRoom(tree, ticks));
+        expect(Number(axis.getAttribute('x1'))).toBe(axisRoom(tree, ticks));
+    });
+
+    it('leaves a month of anything else on the axis its busiest bar needs', () => {
+        const { container } = draw();
+
+        expect(texts(container, 'text.cube-chart-tick')).toEqual(['0', '2M', '4M', '6M', '8M']);
     });
 });
 
