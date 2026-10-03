@@ -536,6 +536,15 @@
   }
 
   //
+  // the title's name and its count, kept together, so a wide screen can set
+  // the page's control apart from them (#194) -- see '.large-viewport' below
+  //
+  .listing-table-name {
+    align-items: baseline;
+    display: flex;
+  }
+
+  //
   // a title row carrying the page's own control -- the month, on a phone's
   // /data (#165) -- takes the row's width, with the control at its end, or
   // under the title on a phone too narrow for both
@@ -954,6 +963,33 @@
 //
 // Note: the lines keep their 1px and lose their color, so no row changes height.
 //
+//
+// on a wide screen, a title row carrying the page's own control -- /data's
+// month -- is three columns: the title at the row's start, the tools at its
+// end, and the control centered between them, whatever either measures (#194)
+//
+.large-viewport .listing-table {
+  .listing-table-head.has-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .listing-table-head.has-actions .listing-table-title {
+    display: contents;
+  }
+
+  .listing-table-head.has-actions .listing-table-actions {
+    grid-column: 2;
+    justify-self: center;
+    margin-left: 0;
+  }
+
+  .listing-table-head.has-actions .listing-table-tools {
+    grid-column: 3;
+    justify-self: end;
+  }
+}
+
 .large-viewport .data-listing .listing-table {
   tbody tr:not(:last-child) > * {
     border-bottom-color: transparent;

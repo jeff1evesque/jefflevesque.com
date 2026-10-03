@@ -168,6 +168,19 @@ describe('the rows\' titles (#192)', () => {
     });
 });
 
+describe('the listing\'s title row on a wide screen (#194)', () => {
+    const wide = blocks(read('_article.scss'), '.large-viewport .listing-table')
+        .find((block) => block.includes('.listing-table-head.has-actions'));
+
+    it('is three columns where it carries the page\'s own control, the control centered in the middle one', () => {
+        expect(blocks(wide, '.listing-table-head.has-actions')[0])
+            .toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto minmax\(0, 1fr\)\s*;/);
+        expect(blocks(wide, '.listing-table-head.has-actions .listing-table-title')[0]).toMatch(/display\s*:\s*contents\s*;/);
+        expect(blocks(wide, '.listing-table-head.has-actions .listing-table-actions')[0]).toMatch(/justify-self\s*:\s*center\s*;/);
+        expect(blocks(wide, '.listing-table-head.has-actions .listing-table-tools')[0]).toMatch(/justify-self\s*:\s*end\s*;/);
+    });
+});
+
 describe('the listing\'s None pill (#192)', () => {
     it('is outlined: a gray edge around the page\'s own color, drawn inside it', () => {
         const [off] = blocks(read('_article.scss'), '.listing-table-pill-off');
