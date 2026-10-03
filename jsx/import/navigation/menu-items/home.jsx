@@ -1,35 +1,19 @@
 /**
  * home.jsx: home menu markup.
  *
- * @HomeLink, must be capitalized in order for reactjs to render it as a
+ * @HomeBrand, must be capitalized in order for reactjs to render it as a
  *     component. Otherwise, the variable is rendered as a dom node.
  *
  * Note: this script implements jsx (reactjs) syntax.
+ *
+ * Note: the house the sign-in and sign-up pages drew on the page itself, in the
+ *       page's own dark gray, went with their bare headers (#179). Every page
+ *       wears the header's house now.
  */
 
-import React, { useContext } from 'react';
+import React from 'react';
 import { NavLink } from 'react-router-dom';
 import SvgHome from '../../svg/svg-home.jsx';
-import { themeColors } from '../../general/colors.js';
-import { ThemeModeContext } from '../../general/theme-mode.jsx';
-
-//
-// the house in the page's own dark gray, which on a dark page is a light one:
-// this link sits on the page, where the header's house sits on its bar.
-//
-const HomeLink = () => {
-    const { theme } = useContext(ThemeModeContext);
-
-    return (
-        <NavLink
-            activeclassname='active'
-            className='icon home'
-            to='/'
-        >
-            <SvgHome houseColor={themeColors(theme)['gray-7']} />
-        </NavLink>
-    );
-};
 
 //
 // the house on the header's bar, linking home. On the home page itself its roof
@@ -49,4 +33,4 @@ export const HomeBrand = () => (
 );
 
 // indicate which class can be exported, and instantiated via 'require'
-export default HomeLink;
+export default HomeBrand;

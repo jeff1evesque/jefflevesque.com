@@ -42,14 +42,6 @@
           margin-bottom: 1.5rem;
         }
 
-        .menu-login {
-          background-color: transparent !important;
-        }
-
-        .menu-register {
-          background-color: transparent !important;
-        }
-
         .navbar-header {
           padding: 0 0 0 $gutter-1 / 2;
         }
@@ -223,6 +215,14 @@
             }
 
             //
+            // the one left on the sign-in or sign-up page, whose own button
+            // the menu leaves out (#179), spans the menu
+            //
+            .btn:only-child {
+              grid-column: 1 / -1;
+            }
+
+            //
             // Login by night, beside Register's green (#175) -- see
             // 'login-night'
             //
@@ -289,9 +289,8 @@
 
       //
       // the phone's header, pinned to the top of the screen while the page
-      // scrolls under it (#177). The construction banner over it scrolls away.
-      // Only the phone's header: the sign-in and sign-up pages' own headers are
-      // transparent, and would let the page show through them.
+      // scrolls under it (#177), on every page -- the sign-in and sign-up pages
+      // wear it too since #179. The construction banner over it scrolls away.
       //
       // Its z-index is Bootstrap's for a sticky bar: over every layer a page
       // draws, and under mui's menus and the stream sheet, which open over it.
@@ -470,25 +469,10 @@
       text-align: right;
     }
 
-    .menu-login,
-    .menu-register {
-      padding: .75rem 0;
-    }
-
-    .menu-home,
-    .menu-register {
+    .menu-home {
       .home {
         float: left;
         margin-left: .5rem;
-      }
-    }
-
-    .menu-login {
-      background-color: transparent;
-      text-align: center;
-
-      .home {
-        display: inline-block;
       }
     }
 

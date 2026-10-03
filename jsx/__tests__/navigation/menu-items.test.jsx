@@ -20,9 +20,8 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import HomeLink, { HomeBrand } from '../../import/navigation/menu-items/home.jsx';
-import { ThemeModeContext } from '../../import/general/theme-mode.jsx';
-import { colors, colors_dark, toRGB } from '../../import/general/colors.js';
+import { HomeBrand } from '../../import/navigation/menu-items/home.jsx';
+import { colors, toRGB } from '../../import/general/colors.js';
 import LoginLink from '../../import/navigation/menu-items/login.jsx';
 import RegisterLink from '../../import/navigation/menu-items/register.jsx';
 
@@ -31,62 +30,6 @@ function renderAt(ui, path = '/') {
         <MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>
     );
 }
-
-describe('HomeLink', () => {
-    it('links to the site root', () => {
-        renderAt(<HomeLink />);
-
-        expect(screen.getByRole('link')).toHaveAttribute('href', '/');
-    });
-
-    it('renders the house icon rather than a text label', () => {
-        renderAt(<HomeLink />);
-
-        expect(screen.getByRole('link').textContent).toBe('');
-        expect(screen.getByRole('link').querySelector('svg')).toBeInTheDocument();
-    });
-
-    it('gets its active class from react-router, not from activeclassname', () => {
-        //
-        // the component asks for activeclassname='active'; what actually adds
-        // 'active' is NavLink v6, which appends it to the className string when
-        // the route matches. Proof: the attribute is present on both renders,
-        // but the class only appears on the matching one.
-        //
-        const { container: onHome } = renderAt(<HomeLink />, '/');
-        const { container: elsewhere } = renderAt(<HomeLink />, '/stream');
-
-        expect(onHome.querySelector('a')).toHaveClass('icon', 'home', 'active');
-        expect(elsewhere.querySelector('a')).toHaveClass('icon', 'home');
-        expect(elsewhere.querySelector('a')).not.toHaveClass('active');
-    });
-
-    it('passes activeclassname through to the dom as an inert attribute', () => {
-        renderAt(<HomeLink />, '/stream');
-
-        expect(screen.getByRole('link')).toHaveAttribute('activeclassname', 'active');
-    });
-
-    //
-    // it sits on the page -- the sign-in page's header -- so its house is the
-    // page's dark gray, which on a dark page is a light one
-    //
-    it.each([
-        ['light', colors['gray-7']],
-        ['dark', colors_dark['gray-7']],
-    ])('draws its house in the %s page\'s own gray', (theme, gray) => {
-        renderAt(
-            <ThemeModeContext.Provider value={{ theme: theme, toggle: () => {} }}>
-                <HomeLink />
-            </ThemeModeContext.Provider>
-        );
-
-        const fills = [...screen.getByRole('link').querySelectorAll('path')]
-            .map((path) => toRGB(path.style.fill));
-
-        expect(fills).toContain(toRGB(gray));
-    });
-});
 
 describe('HomeBrand', () => {
     //

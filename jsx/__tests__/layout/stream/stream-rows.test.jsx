@@ -414,14 +414,13 @@ describe('the popup by a bar a mouse points at (#167)', () => {
         jest.restoreAllMocks();
     });
 
-    it('says when the bar was, what it holds, and what a click opens', () => {
+    it('says when the bar was and what it holds', () => {
         setup([stream('SEC Filings', { bars: BARS })], { onOpen: () => {} });
 
         point(slots()[2]);
 
         expect(tip().querySelector('.stream-bar-tip-when')).toHaveTextContent('Tue, Sep 29');
         expect(tip().querySelector('.stream-bar-tip-what')).toHaveTextContent('50 records, 50 failed (health 50%)');
-        expect(tip().querySelector('.stream-bar-tip-hint')).toHaveTextContent('Click to see its hours');
     });
 
     it('says what a miss is, as the line under the rows does', () => {
@@ -432,27 +431,18 @@ describe('the popup by a bar a mouse points at (#167)', () => {
         expect(tip().querySelector('.stream-bar-tip-what')).toHaveTextContent('Missed: a run was due, and nothing reported');
     });
 
-    it.each([
-        ['month', 'Click to see its days'],
-        ['day', 'Click to see its hours'],
-        ['hour', 'Click to see its minutes'],
-    ])('names what a bar by the %s opens', (rate, hint) => {
+    it.each(['month', 'day', 'hour', 'minute'])('says nothing about a click, by the %s (#179)', (rate) => {
+        //
+        // the popup takes no clicks and goes as the pointer leaves the bar, so
+        // a line asking for one read like a link that did not work. The hand
+        // cursor over a bar that opens says it can be clicked
+        //
         setup([stream('SEC Filings', { bars: BARS })], { rate: rate, onOpen: () => {} });
 
         point(slots()[1]);
 
-        expect(tip().querySelector('.stream-bar-tip-hint')).toHaveTextContent(hint);
-    });
-
-    it('says nothing of a click where a bar opens nothing', () => {
-        setup([stream('SEC Filings', { bars: BARS })], { rate: 'minute', onOpen: () => {} });
-        point(slots()[1]);
-        expect(tip().querySelector('.stream-bar-tip-hint')).toBeNull();
-
-        leave(slots()[1]);
-        setup([stream('BLS', { bars: BARS })]);
-        point(slots('BLS')[1]);
-        expect(rowOf('BLS').querySelector('.stream-bar-tip-hint')).toBeNull();
+        expect(tip().textContent).not.toMatch(/click/i);
+        expect(tip().children).toHaveLength(2);
     });
 
     it('comes up for a mouse only: a finger has the line under the rows', () => {

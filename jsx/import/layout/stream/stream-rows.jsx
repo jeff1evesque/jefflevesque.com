@@ -194,13 +194,6 @@ function barLook(bar, peak) {
 }
 
 //
-// what a click on a bar opens, by the rate, for its popup to say (#167): a
-// month its days, a day its hours, an hour its minutes. A minute opens
-// nothing, so its popup says nothing about a click.
-//
-const OPENS = { month: 'days', day: 'hours', hour: 'minutes' };
-
-//
 // how near a row's end, in px, a bar's popup stops centering on the bar and
 // lines up with the row's end instead, so it stays inside the row: about half
 // the widest a popup is
@@ -283,15 +276,19 @@ export function StreamBars({ row, rate, onPoint, pointed = null, onOpen = null, 
     const tap = useRef({ type: 'mouse', described: false });
     const wrap = useRef(null);
     const [tip, setTip] = useState(null);
-    const opens = onOpen ? OPENS[String(rate).toLowerCase()] : null;
 
     //
-    // the popup by a bar a mouse points at (#167): when it was, what it holds,
-    // and what a click opens. It stands over the bar's top -- or just over the
-    // baseline, for a bar with no height -- and at a row's two ends lines up
-    // with the end rather than centering on the bar, so it stays inside the
-    // row. A finger brings up no popup: a phone says what a tapped bar holds
-    // in the line under the rows
+    // the popup by a bar a mouse points at (#167): when it was, and what it
+    // holds. It stands over the bar's top -- or just over the baseline, for a
+    // bar with no height -- and at a row's two ends lines up with the end
+    // rather than centering on the bar, so it stays inside the row. A finger
+    // brings up no popup: a phone says what a tapped bar holds in the line
+    // under the rows
+    //
+    // Note: it says nothing about a click (#179). It takes no clicks itself,
+    //       and goes as the pointer leaves the bar, so a line asking for one
+    //       read like a link that did not work. The hand cursor over a bar that
+    //       opens says it can be clicked.
     //
     function showTip(event, bar, summary) {
         if ((event.pointerType || 'mouse') !== 'mouse' || !wrap.current) {
@@ -314,7 +311,6 @@ export function StreamBars({ row, rate, onPoint, pointed = null, onOpen = null, 
             key: bar.start.valueOf(),
             when: barWhen(bar.start, rate),
             summary: summary,
-            hint: opens ? `Click to see its ${opens}` : '',
             x: x,
             y: Math.min(mark.top, slot.bottom - 2) - box.top,
             side: side,
@@ -368,7 +364,6 @@ export function StreamBars({ row, rate, onPoint, pointed = null, onOpen = null, 
                 >
                     <div className='stream-bar-tip-when'>{tip.when}</div>
                     <div className='stream-bar-tip-what'>{tip.summary}</div>
-                    {tip.hint ? <div className='stream-bar-tip-hint'>{tip.hint}</div> : null}
                 </div>
             ) : null}
             {row.status in STATUS

@@ -165,7 +165,7 @@ describe('a stream opened from its name', () => {
         const intro = document.querySelector('.stream-rows-intro');
 
         expect(within(intro).getByRole('heading')).toHaveTextContent('S&P 500');
-        expect(within(intro).getByRole('button', { name: 'Triggers for S&P 500' })).toBeInTheDocument();
+        expect(within(intro).getByRole('link', { name: 'Triggers for S&P 500' })).toBeInTheDocument();
         expect(within(intro).getByRole('link', { name: 'Alarms for S&P 500' }))
             .toHaveAttribute('href', '/stream/stock-market/alarm');
         expect(intro.querySelector('span').textContent)
@@ -694,7 +694,7 @@ describe('StreamFocus on its own', () => {
 
         expect(tip.querySelector('.stream-bar-tip-when')).toHaveTextContent('Sat, Sep 12');
         expect(tip.querySelector('.stream-bar-tip-what')).toHaveTextContent('11 records');
-        expect(tip.querySelector('.stream-bar-tip-hint')).toHaveTextContent('Click to see its hours');
+        expect(tip.textContent).not.toMatch(/click/i);
     });
 
     it('carries the color key, and the line that describes a bar', () => {

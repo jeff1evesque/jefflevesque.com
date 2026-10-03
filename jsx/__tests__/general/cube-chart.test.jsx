@@ -222,13 +222,13 @@ describe('pointing at a cube', () => {
         expect(cubes(container).find((cube) => cube.getAttribute('data-band') !== TECH).style.opacity).toBe('0.2');
     });
 
-    it('names the band, its count and its share of the bar, and what a click does', () => {
+    it('names the band, its count and its share of the bar, and nothing about a click (#179)', () => {
         const { container } = draw();
 
         fireEvent.mouseEnter(bandOf(container, TECH)[0]);
 
         expect(tip(container).textContent)
-            .toBe('Information TechnologyApplication Software2,437,12832% of Information TechnologyClick to list its industries');
+            .toBe('Information TechnologyApplication Software2,437,12832% of Information Technology');
         expect(tip(container).querySelector('.cube-chart-tip-swatch').style.background).toBe('rgb(235, 104, 52)');
     });
 
@@ -271,7 +271,6 @@ describe('pointing at a cube', () => {
         const tickers = [...tip(container).querySelectorAll('.cube-chart-tip-ticker')].map((row) => row.textContent);
         expect(tickers).toEqual(['abcd2:1', 'banl1:13', 'ccg1:35', 'efgh3:1', 'ijkl4:1', 'mnop5:1']);
         expect(tip(container).querySelector('.cube-chart-tip-more').textContent).toBe('+2 more');
-        expect(tip(container).querySelector('.cube-chart-tip-hint').textContent).toBe('Click to list its tickers');
     });
 
     it('lists a day of one ticker without counting more', () => {
@@ -289,15 +288,19 @@ describe('pointing at a cube', () => {
         fireEvent.mouseEnter(bandOf(container, '\u0000other')[0]);
 
         expect(tip(container).querySelector('.cube-chart-tip-detail').textContent).toBe('the 6 smallest forms');
-        expect(tip(container).querySelector('.cube-chart-tip-hint').textContent).toBe('Click to list its forms');
     });
 
-    it('offers no click on a bar with nothing under it', () => {
-        const { container } = draw();
+    it.each([
+        ['a bar that lists industries', {}, TECH],
+        ['a day of tickers', { rows: SPLITS, key: 'split_date', names: DAYS }, 'Day 19'],
+        ['Other\'s rolled-up forms', { rows: forms(25), key: 'form', names: FORMS }, '\u0000other'],
+        ['a bar with nothing under it', {}, 'Utilities\u0000Electric Utilities'],
+    ])('says nothing about a click, on %s (#179)', (name, options, band) => {
+        const { container } = draw(options);
 
-        fireEvent.mouseEnter(bandOf(container, 'Utilities\u0000Electric Utilities')[0]);
+        fireEvent.mouseEnter(bandOf(container, band)[0]);
 
-        expect(tip(container).querySelector('.cube-chart-tip-hint')).toBeNull();
+        expect(tip(container).textContent).not.toMatch(/click/i);
     });
 });
 
@@ -346,13 +349,14 @@ describe('a bar\'s list', () => {
         expect(lit(container)).toHaveLength(cubes(container).length);
     });
 
-    it('says a second click clears it', () => {
+    it('says nothing about a click while the bar\'s list is open, which has its own way out (#179)', () => {
         const { container } = draw();
 
         fireEvent.click(barOf(container, 'Information Technology'));
         fireEvent.mouseEnter(bandOf(container, TECH)[0]);
 
-        expect(tip(container).querySelector('.cube-chart-tip-hint').textContent).toBe('Click again to clear the list');
+        expect(tip(container).textContent).not.toMatch(/click/i);
+        expect(screen.getByRole('button', { name: 'Clear the list' })).toBeInTheDocument();
     });
 
     it('switches to another bar clicked', () => {

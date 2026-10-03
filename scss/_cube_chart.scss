@@ -282,8 +282,7 @@
   color: $gray-6;
 }
 
-.cube-chart-tip-tickers,
-.cube-chart-tip-hint {
+.cube-chart-tip-tickers {
   border-top: 1px solid $gray-1;
   margin-top: 4px;
   padding-top: 4px;
@@ -295,8 +294,7 @@
   justify-content: space-between;
 }
 
-.cube-chart-tip-more,
-.cube-chart-tip-hint {
+.cube-chart-tip-more {
   color: $gray-6;
   font-style: italic;
 }

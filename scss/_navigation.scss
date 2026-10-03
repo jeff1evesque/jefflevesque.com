@@ -38,14 +38,6 @@
         }
       }
     }
-
-    .menu-register {
-      background-color: none !important;
-    }
-
-    .menu-login {
-      background-color: none !important;
-    }
   }
 
   .medium-viewport,
@@ -227,20 +219,5 @@
   &:hover {
     background-color: rgba(255, 255, 255, 0.12);
     color: $header-font-color-hover;
-  }
-}
-
-//
-// the sign-in page's header is only the house, in the middle, so the switch
-// takes the far corner of it rather than standing beside the house.
-//
-.menu-login {
-  position: relative;
-
-  .theme-toggle-corner {
-    position: absolute;
-    right: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
   }
 }

@@ -6,7 +6,6 @@
  */
 
 import React, { Component } from 'react';
-import Sheet from 'react-modal-sheet';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import Tooltip from '@mui/material/Tooltip';
@@ -18,7 +17,6 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import UpdateDisabledIcon from '@mui/icons-material/UpdateDisabled';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
-import StockMarketFeatured from './featured/stock-market.jsx';
 import StreamRows, { FIGURES_MIN, SORT_KEYS, SortMenu } from './stream-rows.jsx';
 import StreamFocus from './stream-focus.jsx';
 import { isMobile } from 'react-device-detect';
@@ -33,7 +31,6 @@ import is_local from '../../../is_local.js';
 import WorkerBuilder from '../../worker/web-worker.js';
 import workerIngestPerformance from '../../worker/stream/performance.js';
 import { Link } from 'react-router-dom';
-import SvgExit from '../../svg/svg-exit.jsx';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName from '../../general/stream-name.js';
@@ -412,7 +409,6 @@ class StreamLayout extends Component {
             chart_data_sec: [],
             chart_data_sec_sec: [],
             'chart_data_us-national-weather': [],
-            bottom_sheet_open: false,
             field_datetime: 'window_start',
             'promise_get_data_stock-market': false,
             'promise_get_data_stock-split': false,
@@ -457,7 +453,6 @@ class StreamLayout extends Component {
             stream_bls_coverage: 'n/a',
             stream_sec_coverage: 'n/a',
             'stream_us-national-weather_coverage': 'n/a',
-            sheet_snap_points: [1, 0.75, 0.55, 0.25],
             //
             // where the 'This request' menu hangs from while it is open, or null
             //
@@ -482,7 +477,6 @@ class StreamLayout extends Component {
         }
 
         this.updateMetrics = this.updateMetrics.bind(this);
-        this.toggleSetOpen = this.toggleSetOpen.bind(this);
         this.callbackGetData = this.callbackGetData.bind(this);
         this.downloadData = this.downloadData.bind(this);
         this.getControlTray = this.getControlTray.bind(this);
@@ -904,7 +898,7 @@ class StreamLayout extends Component {
         }
     }
 
-    getControlTray(stream, url_trigger=false) {
+    getControlTray(stream) {
         const font_size = isMobile ? 'medium' : 'large';
         {/*
 
@@ -918,13 +912,17 @@ class StreamLayout extends Component {
         const held = ((this.state && this.state.subscriptions) || {})[stream] || 0;
 
         //
-        // Note: the query stats control is only offered for the stock-market
-        //       stream; every other stream renders the tray without it
+        // the stock-market stream's triggers: a link to its triggers page,
+        // which has the patterns to pick from. It opened a sheet of featured
+        // patterns over the bottom of the page, each card a link to the same
+        // page -- a second way to pick, laid over this one (#179).
+        //
+        // Note: only the stock-market stream has triggers; every other stream
+        //       draws the tray without it
         //
         const trigger_button = stream !== STOCK_MARKET
             ? null
-            : url_trigger
-            ? (
+            : (
                 <Link
                     className='border-circle-radius control-button'
                     to={`/stream/${stream}/trigger`}
@@ -935,21 +933,6 @@ class StreamLayout extends Component {
                         fontSize={font_size}
                     />
                 </Link>
-            ) : (
-                <button
-                    type='button'
-                    className='border-circle-radius control-button'
-                    aria-label={`Triggers for ${name}`}
-                    onClick={() => {
-                        this.toggleSetOpen();
-                        this.setState({ bottom_sheet_open: true });
-                    }}
-                >
-                    <QueryStatsIcon
-                        className='control-icon pattern'
-                        fontSize={font_size}
-                    />
-                </button>
             );
 
         return(
@@ -1299,10 +1282,6 @@ class StreamLayout extends Component {
         });
     }
 
-    toggleSetOpen() {
-        this.setState({ bottom_sheet_open: ! this.state.bottom_sheet_open });
-    }
-
     //
     // 'chart_data' is what the chart is drawing, already aggregated to the
     // selected rate and narrowed to its date window -- both counts are summed
@@ -1598,10 +1577,6 @@ class StreamLayout extends Component {
         const first = start ? axisLabel(start, rate) : '';
         const last = end ? axisLabel(end, rate) : 'Now';
 
-        const sheet_class = isMobile
-            ? 'container featured-sheet-mobile'
-            : 'container featured-sheet-desktop';
-
         return (
             <ErrorBoundary FallbackComponent={ErrorFallback}>
                 <div
@@ -1794,28 +1769,6 @@ class StreamLayout extends Component {
                                 last={last}
                             />
                         )}
-
-                    <Sheet
-                        isOpen={this.state.bottom_sheet_open}
-                        onClose={() => null}
-                        snapPoints={this.state.sheet_snap_points}
-                        initialSnap={2}
-                    >
-                        <Sheet.Container>
-                            <Sheet.Header />
-                            <div className={`${sheet_class} sheet-container`}>
-                                <span className='exit' onClick={() =>
-                                    this.setState({ bottom_sheet_open: false })
-                                }>
-                                    <SvgExit />
-                                </span>
-                            </div>
-                            <Sheet.Content className={sheet_class}>
-                                <StockMarketFeatured />
-                            </Sheet.Content>
-                        </Sheet.Container>
-                        <Sheet.Backdrop />
-                    </Sheet>
                 </div>
             </ErrorBoundary>
         );

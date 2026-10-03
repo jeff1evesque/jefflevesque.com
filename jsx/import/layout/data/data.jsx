@@ -6,7 +6,6 @@
  */
 
 import React, { Component } from 'react';
-import Sheet from 'react-modal-sheet';
 import BeatLoader from 'react-spinners/BeatLoader';
 import PuffLoader from 'react-spinners/PuffLoader';
 import Switch from '@mui/material/Switch';
@@ -481,7 +480,6 @@ class DataLayout extends Component {
                     'RDF': rdf_enabled(stream) ? 'Available' : 'None'
                 },
                 'loader': loader,
-                'callback': this.toggleSetOpen,
                 'control_tray': this.getControlTray(stream)
             });
         });
@@ -490,7 +488,6 @@ class DataLayout extends Component {
         this.listing = this.listing.bind(this);
         this.filterColumn = this.filterColumn.bind(this);
         this.toggleDataDistibution = this.toggleDataDistibution.bind(this);
-        this.toggleSetOpen = this.toggleSetOpen.bind(this);
         this.callbackGetData = this.callbackGetData.bind(this);
         this.downloadData = this.downloadData.bind(this);
 
@@ -519,7 +516,6 @@ class DataLayout extends Component {
 
         this.state = {
             local: is_local,
-            bottom_sheet_open: false,
             promise_data_distribution: false,
             'promise_get_data_stock-market': false,
             'promise_get_data_stock-split': false,
@@ -771,7 +767,6 @@ class DataLayout extends Component {
                     'RDF': rdf_enabled(stream) ? 'Available' : 'None'
                 },
                 'loader': loader,
-                'callback': this.toggleSetOpen,
                 'control_tray': this.getControlTray(stream)
             });
         });
@@ -1022,10 +1017,6 @@ class DataLayout extends Component {
         this.setState({
             display_data_distribution: display_data_distribution
         });
-    }
-
-    toggleSetOpen() {
-        this.setState({ bottom_sheet_open: ! this.state.bottom_sheet_open });
     }
 
     //
@@ -1402,23 +1393,6 @@ class DataLayout extends Component {
                         {left_column}
                         {listing}
                     </div>
-                    <Sheet
-                        isOpen={this.state.bottom_sheet_open}
-                        onClose={() => null}
-                        snapPoints={[1, 0.75, 0.55, 0.25]}
-                        initialSnap={2}
-                    >
-                        <Sheet.Container>
-                            <Sheet.Header />
-                            <span className='exit' onClick={() =>
-                                this.setState({ bottom_sheet_open: false })
-                            }>
-                                <SvgExit />
-                            </span>
-                            <Sheet.Content>Hold onto your seat, more to come!</Sheet.Content>
-                        </Sheet.Container>
-                        <Sheet.Backdrop />
-                    </Sheet>
                 </div>
             </ErrorBoundary>
         );
