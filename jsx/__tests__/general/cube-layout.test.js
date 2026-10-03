@@ -230,6 +230,17 @@ describe('the cube', () => {
         expect((across * pitch) - 2).toBeGreaterThanOrEqual(60.5 / 2);
     });
 
+    it.each([
+        ['September\'s, 15 at most in a day, in 20 narrow bars', 16, 51.4],
+        ['October\'s, 7 at most in a day, in 8 wide bars', 8, 129.3],
+    ])('never fills a bar with cubes worth more: %s stays a split a cube, thin (#190)', (month, top, width) => {
+        //
+        // a cube of two splits each filled the bar, and drew a day of 15 as 8
+        // cubes, 16 splits
+        //
+        expect(fitCubes(top, 281, width)).toEqual(expect.objectContaining({ unit: 1, across: 1 }));
+    });
+
     it('keeps the fit of a month whose stacks fill most of their bars already (#188)', () => {
         expect(fitCubes(14000000, 281, 84.4)).toEqual(expect.objectContaining({ unit: 50000, across: 9 }));
         expect(fitCubes(16000, 281, 51)).toEqual(expect.objectContaining({ unit: 100, across: 5 }));
