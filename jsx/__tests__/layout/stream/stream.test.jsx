@@ -385,7 +385,7 @@ describe('the controls on each row', () => {
     it('names every row\'s controls for the stream they act on', () => {
         setup();
 
-        expect(screen.getByRole('button', { name: 'Triggers for S&P 500' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Triggers for S&P 500' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Alarms for SEC Filings' }))
             .toHaveAttribute('href', '/stream/sec/alarm');
     });
