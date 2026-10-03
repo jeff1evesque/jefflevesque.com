@@ -225,8 +225,9 @@
 
 //
 // a phone's month: a month back, the month's menu, and a month forward, in
-// the round arrows and the pill of /stream's controls on a phone. Each arrow
-// is dimmed where there is no month further that way
+// the round arrows and the pill of /stream's controls on a phone. The arrows
+// are the site's green, as /stream's are. Each is gray and dimmed where there
+// is no month further that way
 //
 .data-month {
   align-items: center;
@@ -237,9 +238,9 @@
 .data-month-step {
   align-items: center;
   background: none;
-  border: 1px solid $gray-3;
+  border: 1px solid $green-6;
   border-radius: 50%;
-  color: $gray-7;
+  color: $green-6;
   cursor: pointer;
   display: inline-flex;
   flex: none;
@@ -251,10 +252,16 @@
 
   &:hover:not(:disabled),
   &:focus-visible {
-    border-color: $gray-7;
+    background-color: $green-bar;
+  }
+
+  &:active:not(:disabled) {
+    background-color: $green-bar-hover;
   }
 
   &:disabled {
+    border-color: $gray-3;
+    color: $gray-7;
     cursor: default;
     opacity: 0.4;
   }
@@ -1194,5 +1201,28 @@
 
   .listing-table-grip-button {
     height: 2.25rem;
+  }
+}
+
+//
+// a phone's /data title in /stream's: the size of its h4, and at the height
+// its "Streams" sits, so the title stays put going from one page to the other.
+// Its line is the month arrows' 2.75rem, so the arrows and the menu center on
+// it, and the table moves up by the room that line adds over the title's text.
+// The chart's row over the listing is empty here, and its padding goes too
+//
+#bootstrap-override .small-viewport .data-listing {
+  .listing-graphic:empty {
+    display: none;
+  }
+
+  .listing-table {
+    margin-top: calc((1.2 * (1.275rem + 0.3vw) - 2.75rem) / 2);
+  }
+
+  .listing-table-title-name h5 {
+    font-size: calc(1.275rem + 0.3vw);
+    line-height: 2.75rem;
+    margin: 0;
   }
 }
