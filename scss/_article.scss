@@ -185,11 +185,86 @@
   }
 
   //
-  // a dataset on its own (#165): room between its title row, with the Filter,
-  // and the api icons under it, which sat against each other (#167)
+  // a dataset on its own (#165): room between its title row, with the month
+  // or a narrow window's Filter, and the api icons under it, which sat against
+  // each other (#167)
   //
   .data-listing .listing-graphic > .filter {
     margin-bottom: 0.6rem;
+  }
+}
+
+//
+// a phone's dataset title: the dataset's name, and the month on a line of its
+// own under it, as /stream's controls sit under its title -- the two seldom
+// fit across a phone, and a month that wrapped for one dataset and not for
+// another moved about as the datasets changed
+//
+.filter-month {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+//
+// a phone's month: a month back, the month's menu, and a month forward, in
+// the round arrows and the pill of /stream's controls on a phone. Each arrow
+// is dimmed where there is no month further that way
+//
+.data-month {
+  align-items: center;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.data-month-step {
+  align-items: center;
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 50%;
+  color: $gray-7;
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font-size: 1.4rem;
+  height: 2.75rem;
+  justify-content: center;
+  padding: 0;
+  width: 2.75rem;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: $gray-7;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.4;
+  }
+}
+
+//
+// the menu's text at 16px, the least an iPhone focuses without zooming the
+// page in
+//
+.data-month-menu {
+  display: flex;
+  margin: 0;
+
+  select {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: $white-1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23888' stroke-width='1.6'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    border: 1px solid $gray-3;
+    border-radius: 999px;
+    color: $gray-8;
+    font: inherit;
+    font-size: 16px;
+    min-height: 2.75rem;
+    padding: 0 1.9rem 0 0.9rem;
   }
 }
 
@@ -387,6 +462,14 @@
       white-space: nowrap;
     }
   }
+
+  //
+  // over a phone's month the name keeps none of the nudge down that lines it
+  // up beside a narrow window's Filter
+  //
+  .filter-month > .listing-graphic-title {
+    margin-top: 0;
+  }
 }
 
 .svg-order {
@@ -436,11 +519,14 @@
   }
 
   //
-  // a title row carrying the page's own control -- the Filter, on a phone's
-  // /data (#165) -- takes the row's width, with the control at its end
+  // a title row carrying the page's own control -- the month, on a phone's
+  // /data (#165) -- takes the row's width, with the control at its end, or
+  // under the title on a phone too narrow for both
   //
   .listing-table-title.has-actions {
     flex: 1 1 auto;
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
   }
 
   .listing-table-actions {
