@@ -34,7 +34,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import Tooltip from '@mui/material/Tooltip';
 import SvgIcon from '@mui/material/SvgIcon';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import DataObjectIcon from '@mui/icons-material/DataObject';
 
 //
@@ -96,7 +96,7 @@ function ApiLinks({ docs, request = null, requests = null, size = 'medium' }) {
                     rel='noopener noreferrer'
                     aria-label='API docs'
                 >
-                    <MenuBookIcon fontSize={size} />
+                    <DescriptionOutlinedIcon fontSize={size} />
                 </a>
             </Tooltip>
             {shown.map(({ url, label, mark }) => (
