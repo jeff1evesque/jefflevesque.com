@@ -49,12 +49,47 @@
 }
 
 //
-// what a cube is worth, over the rows, as the wide screen's caption says it
+// what a cube is worth, over the rows, as the wide screen's caption says it,
+// with the fold for the sectors' legend at the end of its line (#192)
 //
+.cube-rows-key-row {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin: 0 0 0.35rem;
+}
+
 .cube-rows-key {
   color: $gray-6;
   font-size: 0.86rem;
-  margin: 0 0 0.35rem;
+  margin: 0;
+}
+
+//
+// the fold, a fingertip tall: 'Sectors' and an arrow, up while the legend is
+// shown under it, down while it is folded away
+//
+.cube-rows-legend-fold {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: $gray-7;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.86rem;
+  gap: 0.15rem;
+  min-height: 44px;
+  padding: 0;
+
+  svg {
+    font-size: 1.15rem;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
 }
 
 //
@@ -92,6 +127,13 @@
 }
 
 //
+// the share column's least width, on every row and over them on the titles'
+// line: room for "Percent" and its arrow (#192), which also holds a share
+// like 6.6%, so every row's count ends in one place (#190)
+//
+$cube-rows-share: 3.8rem;
+
+//
 // a row: its name, count and share on a line, its bar of cubes under them, and
 // an arrow down its end where a tap opens it. Every other row a faint gray, as
 // the site's tables are on a phone (#145), set out half a rem either side so the
@@ -109,7 +151,7 @@
   grid-template-areas:
     'name count share'
     'bar bar bar';
-  grid-template-columns: minmax(0, 1fr) auto minmax(2.6rem, auto);
+  grid-template-columns: minmax(0, 1fr) auto $cube-rows-share;
   margin: 0 -0.5rem;
   min-height: 44px;
   padding: 0.5rem;
@@ -135,7 +177,85 @@
   grid-template-areas:
     'name count share arrow'
     'bar bar bar arrow';
-  grid-template-columns: minmax(0, 1fr) auto minmax(2.6rem, auto) 1.5rem;
+  grid-template-columns: minmax(0, 1fr) auto $cube-rows-share 1.5rem;
+}
+
+//
+// the rows' titles: a line on the rows' own columns, each title over its own,
+// the figures' right-aligned over theirs (#192). It stays in sight at the top
+// of the screen while the rows scroll by under it -- on a phone, under the
+// pinned bar; see '_navigation_anonymous.scss'
+//
+.cube-rows-titles {
+  align-items: center;
+  background-color: $white-1;
+  column-gap: 0.6rem;
+  display: grid;
+  grid-template-areas: 'name count share';
+  grid-template-columns: minmax(0, 1fr) auto $cube-rows-share;
+  margin: 0 -0.5rem;
+  padding: 0 0.5rem;
+  position: sticky;
+  top: 0;
+  width: calc(100% + 1rem);
+  z-index: 1;
+
+  &.has-arrows {
+    grid-template-areas: 'name count share arrow';
+    grid-template-columns: minmax(0, 1fr) auto $cube-rows-share 1.5rem;
+  }
+
+  //
+  // a title that sorts, a fingertip tall: its name and a pair of faint arrows,
+  // one arrow while it is the one sorting, as the listing's titles are
+  //
+  .cube-rows-sort {
+    align-items: center;
+    background: none;
+    border: 0;
+    color: $gray-6;
+    cursor: pointer;
+    display: inline-flex;
+    font: inherit;
+    font-size: 0.86rem;
+    gap: 0.15rem;
+    min-height: 44px;
+    padding: 0;
+    white-space: nowrap;
+
+    &:focus-visible {
+      outline: 2px solid $focus;
+    }
+  }
+
+  .cube-rows-sort-arrow {
+    font-size: 1rem;
+    opacity: 0.45;
+  }
+
+  .is-sorted {
+    color: $gray-8;
+    font-weight: 600;
+
+    .cube-rows-sort-arrow {
+      opacity: 1;
+    }
+  }
+
+  .cube-rows-title-name {
+    grid-area: name;
+    justify-self: start;
+  }
+
+  .cube-rows-title-count {
+    grid-area: count;
+    justify-self: end;
+  }
+
+  .cube-rows-title-share {
+    grid-area: share;
+    justify-self: end;
+  }
 }
 
 .cube-rows-list > li:nth-child(even) .cube-rows-row {
@@ -233,11 +353,12 @@
 }
 
 //
-// a day's tickers, three to a line, each with its ratio
+// a day's tickers, three to a line, each with its ratio, with room between
+// them (#192)
 //
 .cube-rows-tickers {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.5rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   list-style: none;
   margin: 0;
@@ -271,12 +392,14 @@
 
 //
 // a day's sectors, each heading its tickers with its swatch, its name and its
-// count beside it (#190)
+// count beside it (#190), with room between one sector and the next, and under
+// the day's head, so they don't run together (#192)
 //
 .cube-rows-sectors {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1.4rem;
+  margin-top: 0.75rem;
 }
 
 .cube-rows-sector-head {
@@ -286,7 +409,7 @@
   font-size: 1rem;
   font-weight: 600;
   gap: 0.45rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.65rem;
 }
 
 .cube-rows-sector-count {
