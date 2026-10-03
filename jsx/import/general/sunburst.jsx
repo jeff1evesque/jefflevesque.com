@@ -390,7 +390,11 @@ export default function Sunburst({ tree, names, caption, size, phone, actions, o
     const unit = names.unit;
 
     //
-    // the middle names what is pointed at, or else what the ring is showing
+    // the middle names what is pointed at, or else what the ring is showing,
+    // and its last line says what a tap or a click does there: open a group,
+    // open the one pointed at, or go back to them all. How to open a group
+    // sat over the ring until #185, where it came and went as a group opened
+    // and closed, moving the ring with it
     //
     let center;
     if (hot) {
@@ -421,24 +425,8 @@ export default function Sunburst({ tree, names, caption, size, phone, actions, o
             title: `All ${names.group[1]}`,
             value: fmt(tree.total),
             detail: noun(tree.total, unit),
-            hint: '',
+            hint: layout.nested && layout.top.length ? `${phone ? 'Tap twice' : 'Click'} to zoom in` : '',
         };
-    }
-
-    //
-    // over the ring, on a ring with groups to open, how to open one -- and
-    // nothing else (#185). What the ring shows, its total and the way back from
-    // an open group are the middle's to say, and the month the page's, just
-    // above (#181). A breadcrumb over the ring said them again, and read like
-    // the page's own "All data" over it. The month still names the ring to a
-    // screen reader, in its label (#183)
-    //
-    let hint = null;
-
-    if (layout.nested && !current && layout.top.length) {
-        hint = phone
-            ? `Tap a ${names.group[0]} twice to zoom in`
-            : `Click a ${names.group[0]} to zoom in`;
     }
 
     let listed = current ? current.children : layout.top;
@@ -512,10 +500,19 @@ export default function Sunburst({ tree, names, caption, size, phone, actions, o
 
     return (
         <div className={`sunburst${phone ? ' sunburst-phone' : ''}`}>
-            {hint || actions ? (
+            {/*
+
+                over the ring, the page's actions alone: what the ring shows,
+                its total, the way back from an open group and how to open one
+                are the middle's to say, and the month the page's, just above
+                (#181). A breadcrumb over the ring said them again, and read
+                like the page's own "All data" over it (#185). The month still
+                names the ring to a screen reader, in its label (#183)
+
+            */}
+            {actions ? (
                 <div className='sunburst-head'>
-                    {hint ? <div className='sunburst-meta'>{hint}</div> : null}
-                    {actions ? <div className='sunburst-actions'>{actions}</div> : null}
+                    <div className='sunburst-actions'>{actions}</div>
                 </div>
             ) : null}
             <div className='sunburst-body'>
