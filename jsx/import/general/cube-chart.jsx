@@ -235,9 +235,14 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
 
     //
     // the tooltip, in the old bars' style, for the band a cube is pointed at:
-    // its bar, then the band with its color and count, and what a click does.
-    // A row of the list lights its band without one, since the row reads the
-    // same. It sits beside the bar, on whichever side has the room
+    // its bar, then the band with its color and count. A row of the list
+    // lights its band without one, since the row reads the same. It sits
+    // beside the bar, on whichever side has the room
+    //
+    // Note: it says nothing about a click (#179). It takes no clicks itself,
+    //       and goes as the pointer leaves the cube, so a line asking for one
+    //       read like a link that did not work. The hand cursor over a listable
+    //       bar says it can be clicked, and an open list has its own way out.
     //
     let tip = null;
     if (band && lit.from === 'cube') {
@@ -254,13 +259,6 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
             detail = `${share(band.part.value, bar.value)} of ${bar.name}`;
         }
 
-        let hint = '';
-        if (holds) {
-            hint = open === bar.key
-                ? 'Click again to clear the list'
-                : `Click to list its ${rowNoun(holds, names)[1]}`;
-        }
-
         tip = {
             style: bar.center > (plot.left + plot.right) / 2
                 ? { right: width - bar.x0 + TIP_GAP, top: middle }
@@ -272,7 +270,6 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
             detail: detail,
             tickers: tickers.slice(0, MAX_TICKERS),
             more: Math.max(0, tickers.length - MAX_TICKERS),
-            hint: hint,
         };
     }
 
@@ -576,7 +573,6 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                                 {tip.more ? <div className='cube-chart-tip-more'>{`+${tip.more} more`}</div> : null}
                             </div>
                         ) : null}
-                        {tip.hint ? <div className='cube-chart-tip-hint'>{tip.hint}</div> : null}
                     </div>
                 ) : null}
                 {overlay}
