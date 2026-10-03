@@ -47,6 +47,7 @@ import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
 import { STOCK_MARKET, STOCK_SPLIT, STREAMS } from '../../general/stream-id.js';
 import { streamBars, scheduleLabel } from '../../general/stream-bars.js';
+import scrollMargin from '../../general/scroll-margin.js';
 {/*
 
     'runsContinuously' left with the weather branch. It answered whether a silent
@@ -751,8 +752,10 @@ class StreamLayout extends Component {
     //
     // Note: a stream opened from far down a phone's list would open part way
     //       down its own view, under a scroll the list needed and the view does
-    //       not. The page is brought back to its top when that is out of sight.
-    //       scrollIntoView is guarded since jsdom has none.
+    //       not. The page is brought back to its top when that is out of sight
+    //       -- above the screen, or under the phone's pinned header, whose
+    //       height the page's scroll margin holds (#177). scrollIntoView is
+    //       guarded since jsdom has none.
     //
     openStream(stream) {
         if (stream === this.state.focus) {
@@ -763,7 +766,7 @@ class StreamLayout extends Component {
         this.setState({ focus: stream }, () => {
             const page = this.page.current;
 
-            if (page && typeof page.scrollIntoView === 'function' && page.getBoundingClientRect().top < 0) {
+            if (page && typeof page.scrollIntoView === 'function' && page.getBoundingClientRect().top < scrollMargin(page)) {
                 page.scrollIntoView({ block: 'start' });
             }
         });
