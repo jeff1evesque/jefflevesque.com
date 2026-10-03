@@ -418,6 +418,14 @@ function monthName(date) {
 */}
 const LAYOUT = ['data', 'wide'];
 
+{/*
+
+    and where it keeps how a phone's rows of cubes are arranged: whether the
+    stock splits' legend is folded away over them (#192)
+
+*/}
+const PHONE_LAYOUT = ['data', 'phone'];
+
 
 class DataLayout extends Component {
     //
@@ -538,6 +546,8 @@ class DataLayout extends Component {
         this.updateChartHeight = this.updateChartHeight.bind(this);
         this.reorderListing = this.reorderListing.bind(this);
         this.keepNames = this.keepNames.bind(this);
+        this.keepRowsSort = this.keepRowsSort.bind(this);
+        this.keepSectors = this.keepSectors.bind(this);
         this.treeFor = this.treeFor.bind(this);
         this.chart = this.chart.bind(this);
         this.openDataset = this.openDataset.bind(this);
@@ -605,6 +615,17 @@ class DataLayout extends Component {
             // into a green bar unless this browser kept them shown
             //
             names_shown: readLayout(...LAYOUT).fold.names === false,
+            //
+            // the order a phone's rows were put in from their titles, by
+            // dataset, for the rest of the visit: the next month opens sorted
+            // the same way, and another dataset in its own order (#192)
+            //
+            rows_sort: {},
+            //
+            // whether a phone's legend of the stock splits' sectors is shown
+            // over the rows: shown unless this browser folded it away (#192)
+            //
+            sectors_shown: readLayout(...PHONE_LAYOUT).fold.sectors !== true,
             list_article: list_article,
             //
             // each stream's datalake dataset, which is its own name for the data
@@ -766,6 +787,23 @@ class DataLayout extends Component {
     keepNames(shown) {
         this.setState({ names_shown: shown });
         writeLayout(...LAYOUT, { fold: { names: !shown } });
+    }
+
+    //
+    // a phone's rows sorted from their titles, or put back in their own order,
+    // kept for the dataset while the reader steps from month to month (#192)
+    //
+    keepRowsSort(stream, sort) {
+        this.setState((state) => ({ rows_sort: { ...state.rows_sort, [stream]: sort } }));
+    }
+
+    //
+    // a phone's legend of the sectors shown or folded away, kept for this
+    // browser's next visit, as a wide screen keeps its names (#192)
+    //
+    keepSectors(shown) {
+        this.setState({ sectors_shown: shown });
+        writeLayout(...PHONE_LAYOUT, { fold: { sectors: !shown } });
     }
 
     //
@@ -1494,7 +1532,14 @@ class DataLayout extends Component {
             var data_distribution = (
                 <div className='col-lg-12 mx-auto'>
                     {isMobile ? (
-                        <CubeRows key={`${stream}|${this.state.yyyy}|${this.state.mm}`} {...chart} />
+                        <CubeRows
+                            key={`${stream}|${this.state.yyyy}|${this.state.mm}`}
+                            {...chart}
+                            sort={this.state.rows_sort[stream] || null}
+                            onSort={(sort) => this.keepRowsSort(stream, sort)}
+                            sectorsShown={this.state.sectors_shown}
+                            onSectors={this.keepSectors}
+                        />
                     ) : (
                         <CubeChart
                             key={`${stream}|${this.state.yyyy}|${this.state.mm}`}
