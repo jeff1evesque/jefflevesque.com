@@ -40,10 +40,10 @@
 //
 // /data's, over a dataset a phone shows on its own (#165). Only a phone draws
 // it, so it shows wherever it is drawn, with room under it before the title
-// row, which sat against it (#167)
+// row, which sat against it (#167), and more since #185
 //
 .data-back-row {
-  margin: 0.5rem 0 0.85rem;
+  margin: 0.5rem 0 1.25rem;
 }
 
 .data-back {
