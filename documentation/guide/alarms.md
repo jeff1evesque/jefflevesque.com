@@ -26,7 +26,7 @@ Each stream has one alarm, its ingest alarm.
    subscribe, and an account made without one can't add it afterwards.
 3. **Open a stream from [Stream](https://www.jefflevesque.com/stream),** and follow its
    bell to the stream's alarm page.
-4. **Read the terms and conditions,** and tick "I accept the terms and conditions".
+4. **Read the terms and conditions** (also on [Terms](../terms.md)), and tick "I accept the terms and conditions".
 5. **Turn the alarm's switch on.**
 
 Back on the Stream page, the bell of a stream you subscribe to rings, in green.
