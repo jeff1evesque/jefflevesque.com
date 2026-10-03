@@ -17,6 +17,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ArticleListing from '../../general/article-listing.jsx';
 import Sunburst from '../../general/sunburst.jsx';
 import CubeChart from '../../general/cube-chart.jsx';
@@ -369,6 +370,47 @@ function writeDataset(stream) {
 
 {/*
 
+    a month as the page keys it, '2026-09', from a year and a month as state
+    holds them: the month a number, or the two digits the constructor pads it to
+
+*/}
+export function monthKey(yyyy, mm) {
+    return `${Number(yyyy)}-${String(Number(mm)).padStart(2, '0')}`;
+}
+
+
+{/*
+
+    every month from `first`'s to `last`'s, newest first, each as its first
+    day: the months the month menu offers
+
+*/}
+export function monthsBetween(first, last) {
+    const months = [];
+    const at = new Date(last.getFullYear(), last.getMonth(), 1);
+    const stop = new Date(first.getFullYear(), first.getMonth(), 1);
+
+    while (at >= stop) {
+        months.push(new Date(at.getTime()));
+        at.setMonth(at.getMonth() - 1);
+    }
+
+    return months;
+}
+
+
+{/*
+
+    a month as the month menu names it, 'September 2026'
+
+*/}
+function monthName(date) {
+    return `${getData('list-months')[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+
+{/*
+
     where this page keeps how its chart is arranged -- see
     layout-preference.js. Only a wide screen draws the bars of cubes, so only
     it has the names to fold (#167)
@@ -502,6 +544,8 @@ class DataLayout extends Component {
         this.showListing = this.showListing.bind(this);
         this.onAddress = this.onAddress.bind(this);
         this.filterButton = this.filterButton.bind(this);
+        this.pickMonth = this.pickMonth.bind(this);
+        this.monthControl = this.monthControl.bind(this);
 
         //
         // the page, which a dataset opened on a phone scrolls back to the top of
@@ -513,6 +557,11 @@ class DataLayout extends Component {
         // theme it was built for -- see treeFor
         //
         this.trees = {};
+
+        //
+        // the latest request made for each stream's month -- see downloadData
+        //
+        this.requests = {};
 
         this.state = {
             local: is_local,
@@ -826,6 +875,15 @@ class DataLayout extends Component {
     }
 
     downloadData(type) {
+        //
+        // this request, as the stream's latest: an answer to an earlier one --
+        // a month the reader has since stepped off -- is dropped, so a slow one
+        // cannot land over the month on screen
+        //
+        const request = (this.requests[type] || 0) + 1;
+        this.requests[type] = request;
+        const current = () => this.requests[type] === request;
+
         this.setState({ [`promise_get_data_${type}`]: false} );
 
         this.state.data_map[type].forEach((dataset) => {
@@ -840,7 +898,7 @@ class DataLayout extends Component {
                     getStockMarketDistribution(
                         'data-distribution',
                         this.state.local ? null : url,
-                        (item) => this.callbackGetData(item),
+                        (item) => this.callbackGetData(item, current),
                         true,
                         type,
                         type
@@ -849,7 +907,7 @@ class DataLayout extends Component {
                     getUsWeatherAlertDistribution(
                         'data-distribution',
                         this.state.local ? null : url,
-                        (item) => this.callbackGetData(item),
+                        (item) => this.callbackGetData(item, current),
                         true,
                         type,
                         type
@@ -858,7 +916,7 @@ class DataLayout extends Component {
                     getBlsDistribution(
                         'data-distribution',
                         this.state.local ? null : url,
-                        (item) => this.callbackGetData(item),
+                        (item) => this.callbackGetData(item, current),
                         true,
                         type,
                         type
@@ -867,7 +925,7 @@ class DataLayout extends Component {
                     getSecDistribution(
                         'data-distribution',
                         this.state.local ? null : url,
-                        (item) => this.callbackGetData(item),
+                        (item) => this.callbackGetData(item, current),
                         true,
                         type,
                         type
@@ -879,7 +937,11 @@ class DataLayout extends Component {
         });
     }
 
-    callbackGetData(item) {
+    callbackGetData(item, current = () => true) {
+        if (!current()) {
+            return;
+        }
+
         if (item && checkValidObject('stream', item)) {
             if ([STOCK_MARKET, STOCK_SPLIT].includes(item.stream)) {
                 var worker = new WorkerBuilder(workerStockMarket);
@@ -903,6 +965,10 @@ class DataLayout extends Component {
             };
 
             worker.onmessage = (event) => {
+                if (!current()) {
+                    return;
+                }
+
                 if (
                     checkValidObject('data', event)
                     && event.data
@@ -1041,9 +1107,8 @@ class DataLayout extends Component {
     }
 
     //
-    // the button that opens the filter in place of the page: over the chart on
-    // a phone and a narrow window, and in the listing's title row on a phone's
-    // listing (#165)
+    // the button that opens the filter in place of the page, over the chart in
+    // a narrow window. A phone has the month control in its place
     //
     filterButton() {
         return (
@@ -1057,23 +1122,92 @@ class DataLayout extends Component {
         );
     }
 
+    //
+    // the month the page shows, from the month control or the date picker:
+    // every stream downloaded again for it
+    //
+    pickMonth(date) {
+        this.setState({
+            selected_date: date,
+            mm: date.getMonth() + 1,
+            yyyy: date.getFullYear()
+        }, () => {
+            this.state.streams.forEach((stream) => {
+                this.downloadData(stream);
+            });
+        });
+    }
+
+    //
+    // a phone's month: a month back, a menu of every month the data holds, and
+    // a month forward, in the title rows of the listing and of a dataset on its
+    // own -- in place of a Filter that opened a page of its own, where the month
+    // was a picker and an Apply button away. The arrows stop at the first month
+    // and at this one
+    //
+    monthControl() {
+        const months = monthsBetween(this.state.min_date, this.state.now);
+        const keyOf = (month) => monthKey(month.getFullYear(), month.getMonth() + 1);
+        const shown = monthKey(this.state.yyyy, this.state.mm);
+        const at = months.findIndex((month) => keyOf(month) === shown);
+        const later = at > 0 ? months[at - 1] : null;
+        const earlier = at !== -1 && at < months.length - 1 ? months[at + 1] : null;
+
+        return (
+            <div className='data-month' role='group' aria-label='Month'>
+                <button
+                    type='button'
+                    className='data-month-step'
+                    aria-label={earlier ? `Earlier month, ${monthName(earlier)}` : 'Earlier month'}
+                    disabled={!earlier}
+                    onClick={() => this.pickMonth(earlier)}
+                >
+                    <ChevronLeftIcon fontSize='inherit' />
+                </button>
+                <label className='data-month-menu'>
+                    <span className='visually-hidden'>Month</span>
+                    <select
+                        value={shown}
+                        onChange={(event) => this.pickMonth(months.find((month) => keyOf(month) === event.target.value))}
+                    >
+                        {months.map((month) => (
+                            <option key={keyOf(month)} value={keyOf(month)}>{monthName(month)}</option>
+                        ))}
+                    </select>
+                </label>
+                <button
+                    type='button'
+                    className='data-month-step'
+                    aria-label={later ? `Later month, ${monthName(later)}` : 'Later month'}
+                    disabled={!later}
+                    onClick={() => this.pickMonth(later)}
+                >
+                    <ChevronRightIcon fontSize='inherit' />
+                </button>
+            </div>
+        );
+    }
+
     filterColumn(style='default', btn=false) {
         if (btn && this.state.display_filter_button) {
-            const mm = String(parseInt(this.state.mm) ).padStart(2, '0');
-            const yyyy = this.state.yyyy;
+            {/*
 
+                a phone names the dataset over its chart, with the month control
+                under it -- which says the month, as '(2026/09)' after the name
+                did. A narrow window has the Filter there
+
+            */}
             const header = isMobile && this.state.listing_graphic_title
                 ? (
                     <div className='listing-graphic-title'>
                         <h5>{streamName(this.state.listing_graphic_title)}</h5>
-                        <span className='title-count'> ({`${yyyy}/${mm}`})</span>
                     </div>
                 ) : '';
 
             var button_filter = (
-                <div className='d-block d-md-none filter'>
+                <div className={`${isMobile ? 'd-flex filter-month' : 'd-block'} d-md-none filter`}>
                     {header}
-                    {this.filterButton()}
+                    {isMobile ? this.monthControl() : this.filterButton()}
                 </div>
             );
             var filter = null;
@@ -1089,7 +1223,14 @@ class DataLayout extends Component {
             } else {
             }
 
-            const views = ['month', 'year'];
+            {/*
+
+                the picker steps through its views in this order: the year, then
+                its months. With the month first, picking a year was the last
+                step, and closed the picker before a month could be picked
+
+            */}
+            const views = ['year', 'month'];
             const label_datepicker = 'mm/yyyy';
 
             {/*
@@ -1126,17 +1267,7 @@ class DataLayout extends Component {
                             <DatePicker
                                 label={label_datepicker}
                                 openTo='year'
-                                onChange={(v) => {
-                                    this.setState({
-                                        selected_date: v,
-                                        mm: v.getMonth() + 1,
-                                        yyyy: v.getFullYear()
-                                    }, () => {
-                                        this.state.streams.forEach((stream) => {
-                                            this.downloadData(stream);
-                                        });
-                                    });
-                                }}
+                                onChange={this.pickMonth}
                                 value={this.state.selected_date}
                                 minDate={this.state.min_date}
                                 maxDate={this.state.now}
@@ -1212,7 +1343,7 @@ class DataLayout extends Component {
 
         {/*
 
-            a phone shows its listing alone, with the Filter in the listing's
+            a phone shows its listing alone, with the month in the listing's
             title row, until a dataset's graph icon opens that dataset on its own,
             in place of the listing (#165). A wide screen shows both, as it did
 
@@ -1362,7 +1493,7 @@ class DataLayout extends Component {
         }
 
         const listing = ! this.state.hide_all && ! opened
-            ? this.listing(listing_first ? this.filterButton() : null)
+            ? this.listing(listing_first ? this.monthControl() : null)
             : null;
 
         {/*
