@@ -1027,6 +1027,19 @@ $stream-held: rgba($green-2, 0.32);
 }
 
 //
+// the title and the number of streams after it, as /data's "Data 5" is
+//
+.stream-rows-heading {
+  align-items: baseline;
+  display: flex;
+
+  .stream-rows-count {
+    font-size: 16px;
+    padding-left: 0.75rem;
+  }
+}
+
+//
 // a stream shown on its own: its name in the title's place, with its controls
 // beside it (#161)
 //
@@ -1151,8 +1164,10 @@ $stream-held: rgba($green-2, 0.32);
 }
 
 //
-// a window back, a window forward, and the way back to now (#159). Forward is
-// dimmed on the window ending now, where there is nowhere further to go
+// a window back, a window forward, and the way back to now (#159). The arrows
+// are the site's green, as /data's month arrows are, with a light green fill
+// under a finger or the pointer. Forward is gray and dimmed on the window
+// ending now, where there is nowhere further to go
 //
 .stream-pager {
   align-items: center;
@@ -1163,9 +1178,9 @@ $stream-held: rgba($green-2, 0.32);
 .stream-page {
   align-items: center;
   background: none;
-  border: 1px solid $gray-3;
+  border: 1px solid $green-6;
   border-radius: 50%;
-  color: $gray-7;
+  color: $green-6;
   cursor: pointer;
   display: inline-flex;
   font-size: 1.4rem;
@@ -1176,10 +1191,16 @@ $stream-held: rgba($green-2, 0.32);
 
   &:hover:not(:disabled),
   &:focus-visible {
-    border-color: $gray-7;
+    background-color: $green-bar;
+  }
+
+  &:active:not(:disabled) {
+    background-color: $green-bar-hover;
   }
 
   &:disabled {
+    border-color: $gray-3;
+    color: $gray-7;
     cursor: default;
     opacity: 0.4;
   }
