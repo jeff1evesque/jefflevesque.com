@@ -51,7 +51,8 @@ jest.mock('react-device-detect', () => ({
     },
 }));
 
-import PageLayout from '../../import/layout/page.jsx';
+import PageLayout, { copyrightYears } from '../../import/layout/page.jsx';
+import { DOCUMENTATION, TERMS } from '../../import/general/api-url.js';
 
 //
 // the three sizes the render tree distinguishes, smallest first, so isGt and isLte
@@ -237,6 +238,71 @@ describe('the spinner', () => {
         const { getByTestId } = setup({ effects: { spinner: true } });
 
         expect(getByTestId('main-route')).toBeTruthy();
+    });
+});
+
+describe('the footer', () => {
+    const footer = () => document.querySelector('footer.site-footer');
+
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    it.each([
+        ['a signed-out', { name: 'anonymous' }, '.anonymous'],
+        ['a signed-in', { name: 'jeff' }, '.authenticated'],
+    ])('closes the page for %s visitor, after the content', (_, user, tree) => {
+        setup({ user });
+
+        expect(document.querySelector(`${tree} > .content + footer.site-footer`)).toBeTruthy();
+    });
+
+    it('runs from the first year to this one, read from the clock', () => {
+        //
+        // a year no build was ever made in, so a hand-written one cannot pass
+        //
+        jest.useFakeTimers().setSystemTime(new Date(2031, 4, 1));
+
+        setup();
+
+        expect(footer().querySelector('span').textContent).toBe('\u00A9 2026\u20132031 Jeff Levesque');
+    });
+
+    it.each([
+        [2026, '2026'],
+        [2027, '2026\u20132027'],
+        [2040, '2026\u20132040'],
+    ])('reads %i as %s', (year, years) => {
+        expect(copyrightYears(year)).toBe(years);
+    });
+
+    it('stays one year for a clock set before the site was', () => {
+        expect(copyrightYears(2025)).toBe('2026');
+    });
+
+    it('reads one year in the year the site was first published', () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 9, 3));
+
+        setup();
+
+        expect(footer().querySelector('span').textContent).toBe('\u00A9 2026 Jeff Levesque');
+    });
+
+    it.each([
+        ['Docs', `${DOCUMENTATION}/`],
+        ['Terms', TERMS],
+    ])('links %s, in a tab of its own', (name, href) => {
+        setup();
+
+        const link = [...footer().querySelectorAll('a')].find((a) => a.textContent === name);
+
+        expect(link.getAttribute('href')).toBe(href);
+        expect(link.getAttribute('target')).toBe('_blank');
+        expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    });
+
+    it('links the terms page of the documentation', () => {
+        expect(TERMS).toBe(`${DOCUMENTATION}/terms/`);
     });
 });
 
