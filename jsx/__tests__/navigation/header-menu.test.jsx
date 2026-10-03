@@ -1,18 +1,15 @@
 /**
  * header-menu.test.jsx: the header shown to anonymous visitors.
  *
- * HeaderMenu picks one of four headers:
+ * HeaderMenu draws one of two headers, on every page:
  *
- *   layout.type === 'login'    -> a bare home icon
- *   layout.type === 'register' -> home icon + login link
  *   viewport > small           -> the full desktop bar
  *   otherwise                  -> the phone's bar, and the menu it drops
  *
- * The first two are the interesting ones, because the value they test is not the
- * value the store holds until a SET-LAYOUT action has been dispatched. The layout
- * reducer starts as the STRING 'analysis', and 'analysis'.type is undefined -- so
- * on a cold load these branches cannot be taken. That is pinned below with the
- * string form, which is what redux/container/header-menu.jsx actually forwards.
+ * The sign-in and sign-up pages wore bare headers of their own, picked by the
+ * 'layout' a page set as it mounted. They wear the same two now, less the
+ * account button for the page on screen (#179), and a 'layout' handed in changes
+ * nothing.
  *
  * Note: the desktop/mobile split comes from rearm's BreakpointRender, which reads
  *       window.innerWidth in its constructor. jsdom defaults to 1024, which is
@@ -74,69 +71,73 @@ afterEach(() => {
     window.innerWidth = DESKTOP;
 });
 
-describe('the login header', () => {
-    it('shows only a way back to the home page', () => {
-        const { container } = renderHeader({ layout: { type: 'login' } });
+describe('the sign-in and sign-up pages (#179)', () => {
+    //
+    // they wore bare headers of their own -- a house and the theme's switch,
+    // with no bar, no menu and no sections. They wear the site's own header now,
+    // less the account button for the page on screen
+    //
+    const PAGES = ['/login', '/register', '/forgot-password'];
 
-        expect(container.querySelector('nav')).toHaveClass('menu-login');
-        expect(screen.getAllByRole('link')).toHaveLength(1);
-        expect(screen.getByRole('link')).toHaveAttribute('href', '/');
+    it.each(PAGES)('draws the wide header on %s, with every section', (path) => {
+        renderHeader({ path: path });
+
+        ['Stream', 'Data', 'Model'].forEach((name) => {
+            expect(screen.getByRole('link', { name: name })).toBeInTheDocument();
+        });
+        expect(screen.getByRole('button', { name: 'Graph' })).toBeInTheDocument();
+        expect(document.querySelector('.menu-login, .menu-register')).toBeNull();
     });
 
-    it('does not offer a login link on the login page itself', () => {
-        renderHeader({ layout: { type: 'login' } });
+    it.each(PAGES)('draws the phone\'s bar and its menu on %s', async (path) => {
+        renderHeader({ width: MOBILE, path: path });
 
-        expect(screen.queryByText('Login in')).not.toBeInTheDocument();
-        expect(screen.queryByText('Sign up')).not.toBeInTheDocument();
-    });
-});
+        expect(document.querySelector('.phone-header')).not.toBeNull();
 
-describe('the register header', () => {
-    it('offers the home icon and a route back to signing in', () => {
-        const { container } = renderHeader({ layout: { type: 'register' } });
+        await userEvent.click(document.querySelector('.navbar-toggler'));
 
-        expect(container.querySelector('nav')).toHaveClass('menu-register');
-        expect(screen.getByRole('link', { name: 'Login in' }))
-            .toHaveAttribute('href', '/login');
+        expect(screen.getByRole('navigation', { name: 'Site' })).toBeInTheDocument();
     });
 
-    it('does not repeat the sign-up call to action', () => {
-        renderHeader({ layout: { type: 'register' } });
+    it('leaves "Login in" out on the sign-in page, and keeps "Sign up"', () => {
+        renderHeader({ path: '/login' });
 
-        expect(screen.queryByText('Sign up')).not.toBeInTheDocument();
-    });
-});
-
-describe('what the layout prop has to look like', () => {
-    it('a bare string layout does NOT select the login header', () => {
-        //
-        // WORTH KNOWING: reducer/layout.jsx initializes to the string 'analysis'
-        // and only replaces it with { css, type } once SET-LAYOUT is dispatched.
-        // Until then redux/container/header-menu.jsx forwards a string, and
-        // 'login'.type is undefined -- so the guard here is really "has a layout
-        // action been dispatched yet", not "which page is this".
-        //
-        renderHeader({ layout: 'login' });
-
-        expect(screen.getByRole('link', { name: 'Data' })).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'Login in' })).toBeNull();
+        expect(screen.getByRole('link', { name: 'Sign up' })).toHaveAttribute('href', '/register');
     });
 
-    it('the reducer default falls through to the responsive header', () => {
-        renderHeader({ layout: 'analysis' });
+    it('leaves "Sign up" out on the sign-up page, and keeps "Login in"', () => {
+        renderHeader({ path: '/register' });
 
+        expect(screen.queryByRole('link', { name: 'Sign up' })).toBeNull();
+        expect(screen.getByRole('link', { name: 'Login in' })).toHaveAttribute('href', '/login');
+    });
+
+    it('keeps both on the page that resets a password', () => {
+        renderHeader({ path: '/forgot-password' });
+
+        expect(screen.getByRole('link', { name: 'Login in' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Sign up' })).toBeInTheDocument();
+    });
+
+    it.each([
+        ['/login', 'Register'],
+        ['/register', 'Login'],
+    ])('leaves the phone menu\'s own button out on %s, and keeps the other', async (path, left) => {
+        renderHeader({ width: MOBILE, path: path });
+
+        await userEvent.click(document.querySelector('.navbar-toggler'));
+
+        expect([...document.querySelectorAll('.phone-menu-actions .btn')].map((button) => button.textContent))
+            .toEqual([left]);
+    });
+
+    it('changes nothing for a layout handed in, which it no longer reads', () => {
+        renderHeader({ layout: { type: 'login' }, path: '/stream' });
+
+        expect(screen.getByRole('link', { name: 'Login in' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Sign up' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Stream' })).toBeInTheDocument();
-    });
-
-    it('an unrecognised layout type falls through to the responsive header', () => {
-        renderHeader({ layout: { type: 'analysis' } });
-
-        expect(screen.getByRole('link', { name: 'Model' })).toBeInTheDocument();
-    });
-
-    it('no layout prop at all falls through to the responsive header', () => {
-        renderHeader();
-
-        expect(screen.getByRole('link', { name: 'Data' })).toBeInTheDocument();
     });
 });
 
@@ -457,15 +458,15 @@ describe('the theme switch', () => {
         expect(toggle()).not.toHaveClass('theme-toggle-bar');
     });
 
-    it('takes the corner of the sign-in page\'s header', () => {
-        const { container } = renderHeader({ layout: { type: 'login' } });
+    it('sits just left of Sign up on the sign-in page, whose Login in is left out (#179)', () => {
+        renderHeader({ path: '/login' });
 
-        expect(container.querySelector('nav.menu-login')).toContainElement(toggle());
-        expect(toggle()).toHaveClass('theme-toggle-corner');
+        expect(before(toggle(), screen.getByRole('link', { name: 'Sign up' }))).toBe(true);
+        expect(toggle().parentNode).toBe(screen.getByRole('link', { name: 'Sign up' }).parentNode);
     });
 
-    it('sits just left of Login on the sign-up page\'s header', () => {
-        renderHeader({ layout: { type: 'register' } });
+    it('sits just left of Login on the sign-up page, as on any other (#179)', () => {
+        renderHeader({ path: '/register' });
 
         expect(before(toggle(), screen.getByRole('link', { name: 'Login in' }))).toBe(true);
     });
