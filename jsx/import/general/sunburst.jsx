@@ -425,17 +425,23 @@ export default function Sunburst({ tree, names, caption, size, phone, actions, o
         };
     }
 
+    //
+    // how many groups the ring holds, or how many members an open group does:
+    // the rows of the list under it, counted beside the breadcrumb as the
+    // listing's title counts its own, and named in full to a screen reader.
+    // Under it, on a ring with groups to open, how to open one -- and nothing
+    // else: not the month, which the page's month control says just above
+    // (#181), nor the total, which the middle says in large type. The month
+    // still names the ring to a screen reader, in its label (#183)
+    //
     const count = current ? current.children.length : layout.top.length;
-    const meta = [
-        caption,
-        `${fmt(whole)} ${noun(whole, unit)}`,
-        `${count} ${noun(count, current ? names.member : names.group)}`,
-    ];
+    const counted = noun(count, current ? names.member : names.group);
+    let hint = null;
 
     if (layout.nested && !current && count) {
-        meta.push(phone
-            ? `tap a ${names.group[0]} twice to zoom in`
-            : `click a ${names.group[0]} to zoom in`);
+        hint = phone
+            ? `Tap a ${names.group[0]} twice to zoom in`
+            : `Click a ${names.group[0]} to zoom in`;
     }
 
     let listed = current ? current.children : layout.top;
@@ -511,20 +517,26 @@ export default function Sunburst({ tree, names, caption, size, phone, actions, o
         <div className={`sunburst${phone ? ' sunburst-phone' : ''}`}>
             <div className='sunburst-head'>
                 <div className='sunburst-heading'>
-                    <nav className='sunburst-crumb' aria-label='Breadcrumb'>
-                        {current ? (
-                            <>
-                                <button type='button' className='sunburst-crumb-root' onClick={() => zoomTo(null)}>
-                                    {`All ${names.group[1]}`}
-                                </button>
-                                <span className='sunburst-crumb-sep' aria-hidden='true'>›</span>
-                                <span aria-current='page'>{current.data.name}</span>
-                            </>
-                        ) : (
-                            <span aria-current='page'>{`All ${names.group[1]}`}</span>
-                        )}
-                    </nav>
-                    <div className='sunburst-meta'>{meta.join(' · ')}</div>
+                    <div className='sunburst-title'>
+                        <nav className='sunburst-crumb' aria-label='Breadcrumb'>
+                            {current ? (
+                                <>
+                                    <button type='button' className='sunburst-crumb-root' onClick={() => zoomTo(null)}>
+                                        {`All ${names.group[1]}`}
+                                    </button>
+                                    <span className='sunburst-crumb-sep' aria-hidden='true'>›</span>
+                                    <span aria-current='page'>{current.data.name}</span>
+                                </>
+                            ) : (
+                                <span aria-current='page'>{`All ${names.group[1]}`}</span>
+                            )}
+                        </nav>
+                        <span className='sunburst-heading-count'>
+                            {fmt(count)}
+                            <span className='visually-hidden'>{` ${counted}`}</span>
+                        </span>
+                    </div>
+                    {hint ? <div className='sunburst-meta'>{hint}</div> : null}
                 </div>
                 {actions ? <div className='sunburst-actions'>{actions}</div> : null}
             </div>
