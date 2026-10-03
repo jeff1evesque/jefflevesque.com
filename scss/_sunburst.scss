@@ -14,70 +14,16 @@
 }
 
 //
-// the breadcrumb and its count, and under them how to open a group, with the
-// api icons at the right end of the same row
+// over the ring: how to open a group, on a ring with groups to open, and the
+// page's api icons at the row's end (#185)
 //
 .sunburst-head {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
   gap: 1rem;
   justify-content: space-between;
 }
 
-.sunburst-heading {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-//
-// the breadcrumb, and beside it in gray how many rows the list under the ring
-// holds, as the listing's title carries its count (#183)
-//
-.sunburst-title {
-  align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-}
-
-.sunburst-heading-count {
-  color: $gray-6;
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.sunburst-crumb {
-  align-items: baseline;
-  color: $gray-8;
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 1.15rem;
-  font-weight: 600;
-  gap: 0.5rem;
-  line-height: 1.3;
-}
-
-.sunburst-crumb-root {
-  background: none;
-  border: 0;
-  color: $blue-hyperlink;
-  cursor: pointer;
-  font: inherit;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.sunburst-crumb-sep {
-  color: $gray-6;
-  font-weight: 400;
-}
-
-//
-// how to open a group, on a ring with groups to open
-//
 .sunburst-meta {
   color: $gray-6;
   font-size: 0.93rem;
@@ -86,6 +32,7 @@
 
 .sunburst-actions {
   flex: none;
+  margin-left: auto;
 }
 
 .sunburst-body {
@@ -296,6 +243,21 @@ button.sunburst-center {
 
 .sunburst-share {
   color: $gray-6;
+}
+
+//
+// below a tablet's width a phone's page draws the api icons at the end of its
+// month row (#185), so the ring's own copy is hidden, and a head with no hint
+// over it holds nothing to show. A tablet draws no month row, and keeps them
+//
+@media (max-width: 767.98px) {
+  .sunburst-phone .sunburst-actions {
+    display: none;
+  }
+
+  .sunburst-phone .sunburst-head:not(:has(.sunburst-meta)) {
+    display: none;
+  }
 }
 
 //

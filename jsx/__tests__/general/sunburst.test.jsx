@@ -53,16 +53,17 @@ const arcOf = (container, name) => arcs(container).find((path) => path.getAttrib
 const labels = (container) => [...container.querySelectorAll('text.sunburst-label')].map((text) => text.textContent);
 const middle = (container) => container.querySelector('.sunburst-center').textContent;
 //
-// the count beside the breadcrumb, with the noun a screen reader hears, and
-// the hint under it, or null where there is none
+// the hint over the ring, or null where there is none; the head it sits in,
+// or null where nothing is drawn over the ring; and what the middle names --
+// an open group, or 'All ...' -- while nothing is pointed at
 //
-const count = (container) => container.querySelector('.sunburst-heading-count').textContent;
 const hint = (container) => {
     const line = container.querySelector('.sunburst-meta');
 
     return line ? line.textContent : null;
 };
-const opened = (container) => container.querySelector('.sunburst-crumb [aria-current="page"]').textContent;
+const head = (container) => container.querySelector('.sunburst-head');
+const opened = (container) => container.querySelector('.sunburst-center-title').textContent;
 const rowNames = (container) => [...container.querySelectorAll('.sunburst-row .sunburst-name')].map((name) => name.textContent);
 const row = (name) => screen.getByRole('button', { name: new RegExp(`^${name.replace(/[&]/g, '\\$&')},`) });
 
@@ -82,41 +83,38 @@ describe('the whole month', () => {
         expect(middle(container)).toBe('All sectors3,100records');
     });
 
-    it('says what the ring holds, and how to open it, above it', () => {
+    it('says how to open a group above it, and nothing else (#185)', () => {
         const { container } = draw();
 
-        expect(count(container)).toBe('4 sectors');
         expect(hint(container)).toBe('Click a sector to zoom in');
-        expect(within(container.querySelector('.sunburst-crumb')).getByText('All sectors'))
-            .toHaveAttribute('aria-current', 'page');
-    });
-
-    it('counts its groups beside the breadcrumb, naming them only to a screen reader (#183)', () => {
-        const { container } = draw();
-        const shown = container.querySelector('.sunburst-heading-count');
-
-        expect(shown.closest('.sunburst-title')).not.toBeNull();
-        expect(shown.closest('nav')).toBeNull();
-        expect(shown.firstChild.textContent).toBe('4');
-        expect(shown.querySelector('.visually-hidden').textContent).toBe(' sectors');
+        expect(head(container).textContent).toBe('Click a sector to zoom in');
+        expect(container.querySelector('nav')).toBeNull();
     });
 
     it('leaves the month to the page and the total to the middle, and names the month to a screen reader (#183)', () => {
         const { container } = draw();
-        const heading = container.querySelector('.sunburst-heading').textContent;
 
-        expect(heading).not.toContain('September 2026');
-        expect(heading).not.toContain('3,100');
+        expect(head(container).textContent).not.toContain('September 2026');
+        expect(head(container).textContent).not.toContain('3,100');
         expect(middle(container)).toBe('All sectors3,100records');
         expect(screen.getByRole('img', { name: 'Records by sector and industry, September 2026' })).toBeInTheDocument();
     });
 
-    it('draws no line under the breadcrumb once a group is open, with nothing left to open (#183)', () => {
+    it('draws nothing over the ring once a group is open, with nothing to open and no actions (#185)', () => {
         const { container } = draw();
 
         fireEvent.click(row('Energy'));
 
+        expect(head(container)).toBeNull();
+    });
+
+    it('keeps the page\'s actions over an open group, with no hint beside them (#185)', () => {
+        const { container } = draw({ actions: <a href='/docs'>API docs</a> });
+
+        fireEvent.click(row('Energy'));
+
         expect(hint(container)).toBeNull();
+        expect(within(head(container)).getByRole('link', { name: 'API docs' })).toBeInTheDocument();
     });
 
     it('describes the ring to a screen reader', () => {
@@ -248,7 +246,6 @@ describe('opening a group', () => {
             'Hardware',
         ]);
         expect(rowNames(container)).toEqual(['Semiconductor Materials and Equipment', 'Software', 'Hardware']);
-        expect(count(container)).toBe('3 industries');
         expect(middle(container)).toBe('Information Technology1,000recordsBack to all sectors');
     });
 
@@ -288,7 +285,8 @@ describe('opening a group', () => {
         fireEvent.click(row('Information Technology'));
         fireEvent.click(row('Software'));
 
-        expect(count(container)).toBe('3 industries');
+        expect(opened(container)).toBe('Information Technology');
+        expect(rowNames(container)).toHaveLength(3);
     });
 
     it('says how to close it while a member is pointed at', () => {
@@ -310,16 +308,14 @@ describe('opening a group', () => {
         expect(arcs(container)).toHaveLength(12);
     });
 
-    it('closes from the root of the breadcrumb', () => {
+    it('names an open group in the middle alone, with no breadcrumb over the ring (#185)', () => {
         const { container } = draw();
 
         fireEvent.click(row('Energy'));
-        expect(within(container.querySelector('.sunburst-crumb')).getByText('Energy'))
-            .toHaveAttribute('aria-current', 'page');
 
-        fireEvent.click(within(container.querySelector('.sunburst-crumb')).getByRole('button', { name: 'All sectors' }));
-
-        expect(count(container)).toBe('4 sectors');
+        expect(opened(container)).toBe('Energy');
+        expect(container.querySelector('nav')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'All sectors' })).toBeNull();
     });
 
     it('opens a member\'s group from the ring, and closes from any segment', () => {
@@ -327,14 +323,14 @@ describe('opening a group', () => {
 
         fireEvent.click(arcOf(container, 'Refining'));
         expect(opened(container)).toBe('Energy');
-        expect(count(container)).toBe('2 industries');
+        expect(rowNames(container)).toHaveLength(2);
 
         fireEvent.click(arcOf(container, 'Refining'));
-        expect(count(container)).toBe('4 sectors');
+        expect(opened(container)).toBe('All sectors');
 
         fireEvent.click(arcOf(container, 'Utilities'));
         expect(opened(container)).toBe('Utilities');
-        expect(count(container)).toBe('1 industry');
+        expect(rowNames(container)).toHaveLength(1);
     });
 
     it('draws the whole month when the open group is no longer there', () => {
@@ -343,7 +339,7 @@ describe('opening a group', () => {
         fireEvent.click(row('Information Technology'));
         redraw(distributionTree(ROWS.slice(1), 'sector'));
 
-        expect(count(container)).toBe('3 sectors');
+        expect(rowNames(container)).toHaveLength(3);
         expect(hint(container)).toBe('Click a sector to zoom in');
     });
 });
@@ -468,11 +464,10 @@ describe('on a phone', () => {
 
         fireEvent.click(arcOf(container, 'Software'));
         expect(middle(container)).toContain('Tap again to zoom in');
-        expect(count(container)).toBe('4 sectors');
         expect(hint(container)).toBe('Tap a sector twice to zoom in');
 
         fireEvent.click(arcOf(container, 'Software'));
-        expect(count(container)).toBe('3 industries');
+        expect(opened(container)).toBe('Information Technology');
     });
 
     it('takes no pointer on the ring, since a tap stands in for it', () => {
@@ -489,7 +484,7 @@ describe('on a phone', () => {
         fireEvent.click(row('Energy'));
 
         expect(opened(container)).toBe('Energy');
-        expect(count(container)).toBe('2 industries');
+        expect(rowNames(container)).toHaveLength(2);
     });
 
     it('lays out as a phone', () => {
@@ -522,8 +517,8 @@ describe('a single series', () => {
         fireEvent.click(row('Form 4'));
         fireEvent.click(arcOf(container, 'Form 8-K'));
 
-        expect(count(container)).toBe('2 forms');
-        expect(hint(container)).toBeNull();
+        expect(rowNames(container)).toHaveLength(2);
+        expect(head(container)).toBeNull();
         expect(row('Form 4')).not.toHaveClass('is-zoomable');
     });
 
@@ -609,8 +604,8 @@ describe('an empty month', () => {
 
         expect(arcs(container)).toEqual([]);
         expect(middle(container)).toBe('All sectors0records');
-        expect(count(container)).toBe('0 sectors');
-        expect(hint(container)).toBeNull();
+        expect(rowNames(container)).toEqual([]);
+        expect(head(container)).toBeNull();
     });
 });
 

@@ -200,10 +200,27 @@
 // fit across a phone, and a month that wrapped for one dataset and not for
 // another moved about as the datasets changed
 //
+// Room around it, which the stack over the ring lacked (#185): 0.75rem under
+// the name, and 1.25rem under the month row, before the ring
+//
 .filter-month {
-  align-items: flex-start;
+  align-items: stretch;
   flex-direction: column;
+  gap: 0.75rem;
+}
+
+.data-listing .listing-graphic > .filter.filter-month {
+  margin-bottom: 1.25rem;
+}
+
+//
+// the month, and at the row's end the api icons, across the phone (#185)
+//
+.data-month-row {
+  align-items: center;
+  display: flex;
   gap: 0.5rem;
+  justify-content: space-between;
 }
 
 //

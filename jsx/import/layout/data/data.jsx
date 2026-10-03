@@ -546,6 +546,7 @@ class DataLayout extends Component {
         this.filterButton = this.filterButton.bind(this);
         this.pickMonth = this.pickMonth.bind(this);
         this.monthControl = this.monthControl.bind(this);
+        this.apiLinks = this.apiLinks.bind(this);
 
         //
         // the page, which a dataset opened on a phone scrolls back to the top of
@@ -1188,6 +1189,22 @@ class DataLayout extends Component {
         );
     }
 
+    //
+    // the api's documentation, and the url downloadData fetches for `stream` and
+    // the month on screen, so the request opens the response the chart was
+    // drawn from: over the chart, and on a phone at the end of its month row
+    // (#185)
+    //
+    apiLinks(stream) {
+        return (
+            <ApiLinks
+                docs={API_DOCS.datalake}
+                request={datalakeUrl(this.state.data_map[stream][0], this.state.yyyy, this.state.mm)}
+                size={isMobile ? 'medium' : 'large'}
+            />
+        );
+    }
+
     filterColumn(style='default', btn=false) {
         if (btn && this.state.display_filter_button) {
             {/*
@@ -1204,10 +1221,21 @@ class DataLayout extends Component {
                     </div>
                 ) : '';
 
+            {/*
+
+                a phone's month row: the month control, and at its end the api
+                icons, which the ring's own head drew over it (#185)
+
+            */}
             var button_filter = (
                 <div className={`${isMobile ? 'd-flex filter-month' : 'd-block'} d-md-none filter`}>
                     {header}
-                    {isMobile ? this.monthControl() : this.filterButton()}
+                    {isMobile ? (
+                        <div className='data-month-row'>
+                            {this.monthControl()}
+                            {this.apiLinks(this.state.selected_stream)}
+                        </div>
+                    ) : this.filterButton()}
                 </div>
             );
             var filter = null;
@@ -1448,18 +1476,7 @@ class DataLayout extends Component {
                 names: distributionNames(stream, this.state[`aggregate_key_${stream}`]),
                 caption: month,
                 overlay: loader,
-                actions: (
-                    //
-                    // the api's documentation, and the url downloadData fetches
-                    // for the dataset and month on screen, so the request opens
-                    // the response this chart was drawn from
-                    //
-                    <ApiLinks
-                        docs={API_DOCS.datalake}
-                        request={datalakeUrl(this.state.data_map[stream][0], this.state.yyyy, this.state.mm)}
-                        size={isMobile ? 'medium' : 'large'}
-                    />
-                ),
+                actions: this.apiLinks(stream),
             };
 
             {/*
