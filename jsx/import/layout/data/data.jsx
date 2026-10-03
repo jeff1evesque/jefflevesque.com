@@ -19,8 +19,8 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ArticleListing from '../../general/article-listing.jsx';
-import Sunburst from '../../general/sunburst.jsx';
 import CubeChart from '../../general/cube-chart.jsx';
+import CubeRows from '../../general/cube-rows.jsx';
 import distributionTree from '../../general/distribution-tree.js';
 import trim from '../../general/trim-object.js';
 import { default as getStockMarketDistribution } from '../../general/get-data/distribution/stock-market.js';
@@ -190,7 +190,7 @@ export function blsLandingDate(selected, now, lag = BLS_PUBLICATION_LAG_MONTHS) 
 {/*
 
     how long the loader takes to fade once the query resolves. the element stays
-    mounted and animates its opacity, so the dots ease out as the ring arrives
+    mounted and animates its opacity, so the dots ease out as the chart arrives
     rather than being unmounted mid-frame
 
 */}
@@ -216,10 +216,10 @@ const LISTING_COLUMNS = [
 
 {/*
 
-    what the ring calls a stream's groups, what each group holds, and what it
-    counts, singular and plural: 'All sectors', '12 industries', '3,125,430
-    records'. A stream missing from this map is named by its aggregate key, so a
-    new stream still draws with a name rather than with none
+    what the charts call a stream's groups, what each group holds, and what it
+    counts, singular and plural: 'Show 4 more sectors', '19 industries',
+    '3,125,430 records'. A stream missing from this map is named by its aggregate
+    key, so a new stream still draws with a name rather than with none
 
 */}
 const DISTRIBUTION_NAMES = {
@@ -421,7 +421,7 @@ const LAYOUT = ['data', 'wide'];
 
 class DataLayout extends Component {
     //
-    // the page's theme, which the ring's colors are drawn for, and the loading
+    // the page's theme, which the charts' colors are drawn for, and the loading
     // chip's green is drawn in. See theme-mode.jsx.
     //
     static contextType = ThemeModeContext;
@@ -554,7 +554,7 @@ class DataLayout extends Component {
         this.page = React.createRef();
 
         //
-        // the tree each stream's ring was last drawn from, with the rows, key and
+        // the tree each stream's chart was last drawn from, with the rows, key and
         // theme it was built for -- see treeFor
         //
         this.trees = {};
@@ -1036,10 +1036,10 @@ class DataLayout extends Component {
 
                         aggregate_key is stored per stream: on the first load all five
                         streams download in parallel, so a single shared key would end
-                        up holding whichever stream answered last, and the ring would
+                        up holding whichever stream answered last, and the chart would
                         group the selected stream's rows by a column they do not have.
 
-                        the rows are kept as the worker answered them. The ring is
+                        the rows are kept as the worker answered them. The chart is
                         drawn from a tree built as the page renders -- see treeFor --
                         because its colors follow the page's theme, which can change
                         with the rows already on screen
@@ -1087,10 +1087,10 @@ class DataLayout extends Component {
     }
 
     //
-    // the tree a stream's ring is drawn from: its groups, what each holds, and
+    // the tree a stream's chart is drawn from: its groups, what each holds, and
     // their colors -- see distribution-tree.js. Built again only when the rows,
     // the key they are grouped by or the page's theme change, so pointing at the
-    // ring does not rebuild it on every render
+    // chart does not rebuild it on every render
     //
     treeFor(stream, theme) {
         const rows = this.state[`data_distribution_${stream}`];
@@ -1224,7 +1224,7 @@ class DataLayout extends Component {
             {/*
 
                 a phone's month row: the month control, and at its end the api
-                icons, which the ring's own head drew over it (#185)
+                icons, which the chart's own head drew over it until #185
 
             */}
             var button_filter = (
@@ -1387,10 +1387,10 @@ class DataLayout extends Component {
             : null;
 
         //
-        // over the ring, above its middle, while the month on screen is on its way.
+        // over the chart while the month on screen is on its way.
         //
         // visible strictly while the query is in flight, so the dots begin fading
-        // the moment the ring lands rather than sitting on top of one that has
+        // the moment the chart lands rather than sitting on top of one that has
         // already drawn.
         //
         // there was a minimum hold here to stop a fast response flickering, but a
@@ -1408,7 +1408,7 @@ class DataLayout extends Component {
             <div
                 style={{
                     //
-                    // cover the whole ring and center within it
+                    // cover the box the chart gives it, and center within it
                     //
                     position: 'absolute',
                     top: 0,
@@ -1419,7 +1419,7 @@ class DataLayout extends Component {
                     alignItems: 'center',
                     justifyContent: 'center',
                     //
-                    // above the ring and its middle, which is positioned over it
+                    // above the chart and whatever it positions over itself
                     //
                     zIndex: 10,
                     opacity: loader_visible ? 1 : 0,
@@ -1431,8 +1431,8 @@ class DataLayout extends Component {
 
                     a chip behind the dots, not a full-area wash: it restores a
                     known surface under them, so they hold their 5.72:1 whatever
-                    color of the ring is behind, and it is sized to the dots so
-                    the ring still shows around it
+                    color of the chart is behind, and it is sized to the dots so
+                    the chart still shows around it
 
                 */}
                 <div
@@ -1482,8 +1482,9 @@ class DataLayout extends Component {
             {/*
 
                 a wide screen draws the stacked bars of cubes, and a phone the
-                sunburst, since a row of bars does not fit a phone's width -- see
-                cube-chart.jsx.
+                same bars laid on their side, a row each, since a row of bars
+                standing up does not fit a phone's width -- see cube-chart.jsx
+                and cube-rows.jsx.
 
                 keyed by the stream and the month on screen, so choosing another
                 closes a group or a list left open on the last one rather than
@@ -1493,7 +1494,7 @@ class DataLayout extends Component {
             var data_distribution = (
                 <div className='col-lg-12 mx-auto'>
                     {isMobile ? (
-                        <Sunburst key={`${stream}|${this.state.yyyy}|${this.state.mm}`} {...chart} phone />
+                        <CubeRows key={`${stream}|${this.state.yyyy}|${this.state.mm}`} {...chart} />
                     ) : (
                         <CubeChart
                             key={`${stream}|${this.state.yyyy}|${this.state.mm}`}
