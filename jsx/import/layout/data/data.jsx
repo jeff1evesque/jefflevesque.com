@@ -58,6 +58,7 @@ import { readChart, writeChart, readOrder, writeOrder } from '../../general/list
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import chartHeight from '../../general/chart-height.js';
+import scrollMargin from '../../general/scroll-margin.js';
 
 {/*
 
@@ -657,7 +658,9 @@ class DataLayout extends Component {
     // on a phone, `stream` on its own, in place of the listing: pushed into the
     // address, so Back returns to the listing, and scrolled to its top, since
     // its graph icon may sit far down the listing (#165). Only the listing has
-    // the icons, so no dataset is open yet.
+    // the icons, so no dataset is open yet. The top is out of sight above the
+    // screen, or under the phone's pinned header, whose height the page's
+    // scroll margin holds (#177).
     //
     // Note: scrollIntoView is guarded, since jsdom has none
     //
@@ -667,7 +670,7 @@ class DataLayout extends Component {
         this.setState({ opened: stream }, () => {
             const page = this.page.current;
 
-            if (page && typeof page.scrollIntoView === 'function' && page.getBoundingClientRect().top < 0) {
+            if (page && typeof page.scrollIntoView === 'function' && page.getBoundingClientRect().top < scrollMargin(page)) {
                 page.scrollIntoView({ block: 'start' });
             }
         });
