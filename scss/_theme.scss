@@ -249,17 +249,4 @@ $red-3: var(--red-3);
   .recharts-curve.recharts-tooltip-cursor {
     stroke: var(--gray-5);
   }
-
-  //
-  // the sheet a listing opens on a phone, which carries its colors inline --
-  // white under its content, a pale gray handle -- so only '!important'
-  // outranks them.
-  //
-  .react-modal-sheet-container {
-    background-color: var(--white-1) !important;
-  }
-
-  .react-modal-sheet-drag-indicator {
-    background-color: var(--gray-3) !important;
-  }
 }
