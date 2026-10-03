@@ -10,7 +10,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import MenuIcon from '@mui/icons-material/Menu';
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import HomeLink, { HomeBrand } from './menu-items/home.jsx';
+import { HomeBrand } from './menu-items/home.jsx';
 import ThemeToggle from './theme-toggle.jsx';
 import LoginLinkState from '../redux/container/login-link.jsx';
 import RegisterLinkState from '../redux/container/register-link.jsx';
@@ -78,6 +78,35 @@ function GraphMenu() {
 }
 
 //
+// the account buttons, less the one for the page on screen (#179). The sign-in
+// and sign-up pages wear the site's own header, and a button to the page the
+// reader is on would lead nowhere -- as their own bare headers left it out.
+//
+function onSignIn(pathname) {
+    return pathname === '/login';
+}
+
+function onSignUp(pathname) {
+    return pathname === '/register';
+}
+
+/**
+ * the wide header's 'Login in' and 'Sign up', less the one for the page on
+ * screen. A function component beside the class, as GraphMenu is, because it
+ * reads the address.
+ */
+function AccountLinks() {
+    const pathname = useLocation().pathname;
+
+    return (
+        <>
+            {onSignIn(pathname) ? null : <LoginLinkState />}
+            {onSignUp(pathname) ? null : <RegisterLinkState />}
+        </>
+    );
+}
+
+//
 // the phone's menu: every page in one list, in the order the wide header gives
 // them (#173). The Graph section's two pages are entries of their own, with no
 // heading over them, since each name already says it is a graph.
@@ -120,13 +149,16 @@ function phonePage(pathname) {
  * with sits on its bottom edge.
  *
  * Every way out of it -- a pick, either button, the arrow -- goes through
- * 'onClose', so the page the reader lands on is never covered by the menu.
+ * 'onClose', so the page the reader lands on is never covered by the menu. The
+ * button for the page on screen is left out, and the one left spans the menu
+ * (#179).
  *
  * Note: a function component beside the class, as GraphMenu is, because it
  *       reads the address.
  */
 function PhoneMenu({ onClose }) {
-    const current = phonePage(useLocation().pathname);
+    const pathname = useLocation().pathname;
+    const current = phonePage(pathname);
 
     return (
         <nav className='phone-menu' aria-label='Site'>
@@ -143,8 +175,8 @@ function PhoneMenu({ onClose }) {
                 </Link>
             ))}
             <div className='phone-menu-actions'>
-                <Link to='/login' className='btn' onClick={onClose}>Login</Link>
-                <Link to='/register' className='btn btn-primary' onClick={onClose}>Register</Link>
+                {onSignIn(pathname) ? null : <Link to='/login' className='btn' onClick={onClose}>Login</Link>}
+                {onSignUp(pathname) ? null : <Link to='/register' className='btn btn-primary' onClick={onClose}>Register</Link>}
             </div>
             <button type='button' className='phone-menu-fold' aria-label='Close the menu' onClick={onClose}>
                 <ExpandLessIcon fontSize='inherit' />
@@ -159,15 +191,6 @@ PhoneMenu.propTypes = {
 
 class HeaderMenu extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
-    static propTypes = {
-        layout: PropTypes.oneOfType([
-            PropTypes.string,
-            PropTypes.shape({
-                type: PropTypes.string,
-            })
-        ])
-    }
-
     constructor(props) {
         super(props);
 
@@ -229,8 +252,7 @@ class HeaderMenu extends Component {
                             </div>
                             <div className='col-sm-5'>
                                 <ThemeToggle />
-                                <LoginLinkState />
-                                <RegisterLinkState />
+                                <AccountLinks />
                             </div>
                         </div>
                     </div>
@@ -299,36 +321,12 @@ class HeaderMenu extends Component {
         const desktopMenu = this.showDesktopHeader();
         const mobileMenu = this.showMobileHeader();
 
-        if (
-            !!this.props &&
-            !!this.props.layout &&
-            !!this.props.layout.type &&
-            this.props.layout.type == 'login'
-        ) {
-            return (
-                <nav className='main-navigation menu-login'>
-                    <div className='col-sm-12'>
-                        <HomeLink />
-                        <ThemeToggle className='theme-toggle-corner' />
-                    </div>
-                </nav>
-            );
-        } else if (
-            !!this.props &&
-            !!this.props.layout &&
-            !!this.props.layout.type &&
-            this.props.layout.type == 'register'
-        ) {
-            return (
-                <nav className='main-navigation menu-register'>
-                    <div className='col-sm-12'>
-                        <HomeLink />
-                        <ThemeToggle />
-                        <LoginLinkState />
-                    </div>
-                </nav>
-            );
-        }
+        //
+        // the same header on every page, the sign-in and sign-up pages among
+        // them (#179). Those wore bare headers of their own -- a house and the
+        // theme's switch, with no bar, no menu and no sections -- picked by the
+        // 'layout' a page set as it mounted
+        //
         return (
             <BreakpointRender
                 breakpoints={breakpoints}
