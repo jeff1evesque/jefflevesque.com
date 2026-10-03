@@ -589,6 +589,13 @@ class DataLayout extends Component {
             //
             min_date: new Date(new Date(selected.getFullYear() - 3, 0, 1).toLocaleString('en-US', {timeZone: 'America/New_York'})),
             selected_date: landing || today,
+            //
+            // whether the month on screen is bls's step back off the latest
+            // month -- from opening on bls, or choosing it -- rather than one
+            // the reader picked. Only bls is lagged: charting another dataset
+            // while it is goes back to the latest month (#198)
+            //
+            bls_stepped: Boolean(landing),
             streams: streams,
             selected_stream: opening,
             //
@@ -688,22 +695,48 @@ class DataLayout extends Component {
             ? blsLandingDate(this.state.selected_date, this.state.now)
             : null;
 
+        {/*
+
+            and only bls is lagged: another dataset charted while the month on
+            screen is bls's step goes back to the latest month. A month the
+            reader picked by hand stays, whichever dataset is charted (#198)
+
+        */}
+        const restored = stream !== BLS && this.state.bls_stepped ? this.state.now : null;
+        const month = shifted || restored;
+
         this.setState({
             selected_stream: stream,
             // keep the mobile chart header in sync with the selected
             // stream (was stuck on the default, the S&P 500)
             listing_graphic_title: stream,
             [`promise_get_data_${stream}`]: false,
-            ...(shifted ? {
-                selected_date: shifted,
-                dd: String(shifted.getDate()).padStart(2, '0'),
-                mm: shifted.getMonth() + 1,
-                yyyy: shifted.getFullYear()
+            ...(month ? {
+                selected_date: month,
+                dd: String(month.getDate()).padStart(2, '0'),
+                mm: month.getMonth() + 1,
+                yyyy: month.getFullYear(),
+                bls_stepped: Boolean(shifted)
             } : {})
         }, () => {
             this.updateStreamListing();
             this.reset_stream(stream);
-            this.downloadData(stream);
+
+            {/*
+
+                a change of month, by bls's step or back again, downloads every
+                dataset, as the month control does, so every row of the listing
+                counts the month on screen. Downloading only the charted one
+                left the other rows on the latest month's counts (#198)
+
+            */}
+            if (month) {
+                this.state.streams.forEach((each) => {
+                    this.downloadData(each);
+                });
+            } else {
+                this.downloadData(stream);
+            }
         });
     }
 
@@ -1126,13 +1159,15 @@ class DataLayout extends Component {
 
     //
     // the month the page shows, from the month control: every stream downloaded
-    // again for it
+    // again for it. A month picked by hand is the reader's, and stays when
+    // another dataset is charted, bls's step or not (#198)
     //
     pickMonth(date) {
         this.setState({
             selected_date: date,
             mm: date.getMonth() + 1,
-            yyyy: date.getFullYear()
+            yyyy: date.getFullYear(),
+            bls_stepped: false
         }, () => {
             this.state.streams.forEach((stream) => {
                 this.downloadData(stream);
