@@ -11,9 +11,9 @@
  * Pointing at a segment, or at its row, draws that segment a shade darker on a
  * light page and a shade brighter on a dark one, fades the rest, and names it in
  * the middle. Clicking a group opens it all the way round, where its members
- * take colors of their own; the middle, or the root of the breadcrumb, closes it
- * again. On a phone the first tap on a segment describes it and the second opens
- * it, since there is no pointer to describe it first.
+ * take colors of their own; the middle, or any segment, closes it again. On a
+ * phone the first tap on a segment describes it and the second opens it, since
+ * there is no pointer to describe it first.
  *
  * Note: the ring is drawn in its own 400-unit box and scaled to whatever size
  *       the page gives it, so the radii, the gaps and the labels are fixed and
@@ -426,19 +426,16 @@ export default function Sunburst({ tree, names, caption, size, phone, actions, o
     }
 
     //
-    // how many groups the ring holds, or how many members an open group does:
-    // the rows of the list under it, counted beside the breadcrumb as the
-    // listing's title counts its own, and named in full to a screen reader.
-    // Under it, on a ring with groups to open, how to open one -- and nothing
-    // else: not the month, which the page's month control says just above
-    // (#181), nor the total, which the middle says in large type. The month
-    // still names the ring to a screen reader, in its label (#183)
+    // over the ring, on a ring with groups to open, how to open one -- and
+    // nothing else (#185). What the ring shows, its total and the way back from
+    // an open group are the middle's to say, and the month the page's, just
+    // above (#181). A breadcrumb over the ring said them again, and read like
+    // the page's own "All data" over it. The month still names the ring to a
+    // screen reader, in its label (#183)
     //
-    const count = current ? current.children.length : layout.top.length;
-    const counted = noun(count, current ? names.member : names.group);
     let hint = null;
 
-    if (layout.nested && !current && count) {
+    if (layout.nested && !current && layout.top.length) {
         hint = phone
             ? `Tap a ${names.group[0]} twice to zoom in`
             : `Click a ${names.group[0]} to zoom in`;
@@ -515,31 +512,12 @@ export default function Sunburst({ tree, names, caption, size, phone, actions, o
 
     return (
         <div className={`sunburst${phone ? ' sunburst-phone' : ''}`}>
-            <div className='sunburst-head'>
-                <div className='sunburst-heading'>
-                    <div className='sunburst-title'>
-                        <nav className='sunburst-crumb' aria-label='Breadcrumb'>
-                            {current ? (
-                                <>
-                                    <button type='button' className='sunburst-crumb-root' onClick={() => zoomTo(null)}>
-                                        {`All ${names.group[1]}`}
-                                    </button>
-                                    <span className='sunburst-crumb-sep' aria-hidden='true'>›</span>
-                                    <span aria-current='page'>{current.data.name}</span>
-                                </>
-                            ) : (
-                                <span aria-current='page'>{`All ${names.group[1]}`}</span>
-                            )}
-                        </nav>
-                        <span className='sunburst-heading-count'>
-                            {fmt(count)}
-                            <span className='visually-hidden'>{` ${counted}`}</span>
-                        </span>
-                    </div>
+            {hint || actions ? (
+                <div className='sunburst-head'>
                     {hint ? <div className='sunburst-meta'>{hint}</div> : null}
+                    {actions ? <div className='sunburst-actions'>{actions}</div> : null}
                 </div>
-                {actions ? <div className='sunburst-actions'>{actions}</div> : null}
-            </div>
+            ) : null}
             <div className='sunburst-body'>
                 <div className='sunburst-ring' style={size ? { width: size, height: size } : undefined}>
                     <svg
