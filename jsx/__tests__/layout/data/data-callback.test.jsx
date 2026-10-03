@@ -295,6 +295,29 @@ describe('the distribution payload', () => {
 
         expect(load(page, { data_distribution: null }).promise_get_data_bls).toBe(false);
     });
+
+    it('drops an answer to a request a newer one has replaced, before any worker', () => {
+        //
+        // a month stepped off while its answer was on the way
+        //
+        const page = setup();
+
+        page.callbackGetData({ stream: 'bls' }, () => false);
+
+        expect(global.__workers).toHaveLength(0);
+    });
+
+    it('drops a worker\'s rows once a newer request has replaced the one they answer', () => {
+        const page = setup();
+        let latest = true;
+
+        page.callbackGetData({ stream: 'bls' }, () => latest);
+        latest = false;
+        deliver(global.__workers[0], PAYLOAD);
+
+        expect(page.state.records_bls).not.toBe(42);
+        expect(page.state.promise_get_data_bls).toBe(false);
+    });
 });
 
 describe('the chart on the page', () => {

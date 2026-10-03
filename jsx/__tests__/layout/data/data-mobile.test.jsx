@@ -198,15 +198,15 @@ function travel(address) {
 }
 
 describe('a phone\'s listing first (#165)', () => {
-    it('opens on the listing alone, with the Filter in its title row', () => {
+    it('opens on the listing alone, with the month in its title row', () => {
         setup();
 
         expect(listingShown()).toBe(true);
         expect(sunburstShown()).toBe(false);
         expect(backBar()).toBeNull();
         expect(document.querySelector('.listing-graphic-title')).toBeNull();
-        expect(document.querySelector('.listing-table-title.has-actions .listing-table-actions button').textContent)
-            .toBe('Filter');
+        expect(document.querySelector('.listing-table-title.has-actions .listing-table-actions .data-month'))
+            .not.toBeNull();
     });
 
     it('opens a dataset on its own from its graph icon, in place of the listing', () => {
@@ -216,7 +216,7 @@ describe('a phone\'s listing first (#165)', () => {
 
         expect(backBar().textContent).toBe('All data');
         expect(chartHeader()).toBe('SEC Filings');
-        expect(document.querySelector('.listing-graphic-title .title-count').textContent).toMatch(/^ \(\d{4}\/\d{2}\)$/);
+        expect(document.querySelector('.filter-month .data-month')).not.toBeNull();
         expect(sunburstShown()).toBe(true);
         expect(listingShown()).toBe(false);
         expect(window.location.search).toBe('?item=sec');
@@ -359,37 +359,130 @@ describe('a phone\'s listing first (#165)', () => {
     });
 });
 
-describe('a phone\'s filter (#165)', () => {
+//
+// the phone's month menu, and the month it shows
+//
+function monthMenu() {
+    return document.querySelector('.data-month select');
+}
+
+function monthShown() {
+    const menu = monthMenu();
+
+    return menu.options[menu.selectedIndex].textContent;
+}
+
+//
+// the month the date picker shows -- hidden on a phone, but drawn -- which is
+// the month on screen
+//
+function pickerMonth() {
+    return [...document.querySelectorAll('input[type="text"]')].find((e) => /\w+\s+\d{4}/.test(e.value)).value;
+}
+
+//
+// pick the month the menu offers at `index`, newest first
+//
+function chooseMonth(index) {
+    const menu = monthMenu();
+
+    fireEvent.change(menu, { target: { value: menu.options[index].value } });
+}
+
+describe('a phone\'s month', () => {
+    it('offers no Filter, on the listing or over a dataset', () => {
+        setup();
+        expect(screen.queryByRole('button', { name: 'Filter' })).toBeNull();
+
+        fireEvent.click(chartButton('SEC Filings'));
+        expect(screen.queryByRole('button', { name: 'Filter' })).toBeNull();
+    });
+
     it('has no Data Distribution switch', () => {
         setup();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
-
-        expect(bodyText()).toContain('Edit Content Filter');
         expect(bodyText()).not.toContain('Data Distribution');
     });
 
-    it('returns to the listing once applied', () => {
+    it('shows the month on screen, and offers every month from the first to this one, newest first', () => {
         setup();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
-        expect(listingShown()).toBe(false);
+        const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const options = [...monthMenu().options].map((option) => option.textContent);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Apply Filter' }));
-        expect(listingShown()).toBe(true);
-        expect(backBar()).toBeNull();
+        expect(monthShown()).toBe(pickerMonth());
+        expect(options[0]).toBe(`${today.toLocaleString('en-US', { month: 'long' })} ${today.getFullYear()}`);
+        expect(options[options.length - 1]).toMatch(/^January \d{4}$/);
+        expect(new Set(options).size).toBe(options.length);
     });
 
-    it('returns to the dataset it was opened over once applied', () => {
+    it('steps a month back from its earlier arrow, and downloads every stream for it', () => {
+        const spy = jest.spyOn(DataLayout.prototype, 'downloadData');
+        setup();
+        chooseMonth(3);
+        spy.mockClear();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+
+        expect(monthMenu().selectedIndex).toBe(4);
+        expect(pickerMonth()).toBe(monthShown());
+        expect(spy).toHaveBeenCalledTimes(5);
+        spy.mockRestore();
+    });
+
+    it('steps a month forward from its later arrow', () => {
+        setup();
+        chooseMonth(3);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Later month/ }));
+
+        expect(monthMenu().selectedIndex).toBe(2);
+    });
+
+    it('shows and downloads the month chosen from its menu', () => {
+        const spy = jest.spyOn(DataLayout.prototype, 'downloadData');
+        setup();
+        spy.mockClear();
+        const chosen = monthMenu().options[5].textContent;
+
+        chooseMonth(5);
+
+        expect(monthShown()).toBe(chosen);
+        expect(pickerMonth()).toBe(chosen);
+        expect(spy).toHaveBeenCalledTimes(5);
+        spy.mockRestore();
+    });
+
+    it('names the month each arrow goes to', () => {
+        setup();
+        chooseMonth(3);
+        const options = monthMenu().options;
+
+        expect(screen.getByRole('button', { name: `Earlier month, ${options[4].textContent}` })).toBeEnabled();
+        expect(screen.getByRole('button', { name: `Later month, ${options[2].textContent}` })).toBeEnabled();
+    });
+
+    it('dims the later arrow on this month, and the earlier on the first', () => {
         setup();
 
-        fireEvent.click(chartButton('SEC Filings'));
-        fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
-        expect(backBar()).toBeNull();
-        expect(sunburstShown()).toBe(false);
+        chooseMonth(0);
+        expect(screen.getByRole('button', { name: 'Later month' })).toBeDisabled();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Apply Filter' }));
+        chooseMonth(monthMenu().options.length - 1);
+        expect(screen.getByRole('button', { name: 'Earlier month' })).toBeDisabled();
+    });
+
+    it('sits beside a dataset\'s name over its chart, and steps the month there too', () => {
+        setup();
+        fireEvent.click(chartButton('SEC Filings'));
+        chooseMonth(3);
+
+        expect(document.querySelector('.filter-month .listing-graphic-title h5').textContent).toBe('SEC Filings');
+
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+
+        expect(monthMenu().selectedIndex).toBe(4);
         expect(backBar()).not.toBeNull();
-        expect(chartHeader()).toBe('SEC Filings');
+        expect(sunburstShown()).toBe(true);
     });
 });

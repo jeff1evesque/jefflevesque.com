@@ -157,10 +157,23 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
             by_name.set(name, { key: name, name: name, value: 0, members: [] });
         }
 
+        //
+        // a member's key is its group's and its own name, and a name the group
+        // already holds takes its place in the group as well: a day can list one
+        // ticker twice -- ucar on September 8, at 1:10 and at 1:20 -- and two
+        // segments on one key left the ring drawing stale ones over each other
+        // each time a day opened and closed
+        //
         const group = by_name.get(name);
         found.forEach((member) => {
+            const repeat = group.members.filter((held) => held.name === member.name).length;
+
             names.add(member.name);
-            group.members.push({ ...member, key: `${name}\u0000${member.name}`, group: group });
+            group.members.push({
+                ...member,
+                key: `${name}\u0000${member.name}${repeat ? `\u0000${repeat}` : ''}`,
+                group: group,
+            });
             group.value += member.value;
         });
     });

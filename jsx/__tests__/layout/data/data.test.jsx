@@ -189,6 +189,19 @@ describe('the scale controls', () => {
         expect((text.match(/mm\/yyyy/g) || []).length).toBe(2);
     });
 
+    it('steps its picker on from a year to that year\'s months, rather than closing on the year', () => {
+        //
+        // the views ran month then year, so picking a year was the picker's
+        // last step, and closed it before a month could be picked
+        //
+        setup();
+
+        fireEvent.click(screen.getAllByRole('button', { name: /Choose date/ })[0]);
+        fireEvent.click(screen.getByRole('radio', { name: '2025' }));
+
+        expect(screen.getByRole('radio', { name: 'March' })).toBeInTheDocument();
+    });
+
     it('offers a filter and a sort', () => {
         setup();
 

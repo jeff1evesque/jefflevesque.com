@@ -448,11 +448,15 @@ export default function Sunburst({ tree, names, caption, size, phone, actions, o
         const datum = node.data;
         const zoomable = layout.nested && !current;
 
+        //
+        // a ticker shows its ratio where a count would be, and its share of its
+        // day as every row shows its share -- which was left blank for it
+        //
         return {
             key: datum.key,
             name: datum.name,
             value: datum.note || fmt(datum.value),
-            share: datum.note ? '' : share(datum.value, whole),
+            share: share(datum.value, whole),
             color: current ? datum.shade : datum.color,
             lit: hot === node,
             zoomable: zoomable,

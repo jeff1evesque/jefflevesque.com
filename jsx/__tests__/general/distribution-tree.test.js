@@ -185,6 +185,30 @@ describe('a day\'s tickers', () => {
     it('counts a day by its tickers', () => {
         expect(distributionTree(ROWS, 'sector').total).toBe(3);
     });
+
+    it('keys a ticker a day lists twice apart, so each is a segment of its own', () => {
+        const [day] = distributionTree([
+            { sector: 'Day 8', splits: 3, tickers: 'ucar 1:10, nvdl 3:1, ucar 1:20' },
+        ], 'sector').groups;
+        const keys = day.members.map((member) => member.key);
+
+        expect(day.members.map((member) => [member.name, member.note])).toEqual([
+            ['nvdl', '3:1'],
+            ['ucar', '1:10'],
+            ['ucar', '1:20'],
+        ]);
+        expect(new Set(keys).size).toBe(3);
+        expect(keys).toContain('Day 8\u0000ucar');
+    });
+
+    it('keys a ticker apart when two rows of one day each list it', () => {
+        const [day] = distributionTree([
+            { sector: 'Day 8', splits: 1, tickers: 'ucar 1:10' },
+            { sector: 'Day 8', splits: 1, tickers: 'ucar 1:20' },
+        ], 'sector').groups;
+
+        expect(new Set(day.members.map((member) => member.key)).size).toBe(2);
+    });
 });
 
 describe('the order around the ring', () => {

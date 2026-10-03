@@ -513,6 +513,47 @@ describe('a day\'s tickers', () => {
         fireEvent.mouseEnter(row('crwd'));
         expect(middle(container)).toBe('crwd4:1Day 1 · 2 splitsClick to zoom out');
     });
+
+    it('shows each ticker\'s share of its day, which was left blank', () => {
+        draw({
+            rows: [
+                { sector: 'Day 1', splits: 2, tickers: 'crwd 4:1, svc 1:5' },
+                { sector: 'Day 22', splits: 1, tickers: 'lu 1:5' },
+            ],
+            names: DAYS,
+        });
+
+        fireEvent.click(row('Day 1'));
+        expect(row('crwd').querySelector('.sunburst-share').textContent).toBe('50%');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to all days' }));
+        fireEvent.click(row('Day 22'));
+        expect(row('lu').querySelector('.sunburst-share').textContent).toBe('100%');
+    });
+
+    it('draws a ticker a day lists twice twice, and leaves nothing behind when the day opens and closes', () => {
+        //
+        // two segments on one key left the ring drawing stale ones over each
+        // other, and a stray row atop the list, once a day was opened and closed
+        //
+        const { container } = draw({
+            rows: [
+                { sector: 'Day 8', splits: 3, tickers: 'ucar 1:10, nvdl 3:1, ucar 1:20' },
+                { sector: 'Day 9', splits: 1, tickers: 'lghl 1:4' },
+            ],
+            names: DAYS,
+        });
+
+        expect(arcs(container)).toHaveLength(6);
+
+        fireEvent.click(row('Day 8'));
+        expect(arcs(container).map((path) => path.getAttribute('data-name'))).toEqual(['Day 8', 'nvdl', 'ucar', 'ucar']);
+        expect(rowNames(container)).toEqual(['nvdl', 'ucar', 'ucar']);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to all days' }));
+        expect(arcs(container)).toHaveLength(6);
+        expect(rowNames(container)).toEqual(['Day 8', 'Day 9']);
+    });
 });
 
 describe('an empty month', () => {
