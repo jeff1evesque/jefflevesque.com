@@ -172,6 +172,19 @@ describe('a stream opened from its name', () => {
             .toBe('weekdays, every 20 min · Last 20 Days, one bar per day');
     });
 
+    it('counts the streams beside the title, and not over one on its own', () => {
+        setup();
+
+        const intro = document.querySelector('.stream-rows-intro');
+
+        expect(within(intro).getByRole('heading')).toHaveTextContent('Streams');
+        expect(intro.querySelector('.stream-rows-count').textContent).toBe('5');
+
+        clickName('S&P 500');
+
+        expect(intro.querySelector('.stream-rows-count')).toBeNull();
+    });
+
     it('is a step in the browser\'s history, which keeps the window', () => {
         setup('/stream?rate=hour');
 
