@@ -143,7 +143,43 @@ describe('choosing a loader per stream', () => {
         download(page, 'bls');
         getBls.mock.calls[0][2]({ stream: 'bls' });
 
-        expect(spy).toHaveBeenCalledWith({ stream: 'bls' });
+        expect(spy).toHaveBeenCalledWith({ stream: 'bls' }, expect.any(Function));
+
+        spy.mockRestore();
+    });
+
+    it('hands each answer a check that its request is still the stream\'s latest', () => {
+        //
+        // a month stepped through quickly asks for each month in turn, and an
+        // answer to one stepped off must not land over the month on screen
+        //
+        const page = setup();
+        getBls.mockClear();
+        const spy = jest.spyOn(page, 'callbackGetData').mockImplementation(() => {});
+
+        download(page, 'bls');
+        download(page, 'bls');
+        getBls.mock.calls[0][2]({ stream: 'bls' });
+        getBls.mock.calls[1][2]({ stream: 'bls' });
+
+        const [older, newer] = spy.mock.calls.map((call) => call[1]);
+        expect(older()).toBe(false);
+        expect(newer()).toBe(true);
+
+        spy.mockRestore();
+    });
+
+    it('keeps each stream\'s latest request apart from another stream\'s', () => {
+        const page = setup();
+        getBls.mockClear();
+        getSec.mockClear();
+        const spy = jest.spyOn(page, 'callbackGetData').mockImplementation(() => {});
+
+        download(page, 'bls');
+        download(page, 'sec');
+        getBls.mock.calls[0][2]({ stream: 'bls' });
+
+        expect(spy.mock.calls[0][1]()).toBe(true);
 
         spy.mockRestore();
     });
@@ -341,7 +377,7 @@ describe('every loader\'s answer', () => {
             loader.mock.calls[0][2](item);
         });
 
-        expect(handled).toHaveBeenCalledWith(item);
+        expect(handled).toHaveBeenCalledWith(item, expect.any(Function));
         handled.mockRestore();
     });
 });
