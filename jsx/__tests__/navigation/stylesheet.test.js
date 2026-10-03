@@ -132,4 +132,26 @@ describe('the phone\'s bar (#173)', () => {
         expect(own(panel)).toMatch(/background-color\s*:\s*\$header-bar\s*;/);
         expect(panel).not.toMatch(/border-radius/);
     });
+
+    it('names the page on screen in the rows\' dark by day and green by night, its arrow green (#175)', () => {
+        const [link] = bar ? blocks(bar, '.phone-menu-link') : [];
+        const [active] = link ? blocks(link, '&.active') : [];
+        const [night] = active ? blocks(active, '@include dark') : [];
+        const [arrow] = bar ? blocks(bar, '.phone-menu-link.active .phone-menu-arrow') : [];
+
+        expect(own(active)).toMatch(/background-color\s*:\s*\$green-bar\s*;/);
+        expect(own(active)).toMatch(/(^|[\s;{])color\s*:\s*\$gray-8\s*;/);
+        expect(night).toMatch(/(^|[\s;{])color\s*:\s*\$green-6\s*;/);
+        expect(arrow).toMatch(/(^|[\s;{])color\s*:\s*\$green-6\s*;/);
+    });
+
+    it('gives Login a lighter gray by night, so it reads as a button on the dark panel (#175)', () => {
+        const [actions] = bar ? blocks(bar, '.phone-menu-actions') : [];
+        const [login] = actions ? blocks(actions, '.btn:not(.btn-primary)') : [];
+        const [night] = login ? blocks(login, '@include dark') : [];
+
+        expect(own(night)).toMatch(/background-color\s*:\s*\$dark-gray-3\s*;/);
+        expect(own(night)).toMatch(/border-color\s*:\s*\$dark-gray-5\s*;/);
+        expect(variables).toMatch(/\$dark-gray-3\s*:\s*#444\s*;/);
+    });
 });
