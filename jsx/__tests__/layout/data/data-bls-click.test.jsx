@@ -57,6 +57,13 @@ function monthsBack(value, back) {
     return then.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 }
 
+{/* pick the month the month menu offers at `index`, newest first, as a reader would */}
+function pickMonth(index) {
+    const menu = document.querySelector('.data-month select');
+
+    fireEvent.change(menu, { target: { value: menu.options[index].value } });
+}
+
 function saved(stream) {
     window.localStorage.setItem(KEY, JSON.stringify({ v: VERSION, data: { chart: stream } }));
 }
@@ -103,16 +110,59 @@ describe('selecting a stream', () => {
         expect(selectedMonth()).toBe(monthsBack(null, 2));
     });
 
-    it('keeps the date once the reader has moved off the current month', () => {
+    it('goes back to the latest month when another stream is charted after bls (#198)', () => {
         /*
-         * selecting bls, then another stream, must not drag the date forward
-         * again -- the reader is now on a month they can see data for.
+         * only bls is lagged. the step back is bls's own, so leaving it for a
+         * stream that holds the latest month goes back there -- where the date
+         * once stayed two months back for every stream charted after it.
          */
         setup();
         selectStream('Bureau of Labor');
         selectStream('SEC Filings');
 
+        expect(selectedMonth()).toBe(monthsBack(null, 0));
+    });
+
+    it('keeps a month the reader picked while on bls, whichever stream is charted next (#198)', () => {
+        setup();
+        selectStream('Bureau of Labor');
+        pickMonth(1);
+        selectStream('SEC Filings');
+
+        expect(selectedMonth()).toBe(monthsBack(null, 1));
+    });
+
+    it('steps bls back again from the latest month it went back to (#198)', () => {
+        setup();
+        selectStream('Bureau of Labor');
+        selectStream('SEC Filings');
+        selectStream('Bureau of Labor');
+
         expect(selectedMonth()).toBe(monthsBack(null, 2));
+    });
+
+    it('downloads every stream when the month changes for bls, either way, and only the one charted otherwise (#198)', () => {
+        /*
+         * the listing counts the month on screen: downloading only bls for its
+         * month left every other row on the latest month's counts
+         */
+        const spy = jest.spyOn(DataLayout.prototype, 'downloadData');
+        const streams = () => new Set(spy.mock.calls.map((call) => call[0]));
+        setup();
+
+        spy.mockClear();
+        selectStream('Bureau of Labor');
+        expect(streams().size).toBe(5);
+
+        spy.mockClear();
+        selectStream('SEC Filings');
+        expect(streams().size).toBe(5);
+
+        spy.mockClear();
+        selectStream('S&P 500');
+        expect([...streams()]).toEqual(['stock-market']);
+
+        spy.mockRestore();
     });
 
     it('keeps the stream it charts, for the next visit', () => {
@@ -139,6 +189,14 @@ describe('opening on the stream last charted', () => {
 
         expect(charted()).toBe('Bureau of Labor Statistics');
         expect(selectedMonth()).toBe(monthsBack(null, 2));
+    });
+
+    it('goes back to the latest month from a saved bls when another stream is charted (#198)', () => {
+        saved('bls');
+        setup();
+        selectStream('SEC Filings');
+
+        expect(selectedMonth()).toBe(monthsBack(null, 0));
     });
 
     it('does not step again when the saved bls is selected', () => {
