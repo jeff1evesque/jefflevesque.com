@@ -295,9 +295,15 @@ button.sunburst-center {
     width: 100%;
   }
 
+  //
+  // the whole list, scrolling with the page rather than in a box of its own: a
+  // phone draws no scrollbar, so the box read as the end of the list -- six
+  // days into a month of twenty. Its column names are held under the phone's
+  // pinned bar instead -- see '_navigation_anonymous.scss'
+  //
   .sunburst-list {
-    max-height: 22rem;
     max-width: none;
+    overflow-y: visible;
     width: 100%;
   }
 
