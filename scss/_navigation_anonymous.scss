@@ -303,20 +303,14 @@
 
       //
       // the views that scroll themselves into sight when one stream or one
-      // dataset opens (#161, #165) stop below the pinned bar, not under it: its
-      // 57px, and the 1.5rem the page keeps under it. See scroll-margin.js.
+      // dataset opens (#161, #165), or one of a dataset's groups opens or
+      // closes (#188), stop below the pinned bar, not under it: its 57px, and
+      // the 1.5rem the page keeps under it. See scroll-margin.js.
       //
       .stream-layout,
-      .data-listing {
+      .data-listing,
+      .cube-rows {
         scroll-margin-top: calc(57px + 1.5rem);
-      }
-
-      //
-      // the sunburst's column names, held under the pinned bar while its list
-      // scrolls by with the page, not under the bar, out of sight
-      //
-      .sunburst-phone .sunburst-list-head {
-        top: 57px;
       }
     }
   }
