@@ -136,6 +136,15 @@ const colors_categorical = [
 const color_other = '#d3d3ce';
 
 /**
+ * the same neutral for a dark page: a little way off it, as color_other is off
+ * a white one, so it recedes as far in either theme. With color_other, it is
+ * the gray of the stock splits with no sector (#190), clear of the shades the
+ * rarer sectors take -- see color_sector_tail, and sectorShade in
+ * distribution-tree.js.
+ */
+const color_other_dark = '#4a4a44';
+
+/**
  * shades for the series past the categorical slots.
  *
  * rather than collapsing the tail into one 'Other' block, each member keeps its
@@ -164,6 +173,22 @@ function color_tail(index, count, theme = 'light') {
         : (from + to) / 2;
 
     return `hsl(${COLOR_TAIL_HUE}, ${COLOR_TAIL_SATURATION}%, ${lightness.toFixed(1)}%)`;
+}
+
+/**
+ * the shades the rarer sectors of the stock splits take past the chart colors
+ * (#190): the long tail's hue, a step apart that tells three of them apart --
+ * neighboring steps of the tail's own ramp looked one and the same -- running
+ * away from the page, so each stays clear of No sector's gray. An office past
+ * them takes the next step.
+ */
+const COLOR_SECTOR_LIGHTNESS = { from: 30, step: 13 };
+const COLOR_SECTOR_LIGHTNESS_DARK = { from: 84, step: -13 };
+
+function color_sector_tail(index, theme = 'light') {
+    const { from, step } = theme === 'dark' ? COLOR_SECTOR_LIGHTNESS_DARK : COLOR_SECTOR_LIGHTNESS;
+
+    return `hsl(${COLOR_TAIL_HUE}, ${COLOR_TAIL_SATURATION}%, ${(from + (step * index)).toFixed(1)}%)`;
 }
 
 /**
@@ -253,7 +278,9 @@ export {
     translucent,
     colors_categorical,
     color_other,
+    color_other_dark,
     color_tail,
+    color_sector_tail,
     colors_severity,
     colors_severity_dark,
     severityColors,

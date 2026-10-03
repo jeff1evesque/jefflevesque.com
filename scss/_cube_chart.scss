@@ -25,6 +25,36 @@
 }
 
 //
+// the sectors a month of stock splits is banded by, each with its swatch, on a
+// line over the plot that wraps where it runs out of room (#190). Nearer the
+// plot than the chart's gap, since it reads with it. The chart sets it in to
+// the caption's left edge
+//
+.cube-chart-legend {
+  color: $gray-7;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.93rem;
+  gap: 0.35rem 1.1rem;
+  list-style: none;
+  margin: 0 0 -0.75rem;
+  padding: 0;
+}
+
+.cube-chart-legend-item {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.cube-chart-legend-swatch {
+  border-radius: 3px;
+  flex: none;
+  height: 0.75rem;
+  width: 0.75rem;
+}
+
+//
 // the plot takes the row's width, which the chart measures to lay out its bars,
 // and holds the caption, the api icons, the tooltip and the loader over it
 //
@@ -442,4 +472,50 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
   width: 3.5rem;
+}
+
+//
+// a day's sectors, down the list's columns as its rows would run, each heading
+// a column of its tickers with its swatch, its name and its count beside it,
+// and marked while its band is lit (#190). A sector stays in one column where
+// it fits one, and a longer one runs on into the next, its head kept with its
+// first ticker. The chart sets how many columns
+//
+.cube-list-sectors {
+  column-gap: 2rem;
+}
+
+.cube-list-sector {
+  break-inside: avoid;
+  padding-bottom: 0.6rem;
+
+  &.is-long {
+    break-inside: auto;
+  }
+}
+
+.cube-list-sector-head {
+  align-items: center;
+  border-radius: 4px;
+  break-after: avoid;
+  color: $gray-8;
+  display: flex;
+  font-size: 1rem;
+  font-weight: 600;
+  gap: 0.6rem;
+  min-height: 2.1rem;
+  padding: 0 0.5rem;
+
+  .cube-list-name {
+    flex: 0 1 auto;
+  }
+
+  .cube-list-count {
+    color: $gray-6;
+    font-weight: 400;
+  }
+
+  &.is-lit {
+    background: rgba(var(--ink-rgb), 0.06);
+  }
 }

@@ -9,6 +9,9 @@
  * icons in its month row below a tablet's width, so the rows' own copy is
  * hidden there, and the blocks over the chart keep room between them.
  *
+ * And about a month of stock splits banded by sector (#190): the legend over
+ * the chart, and the heads a day's tickers sit under.
+ *
  * Note: read the way navigation/stylesheet.test.js reads its partials:
  *       comments taken out, and a block found by its header, whole.
  */
@@ -60,11 +63,16 @@ describe('a phone\'s rows (#188)', () => {
         expect(row).toMatch(/grid-template-areas\s*:\s*'name count share'\s*'bar bar bar'\s*;/);
     });
 
-    it('run the arrow down the end of a row that opens', () => {
-        const [opening] = blocks(row, '&.is-opening');
+    it('hold the share\'s column wide enough for a figure like 6.6%, so every row\'s count ends in one place', () => {
+        expect(row).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto minmax\(2\.6rem, auto\)\s*;/);
+    });
 
-        expect(opening).toMatch(/grid-template-areas\s*:\s*'name count share arrow'\s*'bar bar bar arrow'\s*;/);
-        expect(opening).toMatch(/cursor\s*:\s*pointer\s*;/);
+    it('run the arrow down the end of every row of a list where any opens, so a row that opens nothing lines up', () => {
+        const [arrows] = blocks(rows, '.cube-rows-list.has-arrows .cube-rows-row');
+
+        expect(arrows).toMatch(/grid-template-areas\s*:\s*'name count share arrow'\s*'bar bar bar arrow'\s*;/);
+        expect(arrows).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto minmax\(2\.6rem, auto\) 1\.5rem\s*;/);
+        expect(blocks(row, '&.is-opening')[0]).toMatch(/cursor\s*:\s*pointer\s*;/);
     });
 
     it('stripe every other row a faint gray, as the site\'s phone tables are (#145)', () => {
@@ -98,6 +106,38 @@ describe('a phone\'s rows (#188)', () => {
         const [phone] = blocks(rows, '@media (max-width: 767.98px)');
 
         expect(blocks(phone, '.cube-rows-actions')[0]).toMatch(/display\s*:\s*none\s*;/);
+    });
+});
+
+describe('a month banded by sector (#190)', () => {
+    const rows = read('_cube_rows.scss');
+    const chart = read('_cube_chart.scss');
+
+    it('wrap the sectors\' legend over a phone\'s rows, and over the plot, nearer it than the chart\'s gap', () => {
+        const [phone] = blocks(rows, '.cube-rows-legend');
+        const [wide] = blocks(chart, '.cube-chart-legend');
+
+        expect(phone).toMatch(/flex-wrap\s*:\s*wrap\s*;/);
+        expect(wide).toMatch(/flex-wrap\s*:\s*wrap\s*;/);
+        expect(wide).toMatch(/margin\s*:\s*0 0 -0\.75rem\s*;/);
+        expect(blocks(chart, '.cube-chart')[0]).toMatch(/gap\s*:\s*1\.5rem\s*;/);
+    });
+
+    it('head a day\'s tickers with their sectors: one under another on a phone, down the list\'s columns on a wide screen', () => {
+        const [sector] = blocks(chart, '.cube-list-sector');
+
+        expect(blocks(rows, '.cube-rows-sectors')[0]).toMatch(/flex-direction\s*:\s*column\s*;/);
+        expect(blocks(chart, '.cube-list-sectors')[0]).toMatch(/column-gap\s*:\s*2rem\s*;/);
+        expect(sector).toMatch(/break-inside\s*:\s*avoid\s*;/);
+        expect(blocks(sector, '&.is-long')[0]).toMatch(/break-inside\s*:\s*auto\s*;/);
+        expect(blocks(chart, '.cube-list-sector-head')[0]).toMatch(/break-after\s*:\s*avoid\s*;/);
+    });
+
+    it('mark a sector\'s head on a wide screen while its band is lit, as a row is', () => {
+        const [head] = blocks(chart, '.cube-list-sector-head');
+
+        expect(blocks(head, '&.is-lit')[0]).toMatch(/background\s*:\s*rgba\(var\(--ink-rgb\), 0\.06\)\s*;/);
+        expect(blocks(head, '.cube-list-name')[0]).toMatch(/flex\s*:\s*0 1 auto\s*;/);
     });
 });
 

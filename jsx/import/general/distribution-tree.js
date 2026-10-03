@@ -9,6 +9,13 @@
  *     { severity: 'Severe', 'Flash Flood Warning': 1390, ... }
  *     { sector: 'Day 12', splits: 3, tickers: 'crwd 4:1, svc 1:5, muu 20:1' }
  *
+ * and a day of stock splits, once the datalake api names each split's company,
+ * with its sectors as well, each holding its own splits and tickers (#190):
+ *
+ *     { sector: 'Day 12', splits: 3, tickers: '...', sectors: {
+ *         'Office of Technology': { splits: 2, tickers: 'crwd 4:1, muu 20:1' },
+ *         'other': { splits: 1, tickers: 'svc 1:5' } } }
+ *
  * This turns those rows into the groups and members the charts draw -- the bars
  * of cubes on a wide screen, and their rows on a phone -- each with its colors
  * and its place in the order. It is pure, so the rules are held by tests
@@ -16,7 +23,7 @@
  */
 
 import checkValidString from '../validator/valid-string.js';
-import { colors_categorical, color_tail } from './colors.js';
+import { colors_categorical, color_other, color_other_dark, color_sector_tail, color_tail } from './colors.js';
 
 //
 // nws severity is an ordered scale, so it is drawn worst first rather than
@@ -53,6 +60,90 @@ function byName(a, b) {
 
 function bySize(a, b) {
     return (b.value - a.value) || byName(a, b);
+}
+
+//
+// the SEC offices that review a split company's industry -- the api's
+// stock-split 'sector' -- in the order they take the chart's colors (#190). The
+// order is fixed, so an office keeps its color every day of every month: the
+// first eight take the chart colors, and the rest steps of the long tail's hue
+//
+export const SECTORS = [
+    'Office of Life Sciences',
+    'Office of Technology',
+    'Office of Manufacturing',
+    'Office of Trade & Services',
+    'Office of Finance',
+    'Office of Energy & Transportation',
+    'Office of Industrial Applications and Services',
+    'Office of Real Estate & Construction',
+    'Office of Crypto Assets',
+    'Office of International Corp Fin',
+    'Office of Structured Finance',
+];
+
+//
+// what the api calls the sector of a split with no company on file
+//
+export const NO_SECTOR = 'other';
+
+function sectorRank(sector) {
+    if (sector === NO_SECTOR) {
+        return SECTORS.length + 1;
+    }
+
+    const at = SECTORS.indexOf(sector);
+    return at === -1 ? SECTORS.length : at;
+}
+
+//
+// a sector's name on the page: the office without its 'Office of', which a
+// legend and a tooltip have no room for, and 'No sector' for the api's 'other'
+//
+export function sectorName(sector) {
+    return sector === NO_SECTOR ? 'No sector' : String(sector).replace(/^Office of\s+/i, '');
+}
+
+//
+// a sector's color, the same on every day of every month: the chart colors in
+// SECTORS' order, then the long tail's hue a step at a time, each office its
+// own step, and an office SECTORS does not know the step after theirs. No
+// sector is a neutral gray, which recedes behind the named ones
+//
+export function sectorShade(sector, theme = 'light') {
+    if (sector === NO_SECTOR) {
+        return theme === 'dark' ? color_other_dark : color_other;
+    }
+
+    const rank = sectorRank(sector);
+    return rank < colors_categorical.length
+        ? colors_categorical[rank]
+        : color_sector_tail(rank - colors_categorical.length, theme);
+}
+
+//
+// a day's sectors largest first, and No sector last, on top of its stack
+//
+function bySector(a, b) {
+    return ((a.sector === NO_SECTOR) - (b.sector === NO_SECTOR)) || bySize(a, b);
+}
+
+//
+// the sectors a worker's row carries, each with its count and its tickers, or
+// none for a row without them
+//
+function sectorsOf(held) {
+    if (!held || typeof held !== 'object') {
+        return [];
+    }
+
+    return Object.keys(held)
+        .map((sector) => ({
+            sector: sector,
+            value: Number(held[sector] && held[sector].splits),
+            pairs: splitTickerPairs(held[sector] && held[sector].tickers),
+        }))
+        .filter((entry) => Number.isFinite(entry.value) && entry.value > 0);
 }
 
 //
@@ -105,11 +196,17 @@ export function share(part, whole) {
 // stream whose groups each hold the same one thing -- sec's 'Filings', bls's
 // 'Reports' -- has nothing under a group, so each is a bar of one color that
 // opens nothing. Tickers always nest, since a day's tickers are exactly what a
-// reader opens it for.
+// reader opens it for, and so do a day's sectors, which hold them.
+//
+// 'sectors' is every sector the month's stock splits fall in, in the order of
+// their colors, for the charts' legend: none for a month the api sent without
+// them, or for any other stream (#190). A day of them has its sectors as its
+// members, each holding its tickers.
 //
 export default function distributionTree(rows, aggregate_key, theme = 'light') {
     const by_name = new Map();
     const names = new Set();
+    const sectored = new Set();
     let noted = false;
 
     (Array.isArray(rows) ? rows : []).forEach((row) => {
@@ -122,18 +219,31 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
             (key) => key !== aggregate_key && typeof row[key] === 'number' && Number.isFinite(row[key])
         );
 
-        const pairs = splitTickerPairs(row.tickers);
-        const found = pairs.length
-            ? pairs.map((pair) => ({ name: pair.ticker, value: 1, note: pair.ratio || null }))
-            : counted
+        const sectors = sectorsOf(row.sectors);
+        const pairs = sectors.length ? [] : splitTickerPairs(row.tickers);
+        let found;
+
+        if (sectors.length) {
+            found = sectors.map((entry) => ({
+                name: sectorName(entry.sector),
+                value: entry.value,
+                note: null,
+                sector: entry.sector,
+                pairs: entry.pairs,
+            }));
+        } else if (pairs.length) {
+            found = pairs.map((pair) => ({ name: pair.ticker, value: 1, note: pair.ratio || null }));
+        } else {
+            found = counted
                 .filter((key) => row[key] > 0)
                 .map((key) => ({ name: key, value: row[key], note: null }));
+        }
 
         if (!found.length) {
             return;
         }
 
-        noted = noted || pairs.length > 0;
+        noted = noted || pairs.length > 0 || sectors.length > 0;
 
         if (!by_name.has(name)) {
             by_name.set(name, { key: name, name: name, value: 0, members: [] });
@@ -148,25 +258,67 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
         //
         const group = by_name.get(name);
         found.forEach((member) => {
+            names.add(member.name);
+            group.value += member.value;
+
+            //
+            // a sector two rows of one day name is one band of it, holding the
+            // tickers of both
+            //
+            if (member.sector !== undefined) {
+                let held = group.members.find((kept) => kept.sector === member.sector);
+
+                if (!held) {
+                    held = {
+                        name: member.name,
+                        value: 0,
+                        note: null,
+                        sector: member.sector,
+                        tickers: [],
+                        key: `${name}\u0000${member.name}`,
+                        group: group,
+                    };
+                    group.members.push(held);
+                }
+
+                sectored.add(member.sector);
+                held.value += member.value;
+                member.pairs.forEach((pair) => held.tickers.push({ name: pair.ticker, value: 1, note: pair.ratio || null }));
+                return;
+            }
+
             const repeat = group.members.filter((held) => held.name === member.name).length;
 
-            names.add(member.name);
             group.members.push({
                 ...member,
                 key: `${name}\u0000${member.name}${repeat ? `\u0000${repeat}` : ''}`,
                 group: group,
             });
-            group.value += member.value;
         });
     });
 
     const groups = groupOrder(Array.from(by_name.values()));
-    groups.forEach((group) => group.members.sort(bySize));
+    groups.forEach((group) => group.members.sort(bySector));
+
+    //
+    // a sector's tickers run alphabetically, as a day's do, each keyed by its
+    // sector as well, and a ticker it lists twice keyed apart
+    //
+    groups.forEach((group) => group.members.forEach((member) => {
+        if (member.tickers) {
+            member.tickers.sort(byName);
+            member.tickers.forEach((ticker, at) => {
+                const repeat = member.tickers.slice(0, at).filter((held) => held.name === ticker.name).length;
+                ticker.key = `${member.key}\u0000${ticker.name}${repeat ? `\u0000${repeat}` : ''}`;
+            });
+        }
+    }));
 
     //
     // a member's color, by its rank in its group: the chart colors, largest
     // first, then the shades of the long tail. Its band of its group's bar wears
-    // it, and so does its own row once the group is opened
+    // it, and so does its own row once the group is opened. A day's sector
+    // wears its own, the same on every day (#190)
     //
     // Note: a group has no color of its own since #188. The sunburst's inner
     //       ring wore one, a severity scale down one red ramp, and nothing else
@@ -176,6 +328,11 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
         const tail = Math.max(group.members.length - colors_categorical.length, 0);
 
         group.members.forEach((member, rank) => {
+            if (member.sector !== undefined) {
+                member.shade = sectorShade(member.sector, theme);
+                return;
+            }
+
             member.shade = rank < colors_categorical.length
                 ? colors_categorical[rank]
                 : color_tail(rank - colors_categorical.length, tail, theme);
@@ -186,5 +343,8 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
         groups: groups,
         total: groups.reduce((sum, group) => sum + group.value, 0),
         nested: noted || names.size > 1,
+        sectors: Array.from(sectored)
+            .sort((a, b) => (sectorRank(a) - sectorRank(b)) || a.localeCompare(b))
+            .map((sector) => ({ key: sector, name: sectorName(sector), shade: sectorShade(sector, theme) })),
     };
 }

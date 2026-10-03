@@ -29,6 +29,8 @@ import path from 'path';
 
 import {
     color_other,
+    color_other_dark,
+    color_sector_tail,
     color_tail,
     colors,
     colors_categorical,
@@ -202,6 +204,37 @@ describe('color_other', () => {
 
     it('is not one of the categorical colors', () => {
         expect(colors_categorical).not.toContain(color_other);
+    });
+});
+
+describe('color_other_dark (#190)', () => {
+    it('is the documented neutral for a dark page', () => {
+        expect(color_other_dark).toBe('#4a4a44');
+    });
+
+    it('is dark and desaturated, so it recedes toward a dark page as color_other does toward white', () => {
+        const [lightness, a, b] = linearToOklab(hexToLinear(color_other_dark));
+
+        expect(lightness).toBeLessThan(0.45);
+        expect(Math.hypot(a, b)).toBeLessThan(0.03);
+    });
+});
+
+describe('color_sector_tail (#190)', () => {
+    const lightness = (shade) => Number(shade.match(/([\d.]+)%\)/)[1]);
+
+    it('takes the long tail\'s hue and saturation', () => {
+        expect(color_sector_tail(1)).toMatch(/^hsl\(210, 12%, [\d.]+%\)$/);
+        expect(color_sector_tail(1, 'dark')).toMatch(/^hsl\(210, 12%, [\d.]+%\)$/);
+    });
+
+    it('steps away from the page, 13 points at a time: up from 30% on a light page, down from 84% on a dark one', () => {
+        expect([0, 1, 2, 3].map((index) => lightness(color_sector_tail(index)))).toEqual([30, 43, 56, 69]);
+        expect([0, 1, 2, 3].map((index) => lightness(color_sector_tail(index, 'dark')))).toEqual([84, 71, 58, 45]);
+    });
+
+    it('is the light step for a theme that is not dark', () => {
+        expect(color_sector_tail(2, 'sepia')).toBe(color_sector_tail(2));
     });
 });
 

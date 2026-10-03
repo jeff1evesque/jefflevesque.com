@@ -33,6 +33,11 @@
  * Note: what a cube is worth, and the api icons, sit inside the plot on one
  *       line, set in from its top corners (#169). The caption had a line of its
  *       own over the plot, which the chart gives back -- see CAPTION_ROOM.
+ *
+ * Note: a day of stock splits the api names the companies of is banded by
+ *       sector, each in its own color, which a legend over the chart names
+ *       (#190). Pointing at a band names its sector and that sector's tickers,
+ *       and the day's list heads its tickers with their sectors.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -286,7 +291,12 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
     if (band && lit.from === 'cube') {
         const bar = band.bar;
         const holds = bar.holds;
-        const tickers = holds && holds.kind === 'tickers' ? holds.items : [];
+
+        //
+        // the day's tickers, or the band's own where the day is banded by
+        // sector (#190)
+        //
+        const tickers = band.part.tickers || (holds && holds.kind === 'tickers' ? holds.items : []);
         const middle = Math.min(plot.bottom - 24, Math.max(plot.top + 24, (band.top + band.bottom) / 2));
         const stack = (layout.across * layout.pitch) - 2;
 
@@ -320,12 +330,34 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
     if (opened) {
         const holds = opened.holds;
         const pair = rowNoun(holds, names);
-        let rows;
+        let rows = [];
+        let sections = null;
 
-        if (holds.kind === 'members') {
+        if (holds.sectors) {
+            //
+            // a day banded by sector heads its tickers with their sectors, in
+            // the bar's order, each ticker in its sector's color. Pointing at a
+            // heading or a ticker lights the sector's band, and the heading
+            // marks it (#190)
+            //
+            sections = holds.sectors.map((sector) => ({
+                sector: sector,
+                rows: sector.tickers.map((ticker) => ({
+                    key: ticker.key,
+                    band: sector.key,
+                    marked: false,
+                    name: ticker.name,
+                    value: ticker.note,
+                    share: null,
+                    color: sector.shade,
+                })),
+            }));
+            rows = sections.reduce((all, section) => all.concat(section.rows), []);
+        } else if (holds.kind === 'members') {
             rows = holds.items.map((member) => ({
                 key: member.key,
                 band: member.key,
+                marked: true,
                 name: member.name,
                 value: fmt(member.value),
                 share: listShare(member.value, opened.value),
@@ -363,9 +395,41 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
             meta.push(`${share(opened.value, tree.total)} of all`);
         }
 
+        //
+        // as many columns as rows of LIST_ROWS need, 3 to 6. A day banded by
+        // sector counts its sectors' heads as rows as well
+        //
+        const count = rows.length + (sections ? sections.length : 0);
         const columns = Math.min(
-            rows.length,
-            Math.max(LIST_COLUMNS, Math.min(MAX_LIST_COLUMNS, Math.ceil(rows.length / LIST_ROWS))),
+            count,
+            Math.max(LIST_COLUMNS, Math.min(MAX_LIST_COLUMNS, Math.ceil(count / LIST_ROWS))),
+        );
+
+        //
+        // rows down `across` columns, the list's own unless it is told
+        //
+        const rowsOf = (listed, label, across = columns) => (
+            <ul
+                className='cube-list-rows'
+                aria-label={label}
+                style={{
+                    gridTemplateColumns: `repeat(${across}, minmax(0, 1fr))`,
+                    gridTemplateRows: `repeat(${Math.ceil(listed.length / across)}, auto)`,
+                }}
+            >
+                {listed.map((row) => (
+                    <li
+                        key={row.key}
+                        className={`cube-list-row${row.marked && lit && lit.key === row.band ? ' is-lit' : ''}`}
+                        onMouseEnter={row.band ? () => light({ key: row.band, from: 'row' }) : undefined}
+                    >
+                        <span className='cube-list-swatch' style={{ background: row.color }} />
+                        <span className='cube-list-name' title={row.name}>{row.name}</span>
+                        <span className='cube-list-count'>{row.value}</span>
+                        {row.share === null ? null : <span className='cube-list-share'>{row.share}</span>}
+                    </li>
+                ))}
+            </ul>
         );
 
         list = (
@@ -390,26 +454,31 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                         <CloseIcon fontSize='small' />
                     </button>
                 </div>
-                <ul
-                    className='cube-list-rows'
-                    style={{
-                        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                        gridTemplateRows: `repeat(${Math.ceil(rows.length / columns)}, auto)`,
-                    }}
-                >
-                    {rows.map((row) => (
-                        <li
-                            key={row.key}
-                            className={`cube-list-row${row.band && lit && lit.key === row.band ? ' is-lit' : ''}`}
-                            onMouseEnter={row.band ? () => light({ key: row.band, from: 'row' }) : undefined}
-                        >
-                            <span className='cube-list-swatch' style={{ background: row.color }} />
-                            <span className='cube-list-name' title={row.name}>{row.name}</span>
-                            <span className='cube-list-count'>{row.value}</span>
-                            {row.share === null ? null : <span className='cube-list-share'>{row.share}</span>}
-                        </li>
-                    ))}
-                </ul>
+                {/*
+
+                    a day's sectors run down the list's columns, as its rows
+                    would, each heading a column of its own tickers. One longer
+                    than a column runs on into the next, so a day of one large
+                    sector still stands in columns
+
+                */}
+                {sections ? (
+                    <div className='cube-list-sectors' style={{ columnCount: columns }}>
+                        {sections.map(({ sector, rows: listed }) => (
+                            <div key={sector.key} className={`cube-list-sector${listed.length > LIST_ROWS ? ' is-long' : ''}`}>
+                                <div
+                                    className={`cube-list-sector-head${lit && lit.key === sector.key ? ' is-lit' : ''}`}
+                                    onMouseEnter={() => light({ key: sector.key, from: 'row' })}
+                                >
+                                    <span className='cube-list-swatch' style={{ background: sector.shade }} />
+                                    <span className='cube-list-name'>{sector.name}</span>
+                                    <span className='cube-list-count'>{fmt(sector.value)}</span>
+                                </div>
+                                {rowsOf(listed, sector.name, 1)}
+                            </div>
+                        ))}
+                    </div>
+                ) : rowsOf(rows)}
             </section>
         );
     }
@@ -425,6 +494,27 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                 }
             }}
         >
+            {/*
+
+                the sectors a month of stock splits is banded by, each in its
+                color, on a line over the chart, set in to the caption's left
+                edge (#190)
+
+            */}
+            {tree.sectors && tree.sectors.length ? (
+                <ul
+                    className='cube-chart-legend'
+                    aria-label='Sectors'
+                    style={{ paddingLeft: plot.left + CAPTION_INSET.left }}
+                >
+                    {tree.sectors.map((sector) => (
+                        <li key={sector.key} className='cube-chart-legend-item'>
+                            <span className='cube-chart-legend-swatch' style={{ background: sector.shade }} />
+                            {sector.name}
+                        </li>
+                    ))}
+                </ul>
+            ) : null}
             <div className='cube-chart-plot' ref={box} onMouseLeave={() => light(null)}>
                 <svg
                     width={width}
@@ -647,6 +737,11 @@ CubeChart.propTypes = {
         groups: PropTypes.arrayOf(PropTypes.object).isRequired,
         total: PropTypes.number.isRequired,
         nested: PropTypes.bool.isRequired,
+        sectors: PropTypes.arrayOf(PropTypes.shape({
+            key: PropTypes.string.isRequired,
+            name: PropTypes.string.isRequired,
+            shade: PropTypes.string.isRequired,
+        })),
     }).isRequired,
     names: PropTypes.shape({
         group: PropTypes.arrayOf(PropTypes.string).isRequired,

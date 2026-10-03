@@ -9,16 +9,59 @@
  */
 
 import distributionTree, {
+    NO_SECTOR,
+    SECTORS,
     SEVERITY_ORDER,
+    sectorName,
+    sectorShade,
     share,
     splitTickerPairs,
 } from '../../import/general/distribution-tree.js';
 import {
     colors_categorical,
+    color_other,
+    color_other_dark,
+    color_sector_tail,
     color_tail,
 } from '../../import/general/colors.js';
 
 const names = (tree) => tree.groups.map((group) => group.name);
+
+//
+// how far apart two colors look: their distance in OKLab, times 100, the measure
+// colors.js holds its chart colors apart by. A color is '#rrggbb' or the
+// 'hsl(h, s%, l%)' color_tail writes
+//
+function oklab(color) {
+    const hsl = /^hsl\(([\d.]+), ([\d.]+)%, ([\d.]+)%\)$/.exec(color);
+    let rgb;
+
+    if (hsl) {
+        const [h, s, l] = [Number(hsl[1]), Number(hsl[2]) / 100, Number(hsl[3]) / 100];
+        const k = (n) => (n + (h / 30)) % 12;
+        const a = s * Math.min(l, 1 - l);
+        rgb = [0, 8, 4].map((n) => l - (a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+    } else {
+        rgb = [1, 3, 5].map((at) => parseInt(color.slice(at, at + 2), 16) / 255);
+    }
+
+    const [r, g, b] = rgb.map((v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    const l = Math.cbrt((0.4122214708 * r) + (0.5363325363 * g) + (0.0514459929 * b));
+    const m = Math.cbrt((0.2119034982 * r) + (0.6806995451 * g) + (0.1073969566 * b));
+    const s = Math.cbrt((0.0883024619 * r) + (0.2817188376 * g) + (0.6299787005 * b));
+
+    return [
+        (0.2104542553 * l) + (0.7936177850 * m) - (0.0040720468 * s),
+        (1.9779984951 * l) - (2.4285922050 * m) + (0.4505937099 * s),
+        (0.0259040371 * l) + (0.7827717662 * m) - (0.8086757660 * s),
+    ];
+}
+
+function deltaE(a, b) {
+    const [x, y] = [oklab(a), oklab(b)];
+
+    return 100 * Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+}
 
 describe('splitTickerPairs', () => {
     it('splits the api\'s run-on ticker string into pairs', () => {
@@ -120,7 +163,7 @@ describe('the groups and what they hold', () => {
         ['a row that is not an object', ['Energy', 7, null]],
         ['a row that counts nothing', [{ sector: 'Energy', total: 0 }]],
     ])('draws nothing for %s', (name, rows) => {
-        expect(distributionTree(rows, 'sector')).toEqual({ groups: [], total: 0, nested: false });
+        expect(distributionTree(rows, 'sector')).toEqual({ groups: [], total: 0, nested: false, sectors: [] });
     });
 
     it.each([
@@ -208,6 +251,193 @@ describe('a day\'s tickers', () => {
         ], 'sector').groups;
 
         expect(new Set(day.members.map((member) => member.key)).size).toBe(2);
+    });
+});
+
+describe('a day\'s sectors (#190)', () => {
+    //
+    // a day as the stock-split worker answers it once the api names each
+    // split's company: its sectors, each with its splits and its tickers
+    //
+    const DAY = {
+        sector: 'Day 8',
+        splits: 6,
+        tickers: 'ucar 1:10, aurwf 1:10, ucar 1:20, phge 1:10, jmpld 3:4, cycn 1:7',
+        sectors: {
+            other: { splits: 3, tickers: 'ucar 1:10, aurwf 1:10, ucar 1:20' },
+            'Office of Trade & Services': { splits: 2, tickers: 'phge 1:10, jmpld 3:4' },
+            'Office of Life Sciences': { splits: 1, tickers: 'cycn 1:7' },
+        },
+    };
+
+    it('makes its sectors its members, largest first, and No sector last', () => {
+        const [day] = distributionTree([DAY], 'sector').groups;
+
+        expect(day.members.map((member) => [member.name, member.value, member.sector])).toEqual([
+            ['Trade & Services', 2, 'Office of Trade & Services'],
+            ['Life Sciences', 1, 'Office of Life Sciences'],
+            ['No sector', 3, 'other'],
+        ]);
+        expect(day.value).toBe(6);
+    });
+
+    it('holds each sector\'s tickers alphabetically, with their ratios, and keys a ticker listed twice apart', () => {
+        const [day] = distributionTree([DAY], 'sector').groups;
+        const none = day.members[2];
+
+        expect(day.members[0].tickers.map((ticker) => [ticker.name, ticker.value, ticker.note]))
+            .toEqual([['jmpld', 1, '3:4'], ['phge', 1, '1:10']]);
+        expect(none.tickers.map((ticker) => `${ticker.name} ${ticker.note}`)).toEqual(['aurwf 1:10', 'ucar 1:10', 'ucar 1:20']);
+        expect(none.tickers.map((ticker) => ticker.key)).toEqual([
+            'Day 8\u0000No sector\u0000aurwf',
+            'Day 8\u0000No sector\u0000ucar',
+            'Day 8\u0000No sector\u0000ucar\u00001',
+        ]);
+    });
+
+    it('reads the day\'s tickers from its sectors, never as members of their own', () => {
+        const [day] = distributionTree([DAY], 'sector').groups;
+
+        expect(day.members).toHaveLength(3);
+        expect(day.members.every((member) => member.note === null)).toBe(true);
+    });
+
+    it('makes a sector two rows of one day name one band, holding both rows\' tickers', () => {
+        const [day] = distributionTree([
+            { sector: 'Day 3', sectors: { 'Office of Technology': { splits: 1, tickers: 'ccc 1:4' } } },
+            { sector: 'Day 3', sectors: { 'Office of Technology': { splits: 2, tickers: 'aaa 1:2, bbb 1:3' } } },
+        ], 'sector').groups;
+
+        expect(day.members).toHaveLength(1);
+        expect(day.members[0].value).toBe(3);
+        expect(day.members[0].tickers.map((ticker) => ticker.name)).toEqual(['aaa', 'bbb', 'ccc']);
+    });
+
+    it('counts a sector the api sent no tickers for, holding none, and drops one of no splits', () => {
+        const [day] = distributionTree([
+            { sector: 'Day 4', sectors: { 'Office of Finance': { splits: 2 }, 'Office of Technology': { splits: 0 } } },
+        ], 'sector').groups;
+
+        expect(day.members.map((member) => [member.name, member.value, member.tickers])).toEqual([['Finance', 2, []]]);
+    });
+
+    it('carries no ratio for a sector\'s ticker the api sent without one, and skips a sector sent empty', () => {
+        const [day] = distributionTree([
+            { sector: 'Day 4', sectors: { 'Office of Finance': { splits: 1, tickers: 'cris' }, other: null } },
+        ], 'sector').groups;
+
+        expect(day.members).toHaveLength(1);
+        expect(day.members[0].tickers.map((ticker) => [ticker.name, ticker.note])).toEqual([['cris', null]]);
+    });
+
+    it('reads a day without sectors as it did, its tickers its members', () => {
+        const [day] = distributionTree([{ sector: 'Day 1', splits: 1, tickers: 'aph 2:1', sectors: null }], 'sector').groups;
+
+        expect(day.members.map((member) => [member.name, member.note])).toEqual([['aph', '2:1']]);
+    });
+
+    it('nests a month of one sector, whose days still open to their tickers', () => {
+        const tree = distributionTree([{ sector: 'Day 1', sectors: { other: { splits: 1, tickers: 'aph 2:1' } } }], 'sector');
+
+        expect(tree.nested).toBe(true);
+    });
+
+    it('names a sector without its \'Office of\', and the api\'s other as No sector', () => {
+        expect(sectorName('Office of Industrial Applications and Services')).toBe('Industrial Applications and Services');
+        expect(sectorName(NO_SECTOR)).toBe('No sector');
+        expect(sectorName('Division of Corporation Finance')).toBe('Division of Corporation Finance');
+    });
+});
+
+describe('the sectors\' colors (#190)', () => {
+    it('gives the first eight sectors the chart colors, in a fixed order', () => {
+        expect(SECTORS.slice(0, 8).map((sector) => sectorShade(sector))).toEqual(colors_categorical);
+        expect(sectorShade('Office of Life Sciences', 'dark')).toBe(colors_categorical[0]);
+    });
+
+    it('gives a sector the same color on every day, whatever its rank, and in another month', () => {
+        const september = distributionTree([
+            { sector: 'Day 1', sectors: { 'Office of Finance': { splits: 5 }, 'Office of Technology': { splits: 1 } } },
+            { sector: 'Day 2', sectors: { 'Office of Technology': { splits: 4 }, 'Office of Finance': { splits: 1 } } },
+        ], 'sector');
+        const october = distributionTree([
+            { sector: 'Day 9', sectors: { 'Office of Life Sciences': { splits: 7 }, 'Office of Finance': { splits: 2 } } },
+        ], 'sector');
+        const finance = [...september.groups, ...october.groups]
+            .map((group) => group.members.find((member) => member.sector === 'Office of Finance').shade);
+
+        expect(finance).toEqual([colors_categorical[4], colors_categorical[4], colors_categorical[4]]);
+    });
+
+    it('shades the sectors past the eighth in the long tail\'s hue, a step each, and one it does not know after them', () => {
+        expect(SECTORS.slice(8).map((sector) => sectorShade(sector))).toEqual([
+            color_sector_tail(0),
+            color_sector_tail(1),
+            color_sector_tail(2),
+        ]);
+        expect(sectorShade('Office of Something New')).toBe(color_sector_tail(3));
+        expect(sectorShade('Office of Crypto Assets', 'dark')).toBe(color_sector_tail(0, 'dark'));
+    });
+
+    it.each(['light', 'dark'])('tells the rarer sectors apart, neighbors at least 10 apart, on a %s page', (theme) => {
+        const rarer = SECTORS.slice(8).map((sector) => sectorShade(sector, theme));
+
+        rarer.slice(1).forEach((shade, at) => {
+            expect(deltaE(shade, rarer[at])).toBeGreaterThanOrEqual(10);
+        });
+    });
+
+    it('grays No sector for the page\'s theme', () => {
+        expect(sectorShade(NO_SECTOR)).toBe(color_other);
+        expect(sectorShade(NO_SECTOR, 'dark')).toBe(color_other_dark);
+    });
+
+    it.each(['light', 'dark'])('keeps No sector\'s gray clear of every sector\'s color on a %s page', (theme) => {
+        const gray = sectorShade(NO_SECTOR, theme);
+
+        SECTORS.forEach((sector) => {
+            expect(deltaE(gray, sectorShade(sector, theme))).toBeGreaterThanOrEqual(15);
+        });
+    });
+
+    it('colors a day\'s members by their sectors, for the page\'s theme', () => {
+        const [day] = distributionTree([{ sector: 'Day 8', sectors: {
+            other: { splits: 3 },
+            'Office of Structured Finance': { splits: 1 },
+        } }], 'sector', 'dark').groups;
+
+        expect(day.members.map((member) => member.shade)).toEqual([color_sector_tail(2, 'dark'), color_other_dark]);
+    });
+});
+
+describe('the month\'s sectors, for the legend (#190)', () => {
+    it('lists each sector the month holds once, in the order of their colors, and No sector last', () => {
+        const tree = distributionTree([
+            { sector: 'Day 1', sectors: { other: { splits: 4 }, 'Office of Finance': { splits: 1 } } },
+            { sector: 'Day 2', sectors: { 'Office of Life Sciences': { splits: 1 }, 'Office of Finance': { splits: 2 } } },
+        ], 'sector', 'dark');
+
+        expect(tree.sectors).toEqual([
+            { key: 'Office of Life Sciences', name: 'Life Sciences', shade: colors_categorical[0] },
+            { key: 'Office of Finance', name: 'Finance', shade: colors_categorical[4] },
+            { key: 'other', name: 'No sector', shade: color_other_dark },
+        ]);
+    });
+
+    it('lists an office it does not know after the ones it does, by name, and before No sector', () => {
+        const tree = distributionTree([{ sector: 'Day 1', sectors: {
+            other: { splits: 1 },
+            'Office of Zoning': { splits: 1 },
+            'Office of Aviation': { splits: 1 },
+            'Office of Structured Finance': { splits: 1 },
+        } }], 'sector');
+
+        expect(tree.sectors.map((sector) => sector.name)).toEqual(['Structured Finance', 'Aviation', 'Zoning', 'No sector']);
+    });
+
+    it('lists none for a month the api sent without sectors, or for another stream', () => {
+        expect(distributionTree([{ sector: 'Day 1', splits: 1, tickers: 'aph 2:1' }], 'sector').sectors).toEqual([]);
+        expect(distributionTree([{ sector: 'Energy', Refining: 3 }], 'sector').sectors).toEqual([]);
     });
 });
 
