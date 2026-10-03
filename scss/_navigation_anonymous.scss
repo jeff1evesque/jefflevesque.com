@@ -310,6 +310,14 @@
       .data-listing {
         scroll-margin-top: calc(57px + 1.5rem);
       }
+
+      //
+      // the sunburst's column names, held under the pinned bar while its list
+      // scrolls by with the page, not under the bar, out of sight
+      //
+      .sunburst-phone .sunburst-list-head {
+        top: 57px;
+      }
     }
   }
 
