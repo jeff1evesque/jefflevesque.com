@@ -12,7 +12,7 @@ import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import CubeRows, { rowUnit, rowCut, shownOf, cubesOf } from '../../import/general/cube-rows.jsx';
 import distributionTree from '../../import/general/distribution-tree.js';
-import { colors_categorical } from '../../import/general/colors.js';
+import { colors_categorical, color_other } from '../../import/general/colors.js';
 
 const SECTORS = { group: ['sector', 'sectors'], member: ['industry', 'industries'], unit: ['record', 'records'] };
 const DAYS = { group: ['day', 'days'], member: ['ticker', 'tickers'], unit: ['split', 'splits'] };
@@ -65,6 +65,24 @@ const SPLITS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((day) => {
         tickers: Array.from({ length: count }, (ignored, at) => `d${day}x${at} 2:1`).join(', '),
     };
 });
+
+//
+// a month of stock splits once the api names each split's company (#190): Day 8
+// of three sectors, Day 9 of one, and Day 10 of twelve tickers in three
+//
+const SECTORED = [
+    { split_date: 'Day 8', sectors: {
+        other: { splits: 3, tickers: 'ucar 1:10, aurwf 1:10, ucar 1:20' },
+        'Office of Trade & Services': { splits: 2, tickers: 'phge 1:10, jmpld 3:4' },
+        'Office of Life Sciences': { splits: 1, tickers: 'cycn 1:7' },
+    } },
+    { split_date: 'Day 9', sectors: { 'Office of Manufacturing': { splits: 2, tickers: 'qbtz 1:5, stsm 1:2' } } },
+    { split_date: 'Day 10', sectors: {
+        'Office of Technology': { splits: 7, tickers: 'a1 1:2, a2 1:2, a3 1:2, a4 1:2, a5 1:2, a6 1:2, a7 1:2' },
+        'Office of Finance': { splits: 3, tickers: 'b1 1:3, b2 1:3, b3 1:3' },
+        'Office of Manufacturing': { splits: 2, tickers: 'c1 1:4, c2 1:4' },
+    } },
+];
 
 function forms(count) {
     return Array.from({ length: count }, (ignored, index) => ({ form: `Form ${index + 1}`, Filings: (count - index) * 100 }));
@@ -484,6 +502,96 @@ describe('a day\'s splits', () => {
         splits();
 
         expect(row('Day 7')).toHaveAttribute('aria-label', 'Day 7, 24 splits, 48% of all. Opens its 24 tickers');
+    });
+});
+
+describe('a day banded by sector (#190)', () => {
+    const heads = (container) => [...container.querySelectorAll('.cube-rows-sector-head')].map((head) => head.textContent);
+    const tickers = (container) => [...container.querySelectorAll('.cube-rows-ticker')].map((ticker) => ticker.textContent);
+    const legend = (container) => container.querySelector('.cube-rows-legend');
+
+    it('bands each day\'s bar by its sectors, each in its color, and No sector last', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        expect(names(container)).toEqual(['Day 8', 'Day 9', 'Day 10']);
+        expect(cubesIn(bars(container)[0]).map((cube) => cube.getAttribute('fill'))).toEqual([
+            colors_categorical[3], colors_categorical[3], colors_categorical[0], color_other, color_other, color_other,
+        ]);
+    });
+
+    it('names the month\'s sectors in a legend over the rows, under what a cube is worth', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        expect(legend(container)).toHaveAttribute('aria-label', 'Sectors');
+        expect(key(container).nextElementSibling).toBe(legend(container));
+        expect([...legend(container).querySelectorAll('li')].map((item) => item.textContent))
+            .toEqual(['Life Sciences', 'Technology', 'Manufacturing', 'Trade & Services', 'Finance', 'No sector']);
+        expect(legend(container).querySelector('.cube-rows-swatch').style.background).toBe('rgb(42, 120, 214)');
+    });
+
+    it('draws no legend for a month the api sent without sectors', () => {
+        const { container } = draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+
+        expect(legend(container)).toBeNull();
+    });
+
+    it('opens every day, a day of one sector as well, read out with the tickers it opens', () => {
+        draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        expect(row('Day 8')).toHaveAttribute('aria-label', 'Day 8, 6 splits, 30% of all. Opens its 6 tickers');
+        expect(row('Day 9')).toHaveAttribute('aria-label', 'Day 9, 2 splits, 10% of all. Opens its 2 tickers');
+    });
+
+    it('opens a day to its tickers under their sectors\' heads, in the bar\'s order, and no legend', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.click(row('Day 8'));
+
+        expect(container.querySelector('.cube-rows-meta').textContent).toBe('6 splits · 30% of all');
+        expect(container.querySelector('.cube-rows-sectors')).toHaveAttribute('aria-label', 'Day 8: its tickers');
+        expect(heads(container)).toEqual(['Trade & Services2', 'Life Sciences1', 'No sector3']);
+        expect([...container.querySelectorAll('.cube-rows-sector .cube-rows-tickers')].map((list) => list.getAttribute('aria-label')))
+            .toEqual(['Trade & Services', 'Life Sciences', 'No sector']);
+        expect(tickers(container)).toEqual(['jmpld3:4', 'phge1:10', 'cycn1:7', 'aurwf1:10', 'ucar1:10', 'ucar1:20']);
+        expect(container.querySelector('.cube-rows-sector-head .cube-rows-swatch').style.background).toBe('rgb(237, 161, 0)');
+        expect(legend(container)).toBeNull();
+        expect(more()).toBeNull();
+    });
+
+    it('opens a day of one sector to its tickers', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.click(row('Day 9'));
+
+        expect(heads(container)).toEqual(['Manufacturing2']);
+        expect(tickers(container)).toEqual(['qbtz1:5', 'stsm1:2']);
+    });
+
+    it('shows a day\'s first 9 tickers, with the heads they fall under, then the rest', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.click(row('Day 10'));
+
+        expect(heads(container)).toEqual(['Technology7', 'Finance3']);
+        expect(tickers(container)).toHaveLength(9);
+        expect(tickers(container).slice(6)).toEqual(['a71:2', 'b11:3', 'b21:3']);
+        expect(more()).toHaveTextContent('Show 3 more tickers');
+
+        fireEvent.click(more());
+
+        expect(heads(container)).toEqual(['Technology7', 'Finance3', 'Manufacturing2']);
+        expect(tickers(container)).toHaveLength(12);
+        expect(fewer()).not.toBeNull();
+    });
+
+    it('goes back from a day to every day, with the legend', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        fireEvent.click(row('Day 8'));
+        fireEvent.click(close());
+
+        expect(names(container)).toEqual(['Day 8', 'Day 9', 'Day 10']);
+        expect(legend(container)).not.toBeNull();
     });
 });
 
