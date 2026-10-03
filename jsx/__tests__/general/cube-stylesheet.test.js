@@ -168,6 +168,15 @@ describe('the rows\' titles (#192)', () => {
     });
 });
 
+describe('the listing\'s None pill (#192)', () => {
+    it('is outlined: a gray edge around the page\'s own color, drawn inside it', () => {
+        const [off] = blocks(read('_article.scss'), '.listing-table-pill-off');
+
+        expect(off).toMatch(/background-color\s*:\s*\$white-1\s*;/);
+        expect(off).toMatch(/box-shadow\s*:\s*inset 0 0 0 1px \$gray-5\s*;/);
+    });
+});
+
 describe('the stack over the chart on a phone (#185)', () => {
     it('keeps 1.25rem under the green bar, 0.75rem under the name and 1.25rem under the month row', () => {
         const [back] = blocks(read('_back-bar.scss'), '.data-back-row');
