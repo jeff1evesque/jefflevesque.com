@@ -60,11 +60,16 @@ describe('a phone\'s rows (#188)', () => {
         expect(row).toMatch(/grid-template-areas\s*:\s*'name count share'\s*'bar bar bar'\s*;/);
     });
 
-    it('run the arrow down the end of a row that opens', () => {
-        const [opening] = blocks(row, '&.is-opening');
+    it('hold the share\'s column wide enough for a figure like 6.6%, so every row\'s count ends in one place', () => {
+        expect(row).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto minmax\(2\.6rem, auto\)\s*;/);
+    });
 
-        expect(opening).toMatch(/grid-template-areas\s*:\s*'name count share arrow'\s*'bar bar bar arrow'\s*;/);
-        expect(opening).toMatch(/cursor\s*:\s*pointer\s*;/);
+    it('run the arrow down the end of every row of a list where any opens, so a row that opens nothing lines up', () => {
+        const [arrows] = blocks(rows, '.cube-rows-list.has-arrows .cube-rows-row');
+
+        expect(arrows).toMatch(/grid-template-areas\s*:\s*'name count share arrow'\s*'bar bar bar arrow'\s*;/);
+        expect(arrows).toMatch(/grid-template-columns\s*:\s*minmax\(0, 1fr\) auto minmax\(2\.6rem, auto\) 1\.5rem\s*;/);
+        expect(blocks(row, '&.is-opening')[0]).toMatch(/cursor\s*:\s*pointer\s*;/);
     });
 
     it('stripe every other row a faint gray, as the site\'s phone tables are (#145)', () => {
