@@ -526,10 +526,12 @@ class ListingTable extends Component {
 
         return (
             <div className='articles listing-table'>
-                <div className='listing-table-head'>
+                <div className={`listing-table-head${actions ? ' has-actions' : ''}`}>
                     <div className={`listing-table-title${actions ? ' has-actions' : ''}`}>
-                        <h5>{title}</h5>
-                        <span className='title-count'>{rows.length}</span>
+                        <span className='listing-table-name'>
+                            <h5>{title}</h5>
+                            <span className='title-count'>{rows.length}</span>
+                        </span>
                         {actions ? <div className='listing-table-actions'>{actions}</div> : null}
                     </div>
                     <div className='listing-table-tools'>
