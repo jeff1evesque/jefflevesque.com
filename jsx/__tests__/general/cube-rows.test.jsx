@@ -40,6 +40,10 @@ const SECTOR_SIZES = [
 
 const INDUSTRIES = 'ABCDEFGHIJKLMNOPQRS'.split('').map((letter, at) => [`Industry ${letter}`, (19 - at) * 50000]);
 
+const sizeOf = (sector) => (sector === 'Consumer Discretionary'
+    ? INDUSTRIES.reduce((sum, [ignored, size]) => sum + size, 0)
+    : SECTOR_SIZES.find(([name]) => name === sector)[1]);
+
 const ROWS = [
     ...SECTOR_SIZES.map(([sector, size]) => ({
         sector: sector,
@@ -523,7 +527,7 @@ describe('a day banded by sector (#190)', () => {
         const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
 
         expect(legend(container)).toHaveAttribute('aria-label', 'Sectors');
-        expect(key(container).nextElementSibling).toBe(legend(container));
+        expect(key(container).parentElement.nextElementSibling).toBe(legend(container));
         expect([...legend(container).querySelectorAll('li')].map((item) => item.textContent))
             .toEqual(['Life Sciences', 'Technology', 'Manufacturing', 'Trade & Services', 'Finance', 'No sector']);
         expect(legend(container).querySelector('.cube-rows-swatch').style.background).toBe('rgb(42, 120, 214)');
@@ -592,6 +596,202 @@ describe('a day banded by sector (#190)', () => {
 
         expect(names(container)).toEqual(['Day 8', 'Day 9', 'Day 10']);
         expect(legend(container)).not.toBeNull();
+    });
+});
+
+describe('the rows\' titles (#192)', () => {
+    const titles = (container) => [...container.querySelectorAll('.cube-rows-titles .cube-rows-sort')];
+    const titleTexts = (container) => titles(container).map((title) => title.textContent);
+    const title = (name) => screen.getByRole('button', { name: new RegExp(`^(Sort by ${name}|${name}, sorted)`) });
+    const arrow = (button) => ['UnfoldMoreIcon', 'ArrowUpwardIcon', 'ArrowDownwardIcon']
+        .find((icon) => button.querySelector(`[data-testid="${icon}"]`));
+
+    it('name each column for the stream: what a row is, what it counts, and its percent', () => {
+        const { container } = draw();
+
+        expect(titleTexts(container)).toEqual(['Sector', 'Records', 'Percent']);
+        expect(container.querySelector('.cube-rows-titles').nextElementSibling).toHaveClass('cube-rows-list');
+    });
+
+    it('name a day\'s rows Day and Splits, and a form\'s Form and Filings', () => {
+        const view = draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+        expect(titleTexts(view.container)).toEqual(['Day', 'Splits', 'Percent']);
+        view.unmount();
+
+        const { container } = draw({ rows: forms(3), key: 'form', names: FORMS });
+        expect(titleTexts(container)).toEqual(['Form', 'Filings', 'Percent']);
+    });
+
+    it('name an open group\'s rows for what it holds', () => {
+        const { container } = draw();
+
+        fireEvent.click(row('Consumer Discretionary'));
+
+        expect(titleTexts(container)).toEqual(['Industry', 'Records', 'Percent']);
+    });
+
+    it('take the arrow\'s column where a row opens, and none where none does', () => {
+        const view = draw();
+        expect(view.container.querySelector('.cube-rows-titles')).toHaveClass('has-arrows');
+        view.unmount();
+
+        const { container } = draw({ rows: forms(3), key: 'form', names: FORMS });
+        expect(container.querySelector('.cube-rows-titles')).not.toHaveClass('has-arrows');
+    });
+
+    it('sort ascending at a tap, descending at a second, and back to the rows\' own order at a third', () => {
+        const { container } = draw();
+        const own = names(container);
+
+        fireEvent.click(title('Records'));
+        expect(names(container)).toEqual([...SECTOR_SIZES.map(([sector]) => sector), 'Consumer Discretionary']
+            .sort((a, b) => sizeOf(a) - sizeOf(b))
+            .slice(0, 8 + 4));
+        expect(title('Records')).toHaveAttribute('aria-label', 'Records, sorted ascending');
+        expect(arrow(title('Records'))).toBe('ArrowUpwardIcon');
+
+        fireEvent.click(title('Records'));
+        expect(names(container)).toEqual(own);
+        expect(title('Records')).toHaveAttribute('aria-label', 'Records, sorted descending');
+        expect(arrow(title('Records'))).toBe('ArrowDownwardIcon');
+
+        fireEvent.click(title('Records'));
+        expect(names(container)).toEqual(own);
+        expect(title('Records')).toHaveAttribute('aria-label', 'Sort by Records');
+        expect(arrow(title('Records'))).toBe('UnfoldMoreIcon');
+    });
+
+    it('mark only the title the rows are sorted by', () => {
+        const { container } = draw();
+
+        fireEvent.click(title('Sector'));
+
+        expect(titles(container).map((button) => button.classList.contains('is-sorted'))).toEqual([true, false, false]);
+        expect(arrow(title('Percent'))).toBe('UnfoldMoreIcon');
+    });
+
+    it('sort by percent as by the count, since it is the count\'s share', () => {
+        const view = draw();
+        fireEvent.click(title('Percent'));
+        const by_percent = names(view.container);
+        view.unmount();
+
+        const { container } = draw();
+        fireEvent.click(title('Records'));
+
+        expect(by_percent).toEqual(names(container));
+    });
+
+    it('sort names with the numbers in them by value: Day 2 before Day 12', () => {
+        const { container } = draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+
+        fireEvent.click(title('Day'));
+        fireEvent.click(title('Day'));
+
+        expect(names(container).slice(0, 4)).toEqual(['Day 12', 'Day 11', 'Day 10', 'Day 9']);
+        fireEvent.click(title('Day'));
+        fireEvent.click(title('Day'));
+        expect(names(container).slice(0, 3)).toEqual(['Day 1', 'Day 2', 'Day 3']);
+    });
+
+    it('cut a list sorted largest first at 8, and show every row of one sorted another way', () => {
+        const { container } = draw({ rows: forms(20), key: 'form', names: FORMS });
+
+        expect(names(container)).toHaveLength(8);
+
+        //
+        // Form 20, the smallest, first: Z to A runs smallest first here
+        //
+        fireEvent.click(title('Form'));
+        fireEvent.click(title('Form'));
+        expect(names(container)).toHaveLength(20);
+        expect(names(container)[0]).toBe('Form 20');
+        expect(more()).toBeNull();
+
+        fireEvent.click(title('Filings'));
+        expect(names(container)).toHaveLength(20);
+
+        fireEvent.click(title('Filings'));
+        expect(names(container)).toHaveLength(8);
+        expect(more()).toHaveTextContent('Show 12 more forms');
+    });
+
+    it('sort an open group\'s members by the title the groups are sorted by', () => {
+        const { container } = draw();
+
+        fireEvent.click(title('Sector'));
+        fireEvent.click(row('Consumer Discretionary'));
+        fireEvent.click(screen.getByRole('button', { name: 'Show 11 more industries' }));
+
+        expect(title('Industry')).toHaveAttribute('aria-label', 'Industry, sorted ascending');
+        expect(names(container).slice(0, 3)).toEqual(['Industry A', 'Industry B', 'Industry C']);
+
+        fireEvent.click(title('Records'));
+        expect(names(container).slice(0, 3)).toEqual(['Industry S', 'Industry R', 'Industry Q']);
+    });
+
+    it('put no titles over an open day\'s tickers', () => {
+        const { container } = draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+
+        fireEvent.click(row('Day 7'));
+
+        expect(container.querySelector('.cube-rows-titles')).toBeNull();
+    });
+
+    it('start in the order the page hands in, and tell it each new one', () => {
+        const onSort = jest.fn();
+        const { container } = draw({ sort: { key: 'name', direction: 'descending' }, onSort: onSort });
+
+        expect(names(container)[0]).toBe('Utilities');
+
+        fireEvent.click(title('Sector'));
+        expect(onSort).toHaveBeenLastCalledWith(null);
+
+        fireEvent.click(title('Records'));
+        expect(onSort).toHaveBeenLastCalledWith({ key: 'count', direction: 'ascending' });
+    });
+});
+
+describe('the sectors\' legend fold on a phone (#192)', () => {
+    const fold = () => screen.getByRole('button', { name: 'Sectors' });
+    const legend = (container) => container.querySelector('.cube-rows-legend');
+
+    it('sits beside what a cube is worth, open at first', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS });
+
+        expect(fold().parentElement).toHaveClass('cube-rows-key-row');
+        expect(fold()).toHaveAttribute('aria-expanded', 'true');
+        expect(legend(container)).not.toBeNull();
+    });
+
+    it('folds the legend away at a tap, and shows it again at another, telling the page each time', () => {
+        const onSectors = jest.fn();
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS, onSectors: onSectors });
+
+        fireEvent.click(fold());
+        expect(legend(container)).toBeNull();
+        expect(fold()).toHaveAttribute('aria-expanded', 'false');
+        expect(onSectors).toHaveBeenLastCalledWith(false);
+
+        fireEvent.click(fold());
+        expect(legend(container)).not.toBeNull();
+        expect(onSectors).toHaveBeenLastCalledWith(true);
+    });
+
+    it('starts folded where the page kept it folded', () => {
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS, sectorsShown: false });
+
+        expect(legend(container)).toBeNull();
+        expect(fold()).toHaveAttribute('aria-expanded', 'false');
+
+        fireEvent.click(fold());
+        expect(legend(container)).not.toBeNull();
+    });
+
+    it('is not there for a month without sectors', () => {
+        draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+
+        expect(screen.queryByRole('button', { name: 'Sectors' })).toBeNull();
     });
 });
 
