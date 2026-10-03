@@ -127,7 +127,7 @@ class ListingTable extends Component {
         onReorder: PropTypes.func,
         label: PropTypes.func,
         //
-        // anything the page puts at the end of the title row -- the Filter, on
+        // anything the page puts at the end of the title row -- the month, on
         // a phone's /data (#165)
         //
         actions: PropTypes.node,
