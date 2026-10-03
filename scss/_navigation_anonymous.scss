@@ -199,6 +199,29 @@
             .btn-primary {
               color: $white-1-fixed;
             }
+
+            //
+            // Login by night: a lighter gray than the site's button, which is
+            // about 1.2:1 off the panel's #151515 and showed as little more
+            // than its border. #444 is about 1.9:1 off it, and its border
+            // 2.6:1, so it reads as a button beside Register's green (#175).
+            // Under the pointer a step lighter again, where the site's button
+            // turns darker.
+            //
+            .btn:not(.btn-primary) {
+              @include dark {
+                background-color: $dark-gray-3;
+                background-image: none;
+                border-color: $dark-gray-5;
+                color: $dark-gray-9;
+
+                &:hover {
+                  background-color: mix($dark-gray-3, $dark-gray-5, 50%);
+                  background-image: none;
+                  border-color: $dark-gray-5;
+                }
+              }
+            }
           }
 
           //
