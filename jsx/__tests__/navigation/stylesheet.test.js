@@ -150,7 +150,7 @@ describe('the phone\'s bar (#173)', () => {
 describe('the phone\'s pinned header (#177)', () => {
     const anonymous = read('_navigation_anonymous.scss');
     const [pinned] = blocks(anonymous, '> .menu-container:has(.phone-header)');
-    const [views] = blocks(anonymous, '.data-listing');
+    const [views] = blocks(anonymous, '.cube-rows');
 
     it('stays at the top of the screen, over every layer a page draws', () => {
         expect(pinned).toMatch(/position\s*:\s*sticky\s*;/);
@@ -162,15 +162,13 @@ describe('the phone\'s pinned header (#177)', () => {
         expect(anonymous.match(/position\s*:\s*sticky/g)).toHaveLength(1);
     });
 
-    it('stops the views that scroll themselves into sight below it, not under it', () => {
-        expect(anonymous).toMatch(/\.stream-layout,\s*\.data-listing\s*\{/);
+    it('stops the views that scroll themselves into sight below it, not under it, the phone\'s rows too (#188)', () => {
+        expect(anonymous).toMatch(/\.stream-layout,\s*\.data-listing,\s*\.cube-rows\s*\{/);
         expect(views).toMatch(/scroll-margin-top\s*:\s*calc\(57px \+ 1\.5rem\)\s*;/);
     });
 
-    it('holds the sunburst list\'s column names below it, not under it', () => {
-        const [head] = blocks(anonymous, '.sunburst-phone .sunburst-list-head');
-
-        expect(head).toMatch(/(^|[\s;{])top\s*:\s*57px\s*;/);
+    it('holds nothing else under it: the sunburst\'s column names went with it (#188)', () => {
+        expect(anonymous).not.toMatch(/sunburst/);
     });
 });
 

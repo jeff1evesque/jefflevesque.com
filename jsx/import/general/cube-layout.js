@@ -2,7 +2,7 @@
  * cube-layout.js: where the cubes of a month's distribution sit.
  *
  * A wide screen draws a month's distribution as the stacked bars it was drawn as
- * before the sunburst: one bar per group, each a stack of cubes worth a round
+ * before #154: one bar per group, each a stack of cubes worth a round
  * number of records. This lays them out -- the bars' order, the value axis, the
  * cubes' size, and where every cube sits -- from the tree distribution-tree.js
  * builds. It is pure, so the rules are held by tests without drawing anything.
@@ -35,6 +35,11 @@ const BAR_SHARE = 0.8;
 const CUBE_GAP = 2;
 const MIN_PITCH = 7;
 const PREFERRED_PITCH = 10;
+
+//
+// the least of its bar a stack fills, wherever some fit can (#188)
+//
+const MIN_FILL = 0.5;
 
 //
 // the round numbers of records a cube may stand for, as multiples of a power of
@@ -146,7 +151,14 @@ export function ticksOf(max) {
 // A row of cubes is one pitch tall and worth `across` cubes, so the axis and the
 // stacks agree when pitch = unit * across * height / top. Of the round units and
 // counts across that fit the bar, the fit takes the one nearest a 10px pitch
-// that fills the most of the bar, and a round unit before a near-round one
+// that fills the most of the bar, and a round unit before a near-round one --
+// of those that fill at least half the bar, wherever any does.
+//
+// Note: the half is #188's. Held near 10px alone, a month of few records stood
+//       in thin stacks: the stock splits' days were a cube wide, a fifth of
+//       their bars, with the rest of each slot empty. They now stand two cubes
+//       across, each still a split. A month whose stacks fill most of their
+//       bars already -- the S&P 500's, sec's, the weather's -- keeps its fit
 //
 export function fitCubes(top, height, width) {
     const units = [];
@@ -156,7 +168,7 @@ export function fitCubes(top, height, width) {
         NEAR_ROUND.forEach((step) => units.push({ unit: step * power, round: false }));
     }
 
-    let best = null;
+    const fits = [];
 
     for (let across = 1; (across * MIN_PITCH) - CUBE_GAP <= width; across++) {
         units.forEach(({ unit, round }) => {
@@ -171,21 +183,26 @@ export function fitCubes(top, height, width) {
                 return;
             }
 
-            const score = (Math.abs(pitch - PREFERRED_PITCH) / PREFERRED_PITCH) + (round ? 0 : 0.3) + (1 - (used / width));
-
-            if (!best || score < best.score) {
-                best = { unit: unit, across: across, pitch: pitch, score: score };
-            }
+            fits.push({
+                unit: unit,
+                across: across,
+                pitch: pitch,
+                used: used,
+                score: (Math.abs(pitch - PREFERRED_PITCH) / PREFERRED_PITCH) + (round ? 0 : 0.3) + (1 - (used / width)),
+            });
         });
     }
 
-    if (!best) {
+    if (!fits.length) {
         //
         // a month too small for any round unit to reach the axis -- a single
         // record, say -- draws one cube per record as large as the bar allows
         //
         return { unit: 1, across: 1, pitch: Math.min(width + CUBE_GAP, height) };
     }
+
+    const filling = fits.filter((fit) => fit.used >= width * MIN_FILL);
+    const best = (filling.length ? filling : fits).reduce((kept, fit) => (fit.score < kept.score ? fit : kept));
 
     return { unit: best.unit, across: best.across, pitch: best.pitch };
 }

@@ -294,9 +294,25 @@
   justify-content: space-between;
 }
 
+//
+// the day's whole list, a click away: the one thing on the tooltip that takes
+// the pointer, with a few px around its words to make it an easier target
+//
 .cube-chart-tip-more {
-  color: $gray-6;
-  font-style: italic;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  color: $blue-hyperlink;
+  cursor: pointer;
+  font: inherit;
+  margin: 2px -4px 0;
+  padding: 1px 4px;
+  pointer-events: auto;
+  text-decoration: underline;
+
+  &:hover {
+    background: rgba(var(--ink-rgb), 0.06);
+  }
 }
 
 //

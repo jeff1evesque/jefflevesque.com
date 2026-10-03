@@ -218,6 +218,34 @@ describe('the cube', () => {
         expect(fitCubes(85.2, 284, 9)).toEqual(expect.objectContaining({ unit: 3, across: 1 }));
     });
 
+    it('fills at least half the bar where some fit can: a day of 24 splits stands two cubes across (#188)', () => {
+        //
+        // held near 10px, a split a cube, the stack was one cube wide: 11.7 of
+        // a 60.5px bar. Two across, each cube still a split, it is 44.8
+        //
+        const { unit, across, pitch } = fitCubes(24, 281, 60.5);
+
+        expect([unit, across]).toEqual([1, 2]);
+        expect(pitch).toBeCloseTo(23.42, 2);
+        expect((across * pitch) - 2).toBeGreaterThanOrEqual(60.5 / 2);
+    });
+
+    it('keeps the fit of a month whose stacks fill most of their bars already (#188)', () => {
+        expect(fitCubes(14000000, 281, 84.4)).toEqual(expect.objectContaining({ unit: 50000, across: 9 }));
+        expect(fitCubes(16000, 281, 51)).toEqual(expect.objectContaining({ unit: 100, across: 5 }));
+    });
+
+    it('takes the best of the thin fits where none fills half the bar', () => {
+        //
+        // a record a 21.5px cube: one fills 19.5 of a 40px bar, and two
+        // across would not fit in it
+        //
+        const fit = fitCubes(284 / 21.5, 284, 40);
+
+        expect([fit.unit, fit.across]).toEqual([1, 1]);
+        expect(fit.pitch).toBeCloseTo(21.5, 6);
+    });
+
     it('falls back to a cube per record as large as the bar allows, where nothing reaches the axis', () => {
         expect(fitCubes(1, 284, 40)).toEqual({ unit: 1, across: 1, pitch: 42 });
         expect(fitCubes(1, 30, 40)).toEqual({ unit: 1, across: 1, pitch: 30 });

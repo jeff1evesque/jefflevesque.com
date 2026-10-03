@@ -1,0 +1,265 @@
+// _cube_rows.scss: a month's distribution on a phone, as rows of cubes --
+//     see cube-rows.jsx.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+//
+// held open to some height while a month is on its way, so the loader over it
+// has somewhere to sit. Its scroll margin, clear of a phone's pinned bar, is
+// set with the bar's -- see '_navigation_anonymous.scss'
+//
+.cube-rows {
+  display: flex;
+  flex-direction: column;
+  min-height: 12rem;
+  position: relative;
+}
+
+//
+// the loader's box: the top of the rows, not their middle, which on a long list
+// is off the bottom of the screen
+//
+.cube-rows-overlay {
+  height: 100%;
+  left: 0;
+  max-height: 24rem;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+//
+// the api icons over the rows, where the page has no month row to hold them: a
+// tablet's. A phone draws them at the end of its month row (#185)
+//
+.cube-rows-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 767.98px) {
+  .cube-rows-actions {
+    display: none;
+  }
+}
+
+//
+// what a cube is worth, over the rows, as the wide screen's caption says it
+//
+.cube-rows-key {
+  color: $gray-6;
+  font-size: 0.86rem;
+  margin: 0 0 0.35rem;
+}
+
+.cube-rows-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+//
+// a row: its name, count and share on a line, its bar of cubes under them, and
+// an arrow down its end where a tap opens it. Every other row a faint gray, as
+// the site's tables are on a phone (#145), set out half a rem either side so the
+// gray does not cut its text
+//
+.cube-rows-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: $gray-8;
+  column-gap: 0.6rem;
+  display: grid;
+  font: inherit;
+  grid-template-areas:
+    'name count share'
+    'bar bar bar';
+  grid-template-columns: minmax(0, 1fr) auto minmax(2.4rem, auto);
+  margin: 0 -0.5rem;
+  min-height: 44px;
+  padding: 0.5rem;
+  row-gap: 0.4rem;
+  text-align: left;
+  width: calc(100% + 1rem);
+
+  &.is-opening {
+    cursor: pointer;
+    grid-template-areas:
+      'name count share arrow'
+      'bar bar bar arrow';
+    grid-template-columns: minmax(0, 1fr) auto minmax(2.4rem, auto) auto;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+}
+
+.cube-rows-list > li:nth-child(even) .cube-rows-row {
+  background-color: rgba(var(--ink-rgb), 0.03);
+}
+
+.cube-rows-name {
+  font-size: 1rem;
+  grid-area: name;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.cube-rows-count,
+.cube-rows-share {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.cube-rows-count {
+  grid-area: count;
+}
+
+.cube-rows-share {
+  color: $gray-6;
+  grid-area: share;
+}
+
+.cube-rows-bar {
+  display: block;
+  grid-area: bar;
+  max-width: 100%;
+}
+
+.cube-rows-arrow {
+  color: $gray-5;
+  display: inline-flex;
+  font-size: 1.5rem;
+  grid-area: arrow;
+}
+
+//
+// an open group's head: its name, what it holds, and the × back to every group,
+// as a wide screen's list under its chart is headed
+//
+.cube-rows-head {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.cube-rows-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.cube-rows-title {
+  color: $gray-8;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.cube-rows-meta {
+  color: $gray-6;
+  font-size: 0.93rem;
+}
+
+.cube-rows-close {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  color: $gray-6;
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font-size: 1.4rem;
+  height: 44px;
+  justify-content: center;
+  margin-right: -0.5rem;
+  padding: 0;
+  width: 44px;
+
+  &:hover,
+  &:focus-visible {
+    background: rgba(var(--ink-rgb), 0.06);
+    color: $gray-8;
+  }
+}
+
+//
+// a day's tickers, three to a line, each with its ratio
+//
+.cube-rows-tickers {
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cube-rows-ticker {
+  align-items: center;
+  background-color: rgba(var(--ink-rgb), 0.035);
+  border-radius: 6px;
+  display: flex;
+  font-size: 1rem;
+  gap: 0.4rem;
+  justify-content: space-between;
+  min-height: 2.6rem;
+  min-width: 0;
+  padding: 0 0.6rem;
+}
+
+.cube-rows-ticker-name {
+  color: $gray-8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cube-rows-ticker-ratio {
+  color: $gray-6;
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+//
+// the button for the rest of a long list, and back again: a row's height, and
+// quiet, so it reads as the list's end rather than as one of its rows
+//
+.cube-rows-more {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-top: 1px solid $gray-2;
+  color: $gray-7;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 1rem;
+  gap: 0.3rem;
+  justify-content: center;
+  margin-top: 0.35rem;
+  min-height: 44px;
+  padding: 0;
+  width: 100%;
+
+  svg {
+    font-size: 1.3rem;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: $gray-8;
+  }
+}
