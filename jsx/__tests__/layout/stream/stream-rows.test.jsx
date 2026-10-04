@@ -520,6 +520,72 @@ describe('the popup by a bar a mouse points at (#167)', () => {
     });
 });
 
+describe('the rest of a row, while a bar of it is pointed at (#216)', () => {
+    //
+    // dimmed, so the bar the popup describes stands out of a row of sixty. The
+    // row's bars are marked while a mouse's popup is up, and every other row is
+    // left as it is -- see '.stream-row-bars.is-pointing' in _stream.scss
+    //
+    const bars = (name) => rowOf(name).querySelector('.stream-row-bars');
+    const slots = (name) => rowOf(name).querySelectorAll('.stream-bar-slot');
+
+    function point(slot, pointerType = 'mouse') {
+        fireEvent(slot, Object.assign(
+            new MouseEvent('pointerover', { bubbles: true, relatedTarget: document.body }),
+            { pointerType: pointerType }
+        ));
+    }
+
+    function leave(slot) {
+        fireEvent(slot, Object.assign(
+            new MouseEvent('pointerout', { bubbles: true, relatedTarget: document.body }),
+            { pointerType: 'mouse' }
+        ));
+    }
+
+    beforeEach(() => {
+        setup([stream('SEC Filings', { bars: BARS }), stream('BLS', { bars: BARS })]);
+    });
+
+    it('marks the row a mouse points into, and the bar it points at', () => {
+        point(slots('SEC Filings')[1]);
+
+        expect(bars('SEC Filings')).toHaveClass('is-pointing');
+        expect(slots('SEC Filings')[1]).toHaveClass('is-pointed');
+        expect([...slots('SEC Filings')].filter((slot) => slot.classList.contains('is-pointed'))).toHaveLength(1);
+    });
+
+    it('leaves every other row as it is', () => {
+        point(slots('SEC Filings')[1]);
+
+        expect(bars('BLS')).not.toHaveClass('is-pointing');
+        expect(rowOf('BLS').querySelector('.is-pointed')).toBeNull();
+    });
+
+    it('moves with the pointer along the row, which stays marked', () => {
+        point(slots('SEC Filings')[1]);
+        point(slots('SEC Filings')[2]);
+
+        expect(bars('SEC Filings')).toHaveClass('is-pointing');
+        expect(slots('SEC Filings')[1]).not.toHaveClass('is-pointed');
+        expect(slots('SEC Filings')[2]).toHaveClass('is-pointed');
+    });
+
+    it('lets the row go when the pointer leaves it', () => {
+        point(slots('SEC Filings')[1]);
+        leave(slots('SEC Filings')[1]);
+
+        expect(bars('SEC Filings')).not.toHaveClass('is-pointing');
+    });
+
+    it.each(['touch', 'pen'])('marks nothing for a %s, which brings up no popup', (pointerType) => {
+        point(slots('SEC Filings')[1], pointerType);
+
+        expect(bars('SEC Filings')).not.toHaveClass('is-pointing');
+        expect(rowOf('SEC Filings').querySelector('.is-pointed')).toBeNull();
+    });
+});
+
 describe('opening a bar (#159)', () => {
     //
     // a bar opens through 'onOpen' when the page offers one: a click where a
@@ -736,6 +802,8 @@ describe('sorting by a figure', () => {
 
             expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
                 'Default order',
+                'Stream, A to Z',
+                'Stream, Z to A',
                 'Health, highest first',
                 'Health, lowest first',
                 'Coverage, highest first',
@@ -802,6 +870,99 @@ describe('sorting by a figure', () => {
     });
 });
 
+describe('sorting by name (#216)', () => {
+    const ROWS = [
+        stream('US Weather Alerts', { figures: { health: '100%', coverage: '99%', total: '9' } }),
+        stream('S&P 500', { figures: { health: '100%', coverage: '42%', total: '7' } }),
+        stream('Bureau of Labor Statistics', { figures: { health: '100%', coverage: '95%', total: '5' } }),
+        stream('SEC Filings', { figures: { health: '100%', coverage: '100%', total: '3' } }),
+    ];
+
+    function Sortable({ initial = null, told = () => {} }) {
+        const [sort, setSort] = React.useState(initial);
+        const onSort = (next) => {
+            told(next);
+            setSort(next);
+        };
+
+        return (
+            <>
+                <SortMenu sort={sort} onSort={onSort} />
+                <StreamRows rows={ROWS} rate='day' first='Sep 11' last='Now' sort={sort} onSort={onSort} />
+            </>
+        );
+    }
+
+    const heading = () => screen.getByRole('button', { name: 'Sort by Stream' });
+    const mark = () => heading().querySelector('[data-mark]').dataset.mark;
+
+    it('heads the names with a heading that sorts, as the figures\' do', () => {
+        render(<Sortable />);
+
+        expect(heading()).toHaveTextContent('Stream');
+        expect(heading()).toHaveAttribute('aria-pressed', 'false');
+        expect(mark()).toBe('none');
+    });
+
+    it('sorts A to Z on a first click, as a reader reads a list', () => {
+        render(<Sortable />);
+
+        fireEvent.click(heading());
+
+        expect(names()).toEqual(['Bureau of Labor Statistics', 'S&P 500', 'SEC Filings', 'US Weather Alerts']);
+        expect(heading()).toHaveAttribute('aria-pressed', 'true');
+        expect(heading()).toHaveClass('stream-rows-sort-active');
+        expect(mark()).toBe('asc');
+    });
+
+    it('sorts Z to A on a second, and puts the page\'s order back on a third', () => {
+        const told = jest.fn();
+
+        render(<Sortable told={told} />);
+
+        fireEvent.click(heading());
+        fireEvent.click(heading());
+
+        expect(names()).toEqual(['US Weather Alerts', 'SEC Filings', 'S&P 500', 'Bureau of Labor Statistics']);
+        expect(mark()).toBe('desc');
+
+        fireEvent.click(heading());
+
+        expect(names()).toEqual(['US Weather Alerts', 'S&P 500', 'Bureau of Labor Statistics', 'SEC Filings']);
+        expect(told.mock.calls.map(([sort]) => sort)).toEqual([
+            { key: 'name', dir: 'asc' },
+            { key: 'name', dir: 'desc' },
+            null,
+        ]);
+    });
+
+    it('lets a figure take over, and the names let go', () => {
+        render(<Sortable initial={{ key: 'name', dir: 'asc' }} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Sort by Total Records' }));
+
+        expect(names()).toEqual(['US Weather Alerts', 'S&P 500', 'Bureau of Labor Statistics', 'SEC Filings']);
+        expect(mark()).toBe('none');
+    });
+
+    it('sorts from the phone\'s button too, which names it', () => {
+        render(<Sortable />);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Sort: / }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Stream, Z to A' }));
+
+        expect(names()[0]).toBe('US Weather Alerts');
+        expect(screen.getByRole('button', { name: /^Sort: / })).toHaveAccessibleName('Sort: Stream, Z to A');
+    });
+
+    it('shows a phone\'s row its coverage while sorted by name, having no name figure to show', () => {
+        render(<Sortable initial={{ key: 'name', dir: 'asc' }} />);
+
+        expect(rowOf('SEC Filings').querySelector('.stream-row-pick-name')).toHaveTextContent('coverage');
+        expect(rowOf('SEC Filings').querySelector('.stream-row-pick-value')).toHaveTextContent('100%');
+    });
+});
+
 describe('the next sort', () => {
     it('starts a figure largest first, reverses it, then lets it go', () => {
         expect(nextSort(null, 'health')).toEqual({ key: 'health', dir: 'desc' });
@@ -813,8 +974,15 @@ describe('the next sort', () => {
         expect(nextSort({ key: 'health', dir: 'asc' }, 'total')).toEqual({ key: 'total', dir: 'desc' });
     });
 
-    it('names the figures a kept sort may name', () => {
-        expect(SORT_KEYS).toEqual(['health', 'coverage', 'total']);
+    it('starts the names A to Z, reverses them, then lets them go (#216)', () => {
+        expect(nextSort(null, 'name')).toEqual({ key: 'name', dir: 'asc' });
+        expect(nextSort({ key: 'name', dir: 'asc' }, 'name')).toEqual({ key: 'name', dir: 'desc' });
+        expect(nextSort({ key: 'name', dir: 'desc' }, 'name')).toBeNull();
+        expect(nextSort({ key: 'health', dir: 'desc' }, 'name')).toEqual({ key: 'name', dir: 'asc' });
+    });
+
+    it('names the headings a kept sort may name: the streams\' names, and the figures', () => {
+        expect(SORT_KEYS).toEqual(['name', 'health', 'coverage', 'total']);
     });
 });
 
