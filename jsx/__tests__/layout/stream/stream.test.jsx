@@ -41,8 +41,15 @@ import { MemoryRouter } from 'react-router-dom';
 import { listSubscriptions } from '../../../import/general/account-api.js';
 import getData from '../../../import/general/get-data.js';
 import { KEY, VERSION } from '../../../import/general/listing-preference.js';
-import { STREAMS } from '../../../import/general/stream-id.js';
+import { STREAMS, SEC_COMPANYFACTS } from '../../../import/general/stream-id.js';
+import { performanceStream } from '../../../import/general/api-url.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
+
+//
+// the streams with alarms: every one but the company facts, which the alarms api
+// does not know (#211)
+//
+const ALARMED = STREAMS.filter((stream) => stream !== SEC_COMPANYFACTS);
 
 function setup(props = {}) {
     return render(
@@ -88,7 +95,7 @@ describe('the stream rows', () => {
 
         expect(bodyText()).toContain('Streams');
         expect(rowNames()).toEqual([
-            'S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'US Weather Alerts',
+            'S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts',
         ]);
     });
 
@@ -98,15 +105,21 @@ describe('the stream rows', () => {
         const schedules = [...document.querySelectorAll('.stream-row-schedule')].map((cell) => cell.textContent);
 
         expect(schedules).toEqual([
-            'weekdays, every 20 min', 'weekdays, once a day', 'once a day', 'weekdays, every 5 min', 'daily, every 5 min',
+            'weekdays, every 20 min',
+            'weekdays, once a day',
+            'once a day',
+            'weekdays, every 5 min',
+            'Mon-Sat, once a day',
+            'daily, every 5 min',
         ]);
     });
 
     it('renders each stream under its display label, not its id', () => {
         //
-        // the ids are 'stock-market', 'stock-split', 'bls', 'sec' and
-        // 'us-national-weather'. Every one has to reach stream-name.js on the way to
-        // the screen, or the listing shows raw identifiers.
+        // the ids are 'stock-market', 'stock-split', 'bls', 'sec',
+        // 'sec-companyfacts' and 'us-national-weather'. Every one has to reach
+        // stream-name.js on the way to the screen, or the listing shows raw
+        // identifiers.
         //
         setup();
 
@@ -114,6 +127,7 @@ describe('the stream rows', () => {
         expect(screen.getByText('Stock Splits')).toBeInTheDocument();
         expect(screen.getByText('Bureau of Labor Statistics')).toBeInTheDocument();
         expect(screen.getByText('SEC Filings')).toBeInTheDocument();
+        expect(screen.getByText('SEC Company Facts')).toBeInTheDocument();
         expect(screen.getByText('US Weather Alerts')).toBeInTheDocument();
     });
 
@@ -123,6 +137,7 @@ describe('the stream rows', () => {
         const text = bodyText();
         expect(text).not.toContain('stock-market');
         expect(text).not.toContain('stock-split');
+        expect(text).not.toContain('sec-companyfacts');
         expect(text).not.toContain('us-national-weather');
     });
 
@@ -158,7 +173,7 @@ describe('each row before data arrives', () => {
 
         const figures = [...document.querySelectorAll('.stream-row-figure')].map((cell) => cell.textContent);
 
-        expect(figures).toHaveLength(15);
+        expect(figures).toHaveLength(18);
         expect(figures.every((figure) => figure === 'n/a')).toBe(true);
         document.querySelectorAll('.stream-row').forEach((row) => {
             expect(row.textContent).not.toContain('0%');
@@ -170,8 +185,8 @@ describe('each row before data arrives', () => {
 
         const lines = [...document.querySelectorAll('.stream-row-status')].map((line) => line.textContent);
 
-        expect(lines).toEqual(['Loading', 'Loading', 'Loading', 'Loading', 'Loading']);
-        expect(document.querySelectorAll('.stream-row-spinner')).toHaveLength(5);
+        expect(lines).toEqual(['Loading', 'Loading', 'Loading', 'Loading', 'Loading', 'Loading']);
+        expect(document.querySelectorAll('.stream-row-spinner')).toHaveLength(6);
     });
 });
 
@@ -253,10 +268,24 @@ describe('each row\'s bell', () => {
 
         await waitFor(() => expect(listSubscriptions).toHaveBeenCalled());
 
-        STREAMS.forEach((stream) => {
+        ALARMED.forEach((stream) => {
             expect(bell(stream)).toHaveAttribute('data-testid', 'NotificationsIcon');
             expect(bell(stream)).not.toHaveClass('subscribed');
         });
+    });
+
+    it('is not drawn for the company facts, which have no alarms (#211)', async () => {
+        //
+        // the alarms api answers their id 'no such stream', so a bell would lead
+        // to a page with nothing on it to subscribe to
+        //
+        setup();
+
+        await waitFor(() => expect(listSubscriptions).toHaveBeenCalled());
+
+        expect(document.querySelector(`a[href="/stream/${SEC_COMPANYFACTS}/alarm"]`)).toBeNull();
+        expect(screen.queryByRole('link', { name: 'Alarms for SEC Company Facts' })).toBeNull();
+        expect(screen.getByRole('link', { name: 'Alarms for SEC Filings' })).toHaveAttribute('href', '/stream/sec/alarm');
     });
 
     it('rings for a stream the reader is subscribed to, saying how many', async () => {
@@ -287,7 +316,7 @@ describe('each row\'s bell', () => {
 
         await screen.findByLabelText('Subscribed to 1 alarm');
 
-        STREAMS.filter((stream) => stream !== 'bls').forEach((stream) => {
+        ALARMED.filter((stream) => stream !== 'bls').forEach((stream) => {
             expect(bell(stream)).toHaveAttribute('data-testid', 'NotificationsIcon');
         });
     });
@@ -420,15 +449,31 @@ describe('the icons over the rows', () => {
         const items = await screen.findAllByRole('menuitem');
 
         expect(items.map((item) => item.textContent)).toEqual([
-            'S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'US Weather Alerts',
+            'S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts',
         ]);
         items.forEach((item, index) => {
             const url = new URL(item.getAttribute('href'));
 
-            expect(url.searchParams.get('Stream')).toBe(STREAMS[index]);
+            expect(url.searchParams.get('Stream')).toBe(performanceStream(STREAMS[index]));
             expect(url.searchParams.get('Interval')).toBe('day');
             expect(item).toHaveAttribute('target', '_blank');
         });
+    });
+
+    it('link the company facts to the request the filings were drawn from (#211)', async () => {
+        //
+        // one report holds both: the filings are its series 'sec', and the
+        // company facts its series 'companyfacts'
+        //
+        setup();
+
+        fireEvent.click(screen.getByRole('button', { name: 'This request' }));
+
+        const items = await screen.findAllByRole('menuitem');
+        const href = (name) => items.find((item) => item.textContent === name).getAttribute('href');
+
+        expect(href('SEC Company Facts')).toBe(href('SEC Filings'));
+        expect(new URL(href('SEC Company Facts')).searchParams.get('Stream')).toBe('sec');
     });
 
     it('have no refresh button', () => {
@@ -464,8 +509,8 @@ describe('resilience', () => {
 
         setup();
 
-        expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(5);
-        expect(screen.getAllByRole('button', { name: /^Retry / })).toHaveLength(5);
+        expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(6);
+        expect(screen.getAllByRole('button', { name: /^Retry / })).toHaveLength(6);
         expect(screen.getByText('S&P 500')).toBeInTheDocument();
 
         quiet.mockRestore();
@@ -480,7 +525,7 @@ describe('resilience', () => {
         try {
             setup();
 
-            expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(5);
+            expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(6);
         } finally {
             global.fetch = original;
             quiet.mockRestore();
