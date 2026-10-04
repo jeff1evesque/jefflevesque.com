@@ -29,6 +29,8 @@ jest.mock('react-papaparse', () => ({
 import { readString } from 'react-papaparse';
 import { papaParseCsv, parseCsv } from '../../import/general/parse-csv.js';
 import getData from '../../import/general/get-data.js';
+import { limitedUntil, resetRateLimit } from '../../import/general/rate-limit.js';
+import { blockedAnswer } from '../../test-support/blocked-answer.js';
 
 const URL = 'https://example.com/report.csv';
 
@@ -487,6 +489,42 @@ describe('telling the caller a request failed', () => {
 
         await expect(getData('bls-ingest', URL, jest.fn(), false, 'bls', 'bls', 'not a function'))
             .resolves.toBeUndefined();
+    });
+});
+
+describe('a request past the api\'s rate limit (#210)', () => {
+    let quiet;
+
+    beforeEach(() => {
+        resetRateLimit();
+        quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        quiet.mockRestore();
+        resetRateLimit();
+    });
+
+    it('tells the page to wait, and the caller it failed, as before', async () => {
+        const callback = jest.fn();
+        const failed = jest.fn();
+        global.fetch = jest.fn().mockResolvedValue(blockedAnswer());
+
+        await getData('bls-ingest', URL, callback, false, 'bls', 'bls', failed);
+
+        expect(limitedUntil()).toBeGreaterThan(Date.now());
+        expect(failed).toHaveBeenCalledTimes(1);
+        expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('ends the wait at an answer that succeeds', async () => {
+        global.fetch = jest.fn().mockResolvedValue(blockedAnswer());
+        await getData('bls-ingest', URL, jest.fn(), false, 'bls', 'bls', jest.fn());
+
+        global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ report: '' }) });
+        await getData('bls-ingest', URL, jest.fn(), false, 'bls', 'bls', jest.fn());
+
+        expect(limitedUntil()).toBeNull();
     });
 });
 
