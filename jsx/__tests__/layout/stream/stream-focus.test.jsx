@@ -183,7 +183,7 @@ describe('a stream opened from its name', () => {
         const intro = document.querySelector('.stream-rows-intro');
 
         expect(within(intro).getByRole('heading')).toHaveTextContent('Streams');
-        expect(intro.querySelector('.stream-rows-count').textContent).toBe('5');
+        expect(intro.querySelector('.stream-rows-count').textContent).toBe('6');
 
         clickName('S&P 500');
 
