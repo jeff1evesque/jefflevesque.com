@@ -175,6 +175,10 @@ export function barSummary(bar) {
 // how often a stream runs, in a few words, from its schedule -- 'weekdays, every
 // 20 min'. Empty for a stream with no schedule.
 //
+// Note: a stream that runs on days of its own names the first and the last of
+//       them -- 'Mon-Sat, once a day' -- which reads right for a run of days in
+//       a row, as the only such schedule is (#211)
+//
 export function scheduleLabel(stream) {
     const schedule = INGEST_SCHEDULE[canonicalStream(stream)];
 
@@ -184,6 +188,10 @@ export function scheduleLabel(stream) {
 
     if (schedule.every) {
         return `${schedule.weekdays ? 'weekdays' : 'daily'}, every ${schedule.every} min`;
+    }
+
+    if (schedule.days) {
+        return `${schedule.days[0]}-${schedule.days[schedule.days.length - 1]}, once a day`;
     }
 
     return schedule.weekdays ? 'weekdays, once a day' : 'once a day';
