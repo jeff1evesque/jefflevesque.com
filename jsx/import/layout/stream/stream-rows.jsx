@@ -43,7 +43,9 @@
  *       report is in: loading, still loading once it has taken a while, or that
  *       it could not load, with a button to ask again. A slow stream never holds
  *       up the others, and is never called failed for being slow -- see
- *       SLOW_AFTER_MS in stream.jsx.
+ *       SLOW_AFTER_MS in stream.jsx. A phone, whose rows have no bars to say it
+ *       over, says a first wait by the spinner beside the name alone, so its
+ *       rows keep their height while the page opens (#220).
  *
  * Note: a stream's name opens it on its own (#161) -- see stream-focus.jsx. The
  *       name is a link to the address that does, so it opens in a new tab as
@@ -134,6 +136,15 @@ export const SORT_KEYS = [NAME.key, ...COLUMNS.map((column) => column.key)];
 //
 export const FIGURES_MIN = 260;
 export const FIGURES_FOLD = 40;
+
+//
+// the transition a row takes into a new size or place while no row is being
+// dragged: none (#220). framer-motion animates every change in a row's layout,
+// and a row growing or shrinking -- as its report comes in, say -- was drawn
+// stretched and eased back to shape. While a drag is under way, the rows
+// slide into their places, as /data's do
+//
+export const STILL = { layout: { type: false } };
 
 //
 // the way a heading sorts first, and then: largest first and smallest first for
@@ -630,7 +641,8 @@ function StreamRow({ row, rate, onPoint, pointed = null, onOpen = null, onFocus 
 
         a row that can be dragged is framer-motion's, as /data's are, held inside
         the rows' own box with no give past its edges -- see listing-table.jsx,
-        whose rows a scroll box once let run past the table
+        whose rows a scroll box once let run past the table. It is animated into
+        its place only while a row is being dragged -- see STILL
 
     */}
     return draggable
@@ -642,6 +654,9 @@ function StreamRow({ row, rate, onPoint, pointed = null, onOpen = null, onFocus 
                 dragControls={reorder.controls}
                 dragConstraints={reorder.constraints}
                 dragElastic={0}
+                transition={reorder.dragging ? undefined : STILL}
+                onDragStart={reorder.onDragStart}
+                onDragEnd={reorder.onDragEnd}
                 className='stream-row'
                 data-stream={row.stream}
             >
@@ -668,6 +683,9 @@ StreamRow.propTypes = {
     reorder: PropTypes.shape({
         controls: PropTypes.object.isRequired,
         constraints: PropTypes.object.isRequired,
+        dragging: PropTypes.bool.isRequired,
+        onDragStart: PropTypes.func.isRequired,
+        onDragEnd: PropTypes.func.isRequired,
         onKeyDown: PropTypes.func.isRequired,
     }),
 };
@@ -705,6 +723,12 @@ function StreamRows({
     // where a row moved by the arrow keys went, said aloud (#218)
     //
     const [announcement, setAnnouncement] = useState('');
+
+    //
+    // whether a row is being dragged, the only time a row is animated into its
+    // place -- see STILL
+    //
+    const [dragging, setDragging] = useState(false);
 
     //
     // the rows' own box, which a dragged row is held inside, and each row's drag
@@ -893,6 +917,9 @@ function StreamRows({
         return {
             controls: controls.current.get(stream),
             constraints: body,
+            dragging: dragging,
+            onDragStart: () => setDragging(true),
+            onDragEnd: () => setDragging(false),
             onKeyDown: (event) => {
                 if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                     event.preventDefault();
