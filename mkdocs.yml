@@ -35,6 +35,15 @@ validation:
   unrecognized_links: warn
   anchors: warn
 
+##
+## The header is white by day and near-black by night, as the site's own is
+## (#204): Material's green one put white text on a light green, at 2.8:1. With a
+## white or a black header, Material draws links blue, so theme.css draws them in
+## the site's greens instead.
+##
+extra_css:
+  - stylesheets/theme.css
+
 theme:
   name: material
   icon:
@@ -43,14 +52,14 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: green
+      primary: white
       accent: green
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: green
+      primary: black
       accent: green
       toggle:
         icon: material/brightness-4
