@@ -65,6 +65,26 @@ body {
 }
 
 //
+// the notice under the header while the api has told the reader to wait
+// (#210), in the site's error colors: '$red-3' is the pink an error sits on and
+// '$red-2' its text, each a theme pair, so the night draws its own. Inside the
+// page's container, so it lines up with what is under it, and as far from the
+// page's title under it as from the header over it
+//
+.rate-limit-row {
+  margin-bottom: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.rate-limit-notice {
+  background-color: $red-3;
+  border-radius: 0.375rem;
+  color: $red-2;
+  font-size: 0.95rem;
+  padding: 0.6rem 1rem;
+}
+
+//
 // every page's last line: the copyright, Docs and Terms (#202). Small and gray,
 // centered, one line on the narrowest phone, with no line over it (#204). The
 // shell is a column whose content grows to fill it, so the footer sits at the
