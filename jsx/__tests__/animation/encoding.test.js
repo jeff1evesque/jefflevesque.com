@@ -17,6 +17,7 @@ import {
     ontologyTerm,
     vocabulary,
     typeSource,
+    typeSources,
     rankNamespaces,
     assignNamespaceColors,
     buildPalette,
@@ -294,6 +295,19 @@ describe('typeSource', () => {
         //
         expect(typeSource({}, 'market_quotes_EquitySnapshot')).toBeNull();
         expect(typeSource(undefined)).toBeNull();
+    });
+});
+
+describe('typeSources (#211)', () => {
+    it('is every leading part of the vocabulary, joined on hyphens', () => {
+        expect(typeSources({ source_type_uri: 'https://example.com/ontology/sec/companyfacts/CompanyFact' }, 'companyfacts_CompanyFact'))
+            .toEqual(['sec', 'sec-companyfacts']);
+        expect(typeSources({ vocabulary: 'bls/jolts' }, 'jolts_Industry')).toEqual(['bls', 'bls-jolts']);
+    });
+
+    it('reads the id where nothing published names the vocabulary', () => {
+        expect(typeSources({}, 'market_quotes_EquitySnapshot')).toEqual(['market', 'market-quotes']);
+        expect(typeSources({}, 'temporal_SourceDay')).toEqual(['temporal']);
     });
 });
 
