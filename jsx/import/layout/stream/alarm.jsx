@@ -564,9 +564,7 @@ class StreamAlarm extends Component {
             ? (
                 <Tooltip
                     title={archive_text}
-                    placement='bottom'
                     PopperProps={{style:{zIndex:99999999}}}
-                    arrow
                 >
                     <IconButton
                         onMouseEnter={() => this.setState({ tool_tip_hover: true })}
