@@ -149,12 +149,12 @@ describe('the stream rows', () => {
 });
 
 describe('each row before data arrives', () => {
-    it('heads the rows with health, coverage and total records, once each', () => {
+    it('heads the rows with the stream, health, coverage and total records, once each', () => {
         setup();
 
         const headings = [...document.querySelectorAll('.stream-rows-sort')].map((button) => button.firstChild.textContent);
 
-        expect(headings).toEqual(['Health', 'Coverage', 'Total Records']);
+        expect(headings).toEqual(['Stream', 'Health', 'Coverage', 'Total Records']);
     });
 
     it('shows n/a rather than a zero or a blank', () => {
@@ -378,6 +378,25 @@ describe('the sort, kept for the next visit', () => {
         expect(pressed()).toEqual(['Total Records']);
         expect(screen.getByRole('button', { name: /^Sort: / }))
             .toHaveAccessibleName('Sort: Total Records, fewest first');
+    });
+
+    it('opens sorted by name as the reader left it, A to Z (#216)', () => {
+        keep({ key: 'name', dir: 'asc' });
+
+        setup();
+
+        expect(pressed()).toEqual(['Stream']);
+        expect(rowNames()).toEqual([
+            'Bureau of Labor Statistics', 'S&P 500', 'SEC Company Facts', 'SEC Filings', 'Stock Splits', 'US Weather Alerts',
+        ]);
+    });
+
+    it('keeps a sort by name the reader chooses', () => {
+        setup();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Sort by Stream' }));
+
+        expect(kept()).toEqual({ key: 'name', dir: 'asc' });
     });
 
     it('keeps a sort the reader chooses, and lets it go on the third click', () => {
