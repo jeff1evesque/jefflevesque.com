@@ -32,6 +32,13 @@ and it answers this site's origin alone. See [Account](account.md).
   is what lets the application, and Try it out on these pages, call them from a
   browser. A CORS preflight is refused, so a request that would need one, such as one
   with a custom header or a method other than GET, cannot be made from a browser.
+- **A rate limit.** One address may make so many requests in a few minutes, today 100
+  in 5 minutes, and an answer from the cache counts too. Past it, a request answers
+  `429`, with a `Retry-After` header giving the seconds to wait, and the envelope's
+  `report` carrying an `error` message, the `limit` and the `window_seconds` in force.
+  Those numbers can change, so a client should read them from the answer rather than
+  assume today's. The application shows a reader a notice under the header for as long
+  as the answer says, and `/stream` skips its five-minute refresh until then.
 
 ## Where the application builds its requests
 
