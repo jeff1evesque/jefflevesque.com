@@ -11,10 +11,11 @@
  * Note: the sort is the page's to keep, so it comes in as a prop and every
  *       change goes back out through 'onSort' -- see stream.jsx, which keeps it
  *       for the reader's next visit. A figure's heading's first click sorts
- *       largest first, the next smallest first, and the third puts the page's
- *       own order back. The Stream heading sorts by name the same way, from A
- *       to Z first. A phone, which has no room for the headings, gets the same
- *       choices from SortMenu, which the page puts on its line of controls.
+ *       largest first, the next smallest first, and the third puts the
+ *       reader's own order back -- the page's, until they drag one. The Stream
+ *       heading sorts by name the same way, from A to Z first. A phone heads
+ *       its rows with the Stream heading and the figure's alone, and gets every
+ *       choice from SortMenu, which the page puts on its line of controls.
  *
  * Note: a bar's height is on its own row's scale, so a stream bringing a few
  *       records a day reads as clearly as one bringing millions. The Total
@@ -58,16 +59,30 @@
  *       to the bottom of the last row (#167), not on past them beside the line
  *       and the key under the rows.
  *
- * Note: a phone draws the rows as a list (#161): each stream's name and
- *       schedule, and the one figure the list is sorted by, with the whole row
- *       a way into the stream's own view. The bars, the controls and the other
- *       figures are in that view, so the stylesheet hides them here.
+ * Note: a phone draws the rows as a table of its own (#161, #218): each
+ *       stream's name and schedule, and the one figure the rows show, the one
+ *       they are sorted by, with the whole row a way into the stream's own view.
+ *       A header names Stream and that figure, and both sort. The bars, the
+ *       controls and the other figures are in the stream's own view, so the
+ *       stylesheet hides them here.
+ *
+ * Note: the reader can drag the rows into an order of their own (#218), by the
+ *       grip at the start of each, as /data's listing does -- see
+ *       listing-table.jsx. The page keeps that order, and hands it back as
+ *       'order'. It is the order the rows take before any sort, and the one a
+ *       sort goes back to. The grips show only while the rows are in it:
+ *       sorted, a drag would rearrange a view the reader did not arrange. A
+ *       drag starts from the grip alone, so on a phone a swipe anywhere else on
+ *       a row scrolls the page, and a tap opens the stream. The grip is a
+ *       button, and the arrow keys on it move its row.
  *
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import { Reorder, DragControls } from 'framer-motion';
 import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -75,8 +90,10 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import CheckIcon from '@mui/icons-material/Check';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import { barSummary, barWhen } from '../../general/stream-bars.js';
@@ -141,10 +158,11 @@ export function nextSort(sort, key) {
 }
 
 //
-// the phone's menu: one choice per heading and direction, and the page's order
+// the phone's menu: one choice per heading and direction, and the reader's
+// order, as /data's menu names it (#218)
 //
 const SORT_CHOICES = [
-    { value: '', label: 'Default order' },
+    { value: '', label: 'Your order' },
     ...[NAME, ...COLUMNS].flatMap((column) => directions(column.key).map((dir) => ({
         value: `${column.key}:${dir}`,
         label: `${column.label}, ${column[dir]}`,
@@ -224,11 +242,15 @@ const TIP_EDGE = 110;
  * buttons, and pushed onto a line of its own whenever Now joined the arrows.
  *
  * The choice in use has a check by it in the menu, and names the button for a
- * screen reader -- 'Sort: Default order'. While the list is sorted the button
- * is green, as a sort heading is lit on a wide screen, so a sorted list says so
+ * screen reader -- 'Sort: Your order'. While the list is sorted the button is
+ * green, as a sort heading is lit on a wide screen, so a sorted list says so
  * without the menu being opened.
+ *
+ * Under a line at its end, Reset order, while the page offers it through
+ * 'onReset' (#218): a phone's line of controls has no room for the pill a wide
+ * screen draws.
  */
-export function SortMenu({ sort = null, onSort = () => {} }) {
+export function SortMenu({ sort = null, onSort = () => {}, onReset = null }) {
     const [anchor, setAnchor] = useState(null);
     const value = sort ? `${sort.key}:${sort.dir}` : '';
     const current = SORT_CHOICES.find((choice) => choice.value === value) || SORT_CHOICES[0];
@@ -270,6 +292,22 @@ export function SortMenu({ sort = null, onSort = () => {} }) {
                         {choice.label}
                     </MenuItem>
                 ))}
+                {onReset ? <Divider /> : null}
+                {onReset
+                    ? (
+                        <MenuItem
+                            className='stream-sort-reset'
+                            onClick={() => {
+                                setAnchor(null);
+                                onReset();
+                            }}
+                        >
+                            <span className='stream-sort-icon' aria-hidden='true'>
+                                <RestartAltIcon fontSize='inherit' />
+                            </span>
+                            Reset order
+                        </MenuItem>
+                    ) : null}
             </Menu>
         </div>
     );
@@ -281,6 +319,11 @@ SortMenu.propTypes = {
         dir: PropTypes.oneOf(['asc', 'desc']).isRequired,
     }),
     onSort: PropTypes.func,
+    //
+    // the page's order put back, offered only while the reader's own is on
+    // screen and differs from it -- see the note above
+    //
+    onReset: PropTypes.func,
 };
 
 /**
@@ -496,11 +539,34 @@ export function StreamLegend() {
     );
 }
 
-function StreamRow({ row, rate, onPoint, pointed = null, onOpen = null, onFocus = null, pick }) {
+function StreamRow({ row, rate, onPoint, pointed = null, onOpen = null, onFocus = null, pick, reorder = null }) {
     const picked = COLUMNS.find((column) => column.key === pick);
+    const draggable = Boolean(reorder);
 
-    return (
-        <div className='stream-row' data-stream={row.stream}>
+    const cells = (
+        <>
+            {/*
+
+                the grip a row is dragged by, or moved by with the arrow keys,
+                while the rows are in the reader's order (#218). Its room stays
+                while they are not, empty, so the names never move
+
+            */}
+            <span className='stream-row-grip'>
+                {draggable
+                    ? (
+                        <button
+                            type='button'
+                            className='stream-row-grip-button'
+                            aria-label={`Move ${row.name}`}
+                            title='Drag to move, or use the arrow keys'
+                            onPointerDown={(event) => reorder.controls.start(event)}
+                            onKeyDown={reorder.onKeyDown}
+                        >
+                            <DragIndicatorIcon fontSize='inherit' />
+                        </button>
+                    ) : null}
+            </span>
             <div className='stream-row-name'>
                 <span className='stream-row-title'>
                     {row.href
@@ -543,20 +609,47 @@ function StreamRow({ row, rate, onPoint, pointed = null, onOpen = null, onFocus 
                 the one figure a phone shows: the one the list is sorted by, so
                 the order is one the reader can see, and otherwise the coverage.
                 Nothing until the report is in, since its 'n/a' would read as a
-                stream that has no figure rather than one still loading
+                stream that has no figure rather than one still loading. The
+                header names it (#218), and a screen reader hears its name after
+                it, from text only a screen reader is given
 
             */}
             <div className='stream-row-pick'>
                 <span className='stream-row-pick-value'>
                     {row.status in STATUS ? '' : row.figures[picked.key]}
                 </span>
-                <span className='stream-row-pick-name'>{picked.short.toLowerCase()}</span>
+                <span className='stream-row-pick-name visually-hidden'>{picked.label}</span>
             </div>
             <span className='stream-row-chevron' aria-hidden='true'>
                 <ChevronRightIcon fontSize='inherit' />
             </span>
-        </div>
+        </>
     );
+
+    {/*
+
+        a row that can be dragged is framer-motion's, as /data's are, held inside
+        the rows' own box with no give past its edges -- see listing-table.jsx,
+        whose rows a scroll box once let run past the table
+
+    */}
+    return draggable
+        ? (
+            <Reorder.Item
+                as='div'
+                value={row.stream}
+                dragListener={false}
+                dragControls={reorder.controls}
+                dragConstraints={reorder.constraints}
+                dragElastic={0}
+                className='stream-row'
+                data-stream={row.stream}
+            >
+                {cells}
+            </Reorder.Item>
+        ) : (
+            <div className='stream-row' data-stream={row.stream}>{cells}</div>
+        );
 }
 
 StreamRow.propTypes = {
@@ -567,6 +660,16 @@ StreamRow.propTypes = {
     onOpen: PropTypes.func,
     onFocus: PropTypes.func,
     pick: PropTypes.oneOf(COLUMNS.map((column) => column.key)).isRequired,
+    //
+    // what a row that can be dragged is dragged with, or null while it cannot
+    // be: its drag controls, the box it is held inside, and what its grip does
+    // with a key
+    //
+    reorder: PropTypes.shape({
+        controls: PropTypes.object.isRequired,
+        constraints: PropTypes.object.isRequired,
+        onKeyDown: PropTypes.func.isRequired,
+    }),
 };
 
 //
@@ -592,9 +695,24 @@ function StreamRows({
     width = null,
     onFold = () => {},
     onResize = () => {},
+    order = null,
+    onReorder = null,
 }) {
     const [pointed, setPointed] = useState(null);
     const box = useRef(null);
+
+    //
+    // where a row moved by the arrow keys went, said aloud (#218)
+    //
+    const [announcement, setAnnouncement] = useState('');
+
+    //
+    // the rows' own box, which a dragged row is held inside, and each row's drag
+    // controls by its stream, kept for the life of the rows: a row's controls
+    // must be the same object from one render to the next
+    //
+    const body = useRef(null);
+    const controls = useRef(new Map());
 
     //
     // the drag under way, and the listeners it put on the window -- which go on
@@ -680,12 +798,27 @@ function StreamRows({
     //
     const byName = (a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' });
 
+    //
+    // the rows in the reader's order (#218), or the page's where they have made
+    // none. A row the order does not name keeps its place among the rest, at
+    // the end. A sort starts from it, so rows that sort alike keep it
+    //
     let ordered = rows;
 
+    if (Array.isArray(order)) {
+        const at = (row) => {
+            const index = order.indexOf(row.stream);
+
+            return index < 0 ? order.length : index;
+        };
+
+        ordered = [...rows].sort((a, b) => at(a) - at(b));
+    }
+
     if (sort && sort.key === NAME.key) {
-        ordered = [...rows].sort((a, b) => (sort.dir === 'asc' ? byName(a, b) : byName(b, a)));
+        ordered = [...ordered].sort((a, b) => (sort.dir === 'asc' ? byName(a, b) : byName(b, a)));
     } else if (sort && sort.key) {
-        ordered = [...rows].sort((a, b) => {
+        ordered = [...ordered].sort((a, b) => {
             const x = sortValue(a.figures[sort.key]);
             const y = sortValue(b.figures[sort.key]);
 
@@ -719,6 +852,70 @@ function StreamRows({
     //
     const pick = sort && COLUMNS.some((column) => column.key === sort.key) ? sort.key : 'coverage';
 
+    //
+    // whether the rows can be dragged: only while they are in the reader's own
+    // order, and there is more than one to move -- see the note at the top
+    //
+    const draggable = Boolean(onReorder) && !sort && ordered.length > 1;
+
+    /**
+     * one row, `step` places up or down, and said aloud where it went. The
+     * grips only show while every row is on screen in the reader's order, so
+     * this is always the whole of it.
+     */
+    function move(stream, step) {
+        const streams = ordered.map((row) => row.stream);
+        const from = streams.indexOf(stream);
+        const to = from + step;
+
+        if (from < 0 || to < 0 || to >= streams.length) {
+            return;
+        }
+
+        streams.splice(to, 0, streams.splice(from, 1)[0]);
+
+        onReorder(streams);
+        setAnnouncement(`${ordered[from].name}, ${to + 1} of ${streams.length}`);
+    }
+
+    //
+    // what a row needs to be dragged, while it can be
+    //
+    const reorderOf = (stream) => {
+        if (!draggable) {
+            return null;
+        }
+
+        if (!controls.current.has(stream)) {
+            controls.current.set(stream, new DragControls());
+        }
+
+        return {
+            controls: controls.current.get(stream),
+            constraints: body,
+            onKeyDown: (event) => {
+                if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    move(stream, event.key === 'ArrowUp' ? -1 : 1);
+                }
+            },
+        };
+    };
+
+    const drawn = ordered.map((row) => (
+        <StreamRow
+            key={row.stream}
+            row={row}
+            rate={rate}
+            onPoint={setPointed}
+            pointed={pointed ? pointed.key : null}
+            onOpen={onOpen}
+            onFocus={onFocus}
+            pick={pick}
+            reorder={reorderOf(row.stream)}
+        />
+    ));
+
     return (
         <div
             ref={box}
@@ -734,6 +931,7 @@ function StreamRows({
             */}
             <div className='stream-rows-table'>
                 <div className='stream-rows-head'>
+                    <span className='stream-rows-head-grip' aria-hidden='true' />
                     <button
                         type='button'
                         className={`stream-rows-head-name stream-rows-sort${active(NAME.key) ? ' stream-rows-sort-active' : ''}`}
@@ -748,12 +946,18 @@ function StreamRows({
                         <span>{first}</span>
                         <span>{last}</span>
                     </span>
+                    {/*
+
+                        the figures' headings. A phone shows only the one its rows
+                        show (#218), marked 'stream-rows-head-pick'
+
+                    */}
                     <span className='stream-rows-head-figures'>
                         {COLUMNS.map((column) => (
                             <button
                                 key={column.key}
                                 type='button'
-                                className={`stream-rows-sort${active(column.key) ? ' stream-rows-sort-active' : ''}`}
+                                className={`stream-rows-sort${active(column.key) ? ' stream-rows-sort-active' : ''}${column.key === pick ? ' stream-rows-head-pick' : ''}`}
                                 aria-label={`Sort by ${column.label}`}
                                 aria-pressed={active(column.key)}
                                 onClick={() => onSort(nextSort(sort, column.key))}
@@ -765,18 +969,28 @@ function StreamRows({
                     </span>
                 </div>
 
-                {ordered.map((row) => (
-                    <StreamRow
-                        key={row.stream}
-                        row={row}
-                        rate={rate}
-                        onPoint={setPointed}
-                        pointed={pointed ? pointed.key : null}
-                        onOpen={onOpen}
-                        onFocus={onFocus}
-                        pick={pick}
-                    />
-                ))}
+                {/*
+
+                    the rows in a box of their own (#218): framer-motion's while
+                    they can be dragged, and a plain one otherwise, so the
+                    stylesheet sees the same either way
+
+                */}
+                {draggable
+                    ? (
+                        <Reorder.Group
+                            as='div'
+                            ref={body}
+                            axis='y'
+                            className='stream-rows-body'
+                            values={ordered.map((row) => row.stream)}
+                            onReorder={onReorder}
+                        >
+                            {drawn}
+                        </Reorder.Group>
+                    ) : (
+                        <div ref={body} className='stream-rows-body'>{drawn}</div>
+                    )}
 
                 {/*
 
@@ -814,6 +1028,7 @@ function StreamRows({
             <StreamReadout pointed={pointed} />
             <StreamLegend />
             <p className='stream-rows-hint'>Tap a stream to see its graph.</p>
+            <div className='visually-hidden' aria-live='polite'>{announcement}</div>
         </div>
     );
 }
@@ -859,6 +1074,13 @@ StreamRows.propTypes = {
     folded: PropTypes.bool,
     width: PropTypes.number,
     onFold: PropTypes.func,
+    //
+    // the reader's own order of the streams, by id, or null for the page's, and
+    // where a new one goes when they drag a row or move it with the keys (#218)
+    // -- see the note at the top. Without 'onReorder' no row can be dragged
+    //
+    order: PropTypes.arrayOf(PropTypes.string),
+    onReorder: PropTypes.func,
     onResize: PropTypes.func,
 };
 

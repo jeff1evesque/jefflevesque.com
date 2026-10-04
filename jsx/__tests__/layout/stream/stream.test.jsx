@@ -367,7 +367,7 @@ describe('the sort, kept for the next visit', () => {
         setup();
 
         expect(pressed()).toEqual([]);
-        expect(screen.getByRole('button', { name: /^Sort: / })).toHaveAccessibleName('Sort: Default order');
+        expect(screen.getByRole('button', { name: /^Sort: / })).toHaveAccessibleName('Sort: Your order');
     });
 
     it('opens sorted as the reader left it', () => {
@@ -427,6 +427,103 @@ describe('the sort, kept for the next visit', () => {
         setup();
 
         expect(pressed()).toEqual([]);
+    });
+});
+
+describe('the order the reader drags the rows into, kept for the next visit (#218)', () => {
+    beforeEach(() => {
+        window.localStorage.clear();
+    });
+
+    afterAll(() => {
+        window.localStorage.clear();
+    });
+
+    const keep = (stored) => window.localStorage.setItem(KEY, JSON.stringify({ v: VERSION, stream: stored }));
+    const kept = () => (JSON.parse(window.localStorage.getItem(KEY) || '{}').stream || {}).order;
+    const reset = () => screen.queryByRole('button', { name: 'Reset order' });
+    const move = (name, key) => fireEvent.keyDown(screen.getByRole('button', { name: `Move ${name}` }), { key: key });
+
+    const ORDER = ['bls', 'stock-market', 'stock-split', 'sec', 'sec-companyfacts', 'us-national-weather'];
+
+    it('opens in the order the reader left the rows in', () => {
+        keep({ order: ORDER });
+
+        setup();
+
+        expect(rowNames()).toEqual([
+            'Bureau of Labor Statistics', 'S&P 500', 'Stock Splits', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts',
+        ]);
+    });
+
+    it('opens in an order kept before #152, which is the reader\'s still', () => {
+        keep({ chart: 'sec', order: ['sec', 'bls'] });
+
+        setup();
+
+        expect(rowNames().slice(0, 3)).toEqual(['SEC Filings', 'Bureau of Labor Statistics', 'S&P 500']);
+    });
+
+    it('keeps a row the reader moves', () => {
+        setup();
+
+        move('S&P 500', 'ArrowDown');
+
+        expect(rowNames().slice(0, 2)).toEqual(['Stock Splits', 'S&P 500']);
+        expect(kept()).toEqual(['stock-split', 'stock-market', 'bls', 'sec', 'sec-companyfacts', 'us-national-weather']);
+    });
+
+    it('offers Reset order only once the reader\'s order differs from the page\'s', () => {
+        setup();
+
+        expect(reset()).toBeNull();
+
+        move('S&P 500', 'ArrowDown');
+        expect(reset()).not.toBeNull();
+
+        move('S&P 500', 'ArrowUp');
+        expect(reset()).toBeNull();
+    });
+
+    it('puts the page\'s order back from the pill, which goes', () => {
+        keep({ order: ORDER });
+
+        setup();
+
+        fireEvent.click(reset());
+
+        expect(rowNames()[0]).toBe('S&P 500');
+        expect(kept()).toBeUndefined();
+        expect(reset()).toBeNull();
+    });
+
+    it('puts the page\'s order back from the sort button\'s last choice', () => {
+        keep({ order: ORDER });
+
+        setup();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Sort: / }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Reset order' }));
+
+        expect(rowNames()[0]).toBe('S&P 500');
+        expect(kept()).toBeUndefined();
+    });
+
+    it('lets a kept sort win, offering no Reset order, until the sort is let go', () => {
+        keep({ order: ORDER, sort: { key: 'name', dir: 'desc' } });
+
+        setup();
+
+        expect(rowNames()[0]).toBe('US Weather Alerts');
+        expect(reset()).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Sort: / }));
+        expect(screen.queryByRole('menuitem', { name: 'Reset order' })).toBeNull();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Your order' }));
+
+        expect(rowNames()[0]).toBe('Bureau of Labor Statistics');
+        expect(reset()).not.toBeNull();
     });
 });
 

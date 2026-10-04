@@ -3,8 +3,8 @@
  * visits -- the stream they last charted there, the order they dragged its rows
  * into, and the figure they sorted its rows by.
  *
- * /stream keeps the sort its rows were left in. /data opens on a chart, and
- * lists its streams under it. A
+ * /stream keeps the sort its rows were left in, and the order they were dragged
+ * into. /data opens on a chart, and lists its streams under it. A
  * reader who charts the same stream on every visit, or watches two streams more
  * than the rest, answers the same two questions every time the page asks them:
  * which one, and in what order. Asking again is the page forgetting an answer it
@@ -37,9 +37,11 @@ const VERSION = 1;
 //
 // the pages that keep a choice, each under its own name.
 //
-// Note: /stream keeps only its sort (#156). It kept a charted stream and an
-//       order too, until it drew every stream at once as a row of bars (#152);
-//       what a reader kept for it then is left where it is and never read.
+// Note: /stream keeps its sort (#156) and its order (#218). It kept a charted
+//       stream and an order until it drew every stream at once as a row of bars
+//       (#152), and its rows drag again since #218: an order a reader kept then
+//       is still theirs, and is read again. The chart is left where it is and
+//       never read.
 //
 const PAGES = ['stream', 'data'];
 
