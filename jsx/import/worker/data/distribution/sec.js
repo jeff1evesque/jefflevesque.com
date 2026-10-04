@@ -1,5 +1,6 @@
 /**
- * sec.js: web-worker for data-distribution
+ * sec.js: web-worker for data-distribution, for the filings and for the company
+ *         facts, whose rows are the filings' shape (#211)
  *
  */
 
@@ -37,10 +38,15 @@ export default () => {
             const selected_stream = 'stream' in item && item.stream ? item.stream : null;
             const selected_source = 'source' in item && item.source ? item.source : null;
 
-            if (selected_stream === 'sec') {
-                // Result intentionally discarded: the callback below populates
-                // data_reformat by side effect, so the call must still run.
-                item['data-distribution'].map(v => {
+            {/*
+
+                the filings, and the company facts, whose categories are each
+                fact's status: 'new', 'repeated' or 'changed' (#211)
+
+            */}
+
+            if (['sec', 'sec-companyfacts'].includes(selected_stream)) {
+                item['data-distribution'].forEach(v => {
                     if (
                         'total_records' in v
                         && checkValidInt(v.total_records)
@@ -60,30 +66,6 @@ export default () => {
 
                     if (
                         'form' in v
-                        && trim(v.form) in data_reformat
-                        && checkValidString(v.form)
-                        && 'category' in v
-                        && checkValidString(v.category)
-                        && 'total_records' in v
-                        && checkValidInt(v.total_records)
-                    ) {
-                        {/*
-
-                            merge objects from array of objects having common 'form' field
-
-                              - https://stackoverflow.com/a/33850667
-                              - https://stackoverflow.com/a/73835290
-
-                        */}
-
-                        let record = {'form': trim(v.form)};
-                        record[trim(v.category)] = parseInt(v.total_records);
-                        data_reformat[trim(v.form)] = Object.assign(
-                            data_reformat[trim(v.form)],
-                            record
-                        );
-                    } else if (
-                        'form' in v
                         && checkValidString(v.form)
                         && 'category' in v
                         && checkValidString(v.category)
@@ -97,8 +79,19 @@ export default () => {
 
                         */}
                         const form_key = `Form ${trim(v.form)}`;
-                        let record = {'form': form_key};
-                        record[trim(v.category)] = parseInt(v.total_records);
+                        const category = trim(v.category);
+
+                        {/*
+
+                            a form's every category stacks onto its one row. It was
+                            looked up by the form WITHOUT its prefix, which is never a
+                            key, so a second category took the place of the first --
+                            unseen while the filings had one category, 'Filings', and
+                            not once the company facts gave a form a row per status
+
+                        */}
+                        const record = data_reformat[form_key] || {'form': form_key};
+                        record[category] = (record[category] || 0) + parseInt(v.total_records);
                         data_reformat[form_key] = record;
                     } else {
                         console.log(`Error: sec-distribution ${JSON.stringify(v)} not correct format`);
