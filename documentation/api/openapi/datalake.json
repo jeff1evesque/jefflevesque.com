@@ -15,7 +15,7 @@
       "get": {
         "operationId": "getDatalake",
         "summary": "One dataset's distribution and partition count for a month",
-        "description": "Data names a dataset, not a stream: the stream id 'us-national-weather' is answered with a 400, where the dataset is 'us-weather-alert'.",
+        "description": "Data names a dataset, not a stream: the stream id 'us-national-weather' is answered with a 400, where the dataset is 'us-weather-alert'. The sec stream has two datasets: 'sec', its filings, and 'sec-companyfacts', the XBRL numbers the S&P 500 companies filed.",
         "parameters": [
           {
             "name": "Data",
@@ -29,6 +29,7 @@
                 "stock-split",
                 "bls",
                 "sec",
+                "sec-companyfacts",
                 "us-weather-alert"
               ]
             },
@@ -81,20 +82,34 @@
                       "properties": {
                         "data-distribution": {
                           "type": "string",
-                          "description": "CSV with a header row. The grouping columns differ by dataset: bls has category and series; sec, category and form; stock-market, sector, industry and total_tickers; us-weather-alert, severity and event; stock-split, split_date, sector, industry, total_tickers and tickers."
+                          "description": "CSV with a header row. The grouping columns differ by dataset: bls has category and series; sec, category and form; sec-companyfacts, category and form as well, its category each fact's status, new, repeated or changed; stock-market, sector, industry and total_tickers; us-weather-alert, severity and event; stock-split, split_date, sector, industry, total_tickers and tickers."
                         },
                         "partition": {
                           "type": "string",
-                          "description": "CSV with a single count column."
+                          "description": "CSV with a single count column: the partitions the period occupies. For sec-companyfacts, the days with facts filed."
                         }
                       }
                     }
                   }
                 },
-                "example": {
-                  "report": {
-                    "data-distribution": "category,series,total_records\nReports,EMPSIT,626\nReports,REALER,36\nReports,XIMPIM,1752\n",
-                    "partition": "count\n5\n"
+                "examples": {
+                  "bls": {
+                    "summary": "bls",
+                    "value": {
+                      "report": {
+                        "data-distribution": "category,series,total_records\nReports,EMPSIT,626\nReports,REALER,36\nReports,XIMPIM,1752\n",
+                        "partition": "count\n5\n"
+                      }
+                    }
+                  },
+                  "sec-companyfacts": {
+                    "summary": "sec-companyfacts, August 2026: 97,343 facts filed on 21 days",
+                    "value": {
+                      "report": {
+                        "data-distribution": "category,form,total_records\nchanged,10-Q,1286\nnew,424B2,391\nnew,S-4,20\nrepeated,DEF 14A,44\nchanged,DEF 14A,15\nrepeated,PRE 14A,4\nrepeated,424B8,6\nnew,424B7,6\nrepeated,10-Q,37190\nnew,424B5,119\nrepeated,10-K,6949\nchanged,424B2,1876\nnew,S-8,44\nchanged,PRE 14A,6\nnew,DEF 14A,131\nnew,8-K,2\nchanged,424B3,8\nnew,PREM14A,5\nrepeated,424B2,372\nchanged,10-K,170\nnew,2.01 SD,9\nnew,10-Q,41970\nnew,S-3ASR,65\nnew,10-K,6563\nnew,PRE 14A,70\nnew,424B3,6\nchanged,424B8,12\nrepeated,424B3,4\n",
+                        "partition": "count\n21\n"
+                      }
+                    }
                   }
                 }
               }
