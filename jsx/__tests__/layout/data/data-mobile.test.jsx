@@ -415,7 +415,7 @@ describe('a phone\'s month', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
 
         expect(monthMenu().selectedIndex).toBe(4);
-        expect(spy).toHaveBeenCalledTimes(5);
+        expect(spy).toHaveBeenCalledTimes(6);
         spy.mockRestore();
     });
 
@@ -437,7 +437,7 @@ describe('a phone\'s month', () => {
         chooseMonth(5);
 
         expect(monthShown()).toBe(chosen);
-        expect(spy).toHaveBeenCalledTimes(5);
+        expect(spy).toHaveBeenCalledTimes(6);
         spy.mockRestore();
     });
 
