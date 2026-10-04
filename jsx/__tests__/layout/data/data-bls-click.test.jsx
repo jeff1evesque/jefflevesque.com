@@ -152,11 +152,11 @@ describe('selecting a stream', () => {
 
         spy.mockClear();
         selectStream('Bureau of Labor');
-        expect(streams().size).toBe(5);
+        expect(streams().size).toBe(6);
 
         spy.mockClear();
         selectStream('SEC Filings');
-        expect(streams().size).toBe(5);
+        expect(streams().size).toBe(6);
 
         spy.mockClear();
         selectStream('S&P 500');
