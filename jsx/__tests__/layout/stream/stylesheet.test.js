@@ -189,3 +189,33 @@ describe('the info icon after a figure\'s name (#206)', () => {
         expect(icon).not.toMatch(/(^|[^-])color\s*:/);
     });
 });
+
+describe('the rest of a row, while a bar of it is pointed at (#216)', () => {
+    const DIM = '.stream-row-bars.is-pointing .stream-bar-slot:not(.is-pointed) .stream-bar';
+
+    it('dims every bar of the row but the one pointed at', () => {
+        expect(own(first(DIM))).toMatch(/opacity\s*:\s*0\.45\s*;/);
+    });
+
+    it('fades a bar in and out, quickly', () => {
+        expect(own(first('.stream-bar'))).toMatch(/transition\s*:\s*opacity 0\.1s ease\s*;/);
+    });
+
+    it('dims a bar nowhere else: not another row, and not a row that is not pointed into', () => {
+        const dims = source.match(/[^{};]*\{[^{}]*opacity\s*:\s*0\.45[^{}]*\}/g) || [];
+
+        expect(dims.map((rule) => rule.split('{')[0].trim())).toEqual([DIM]);
+        expect(own(first('.stream-row-bars'))).not.toMatch(/opacity/);
+        expect(own(first('.stream-bar-slot'))).not.toMatch(/opacity/);
+    });
+});
+
+describe('the Stream heading, which sorts by name (#216)', () => {
+    it('stands at the start of its column, where the names are', () => {
+        const heading = own(first('.stream-rows-head-name.stream-rows-sort'));
+
+        expect(heading).toMatch(/justify-content\s*:\s*flex-start\s*;/);
+        expect(heading).toMatch(/justify-self\s*:\s*start\s*;/);
+    });
+});
+
