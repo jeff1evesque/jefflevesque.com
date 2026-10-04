@@ -1,5 +1,9 @@
 /**
- * get-data-distribution.test.js: the four per-stream distribution loaders.
+ * get-data-distribution.test.js: the per-stream distribution loaders.
+ *
+ * Five of them since #211: sec-companyfacts.js joined the four below, and holds to
+ * the same contract by sharing sec.js's fetch and parse rather than copying them --
+ * see readSecDistribution.
  *
  * bls.js, sec.js, stock-market.js and us-weather-alert.js are four separate
  * modules that share one contract, so they are driven from one table here rather
@@ -35,6 +39,7 @@ import { readString } from 'react-papaparse';
 
 import getBls from '../../import/general/get-data/distribution/bls.js';
 import getSec from '../../import/general/get-data/distribution/sec.js';
+import getSecCompanyFacts from '../../import/general/get-data/distribution/sec-companyfacts.js';
 import getStockMarket from '../../import/general/get-data/distribution/stock-market.js';
 import getUsWeatherAlert from '../../import/general/get-data/distribution/us-weather-alert.js';
 import { limitedUntil, resetRateLimit } from '../../import/general/rate-limit.js';
@@ -45,7 +50,7 @@ const URL = 'https://example.com/distribution.csv';
 const ROWS = [{ category: 'Reports', series: 'CPI', total_records: '12' }];
 
 //
-// the body shape all four require: a 'report' object carrying BOTH sections.
+// the body shape all five require: a 'report' object carrying BOTH sections.
 // Either one missing sends the whole response down the rejection path.
 //
 const REPORT = {
@@ -56,11 +61,12 @@ const REPORT = {
 };
 
 //
-// the four modules under test, named as data.jsx imports them.
+// the five modules under test, named as data.jsx imports them.
 //
 const LOADERS = [
     ['bls', getBls],
     ['sec', getSec],
+    ['sec-companyfacts', getSecCompanyFacts],
     ['stock-market', getStockMarket],
     ['us-weather-alert', getUsWeatherAlert],
 ];
@@ -86,14 +92,14 @@ function mockFetch(json, ok = true) {
     });
 }
 
-describe('all four expose the same shape', () => {
+describe('all five expose the same shape', () => {
     it.each(LOADERS)('%s exports a function', (name, loader) => {
         expect(typeof loader).toBe('function');
     });
 
     it.each(LOADERS)('%s logs and returns undefined for an unrecognised type', (name, loader) => {
         //
-        // all four accept exactly one type. Anything else logs
+        // all five accept exactly one type. Anything else logs
         // 'not a valid choice' and returns undefined, with no request made.
         //
         global.fetch = jest.fn();
@@ -134,7 +140,7 @@ describe('the shared fetch path', () => {
 
     it.each(LOADERS)('%s tags every callback with source and stream', async (name, loader) => {
         //
-        // load-bearing: data.jsx fires all four of these at once and has no other
+        // load-bearing: data.jsx fires all five of these at once and has no other
         // way to tell the responses apart, since they arrive out of order. Both
         // calls have to carry the tags, not just the first.
         //
@@ -447,7 +453,7 @@ describe('the argument defaults', () => {
 });
 
 describe('the duplication itself', () => {
-    it('all four behave identically on the shared failure path', async () => {
+    it('all five behave identically on the shared failure path', async () => {
         //
         // The claim in the file header: the fetch and error handling are copied,
         // not shared. If one module is ever fixed in isolation, this is what
