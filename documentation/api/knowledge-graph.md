@@ -121,6 +121,13 @@ which has no account of what reached the graph. Which of the two applies is in t
 schema's `version`, so that one row waits for the schema rather than showing the
 listing's list first.
 
+**From schema `1.6`, a build reads the SEC's company facts**, the XBRL numbers the S&P 500
+companies filed, as the source `sec-companyfacts`, and both lists name it. Its one node
+type, `companyfacts_CompanyFact`, is each company's latest numbers, about 15,600 nodes a
+day, each linked to the `filings_Issuer` that reported it. Its vocabulary is
+`sec/companyfacts`, so the graph pages draw and list it under that namespace, beside the
+filings' `sec/filings`.
+
 **`period` is a partition key, not a window over the data.** Builds are published under
 a partition -- `YYYY-MM`, nested year then month -- and an `id` is selected from within
 it, which is why the listing above holds several builds sharing one `period` and
@@ -230,6 +237,13 @@ nine million market snapshots that carry no name and no value to look up. Weighe
 what can be found by name, it draws the day's 49 named types and the 11 that join
 them, and shares 21 of the 60 with its build.
 
+It also draws a type of every source its Sources row names, whatever the type weighs.
+By entities a source whose types carry no text weighs nothing: the company facts' one
+type is numbers, and so is every one of `market`'s. Such a source's type that joins the
+most of what is drawn takes the place of the lightest type drawn, so the canvas still
+draws sixty: on 2026-10-02, `market_enrichment_EquitySector` takes an `eci` series'
+place.
+
 Its Day details put the day's **Run** and **Published** directly under the Day, read
 from `days`, so the three are on screen with the picker, above the totals that arrive a
 round trip later. `/graph`'s Build details put a build's Run and Built in the same place,
@@ -268,11 +282,11 @@ records. `stock-split` is one: the day's stock splits, in the
 table. No node or edge comes from such a feed, so the canvas, the legend and the tables do
 not show it, and the api has no path for its table. Sources puts a small info icon after its
 name, with a tooltip saying it is not in the graph. A node
-type comes from a source when the first part of its namespace is the source's name —
-`bls` for `bls/jolts`, `market` for `market/quotes` — and every type the day holds is
-asked, not only the sixty drawn: none of `market`'s types is drawn, and every one of them
-is in the tables. A day whose `sources` is `null` notes none, since its list is read off
-its node types.
+type comes from a source when its namespace begins with the source's name, its parts
+joined by hyphens — `bls` for `bls/jolts`, `market` for `market/quotes`, and
+`sec-companyfacts` for `sec/companyfacts` — and every type the day holds is asked, not
+only the sixty drawn. A day whose `sources` is `null` notes none, since its list is read
+off its node types.
 {: #sources-outside-the-graph }
 
 ## Caching
