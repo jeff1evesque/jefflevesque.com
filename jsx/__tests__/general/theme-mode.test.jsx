@@ -16,8 +16,16 @@
 
 import React, { useContext } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { useTheme } from '@mui/material/styles';
-import ThemeMode, { ThemeModeContext, MUI_THEMES, SWITCH_SLACK } from '../../import/general/theme-mode.jsx';
+import { ThemeProvider, useTheme } from '@mui/material/styles';
+import Tooltip from '@mui/material/Tooltip';
+import ThemeMode, {
+    ThemeModeContext,
+    MUI_THEMES,
+    SWITCH_SLACK,
+    TOOLTIP_ARROW,
+    TOOLTIP_EDGE,
+    TOOLTIP_GAP,
+} from '../../import/general/theme-mode.jsx';
 import ThemeToggle from '../../import/navigation/theme-toggle.jsx';
 import { readTheme, writeTheme, KEY } from '../../import/general/theme-preference.js';
 import { colors_dark } from '../../import/general/colors.js';
@@ -293,6 +301,85 @@ describe('mui\'s components', () => {
     it('draw the light page in mui\'s own default, as they always have', () => {
         expect(MUI_THEMES.light.palette.mode).toBe('light');
         expect(MUI_THEMES.light.palette.background.default).toBe('#fff');
+    });
+});
+
+describe('every tooltip on the site (#206)', () => {
+    const settings = (theme) => MUI_THEMES[theme].components.MuiTooltip;
+
+    it.each(['light', 'dark'])('opens above what it belongs to, with an arrow, in the %s theme', (theme) => {
+        const { defaultProps } = settings(theme);
+
+        expect(defaultProps.arrow).toBe(true);
+        expect(defaultProps.placement).toBe('top');
+    });
+
+    it.each(['light', 'dark'])('stays 8px inside the screen in the %s theme', (theme) => {
+        //
+        // mui's popper already slides a tooltip along an edge, and flips it below
+        // where there is no room above, but up to the edge itself
+        //
+        expect(TOOLTIP_EDGE).toBe(8);
+        expect(settings(theme).defaultProps.slotProps.popper.modifiers)
+            .toContainEqual({ name: 'preventOverflow', options: { padding: TOOLTIP_EDGE } });
+    });
+
+    it('is drawn in the selected rate button\'s colors: near-black by day', () => {
+        const { tooltip, arrow } = settings('light').styleOverrides;
+
+        expect(tooltip.backgroundColor).toBe('#111');
+        expect(tooltip.color).toBe('#fff');
+        expect(arrow.color).toBe('#111');
+    });
+
+    it('and its light gray with dark text by night, where a dark box would vanish', () => {
+        const { tooltip, arrow } = settings('dark').styleOverrides;
+
+        expect(tooltip.backgroundColor).toBe('#f0f0f0');
+        expect(tooltip.color).toBe('#1e1e1e');
+        expect(arrow.color).toBe('#f0f0f0');
+    });
+
+    it('writes in the page\'s 14px text, in a box at most 340px wide', () => {
+        const { tooltip } = settings('light').styleOverrides;
+
+        expect(tooltip.fontSize).toBe('1rem');
+        expect(tooltip.fontWeight).toBe(400);
+        expect(tooltip.padding).toBe('0.5rem 1rem');
+        expect(tooltip.maxWidth).toBe(340);
+    });
+
+    it('keeps its arrow\'s tip 3px off what it points at, on every side', () => {
+        //
+        // the arrow hangs below the box half as tall as it is wide, and the box's
+        // margin on that side keeps both off what they point at
+        //
+        const { tooltip, arrow } = settings('light').styleOverrides;
+        const gap = `${TOOLTIP_ARROW / 2 + TOOLTIP_GAP}px`;
+
+        expect(TOOLTIP_GAP).toBe(3);
+        expect(arrow.fontSize).toBe(TOOLTIP_ARROW);
+        expect(tooltip['.MuiTooltip-popper[data-popper-placement*="top"] &']).toEqual({ marginBottom: gap });
+        expect(tooltip['.MuiTooltip-popper[data-popper-placement*="bottom"] &']).toEqual({ marginTop: gap });
+        expect(tooltip['.MuiTooltip-popper[data-popper-placement*="left"] &']).toEqual({ marginRight: gap });
+        expect(tooltip['.MuiTooltip-popper[data-popper-placement*="right"] &']).toEqual({ marginLeft: gap });
+    });
+
+    it('opens on the page above its element, with an arrow, when nothing asks otherwise', async () => {
+        render(
+            <ThemeProvider theme={MUI_THEMES.light}>
+                <Tooltip title='API docs'>
+                    <button type='button'>docs</button>
+                </Tooltip>
+            </ThemeProvider>
+        );
+
+        fireEvent.mouseOver(screen.getByText('docs'));
+
+        const popper = await screen.findByRole('tooltip');
+
+        expect(popper).toHaveAttribute('data-popper-placement', 'top');
+        expect(popper.querySelector('.MuiTooltip-arrow')).not.toBeNull();
     });
 });
 
