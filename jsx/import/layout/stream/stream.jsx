@@ -965,13 +965,14 @@ class StreamLayout extends Component {
             );
 
         //
-        // the stream's alarms. The company facts have none (#211): the alarms api
-        // answers their id 'no such stream', so a bell would lead to a page with
-        // nothing to subscribe to
+        // Note: every stream has its bell, the company facts' included since
+        //       their alarm exists (#214). #211 left theirs off while the alarms
+        //       api answered their id 'no such stream'.
         //
-        const alarm_button = stream === SEC_COMPANYFACTS
-            ? null
-            : (
+        return(
+            <div className='control-tray'>
+                {trigger_button}
+
                 <Link
                     className='border-circle-radius control-button'
                     to={`/stream/${stream}/alarm`}
@@ -981,12 +982,6 @@ class StreamLayout extends Component {
                 >
                     {this.alarmBell(stream, font_size)}
                 </Link>
-            );
-
-        return(
-            <div className='control-tray'>
-                {trigger_button}
-                {alarm_button}
             </div>
         );
     }

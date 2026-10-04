@@ -43,8 +43,8 @@ and a stream's alarms are a list of these:
 - **One alarm per stream, for now: its ingest alarm.** A stream goes into alarm when it
   has had no new records for longer than its usual gap, and recovers when records arrive
   again. The usual gap is a couple of hours for the weather feed, about a business day
-  for the market and filings feeds, and longer for the feeds that publish weekly or
-  monthly.
+  for the market and filings feeds, about a day and a half for the SEC's company facts,
+  every day counted, and longer for the feeds that publish weekly or monthly.
 - **The ids are the site's own.** A stream is named by the id the rest of the site uses,
   such as `stock-market`.
 - **Repeating a request changes nothing.** Subscribing to an alarm already held, or

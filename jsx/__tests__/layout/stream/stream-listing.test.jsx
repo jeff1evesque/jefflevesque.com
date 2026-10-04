@@ -518,7 +518,7 @@ describe('the per-row control tray', () => {
         expect(tray(page, 'bls').querySelector('[data-testid="QueryStatsIcon"]')).toBeNull();
     });
 
-    it.each(STREAMS.filter((stream) => stream !== 'sec-companyfacts'))('gives %s an alarm link at its id, and no chart control', (stream) => {
+    it.each(STREAMS)('gives %s an alarm link at its id, and no chart control', (stream) => {
         //
         // the link used to be the lower-cased name -- '/stream/stockmarket/alarm'
         // -- where the listing linked '?item=StockMarket'. Both are the id now. The
@@ -529,14 +529,6 @@ describe('the per-row control tray', () => {
 
         expect(container.querySelector('[data-testid="BarChartIcon"]')).toBeNull();
         expect(container.querySelector(`a[href="/stream/${stream}/alarm"]`)).toBeTruthy();
-    });
-
-    it('gives the company facts no alarm link, since they have no alarms (#211)', () => {
-        const page = setup();
-        const container = tray(page, 'sec-companyfacts');
-
-        expect(container.querySelector('a')).toBeNull();
-        expect(container.querySelector('.control-tray')).toBeTruthy();
     });
 
     it('links the query stats control to the triggers page, where the sheet it opened went (#179)', () => {

@@ -16,7 +16,11 @@ The routes are declared in
     [`jsx/import/general/stream-id.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/stream-id.js).
     The same id is what the site sends the performance api, but for
     `sec-companyfacts`, the SEC's company facts, which it asks for as a series of
-    `sec`. They have no alarms, and so no `:stream` page.
+    `sec`.
+
+    `/stream/:stream` is not a page of its own. It is replaced with `/stream?item=`
+    and the stream's id, which opens the stream on its own, and is how the alarm
+    emails link a stream. A name that is no stream's opens every stream.
 
     An address naming a stream by a name it used to go by, such as
     `/stream/StockMarket/alarm` or `/data?item=usnationalweather`, still loads, and is

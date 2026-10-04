@@ -36,12 +36,13 @@ import { Link, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import streamName from '../../general/stream-name.js';
-import { loadArchiveListing, archiveFiles } from '../../general/archive-links.js';
+import { loadArchiveListing, archiveFiles, archives } from '../../general/archive-links.js';
 import {
     STOCK_MARKET,
     STOCK_SPLIT,
     BLS,
     SEC,
+    SEC_COMPANYFACTS,
     US_NATIONAL_WEATHER,
     STREAMS,
 } from '../../general/stream-id.js';
@@ -120,7 +121,8 @@ class StreamAlarm extends Component {
             //
             // per stream: absent until asked, 'pending' while the listing is on
             // its way, then the files it lists -- or 'failed' when it could not
-            // be had. See loadArchive.
+            // be had, and 'unarchived' for a stream the archive does not hold.
+            // See loadArchive.
             //
             archive: {}
         }
@@ -179,6 +181,10 @@ class StreamAlarm extends Component {
      * Note: a listing that could not be had is 'failed', not an empty list, and
      *       is asked again on the next expansion -- nothing was learned about
      *       what the stream published.
+     *
+     * Note: and a stream the listing does not archive at all is 'unarchived',
+     *       not an empty list either. The SEC's company facts are one (#214):
+     *       "Nothing published yet" said they would be, in time.
      */
     loadArchive(stream) {
         const key = stream;
@@ -193,7 +199,10 @@ class StreamAlarm extends Component {
         loadArchiveListing()
             .then((listing) => {
                 this.setState((state) => ({
-                    archive: { ...state.archive, [key]: archiveFiles(listing, key) },
+                    archive: {
+                        ...state.archive,
+                        [key]: archives(listing, key) ? archiveFiles(listing, key) : 'unarchived',
+                    },
                 }));
             })
             .catch(() => {
@@ -460,6 +469,30 @@ class StreamAlarm extends Component {
                 var window_1_purple = false;
                 var window_1_green = false;
                 var window_2_blue = false;
+            } else if (stream === SEC_COMPANYFACTS) {
+                {/*
+
+                    a window a day, holding that night's run: a record per
+                    company it fetched, as the performance api counts them (#214)
+
+                */}
+
+                var ingest_interval = 'daily at 11:15pm ET (M-Sat)';
+                var ingest_content_1 = `
+                    It fetches the XBRL numbers the S&P 500 companies filed with the
+                    U.S. Securities and Exchange Commission (SEC): on a weekday, those
+                    of the companies that filed a 10-K or 10-Q that day, and on
+                    Saturday, those of all 500. A run that fails writes no record, so
+                    its alarm is a day without one`;
+                var ingest_content_2_mobile = `
+                    A window per day, a record per company its run fetched`;
+                var ingest_content_2 = `
+                    The above figure shows a window per day, each holding the records of
+                    that night's run: one per company it fetched. A weekday's window holds
+                    a handful, and a Saturday's all 500`;
+                var late_arrival = false;
+                var x_unit = 'day';
+                var x_increment = 1;
             } else if (stream === SEC) {
                 var ingest_interval = 'every 1 hour (everyday)';
                 var ingest_content_1 = `
@@ -526,7 +559,9 @@ class StreamAlarm extends Component {
         const files = Array.isArray(found) ? found : [];
         const status = found === 'failed'
             ? 'Archive unavailable right now'
-            : Array.isArray(found) ? 'Nothing published yet' : 'Checking...';
+            : found === 'unarchived'
+                ? 'Not archived'
+                : Array.isArray(found) ? 'Nothing published yet' : 'Checking...';
         const links = [
             <div key={key}>
                 <ListItemButton onClick={() => {

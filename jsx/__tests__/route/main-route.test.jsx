@@ -45,6 +45,27 @@ jest.mock('../../import/layout/graph/graph.jsx', () => {
     return { __esModule: true, default: probe('training'), RetrievalGraph: probe('retrieval') };
 });
 
+//
+// /stream as a probe too, reporting the address it was opened at -- so an
+// address the route table sends there can be followed to where it lands (#214)
+//
+jest.mock('../../import/redux/container/stream/stream.jsx', () => {
+    const mockReact = require('react');
+    const { useLocation } = require('react-router-dom');
+
+    return {
+        __esModule: true,
+        default: function StreamProbe() {
+            const location = useLocation();
+
+            return mockReact.createElement('div', {
+                'data-testid': 'stream-page',
+                'data-at': `${location.pathname}${location.search}`,
+            });
+        },
+    };
+});
+
 import user from '../../import/redux/reducer/login.jsx';
 import layout from '../../import/redux/reducer/layout.jsx';
 import page from '../../import/redux/reducer/page.jsx';
@@ -66,9 +87,11 @@ function renderAt(path) {
         </Provider>
     );
 
-    const shown = screen.getByTestId('graph-page');
+    const shown = screen.queryByTestId('graph-page');
 
-    return { page: shown.dataset.page, params: JSON.parse(shown.dataset.params) };
+    return shown
+        ? { page: shown.dataset.page, params: JSON.parse(shown.dataset.params) }
+        : { stream: screen.getByTestId('stream-page').dataset.at };
 }
 
 describe('the Retrieval graph', () => {
@@ -104,5 +127,16 @@ describe('the Training graph', () => {
         // however the two are written down.
         //
         expect(renderAt('/graph/retrieval').page).toBe('retrieval');
+    });
+});
+
+describe('a stream by its path, as the alarm emails link one (#214)', () => {
+    it.each([
+        ['/stream/sec', '/stream?item=sec'],
+        ['/stream/sec-companyfacts', '/stream?item=sec-companyfacts'],
+        ['/stream/StockMarket', '/stream?item=stock-market'],
+        ['/stream/nope', '/stream'],
+    ])('sends %s to %s', (path, landed) => {
+        expect(renderAt(path)).toEqual({ stream: landed });
     });
 });

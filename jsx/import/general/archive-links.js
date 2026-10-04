@@ -58,6 +58,30 @@ function keyOf(stream) {
 }
 
 /**
+ * whether a listing archives `stream` at all: whether its `streams`, every stream
+ * it archives whether or not it has published anything yet, names it by any name
+ * it has gone by.
+ *
+ * The SEC's company facts are not archived (#214). Their runs are a series of
+ * the sec stream's report, and its archive holds the filings only. A stream the
+ * listing names with no files has published nothing yet, which is another thing.
+ *
+ * Note: a listing that does not list its streams is taken to archive every
+ *       stream, so it never says a stream is not archived where it cannot know.
+ */
+export function archives(listing, stream) {
+    const streams = listing ? listing.streams : null;
+
+    if (!Array.isArray(streams)) {
+        return true;
+    }
+
+    const key = keyOf(stream);
+
+    return streams.some((name) => keyOf(name) === key);
+}
+
+/**
  * one stream's files from a listing, newest first, as the rows the page draws.
  *
  * Note: matched by the stream's id on both sides, so the same files come back

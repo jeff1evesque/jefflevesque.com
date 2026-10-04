@@ -45,12 +45,6 @@ import { STREAMS, SEC_COMPANYFACTS } from '../../../import/general/stream-id.js'
 import { performanceStream } from '../../../import/general/api-url.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
 
-//
-// the streams with alarms: every one but the company facts, which the alarms api
-// does not know (#211)
-//
-const ALARMED = STREAMS.filter((stream) => stream !== SEC_COMPANYFACTS);
-
 function setup(props = {}) {
     return render(
         <MemoryRouter>
@@ -268,24 +262,31 @@ describe('each row\'s bell', () => {
 
         await waitFor(() => expect(listSubscriptions).toHaveBeenCalled());
 
-        ALARMED.forEach((stream) => {
+        STREAMS.forEach((stream) => {
             expect(bell(stream)).toHaveAttribute('data-testid', 'NotificationsIcon');
             expect(bell(stream)).not.toHaveClass('subscribed');
         });
     });
 
-    it('is not drawn for the company facts, which have no alarms (#211)', async () => {
+    it('is drawn for the company facts too, now their alarm exists (#214)', async () => {
         //
-        // the alarms api answers their id 'no such stream', so a bell would lead
-        // to a page with nothing on it to subscribe to
+        // #211 left it off while the alarms api answered their id 'no such stream'
         //
         setup();
 
         await waitFor(() => expect(listSubscriptions).toHaveBeenCalled());
 
-        expect(document.querySelector(`a[href="/stream/${SEC_COMPANYFACTS}/alarm"]`)).toBeNull();
-        expect(screen.queryByRole('link', { name: 'Alarms for SEC Company Facts' })).toBeNull();
-        expect(screen.getByRole('link', { name: 'Alarms for SEC Filings' })).toHaveAttribute('href', '/stream/sec/alarm');
+        expect(screen.getByRole('link', { name: 'Alarms for SEC Company Facts' }))
+            .toHaveAttribute('href', `/stream/${SEC_COMPANYFACTS}/alarm`);
+        expect(document.querySelectorAll('.stream-row a[href$="/alarm"]')).toHaveLength(STREAMS.length);
+    });
+
+    it('rings for the company facts, for a reader subscribed to their alarm', async () => {
+        listSubscriptions.mockResolvedValue([{ ...HELD, stream: SEC_COMPANYFACTS }]);
+
+        setup();
+
+        expect(await screen.findByLabelText('Subscribed to 1 alarm')).toBe(bell(SEC_COMPANYFACTS));
     });
 
     it('rings for a stream the reader is subscribed to, saying how many', async () => {
@@ -316,7 +317,7 @@ describe('each row\'s bell', () => {
 
         await screen.findByLabelText('Subscribed to 1 alarm');
 
-        ALARMED.filter((stream) => stream !== 'bls').forEach((stream) => {
+        STREAMS.filter((stream) => stream !== 'bls').forEach((stream) => {
             expect(bell(stream)).toHaveAttribute('data-testid', 'NotificationsIcon');
         });
     });

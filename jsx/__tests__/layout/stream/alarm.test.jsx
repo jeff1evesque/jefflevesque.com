@@ -2,7 +2,7 @@
  * alarm.test.jsx: the per-stream ingest alarm page ('/stream/:stream/alarm').
  *
  * The page is reached by a stream's id -- 'stock-market', 'stock-split', 'bls',
- * 'sec', 'us-national-weather' -- and compares it as it is. It used to rename
+ * 'sec', 'sec-companyfacts', 'us-national-weather' -- and compares it as it is. It used to rename
  * three streams for itself, and labeled two of its pages with the new name:
  * 'Download raw stock-market ingest performance metrics'. A url naming a stream
  * by a name it used to go by is replaced before this page mounts, so the cases
@@ -249,10 +249,19 @@ describe('the page body', () => {
         ['us-national-weather', /every 5 minutes \(everyday\)/],
         ['bls', /every 1 hour \(everyday\)/],
         ['sec', /every 1 hour \(everyday\)/],
+        ['sec-companyfacts', /daily at 11:15pm ET \(M-Sat\)/],
     ])('%s states its own ingest interval', (stream, interval) => {
         renderAlarm(stream);
 
         expect(screen.getByText(interval)).toBeInTheDocument();
+    });
+
+    it('says what the company facts are, and that a day without a run is the alarm (#214)', () => {
+        renderAlarm('sec-companyfacts');
+
+        expect(screen.getByText(/XBRL numbers the S&P 500 companies filed/)).toBeInTheDocument();
+        expect(screen.getByText(/its alarm is a day without one/)).toBeInTheDocument();
+        expect(screen.getByText(/one per company it fetched/)).toBeInTheDocument();
     });
 
     it('offers both workflow explanations', () => {
@@ -317,6 +326,7 @@ describe('naming the stream', () => {
         ['stock-split', 'Stock Splits'],
         ['bls', 'Bureau of Labor Statistics'],
         ['sec', 'SEC Filings'],
+        ['sec-companyfacts', 'SEC Company Facts'],
         ['us-national-weather', 'US Weather Alerts'],
     ];
 
@@ -931,14 +941,29 @@ describe('the archive list', () => {
         expect(offered()).toEqual(['09/2025.csv', '12/2024.csv']);
     });
 
-    it('offers nothing for a stream the listing does not know', async () => {
+    it('says "Not archived" for the company facts, which the listing does not archive (#214)', async () => {
+        //
+        // their runs are a series of the sec stream's report, whose archive holds
+        // the filings only. "Nothing published yet" said they would be, in time
+        //
+        answering();
+        renderAlarm('sec-companyfacts');
+
+        await expand();
+
+        expect(offered()).toEqual([]);
+        expect(screen.getByText('Not archived')).toBeInTheDocument();
+        expect(screen.queryByText('Nothing published yet')).not.toBeInTheDocument();
+    });
+
+    it('says "Not archived" for a stream the listing does not know either', async () => {
         answering();
         renderAlarm('no-such-stream');
 
         await expand();
 
         expect(offered()).toEqual([]);
-        expect(screen.getByText('Nothing published yet')).toBeInTheDocument();
+        expect(screen.getByText('Not archived')).toBeInTheDocument();
     });
 
     it('collapses again on a second click', async () => {

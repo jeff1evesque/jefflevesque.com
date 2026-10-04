@@ -18,7 +18,7 @@
  *       RENAMED is the same listing once it has.
  */
 
-import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
+import { loadArchiveListing, archiveFiles, archives } from '../../import/general/archive-links.js';
 import { limitedUntil, resetRateLimit } from '../../import/general/rate-limit.js';
 import { blockedAnswer } from '../../test-support/blocked-answer.js';
 
@@ -62,6 +62,31 @@ const RENAMED = {
 };
 
 const labels = (stream, listing = LISTING) => archiveFiles(listing, stream).map((file) => file.label);
+
+describe('whether a stream is archived at all (#214)', () => {
+    it.each(['bls', 'sec', 'stock-market', 'stock-split', 'us-national-weather'])(
+        'archives %s, by whichever name the listing gives it',
+        (stream) => {
+            expect(archives(LISTING, stream)).toBe(true);
+            expect(archives(RENAMED, stream)).toBe(true);
+        }
+    );
+
+    it('does not archive the SEC\'s company facts, whose runs are a series of the sec report', () => {
+        expect(archives(LISTING, 'sec-companyfacts')).toBe(false);
+        expect(archiveFiles(LISTING, 'sec-companyfacts')).toEqual([]);
+    });
+
+    it('archives a stream the listing names with no files: it has published nothing yet', () => {
+        expect(archives(LISTING, 'bls')).toBe(true);
+        expect(archiveFiles(LISTING, 'bls')).toEqual([]);
+    });
+
+    it('says a stream is archived where the listing does not list its streams', () => {
+        expect(archives({ archives: LISTING.archives }, 'sec-companyfacts')).toBe(true);
+        expect(archives(null, 'sec-companyfacts')).toBe(true);
+    });
+});
 
 describe('the files a stream has published', () => {
     it('offers exactly the files the listing names for it, newest first', () => {
