@@ -764,6 +764,18 @@ describe('StreamFocus on its own', () => {
         expect(tip.textContent).not.toMatch(/click/i);
     });
 
+    it('dims the rest of its bars while one is pointed at, as a row does (#216)', () => {
+        draw();
+
+        fireEvent(document.querySelectorAll('.stream-focus .stream-bar-slot')[1], Object.assign(
+            new MouseEvent('pointerover', { bubbles: true, relatedTarget: document.body }),
+            { pointerType: 'mouse' }
+        ));
+
+        expect(document.querySelector('.stream-focus .stream-row-bars')).toHaveClass('is-pointing');
+        expect(document.querySelectorAll('.stream-focus .stream-bar-slot')[1]).toHaveClass('is-pointed');
+    });
+
     it('carries the color key, and the line that describes a bar', () => {
         draw();
 
