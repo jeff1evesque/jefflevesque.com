@@ -121,6 +121,9 @@
               }
             }
           },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
           "500": {
             "description": "The distribution could not be computed. The report carries a message.",
             "content": {
@@ -144,6 +147,62 @@
                     }
                   }
                 }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "RateLimited": {
+        "description": "Too many requests from this address in a few minutes: today 100 in 5 minutes, and an answer from the cache counts too. Wait for `Retry-After` seconds, then ask again. The report says the limit and the window in force, which can change: read them rather than assume today's.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait before asking again: the window the limit is counted over.",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 300
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "report"
+              ],
+              "properties": {
+                "report": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "limit",
+                    "window_seconds"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "description": "How many requests one address may make in the window."
+                    },
+                    "window_seconds": {
+                      "type": "integer",
+                      "description": "The window the requests are counted over, in seconds."
+                    }
+                  }
+                }
+              }
+            },
+            "example": {
+              "report": {
+                "error": "Too many requests from this address. Wait a few minutes, then try again.",
+                "limit": 100,
+                "window_seconds": 300
               }
             }
           }
