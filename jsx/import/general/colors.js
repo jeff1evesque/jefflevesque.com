@@ -18,6 +18,7 @@ const toRGB = (color) => {
 
 const colors = {
     'white-1': '#fff',
+    'gray-9': '#111',
     'gray-8': '#1a1a1a',
     'gray-7': '#333',
     'gray-6': '#777',
@@ -54,6 +55,7 @@ const colors = {
  */
 const colors_dark = {
     'white-1': '#1e1e1e',
+    'gray-9': '#f0f0f0',
     'gray-8': '#e6e6e6',
     'gray-7': '#d0d0d0',
     'gray-6': '#a0a0a0',

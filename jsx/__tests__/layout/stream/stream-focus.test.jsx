@@ -36,7 +36,12 @@ import { MemoryRouter } from 'react-router-dom';
 
 import getData from '../../../import/general/get-data.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
-import StreamFocus, { shortCount, tickLabel } from '../../../import/layout/stream/stream-focus.jsx';
+import StreamFocus, {
+    figureNote,
+    figureTone,
+    shortCount,
+    tickLabel,
+} from '../../../import/layout/stream/stream-focus.jsx';
 import { FIGURES_MIN } from '../../../import/layout/stream/stream-rows.jsx';
 import { KEY, VERSION } from '../../../import/general/layout-preference.js';
 import { STREAMS } from '../../../import/general/stream-id.js';
@@ -653,6 +658,55 @@ describe('StreamFocus on its own', () => {
         expect(total.querySelector('.stream-focus-figure-value .stream-focus-short')).toHaveTextContent('4.2M');
     });
 
+    //
+    // the last word of each value's class, as the stylesheet colors it (#206)
+    //
+    function tones() {
+        return [...document.querySelectorAll('.stream-focus-figure-value')].map((value) => {
+            const found = [...value.classList].find((name) => name !== 'stream-focus-figure-value');
+
+            return found ? found.replace('stream-focus-figure-', '') : null;
+        });
+    }
+
+    it('draws each value in the color that says how it stands (#206)', () => {
+        draw();
+
+        expect(tones()).toEqual(['good', 'good', 'total']);
+    });
+
+    it('draws a Health under 95% in red, and a Coverage under it in the page\'s own text', () => {
+        draw({ row: row({ figures: { health: '88.20%', coverage: '41.67%', total: '381,303' } }) });
+
+        expect(tones()).toEqual(['bad', null, 'total']);
+    });
+
+    it('leaves a figure with no number uncolored', () => {
+        draw({ row: row({ figures: { health: 'n/a', coverage: 'n/a', total: 'n/a' } }) });
+
+        expect(tones()).toEqual([null, null, null]);
+    });
+
+    it('follows each figure\'s name with an info icon, its note describing the name (#206)', () => {
+        draw();
+
+        const labels = [...document.querySelectorAll('.stream-focus-figure-label')];
+
+        expect(labels.map((label) => label.querySelector('svg').getAttribute('data-testid')))
+            .toEqual(['InfoOutlinedIcon', 'InfoOutlinedIcon', 'InfoOutlinedIcon']);
+        expect(labels[0]).toHaveAccessibleDescription('Percent of records that succeeded');
+        expect(labels[1]).toHaveAccessibleDescription('Percent of scheduled days with a run');
+        expect(labels[2]).toHaveAccessibleDescription('Records that succeeded, all bars added up');
+    });
+
+    it('shows a figure\'s note under the pointer, in the rate\'s own unit', async () => {
+        draw({ rate: 'month' });
+
+        fireEvent.mouseOver(document.querySelectorAll('.stream-focus-figure-label')[1]);
+
+        expect(await screen.findByRole('tooltip')).toHaveTextContent('Percent of scheduled months with a run');
+    });
+
     it('draws a bar for every interval, and dates under every few', () => {
         draw();
 
@@ -753,5 +807,73 @@ describe('a date under the graph', () => {
         ['Minute', '4:05 PM'],
     ])('at the %s rate reads %s', (rate, label) => {
         expect(tickLabel(when, rate)).toBe(label);
+    });
+});
+
+describe('what a figure counts, in its note (#206)', () => {
+    it('says Health is the share of records that succeeded', () => {
+        expect(figureNote('health', 'Day')).toBe('Percent of records that succeeded');
+    });
+
+    it('says Total Records is the bars added up', () => {
+        expect(figureNote('total', 'Day')).toBe('Records that succeeded, all bars added up');
+    });
+
+    it.each([
+        ['Month', 'months'],
+        ['Day', 'days'],
+        ['Hour', 'hours'],
+        ['Minute', 'minutes'],
+    ])('counts Coverage by the %s rate in %s', (rate, unit) => {
+        //
+        // a month counts as covered by any one run in it, so 'runs' alone would
+        // be wrong by the month
+        //
+        expect(figureNote('coverage', rate)).toBe(`Percent of scheduled ${unit} with a run`);
+    });
+
+    it('has nothing to say about a figure it does not know', () => {
+        expect(figureNote('throughput', 'Day')).toBeNull();
+    });
+});
+
+describe('the color of a figure (#206)', () => {
+    it.each([
+        ['100.00%', 'good'],
+        ['95.00%', 'good'],
+        ['94.99%', 'bad'],
+        ['88.20%', 'bad'],
+        ['100%', 'good'],
+    ])('draws a Health of %s %s', (figure, tone) => {
+        expect(figureTone('health', figure)).toBe(tone);
+    });
+
+    it.each([
+        ['100.00%', 'good'],
+        ['95%', 'good'],
+        ['94.99%', null],
+        ['41.67%', null],
+    ])('draws a Coverage of %s %s, and never red', (figure, tone) => {
+        //
+        // coverage counts every interval due since the window began, those
+        // before a stream's first row too, so a stream whose rows start partway
+        // through the window reads low with nothing failed
+        //
+        expect(figureTone('coverage', figure)).toBe(tone);
+    });
+
+    it('draws Total Records in the bars\' blue, whatever the count', () => {
+        expect(figureTone('total', '381,303')).toBe('total');
+        expect(figureTone('total', '0')).toBe('total');
+    });
+
+    it('draws a figure with no number in the page\'s own text', () => {
+        expect(figureTone('health', 'n/a')).toBeNull();
+        expect(figureTone('coverage', 'n/a')).toBeNull();
+        expect(figureTone('total', 'n/a')).toBeNull();
+    });
+
+    it('draws a figure it does not know in the page\'s own text', () => {
+        expect(figureTone('throughput', '100%')).toBeNull();
     });
 });

@@ -970,7 +970,7 @@ class StreamLayout extends Component {
         }
 
         return (
-            <Tooltip title={`Subscribed to ${held} ${held === 1 ? 'alarm' : 'alarms'}`} arrow>
+            <Tooltip title={`Subscribed to ${held} ${held === 1 ? 'alarm' : 'alarms'}`}>
                 <NotificationsActiveIcon
                     className='control-icon notification subscribed'
                     fontSize={font_size}

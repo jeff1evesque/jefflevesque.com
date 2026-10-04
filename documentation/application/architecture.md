@@ -57,6 +57,9 @@ Whatever computes a color in script -- the two graphs, the charts, a tooltip -- 
 the theme from `ThemeModeContext` and its colors from `themeColors` in
 [`jsx/import/general/colors.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/colors.js),
 and draws again when it changes. mui's components are handed a dark theme of their own.
+Both themes also give every tooltip on the site its look: centered just above what it
+belongs to, with an arrow pointing at it, in the selected rate button's colors, and
+never off the screen's edge ([#206](https://github.com/jeff1evesque/jefflevesque.com/issues/206)).
 
 ## Web workers
 

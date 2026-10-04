@@ -69,16 +69,15 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
-import Tooltip from '@mui/material/Tooltip';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import GraphExplorer from '../../animation/graph-explorer.jsx';
 import { API_DOCS } from '../../general/api-url.js';
 import ApiLinks from '../../general/api-links.jsx';
+import InfoNote from '../../general/info-note.jsx';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import filterSchema, { GRAPH_NODE_TYPES } from '../../animation/filter-schema.js';
@@ -249,15 +248,10 @@ function detailsRow(row) {
 // note in a tooltip over it. See `noted` in source.js: a source none of the
 // day's node types come from, which nothing else on the page shows.
 //
-// Note: the note DESCRIBES the name rather than replacing it, so the name is
-//       still read as 'stock-split' and the note after it.
-//
-// Note: a small info icon follows the name, so a reader knows there is a note to
-//       find. It is hidden from screen readers, which read the note itself.
-//
-// Note: the name can take focus, so the note shows from the keyboard too, and a
-//       tap shows it at once. By default a touch has to be held for most of a
-//       second.
+// Note: the name is followed by a small info icon, so a reader knows there is a
+//       note to find, and the note DESCRIBES the name rather than replacing it.
+//       It shows from the keyboard too, and at a tap. See info-note.jsx, which
+//       the figures on /stream share (#206).
 //
 function detailValue(row, choice, whole) {
     const value = row.read(choice, whole);
@@ -276,14 +270,7 @@ function detailValue(row, choice, whole) {
         <React.Fragment key={name}>
             {index ? ', ' : null}
             {noted.has(name)
-                ? (
-                    <Tooltip title={row.noted.note} describeChild enterTouchDelay={0}>
-                        <span className='graph-details-noted' tabIndex={0}>
-                            {name}
-                            <InfoOutlinedIcon fontSize='inherit' />
-                        </span>
-                    </Tooltip>
-                )
+                ? <InfoNote note={row.noted.note} className='graph-details-noted'>{name}</InfoNote>
                 : name}
         </React.Fragment>
     ));
