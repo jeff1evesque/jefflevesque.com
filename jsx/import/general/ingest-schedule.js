@@ -34,6 +34,7 @@ import {
     STOCK_SPLIT,
     BLS,
     SEC,
+    SEC_COMPANYFACTS,
     US_NATIONAL_WEATHER,
     canonicalStream,
 } from './stream-id.js';
@@ -55,6 +56,10 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
 
       - 'hours'    the eastern hours a run falls in, or null for every hour
       - 'weekdays' true when the scraper only runs monday to friday
+      - 'days'     the eastern weekdays a run falls on, for a scraper that runs
+                   on neither every day nor monday to friday alone. optional
+      - 'since'    the instant the schedule began, for a stream younger than
+                   the longest window: nothing was due before it. optional
       - 'partition' how the report is fetched, 'day' or 'year'
       - 'every'    minutes between runs inside an expected hour, or null when
                    the stream has no regular minute spacing at all
@@ -129,10 +134,28 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
           reaches -- 'intervalExpected' answers true for a day or a month before
           it ever consults the hours
 
+    Note: the company facts are the sec stream's second feed, and graded on
+          their own schedule rather than the filings' (#211): once a day at
+          23:15 eastern, monday to saturday. the performance api answers them as
+          a series of the sec report, 'companyfacts', and on the filings' five
+          minutes each daily run would read as a run among hundreds missed. a
+          failed run writes no row, so a day without one is a miss. they began
+          on 2026-10-04, so a window reaching back before it was due nothing
+          there, and reads its coverage from the first day it could have
+
 */}
 export const INGEST_SCHEDULE = {
     [US_NATIONAL_WEATHER]: { hours: null, weekdays: false, every: 5, minutes_named: false, partition: 'day' },
     [SEC]: { hours: [6, 22], weekdays: true, every: 5, minutes_named: false, partition: 'day' },
+    [SEC_COMPANYFACTS]: {
+        hours: [23],
+        weekdays: false,
+        days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        since: '2026-10-04T00:00:00-04:00',
+        every: null,
+        minutes_named: false,
+        partition: 'day'
+    },
     [STOCK_MARKET]: { hours: [9, 15], weekdays: true, every: 20, minutes_named: true, partition: 'day' },
     [STOCK_SPLIT]: { hours: [0, 0], weekdays: true, every: null, minutes_named: false, partition: 'year' },
     [BLS]: { hours: [15], weekdays: false, every: null, minutes_named: false, partition: 'year' }
@@ -231,8 +254,8 @@ function hourExpected(schedule, hour) {
     {/*
 
         a two element entry names a RANGE ('sec' runs every hour from 6 to 22),
-        anything longer names the hours themselves ('bls' runs at 8, 10, 12 and
-        14 and at no hour between them)
+        any other names the hours themselves ('bls' runs at 15 alone, and once
+        ran at 8, 10, 12 and 14 and at no hour between them)
 
     */}
 
@@ -262,11 +285,32 @@ export function intervalExpected(stream, rate, date) {
     const r = String(rate).toLowerCase();
     const { weekday, hour, minute } = easternParts(date);
 
+    {/*
+
+        nothing was due before the schedule began. a month is due once any
+        of it is, since a month is due whenever its stream ran at all. A finer
+        interval is due from the one starting at the beginning: it is read by
+        its start, as its weekday and hour are below
+
+    */}
+    if (schedule.since) {
+        const since = new Date(schedule.since);
+        const begun = r === 'month' ? stepInterval(date, r) > since : date >= since;
+
+        if (!begun) {
+            return false;
+        }
+    }
+
     if (r === 'month') {
         return true;
     }
 
     if (schedule.weekdays && ['Sat', 'Sun'].includes(weekday)) {
+        return false;
+    }
+
+    if (schedule.days && !schedule.days.includes(weekday)) {
         return false;
     }
 
