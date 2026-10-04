@@ -108,3 +108,25 @@ describe('the footer (#204)', () => {
         expect([Number(less), Number(more)]).toEqual([10, 10]);
     });
 });
+
+describe('the notice while the api has said to wait (#210)', () => {
+    const [notice] = blocks(source, '.rate-limit-notice');
+    const [row] = blocks(source, '.rate-limit-row');
+
+    it('is the pink an error sits on, with its dark red text', () => {
+        expect(own(notice)).toMatch(/background-color\s*:\s*\$red-3\s*;/);
+        expect(own(notice)).toMatch(/(^|[^-])color\s*:\s*\$red-2\s*;/);
+    });
+
+    it('draws its own colors by night, since both are theme pairs', () => {
+        const theme = read('_theme.scss');
+
+        expect(theme).toMatch(/'red-2'\s*:\s*\(\s*\$red-2\s*,\s*\$dark-red-2\s*\)/);
+        expect(theme).toMatch(/'red-3'\s*:\s*\(\s*\$red-3\s*,\s*\$dark-red-3\s*\)/);
+    });
+
+    it('stands as far under the header as over the page\'s title', () => {
+        expect(own(row)).toMatch(/margin-top\s*:\s*0\.75rem\s*;/);
+        expect(own(row)).toMatch(/margin-bottom\s*:\s*0\.75rem\s*;/);
+    });
+});
