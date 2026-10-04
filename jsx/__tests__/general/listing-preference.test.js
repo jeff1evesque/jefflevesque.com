@@ -226,16 +226,19 @@ describe('keeping the sort', () => {
         expect(window.localStorage.getItem(KEY)).toBeNull();
     });
 
-    it('leaves what /stream kept before #152 as it was', () => {
+    it('leaves what /stream kept before #152 as it was, and reads its order again (#218)', () => {
         //
         // a charted stream and an order, from when /stream had a chart and a
-        // listing to drag. Nothing reads them now, and nothing deletes them
+        // listing to drag. Its rows drag again since #218, and the order a
+        // reader kept then is still theirs. The chart is never read, and
+        // nothing deletes either
         //
         put({ v: VERSION, stream: { chart: 'sec', order: ['sec', 'bls'] } });
 
         writeSort('stream', { key: 'health', dir: 'asc' });
 
         expect(stored().stream).toEqual({ chart: 'sec', order: ['sec', 'bls'], sort: { key: 'health', dir: 'asc' } });
+        expect(readOrder('stream', STREAMS)).toEqual(['sec', 'bls', 'stock-market', 'stock-split', 'us-national-weather']);
     });
 
     it('reports the write it could not do rather than throwing', () => {
