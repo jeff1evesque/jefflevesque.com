@@ -795,13 +795,13 @@ describe('sorting by a figure', () => {
             fireEvent.click(screen.getByRole('menuitem', { name: label }));
         }
 
-        it('offers the page\'s order, and each figure both ways', () => {
+        it('offers the reader\'s order, and each figure both ways', () => {
             sortable();
 
             fireEvent.click(button());
 
             expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-                'Default order',
+                'Your order',
                 'Stream, A to Z',
                 'Stream, Z to A',
                 'Health, highest first',
@@ -826,12 +826,12 @@ describe('sorting by a figure', () => {
             expect(mark('Health')).toBe('desc');
         });
 
-        it('puts the page\'s order back from Default order', () => {
+        it('puts the reader\'s order back from Your order', () => {
             const told = jest.fn();
 
             sortable({ initial: { key: 'health', dir: 'desc' }, told: told });
 
-            choose('Default order');
+            choose('Your order');
 
             expect(names()).toEqual(['A', 'B', 'C']);
             expect(told).toHaveBeenLastCalledWith(null);
@@ -958,7 +958,7 @@ describe('sorting by name (#216)', () => {
     it('shows a phone\'s row its coverage while sorted by name, having no name figure to show', () => {
         render(<Sortable initial={{ key: 'name', dir: 'asc' }} />);
 
-        expect(rowOf('SEC Filings').querySelector('.stream-row-pick-name')).toHaveTextContent('coverage');
+        expect(rowOf('SEC Filings').querySelector('.stream-row-pick-name')).toHaveTextContent('Coverage');
         expect(rowOf('SEC Filings').querySelector('.stream-row-pick-value')).toHaveTextContent('100%');
     });
 });
@@ -1014,10 +1014,10 @@ describe('around the rows', () => {
 });
 
 describe('the phone\'s sort button on its own', () => {
-    it('starts at the page\'s order, and asks for nothing until a choice is made', () => {
+    it('starts at the reader\'s order, and asks for nothing until a choice is made', () => {
         render(<SortMenu />);
 
-        const button = screen.getByRole('button', { name: 'Sort: Default order' });
+        const button = screen.getByRole('button', { name: 'Sort: Your order' });
 
         expect(button).toHaveAttribute('aria-haspopup', 'menu');
         expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -1029,7 +1029,7 @@ describe('the phone\'s sort button on its own', () => {
         fireEvent.click(screen.getByRole('menuitem', { name: 'Health, lowest first' }));
 
         expect(button).toHaveAttribute('aria-expanded', 'false');
-        expect(button).toHaveAccessibleName('Sort: Default order');
+        expect(button).toHaveAccessibleName('Sort: Your order');
     });
 
     it('closes on Escape, and leaves the sort as it was', () => {
@@ -1044,6 +1044,160 @@ describe('the phone\'s sort button on its own', () => {
 
         expect(button).toHaveAttribute('aria-expanded', 'false');
         expect(onSort).not.toHaveBeenCalled();
+    });
+
+    it('offers no Reset order unless the page does (#218)', () => {
+        render(<SortMenu />);
+
+        fireEvent.click(screen.getByRole('button', { name: /^Sort: / }));
+
+        expect(screen.queryByRole('menuitem', { name: 'Reset order' })).toBeNull();
+        expect(document.querySelector('.stream-sort-list .MuiDivider-root')).toBeNull();
+    });
+
+    it('ends with Reset order, under a line, when the page offers it (#218)', () => {
+        const onReset = jest.fn();
+        const onSort = jest.fn();
+
+        render(<SortMenu onSort={onSort} onReset={onReset} />);
+
+        const button = screen.getByRole('button', { name: /^Sort: / });
+
+        fireEvent.click(button);
+
+        const items = screen.getAllByRole('menuitem');
+
+        expect(items[items.length - 1]).toHaveTextContent('Reset order');
+        expect(document.querySelector('.stream-sort-list .MuiDivider-root')).not.toBeNull();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Reset order' }));
+
+        expect(onReset).toHaveBeenCalledTimes(1);
+        expect(onSort).not.toHaveBeenCalled();
+        expect(button).toHaveAttribute('aria-expanded', 'false');
+    });
+});
+
+describe('the reader\'s own order (#218)', () => {
+    const ROWS = [
+        stream('A', { figures: { health: '90%', coverage: '50%', total: '1' } }),
+        stream('B', { figures: { health: '90%', coverage: '75%', total: '2' } }),
+        stream('C', { figures: { health: '99%', coverage: '100%', total: '3' } }),
+    ];
+
+    //
+    // the rows, holding their order and their sort the way the page does: what
+    // they are handed, and what they hand back
+    //
+    function Ordered({ initial = null, sorted = null, told = () => {} }) {
+        const [order, setOrder] = React.useState(initial);
+        const [sort, setSort] = React.useState(sorted);
+        const onReorder = (next) => {
+            told(next);
+            setOrder(next);
+        };
+
+        return <StreamRows rows={ROWS} rate='day' order={order} onReorder={onReorder} sort={sort} onSort={setSort} />;
+    }
+
+    const grips = () => document.querySelectorAll('.stream-row-grip-button');
+    const grip = (name) => screen.getByRole('button', { name: `Move ${name}` });
+    const said = () => document.querySelector('.stream-rows > .visually-hidden[aria-live="polite"]').textContent;
+
+    it('draws the rows in the order it is handed', () => {
+        render(<Ordered initial={['c', 'a', 'b']} />);
+
+        expect(names()).toEqual(['C', 'A', 'B']);
+    });
+
+    it('puts a stream the order does not name at the end, in the page\'s order', () => {
+        render(<Ordered initial={['c']} />);
+
+        expect(names()).toEqual(['C', 'A', 'B']);
+    });
+
+    it('sorts from it, and goes back to it when the sort is let go', () => {
+        render(<Ordered initial={['c', 'a', 'b']} />);
+
+        const heading = screen.getByRole('button', { name: 'Sort by Total Records' });
+
+        fireEvent.click(heading);
+        expect(names()).toEqual(['C', 'B', 'A']);
+
+        fireEvent.click(heading);
+        fireEvent.click(heading);
+        expect(names()).toEqual(['C', 'A', 'B']);
+    });
+
+    it('starts each row with a grip that names the stream it moves', () => {
+        render(<Ordered />);
+
+        expect(grips()).toHaveLength(3);
+        expect(grip('A')).toHaveAttribute('title', 'Drag to move, or use the arrow keys');
+        expect(rowOf('A').firstElementChild).toHaveClass('stream-row-grip');
+        expect(rowOf('A').firstElementChild).toContainElement(grip('A'));
+    });
+
+    it('draws no grips while the rows are sorted, and keeps their cells', () => {
+        render(<Ordered sorted={{ key: 'health', dir: 'desc' }} />);
+
+        expect(grips()).toHaveLength(0);
+        expect(document.querySelectorAll('.stream-row-grip')).toHaveLength(3);
+    });
+
+    it('draws no grips where the page keeps no order', () => {
+        setup(ROWS);
+
+        expect(grips()).toHaveLength(0);
+        expect(document.querySelectorAll('.stream-row-grip')).toHaveLength(3);
+    });
+
+    it('draws no grip for a single row, which has nowhere to go', () => {
+        setup([ROWS[0]], { onReorder: jest.fn() });
+
+        expect(grips()).toHaveLength(0);
+    });
+
+    it('moves a row with the arrow keys on its grip, and says where it went', () => {
+        const told = jest.fn();
+
+        render(<Ordered told={told} />);
+
+        fireEvent.keyDown(grip('A'), { key: 'ArrowDown' });
+
+        expect(told).toHaveBeenLastCalledWith(['b', 'a', 'c']);
+        expect(names()).toEqual(['B', 'A', 'C']);
+        expect(said()).toBe('A, 2 of 3');
+
+        fireEvent.keyDown(grip('C'), { key: 'ArrowUp' });
+
+        expect(told).toHaveBeenLastCalledWith(['b', 'c', 'a']);
+        expect(said()).toBe('C, 2 of 3');
+    });
+
+    it('moves nothing past either end, and answers no other key', () => {
+        const told = jest.fn();
+
+        render(<Ordered told={told} />);
+
+        fireEvent.keyDown(grip('A'), { key: 'ArrowUp' });
+        fireEvent.keyDown(grip('C'), { key: 'ArrowDown' });
+        fireEvent.keyDown(grip('B'), { key: 'Enter' });
+
+        expect(told).not.toHaveBeenCalled();
+        expect(names()).toEqual(['A', 'B', 'C']);
+        expect(said()).toBe('');
+    });
+
+    it('holds the rows in a box of their own, sorted or not, so the stripes count only rows', () => {
+        const { rerender } = render(<StreamRows rows={ROWS} rate='day' onReorder={jest.fn()} />);
+        const body = () => document.querySelector('.stream-rows-table > .stream-rows-body');
+
+        expect([...body().children].every((child) => child.classList.contains('stream-row'))).toBe(true);
+
+        rerender(<StreamRows rows={ROWS} rate='day' onReorder={jest.fn()} sort={{ key: 'total', dir: 'asc' }} />);
+
+        expect(body().children).toHaveLength(3);
     });
 });
 
@@ -1062,19 +1216,49 @@ describe('a phone\'s list (#161)', () => {
     it('shows each row\'s coverage while the list is in the page\'s order', () => {
         setup(ROWS);
 
-        expect(pick('A')).toEqual(['50%', 'coverage']);
+        expect(pick('A')).toEqual(['50%', 'Coverage']);
     });
 
     it('shows the figure the list is sorted by, so the order is one the reader can see', () => {
         setup(ROWS, { sort: { key: 'total', dir: 'desc' } });
 
-        expect(pick('A')).toEqual(['1,000', 'records']);
+        expect(pick('A')).toEqual(['1,000', 'Total Records']);
     });
 
     it('shows no figure until the row\'s report is in', () => {
         setup([stream('A', { status: 'loading' })]);
 
-        expect(pick('A')).toEqual(['', 'coverage']);
+        expect(pick('A')).toEqual(['', 'Coverage']);
+    });
+
+    it('names the figure for a screen reader alone, since the header names it (#218)', () => {
+        setup(ROWS);
+
+        expect(rowOf('A').querySelector('.stream-row-pick-name')).toHaveClass('visually-hidden');
+    });
+
+    it('heads the rows with the heading of the figure they show (#218)', () => {
+        const { rerender } = setup(ROWS);
+        const picked = () => [...document.querySelectorAll('.stream-rows-head-pick')]
+            .map((heading) => heading.firstChild.textContent);
+
+        expect(picked()).toEqual(['Coverage']);
+
+        rerender(<StreamRows rows={ROWS} rate='day' sort={{ key: 'health', dir: 'asc' }} />);
+        expect(picked()).toEqual(['Health']);
+
+        rerender(<StreamRows rows={ROWS} rate='day' sort={{ key: 'name', dir: 'asc' }} />);
+        expect(picked()).toEqual(['Coverage']);
+    });
+
+    it('keeps the header\'s first cell empty, over the grips (#218)', () => {
+        setup(ROWS);
+
+        const cell = document.querySelector('.stream-rows-head').firstElementChild;
+
+        expect(cell).toHaveClass('stream-rows-head-grip');
+        expect(cell).toBeEmptyDOMElement();
+        expect(cell).toHaveAttribute('aria-hidden', 'true');
     });
 
     it('marks each row as one that opens, and says how', () => {
