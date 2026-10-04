@@ -60,16 +60,16 @@ $stream-figures: 23rem;
 $stream-held: rgba($green-2, 0.32);
 
 //
-// a row: its name, its controls, its bars and its three figures, in columns the
-// heading shares. On a phone the rows are a list instead -- see the foot of
-// this file.
+// a row: the grip it is dragged by (#218), its name, its controls, its bars and
+// its three figures, in columns the heading shares. On a phone the rows are a
+// table of their own instead -- see the foot of this file.
 //
 // Note: every column but the bars' is a fixed width. Each row is a grid of its
 //       own, so a column sized to its content would be as wide as that row's
 //       content -- the S&P 500's two controls against every other row's one --
 //       and the bars would start at a different place on each row.
 //
-// Note: the fourth column is empty and has no width. Its two gaps are the room
+// Note: the fifth column is empty and has no width. Its two gaps are the room
 //       the divider stands in, between the bars and the figures, so the divider
 //       is placed down the middle of it -- see '.stream-rows-divider'.
 //
@@ -86,15 +86,55 @@ $stream-held: rgba($green-2, 0.32);
   align-items: center;
   column-gap: 1rem;
   display: grid;
-  grid-template-columns: 14rem 5.5rem minmax(0, 1fr) 0 var(--stream-figures-at);
+  grid-template-columns: 1.75rem 14rem 5.5rem minmax(0, 1fr) 0 var(--stream-figures-at);
 }
 
 .stream-rows-head-figures,
 .stream-row-figures {
   column-gap: 1rem;
   display: grid;
-  grid-column: 5;
+  grid-column: 6;
   grid-template-columns: 6.5fr 6.5fr 8fr;
+}
+
+//
+// the grip a row is dragged by, or moved by with the arrow keys (#218), in
+// /data's look -- see '.listing-table-grip-button'. Its cell keeps its room
+// while the rows are sorted and it is not drawn, so the names never move.
+//
+// Note: 'touch-action: none', so a finger on the grip drags the row rather than
+//       scrolling the page. Everywhere else on a row, it scrolls.
+//
+.stream-row-grip {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+}
+
+.stream-row-grip-button {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 0.375rem;
+  color: $gray-5;
+  cursor: grab;
+  display: inline-flex;
+  font-size: 1.35rem;
+  height: 2.5rem;
+  justify-content: center;
+  padding: 0;
+  touch-action: none;
+  width: 1.75rem;
+
+  &:hover,
+  &:focus-visible {
+    background-color: rgba(var(--ink-rgb), 0.06);
+    color: $gray-7;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
 }
 
 //
@@ -135,7 +175,7 @@ $stream-held: rgba($green-2, 0.32);
 }
 
 .stream-rows-head-name {
-  grid-column: 1 / 3;
+  grid-column: 2 / 4;
 }
 
 .stream-rows-axis {
@@ -295,6 +335,47 @@ $stream-held: rgba($green-2, 0.32);
   background-color: rgba(var(--ink-rgb), 0.04);
 }
 
+//
+// Reset order, under a line at the menu's end (#218), its icon where a check
+// would be, in the gray of an action rather than the check's green
+//
+.stream-sort-list .stream-sort-icon {
+  color: $gray-6;
+  display: inline-flex;
+  font-size: 1.15rem;
+  margin-right: 0.6rem;
+  width: 1.15rem;
+}
+
+//
+// the page's order put back (#218): /data's pill -- see '.listing-table-reset'
+// -- at the end of a wide screen's line of controls, in the rate buttons' look.
+// A phone has it in the sort button's menu instead, and hides this
+//
+.stream-reset {
+  align-items: center;
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 999px;
+  color: $gray-7;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 0.3rem;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.9rem 0.3rem 0.65rem;
+  white-space: nowrap;
+
+  svg {
+    font-size: 1.15rem;
+  }
+
+  &:hover,
+  &:focus-visible {
+    border-color: $gray-7;
+  }
+}
+
 .stream-row-name {
   display: flex;
   flex-direction: column;
@@ -360,7 +441,8 @@ $stream-held: rgba($green-2, 0.32);
 //
 // what a phone shows of a row in place of its bars and figures: the one figure
 // the list is sorted by, and an arrow saying the row opens. Hidden wherever the
-// row is drawn whole (#161)
+// row is drawn whole (#161). The figure's name is the header's to say (#218),
+// and only a screen reader is given it in the row
 //
 .stream-row-pick {
   align-items: flex-end;
@@ -371,11 +453,6 @@ $stream-held: rgba($green-2, 0.32);
 
 .stream-row-pick-value {
   font-size: 1.05rem;
-}
-
-.stream-row-pick-name {
-  color: $gray-6;
-  font-size: 0.75rem;
 }
 
 .stream-row-chevron {
@@ -869,7 +946,7 @@ $stream-held: rgba($green-2, 0.32);
 
   .stream-rows-head,
   .stream-row {
-    grid-template-columns: 14rem 5.5rem minmax(0, 1fr);
+    grid-template-columns: 1.75rem 14rem 5.5rem minmax(0, 1fr);
   }
 
   .stream-rows-head-figures,
@@ -1411,35 +1488,105 @@ $stream-held: rgba($green-2, 0.32);
   }
 
   //
-  // the list: a row is its name and schedule, the figure the list is sorted
-  // by, and an arrow, and the whole row is the link to the stream -- the name's
-  // own link, stretched over it. What a row says while it loads, or that it
-  // could not, sits under the name, since there are no bars to lay it over
+  // the list, a table of its own (#218): a row is its grip, its name and
+  // schedule, the figure the rows show, and an arrow, and the whole row is the
+  // link to the stream -- the name's own link, stretched over it. What a row
+  // says while it loads, or that it could not, sits under the name, since
+  // there are no bars to lay it over. Reset order is the sort button's last
+  // choice here, where the line of controls has no room for its pill
   //
-  .stream-rows-head,
   .stream-rows-divider,
   .stream-rows-rail,
   .stream-rows > .stream-rows-readout,
-  .stream-rows > .stream-rows-legend {
+  .stream-rows > .stream-rows-legend,
+  .stream-reset {
     display: none;
+  }
+
+  //
+  // in /data's table's frame -- see '.listing-table-frame' -- which keeps the
+  // stripes and the header's tint inside its corners
+  //
+  .stream-rows-table {
+    border: 1px solid $gray-2;
+    border-radius: 0.5rem;
+    overflow: hidden;
   }
 
   .stream-rows-folded .stream-rows-table {
     padding-right: 0;
   }
 
+  //
+  // under a header in /data's table's look -- see its 'thead th' -- in the
+  // rows' columns, the grip's cell and the arrow's empty: Stream over the
+  // names, and over the figures the heading of the one the rows show, the one
+  // they are sorted by. Both sort, as a wide screen's headings do
+  //
+  .stream-rows-head,
+  .stream-rows-folded .stream-rows-head {
+    background-color: $form-panel;
+    border-bottom: 1px solid $gray-2;
+    color: $graph-panel-label;
+    font-size: 0.85rem;
+    font-weight: 600;
+    grid-template-areas: 'grip name pick chevron';
+    grid-template-columns: 1.75rem minmax(0, 1fr) auto 1.5rem;
+    height: 2.6rem;
+    padding: 0 0.75rem 0 0.35rem;
+
+    @include dark {
+      background-color: $dark-form-panel;
+      color: $gray-6;
+    }
+  }
+
+  .stream-rows-head-grip { grid-area: grip; }
+  .stream-rows-head .stream-rows-head-name { grid-area: name; }
+
+  .stream-rows-head .stream-rows-axis,
+  .stream-rows-head-figures > .stream-rows-sort:not(.stream-rows-head-pick) {
+    display: none;
+  }
+
+  .stream-rows-head .stream-rows-head-figures {
+    display: flex;
+    grid-area: pick;
+    justify-content: flex-end;
+  }
+
+  //
+  // the heading in use is darker, as on a wide screen, and keeps the header's
+  // weight
+  //
+  .stream-rows-head .stream-rows-sort {
+    font-weight: inherit;
+  }
+
   .stream-row,
   .stream-rows-folded .stream-row {
     grid-template-areas:
-      'name pick chevron'
-      'bars bars bars';
-    grid-template-columns: minmax(0, 1fr) auto auto;
+      'grip name pick chevron'
+      '. bars bars bars';
+    grid-template-columns: 1.75rem minmax(0, 1fr) auto auto;
     position: relative;
     row-gap: 0;
   }
 
+  .stream-row-grip { grid-area: grip; }
   .stream-row-name { grid-area: name; }
   .stream-row .stream-row-bars-wrap { grid-area: bars; }
+
+  //
+  // the grip above the stretched link, as Retry is, so a finger on it drags
+  // the row rather than opening the stream, at /data's grip's height on a
+  // phone. An empty cell, while the rows are sorted, lets a tap through
+  //
+  .stream-row-grip-button {
+    height: 2.25rem;
+    position: relative;
+    z-index: 1;
+  }
 
   //
   // Note: the bars and the line over them are hidden on the LIST's rows. A
@@ -1455,20 +1602,19 @@ $stream-held: rgba($green-2, 0.32);
 
   //
   // every other row a faint gray, as /graph's tables are on a phone (#145),
-  // with no line between rows, and each row set out half a rem on either side
-  // so the gray does not cut its text (#169)
+  // with no line between rows (#169). The rows meet the frame's edges (#218),
+  // and their own padding keeps the gray off their text
   //
-  // Note: 'odd' is the second row, the fourth and on. The headings' div comes
-  //       first, hidden or not.
+  // Note: 'even' is the second row, the fourth and on: the rows have a box of
+  //       their own, which the headings' div is not in.
   //
   .stream-rows-table .stream-row {
     border-top-color: transparent;
-    margin: 0 -0.5rem;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    margin: 0;
+    padding: 0.85rem 0.75rem 0.85rem 0.35rem;
   }
 
-  .stream-rows-table .stream-row:nth-of-type(odd) {
+  .stream-rows-body > .stream-row:nth-of-type(even) {
     background-color: rgba(var(--ink-rgb), 0.03);
   }
 
