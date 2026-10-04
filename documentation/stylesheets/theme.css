@@ -1,0 +1,20 @@
+/*
+ * theme.css: the links' color, in the site's own greens (#204). Loaded after
+ * Material's stylesheets, from extra_css in mkdocs.yml.
+ *
+ * The header is white by day and near-black by night, as the site's own is.
+ * Material's green header put white text on a light green, at 2.8:1. Material
+ * colors links from the header's color, and with a white or a black header it
+ * draws them blue instead. These are the site's '$green-6' by day, 5.7:1 on
+ * white, and '$dark-green-6' by night -- see scss/_variables.scss.
+ *
+ * Note: two attributes each, as Material's own rule for the night scheme has,
+ *       so these outrank it from a stylesheet loaded after it.
+ */
+[data-md-color-scheme="default"][data-md-color-primary="white"] {
+  --md-typeset-a-color: #237616;
+}
+
+[data-md-color-scheme="slate"][data-md-color-primary="black"] {
+  --md-typeset-a-color: #6cc259;
+}

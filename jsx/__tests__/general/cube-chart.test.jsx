@@ -765,15 +765,39 @@ describe('the names under the chart (#167)', () => {
         expect(bar()).not.toBeNull();
     });
 
-    it('fold from the arrow at their foot as well, which a keyboard reaches', () => {
+    it('are a button themselves, which a keyboard reaches, with no arrow on them (#204)', () => {
         const { container } = draw({ namesShown: true });
-        const arrow = screen.getByRole('button', { name: 'Hide the sector names' });
+        const band = screen.getByRole('button', { name: 'Hide the sector names' });
 
-        expect(container.querySelector('.cube-chart-names-hit')).toContainElement(arrow);
+        expect(band).toHaveClass('cube-chart-names-hit');
+        expect(band).toHaveAttribute('tabindex', '0');
+        expect(band).toHaveAttribute('title', 'Hide the sector names');
+        expect(band).toBeEmptyDOMElement();
+        expect(container.querySelector('.cube-chart-fold')).toBeNull();
+    });
 
-        fireEvent.click(arrow);
+    it.each([
+        ['Enter', 'Enter'],
+        ['Space', ' '],
+    ])('fold at %s, as at a click, and the page does not take the key as well', (_, key) => {
+        const onNames = jest.fn();
+        const { container } = draw({ namesShown: true, onNames: onNames });
+
+        const taken = !fireEvent.keyDown(screen.getByRole('button', { name: 'Hide the sector names' }), { key: key });
 
         expect(shown(container)).toEqual([]);
+        expect(bar()).not.toBeNull();
+        expect(onNames.mock.calls).toEqual([[false]]);
+        expect(taken).toBe(true);
+    });
+
+    it('stay shown at any other key, which goes on to the page', () => {
+        const { container } = draw({ namesShown: true });
+
+        const taken = !fireEvent.keyDown(screen.getByRole('button', { name: 'Hide the sector names' }), { key: 'Tab' });
+
+        expect(shown(container)).toHaveLength(4);
+        expect(taken).toBe(false);
     });
 
     it('start shown when the page kept them shown', () => {

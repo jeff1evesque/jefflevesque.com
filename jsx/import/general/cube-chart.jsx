@@ -46,7 +46,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import CloseIcon from '@mui/icons-material/Close';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import cubeLayout, { barsOf, ticksOf } from './cube-layout.js';
 import { share } from './distribution-tree.js';
@@ -640,27 +639,29 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
 
                     the names, shown, fold at a click anywhere on them. Under the
                     pointer their band takes a pale green fading to the page,
-                    and /graph's fold arrow appears on its foot, where the green
-                    bar they fold into will be. The arrow is the button a
-                    keyboard reaches; the band is the mouse's larger target for
-                    the same thing
+                    which says the whole band is the click. The band is the
+                    button a keyboard reaches as well, and Enter or Space folds
+                    them as a click does. /graph's fold arrow on its foot sat on
+                    the listing's month menu under the chart, and was taken off
+                    (#204)
 
                 */}
                 {shownNames ? (
                     <div
                         className='cube-chart-names-hit'
                         style={{ left: 0, top: plot.bottom + 2, width: width, height: total_height - plot.bottom - 2 }}
+                        role='button'
+                        tabIndex={0}
+                        aria-label={`Hide the ${names.group[0]} names`}
+                        title={`Hide the ${names.group[0]} names`}
                         onClick={() => showNames(false)}
-                    >
-                        <button
-                            type='button'
-                            className='cube-chart-fold'
-                            aria-label={`Hide the ${names.group[0]} names`}
-                            title={`Hide the ${names.group[0]} names`}
-                        >
-                            <ExpandLessIcon fontSize='inherit' />
-                        </button>
-                    </div>
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                showNames(false);
+                            }
+                        }}
+                    />
                 ) : null}
                 {shownNames ? null : (
                     <button

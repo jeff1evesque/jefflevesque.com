@@ -93,10 +93,11 @@
 // the pointer the band takes a pale green under the chart -- the green of the
 // listing's charted row -- fading to the page by its foot, which says the
 // whole band is the click without a gray block over the names. It stays
-// see-through, so the names show through it. And /graph's fold arrow appears
-// halfway across its foot, half in the band and half under it, where the green
-// bar they fold into will stand: gray at rest, green under the pointer, as
-// /graph's is
+// see-through, so the names show through it.
+//
+// The band is the button a keyboard reaches too, ringed and in the same green
+// while it has the focus. /graph's fold arrow on its foot sat on the listing's
+// month menu under the chart, and was taken off (#204)
 //
 .cube-chart-names-hit {
   border-radius: 0.375rem;
@@ -104,46 +105,16 @@
   position: absolute;
   z-index: 1;
 
-  &:hover {
+  &:hover,
+  &:focus-visible {
     background-image: linear-gradient(to bottom, rgba($green-5, 0.08), rgba($green-5, 0));
 
     @include dark {
       background-image: linear-gradient(to bottom, rgba($green-5, 0.12), rgba($green-5, 0));
     }
-
-    .cube-chart-fold {
-      opacity: 1;
-    }
-  }
-}
-
-.cube-chart-fold {
-  align-items: center;
-  background-color: $white-1;
-  border: 1px solid $gray-3;
-  border-radius: 50%;
-  bottom: 0;
-  color: $gray-6;
-  cursor: pointer;
-  display: flex;
-  font-size: 1.05rem;
-  height: 1.5rem;
-  justify-content: center;
-  left: 50%;
-  opacity: 0;
-  padding: 0;
-  position: absolute;
-  transform: translate(-50%, 50%);
-  width: 1.5rem;
-
-  &:hover {
-    background-color: rgba($green-2, 0.32);
-    border-color: $green-4;
-    color: $green-6;
   }
 
   &:focus-visible {
-    opacity: 1;
     outline: 2px solid $focus;
   }
 }
