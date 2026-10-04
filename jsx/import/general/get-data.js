@@ -10,6 +10,7 @@
 
 import { readString } from 'react-papaparse';
 import {parseCsv, papaParseCsv} from '../general/parse-csv.js';
+import { noteResponse } from './rate-limit.js';
 
 //
 // Note: 'on_error' is told when the request fails -- a response that is not ok,
@@ -18,9 +19,14 @@ import {parseCsv, papaParseCsv} from '../general/parse-csv.js';
 //       does can tell a request that failed from one still in flight, which the
 //       callback alone cannot, since it never fires for either.
 //
+// Note: every answer is shown to rate-limit.js first, which tells the page when
+//       the api has said to wait, and when it no longer does (#210).
+//
 function get_promise(url, callback, source, stream, on_error = null) {
     return fetch(url, {method: 'GET'})
         .then((response) => {
+            noteResponse(response);
+
             if (response.ok) {
                 return response.json();
             }
