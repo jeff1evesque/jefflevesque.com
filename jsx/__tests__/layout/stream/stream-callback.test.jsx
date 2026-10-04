@@ -55,6 +55,7 @@ import getData from '../../../import/general/get-data.js';
 import StreamLayout, { SLOW_AFTER_MS } from '../../../import/layout/stream/stream.jsx';
 import THROUGHPUT_KEY from '../../../import/general/throughput-key.js';
 import { STREAMS } from '../../../import/general/stream-id.js';
+import { performanceStream } from '../../../import/general/api-url.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -542,7 +543,7 @@ describe('the Rate buttons', () => {
         const asked = getData.mock.calls.map((call) => new URL(String(call[1])));
 
         expect(page.state.rate).toBe('Hour');
-        expect(asked.map((url) => url.searchParams.get('Stream'))).toEqual(STREAMS);
+        expect(asked.map((url) => url.searchParams.get('Stream'))).toEqual(STREAMS.map(performanceStream));
         expect(asked.every((url) => url.searchParams.get('Interval') === 'hour')).toBe(true);
         STREAMS.forEach((stream) => {
             expect(page.state[`stream_rate_${stream}`]).toBe('hour');
