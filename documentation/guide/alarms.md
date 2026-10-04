@@ -14,6 +14,8 @@ Each stream has one alarm, its ingest alarm.
 - **The usual gap differs by stream:**
   - a couple of hours for the weather feed;
   - about a business day for the market and filings feeds;
+  - about a day and a half for the SEC's company facts, every day counted, since
+    they run Monday to Saturday;
   - longer for the feeds that publish weekly or monthly.
 
 ## Subscribing
