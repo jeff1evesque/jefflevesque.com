@@ -32,7 +32,7 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { colors_dark } from './colors.js';
+import { colors_dark, themeColors } from './colors.js';
 import {
     applyTheme,
     currentTheme,
@@ -54,8 +54,71 @@ import {
 const ThemeModeContext = React.createContext({ theme: 'light', scheduled: 'light', toggle: () => {} });
 
 //
-// mui's two themes. The light one is mui's own default, which is what every mui
-// component on the site drew in before there was a dark one.
+// every tooltip on the site, drawn as one (#206): centered just above what it
+// belongs to, with an arrow pointing at it, in the selected rate button's colors
+// -- near-black with white text by day, and its light gray with dark text by
+// night, where a dark box would vanish into the page. Opaque, where mui's own
+// gray let what it covered show through, and gave its text about 5:1.
+//
+// It never leaves the screen: near an edge the box slides along to stay
+// TOOLTIP_EDGE inside it, and its arrow stays over what it points at, and with no
+// room above it opens below. mui's popper already slides and flips; this keeps
+// it off the edge itself.
+//
+// The arrow's tip is TOOLTIP_GAP from what it points at. mui hangs the arrow
+// below the box, half as tall as it is wide, and keeps them both off what they
+// point at by the box's margin on that side -- 14px, or 24px for a finger.
+//
+// Note: a touch draws the same box as the pointer. mui draws a larger one for a
+//       finger, which on this site's 14px root is no larger than this.
+//
+const TOOLTIP_EDGE = 8;
+const TOOLTIP_GAP = 3;
+const TOOLTIP_ARROW = 11;
+
+function tooltips(shade) {
+    const gap = `${TOOLTIP_ARROW / 2 + TOOLTIP_GAP}px`;
+
+    return {
+        MuiTooltip: {
+            defaultProps: {
+                arrow: true,
+                placement: 'top',
+                slotProps: {
+                    popper: {
+                        modifiers: [{ name: 'preventOverflow', options: { padding: TOOLTIP_EDGE } }],
+                    },
+                },
+            },
+            styleOverrides: {
+                tooltip: {
+                    backgroundColor: shade['gray-9'],
+                    color: shade['white-1'],
+                    fontFamily: 'inherit',
+                    fontSize: '1rem',
+                    fontWeight: 400,
+                    lineHeight: 1.4,
+                    padding: '0.5rem 1rem',
+                    borderRadius: 4,
+                    maxWidth: 340,
+                    '.MuiTooltip-popper[data-popper-placement*="top"] &': { marginBottom: gap },
+                    '.MuiTooltip-popper[data-popper-placement*="bottom"] &': { marginTop: gap },
+                    '.MuiTooltip-popper[data-popper-placement*="left"] &': { marginRight: gap },
+                    '.MuiTooltip-popper[data-popper-placement*="right"] &': { marginLeft: gap },
+                },
+                arrow: {
+                    color: shade['gray-9'],
+                    fontSize: TOOLTIP_ARROW,
+                },
+            },
+        },
+    };
+}
+
+//
+// mui's two themes. The light one is mui's own default but for its tooltips,
+// which is what every mui component on the site drew in before there was a
+// dark one.
 //
 // The dark one takes the page's own colors, so a menu or a table mui draws sits
 // on the page rather than on a slightly different black: its surfaces are the
@@ -63,13 +126,14 @@ const ThemeModeContext = React.createContext({ theme: 'light', scheduled: 'light
 // elevation, as it would anywhere. Its text is the stylesheet's.
 //
 const MUI_THEMES = {
-    light: createTheme(),
+    light: createTheme({ components: tooltips(themeColors('light')) }),
     dark: createTheme({
         palette: {
             mode: 'dark',
             background: { default: colors_dark['white-1'], paper: colors_dark['white-1'] },
             text: { primary: colors_dark['gray-8'], secondary: colors_dark['gray-6'] },
         },
+        components: tooltips(themeColors('dark')),
     }),
 };
 
@@ -184,4 +248,4 @@ class ThemeMode extends Component {
 
 export default ThemeMode;
 
-export { ThemeModeContext, MUI_THEMES, SWITCH_SLACK };
+export { ThemeModeContext, MUI_THEMES, SWITCH_SLACK, TOOLTIP_EDGE, TOOLTIP_GAP, TOOLTIP_ARROW };
