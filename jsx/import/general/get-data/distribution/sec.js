@@ -180,3 +180,10 @@ function get(type, url, callback, worker, source, stream) {
 export default function getDataDistribution(type, url=null, callback=()=>{}, worker=false, source=null, stream=null) {
     return get(type, url, callback, worker, source, stream);
 }
+
+//
+// the fetch and the parse, for the company facts' loader as well: their rows are
+// these rows, 'category,form,total_records', with each fact's status as its
+// category (#211). See sec-companyfacts.js
+//
+export { get_promise as readSecDistribution };
