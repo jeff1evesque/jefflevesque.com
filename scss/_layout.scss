@@ -66,9 +66,9 @@ body {
 
 //
 // every page's last line: the copyright, Docs and Terms (#202). Small and gray,
-// centered under a faint line, one line on the narrowest phone. The shell is a
-// column whose content grows to fill it, so the footer sits at the window's
-// foot on a short page, and after everything on a long one.
+// centered, one line on the narrowest phone, with no line over it (#204). The
+// shell is a column whose content grows to fill it, so the footer sits at the
+// window's foot on a short page, and after everything on a long one.
 //
 // Note: under '#bootstrap-override', which colors every link.
 //
@@ -78,6 +78,14 @@ body {
 //       with room under its content for the footer, laid there. Not a flex
 //       column, which would stop the content's first margin from overlapping
 //       the header's, and move every page's title down (#200)
+//
+// Note: drawn over whatever a page lays under it (#204). The front page's
+//       graph is an absolutely placed svg the window's height, and a placed
+//       element paints over one in the flow, so on a wide screen the graph was
+//       drawn over the footer and took the clicks meant for its links. A
+//       phone's footer was placed already. A wide screen's is placed in a rule
+//       of its own: '#bootstrap-override' outranks '.small-viewport', so a
+//       'position' set there would undo a phone's 'absolute'
 //
 $site-footer-room: 6.2rem;
 
@@ -97,9 +105,15 @@ $site-footer-room: 6.2rem;
   }
 }
 
+.large-viewport,
+.medium-viewport {
+  .site-footer {
+    position: relative;
+  }
+}
+
 #bootstrap-override .site-footer {
   align-items: center;
-  border-top: 1px solid $gray-3;
   color: $gray-6;
   display: flex;
   flex-wrap: wrap;
@@ -107,7 +121,13 @@ $site-footer-room: 6.2rem;
   gap: 0.25rem 0.6rem;
   justify-content: center;
   margin-top: 2rem;
-  padding: 1.25rem 1rem 1.5rem;
+
+  //
+  // 10px less over the text than the line had, and 10px more under it: the
+  // text stands 10px higher, and the footer is no taller (#204)
+  //
+  padding: calc(1.25rem - 10px) 1rem calc(1.5rem + 10px);
+  z-index: 1;
 
   a,
   a:link,
