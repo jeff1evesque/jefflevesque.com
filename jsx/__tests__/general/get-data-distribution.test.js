@@ -37,6 +37,8 @@ import getBls from '../../import/general/get-data/distribution/bls.js';
 import getSec from '../../import/general/get-data/distribution/sec.js';
 import getStockMarket from '../../import/general/get-data/distribution/stock-market.js';
 import getUsWeatherAlert from '../../import/general/get-data/distribution/us-weather-alert.js';
+import { limitedUntil, resetRateLimit } from '../../import/general/rate-limit.js';
+import { blockedAnswer } from '../../test-support/blocked-answer.js';
 
 const URL = 'https://example.com/distribution.csv';
 
@@ -268,6 +270,21 @@ describe('the shared failure paths', () => {
         expect(quiet).not.toHaveBeenCalledWith(expect.stringContaining('"malformed"'));
 
         quiet.mockRestore();
+    });
+
+    it.each(LOADERS)('%s tells the page to wait at a request past the api\'s rate limit (#210)', async (name, loader) => {
+        const callback = jest.fn();
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+        resetRateLimit();
+        global.fetch = jest.fn().mockResolvedValue(blockedAnswer());
+
+        await loader('data-distribution', URL, callback);
+
+        expect(limitedUntil()).toBeGreaterThan(Date.now());
+        expect(callback).not.toHaveBeenCalled();
+
+        quiet.mockRestore();
+        resetRateLimit();
     });
 
     it.each(LOADERS)('%s swallows a network failure', async (name, loader) => {
