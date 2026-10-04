@@ -528,6 +528,74 @@ describe('a request past the api\'s rate limit (#210)', () => {
     });
 });
 
+describe('one url asked twice at once (#211)', () => {
+    //
+    // /stream's two SEC rows read one report, the filings' series and the
+    // company facts', and ask for it at once. One request answers both.
+    //
+    let quiet;
+
+    beforeEach(() => {
+        quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        quiet.mockRestore();
+    });
+
+    it('sends one request, and hands each caller the answer for its own series', async () => {
+        const filings = jest.fn();
+        const facts = jest.fn();
+        mockFetch({ report: 'group_by,total_success\nsec,292\ncompanyfacts,500' });
+
+        await Promise.all([
+            getData('sec-ingest', URL, filings, true, 'sec', 'sec'),
+            getData('sec-ingest', URL, facts, true, 'companyfacts', 'sec-companyfacts'),
+        ]);
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(filings).toHaveBeenCalledWith({ data: ROWS, source: 'sec', stream: 'sec' });
+        expect(facts).toHaveBeenCalledWith({ data: ROWS, source: 'companyfacts', stream: 'sec-companyfacts' });
+    });
+
+    it('asks again once the answer has landed', async () => {
+        mockFetch({ report: 'group_by,total_success\nsec,292' });
+
+        await getData('sec-ingest', URL, jest.fn(), true, 'sec', 'sec');
+        await getData('sec-ingest', URL, jest.fn(), true, 'companyfacts', 'sec-companyfacts');
+
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('asks once for each of two urls', async () => {
+        mockFetch({ report: 'group_by,total_success\nsec,292' });
+
+        await Promise.all([
+            getData('sec-ingest', URL, jest.fn(), true, 'sec', 'sec'),
+            getData('bls-ingest', `${URL}?Stream=bls`, jest.fn(), true, 'bls', 'bls'),
+        ]);
+
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('tells each caller of a failure, and asks again after it', async () => {
+        const failed = [jest.fn(), jest.fn()];
+        mockFetch({}, false);
+
+        await Promise.all([
+            getData('sec-ingest', URL, jest.fn(), true, 'sec', 'sec', failed[0]),
+            getData('sec-ingest', URL, jest.fn(), true, 'companyfacts', 'sec-companyfacts', failed[1]),
+        ]);
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        failed.forEach((told) => expect(told).toHaveBeenCalledTimes(1));
+
+        await getData('sec-ingest', URL, jest.fn(), true, 'sec', 'sec', jest.fn());
+
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+});
+
 describe('argument forwarding', () => {
     it('getData passes its arguments through unchanged', () => {
         //

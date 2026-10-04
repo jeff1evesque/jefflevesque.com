@@ -898,3 +898,109 @@ describe('weighing types by something other than their count', () => {
         expect(kept(schema, 5, 'entities')).toEqual(['named']);
     });
 });
+
+describe('a type of each list the caller requires (#211)', () => {
+    //
+    // the Retrieval graph passes the node types of each source its Sources row
+    // names, so every source it names is drawn. The company facts' one type is
+    // numbers, and weighs nothing by what can be found by name -- as every one
+    // of market's does.
+    //
+    function weighed(types, edge_types = {}) {
+        const node_types = {};
+
+        Object.entries(types).forEach(([id, [count, entities]]) => {
+            node_types[id] = { count: count, entities: entities };
+        });
+
+        return { node_types: node_types, edge_types: edge_types };
+    }
+
+    const kept = (schema, limit, required) => Object.keys(filterSchema(schema, limit, 'entities', required).node_types).sort();
+
+    //
+    // four places, four named types, and two nameless ones: the company facts,
+    // linked to the issuer, and a quote linked to nothing drawn
+    //
+    const schema = weighed(
+        { issuer: [3412, 3412], filing: [4380, 300], sector: [11, 11], owner: [39, 2], facts: [15600, 0], quote: [9481, 0] },
+        { about: edge('facts', 'issuer'), filed: edge('filing', 'issuer'), in: edge('owner', 'filing') }
+    );
+
+    it('draws a type of a list none of whose types was drawn, whatever it weighs', () => {
+        expect(kept(schema, 4, [])).toEqual(['filing', 'issuer', 'owner', 'sector']);
+        expect(kept(schema, 4, [['facts']])).toContain('facts');
+    });
+
+    it('still draws the budget, by giving up the lightest type drawn that is not one of the largest', () => {
+        expect(kept(schema, 4, [['facts']])).toEqual(['facts', 'filing', 'issuer', 'sector']);
+    });
+
+    it('chooses the type of a list that joins the most of what is drawn', () => {
+        expect(kept(schema, 4, [['quote', 'facts']])).toContain('facts');
+        expect(kept(schema, 4, [['quote', 'facts']])).not.toContain('quote');
+    });
+
+    it('leaves a list alone that already has a type drawn', () => {
+        expect(kept(schema, 4, [['issuer', 'facts']])).toEqual(kept(schema, 4, []));
+    });
+
+    it('never gives up the last type drawn of another list to make room', () => {
+        //
+        // two lists, each of one nameless type, and room for three. The second
+        // must not take the first's place
+        //
+        const two = weighed(
+            { named: [5, 5], other: [4, 4], facts: [15600, 0], quote: [9481, 0] },
+            { a: edge('facts', 'named'), b: edge('quote', 'named'), c: edge('other', 'named') }
+        );
+
+        expect(kept(two, 3, [['facts'], ['quote']])).toEqual(['facts', 'named', 'quote']);
+    });
+
+    it('never gives up the last type kept of a list, however light it is', () => {
+        //
+        // six places: four of the largest, and two light types padded in, the
+        // lighter of them the one type kept of a list. Room for the second list's
+        // type is made by the other
+        //
+        const padded = weighed(
+            { a: [1, 60], b: [1, 50], c: [1, 40], d: [1, 30], e: [1, 2], f: [1, 1], z: [99, 0] },
+            { za: edge('z', 'a') }
+        );
+
+        expect(kept(padded, 6, [])).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+        expect(kept(padded, 6, [['f'], ['z']])).toEqual(['a', 'b', 'c', 'd', 'f', 'z']);
+    });
+
+    it('gives up the first by name of two types that weigh alike', () => {
+        const even = weighed({ a: [1, 60], b: [1, 50], c: [1, 40], d: [1, 30], f: [1, 1], e: [1, 1], z: [1, 0] });
+
+        expect(kept(even, 6, [['z']])).toEqual(['a', 'b', 'c', 'd', 'f', 'z']);
+    });
+
+    it('keeps a type of every list past the budget, only where every type kept is the last of a list', () => {
+        //
+        // one place, held by the one type kept of the first list: the second's
+        // type is drawn beside it rather than in its place
+        //
+        const tight = weighed({ a: [1, 5], z: [1, 0] });
+
+        expect(kept(tight, 1, [['a'], ['z']])).toEqual(['a', 'z']);
+    });
+
+    it('chooses between types that join and weigh alike by their nodes, and then by name', () => {
+        const alike = weighed({ named: [5, 5], q1: [10, 0], q2: [10, 0], q3: [20, 0] });
+
+        expect(kept(alike, 2, [['q2', 'q1']])).toEqual(['named', 'q1']);
+        expect(kept(alike, 2, [['q2', 'q1', 'q3']])).toEqual(['named', 'q3']);
+    });
+
+    it('skips a list naming no type the schema holds, as a source outside the graph does', () => {
+        expect(kept(schema, 4, [['stock_split_Split'], []])).toEqual(kept(schema, 4, []));
+    });
+
+    it('changes nothing for a caller that requires nothing', () => {
+        expect(filterSchema(schema, 4, 'entities', [])).toEqual(filterSchema(schema, 4, 'entities'));
+    });
+});

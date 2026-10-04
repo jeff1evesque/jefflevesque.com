@@ -36,6 +36,7 @@ import { MemoryRouter } from 'react-router-dom';
 import getData from '../../../import/general/get-data.js';
 import StreamLayout, { REFRESH_MS } from '../../../import/layout/stream/stream.jsx';
 import { STREAMS } from '../../../import/general/stream-id.js';
+import { performanceStream } from '../../../import/general/api-url.js';
 import {
     localInstant,
     pageWindow,
@@ -106,7 +107,7 @@ describe('opening a bar', () => {
 
         expect(page.state.rate).toBe('Hour');
         expect(page.state.end).toEqual(end);
-        expect(asked().map((params) => params.get('Stream'))).toEqual(STREAMS);
+        expect(asked().map((params) => params.get('Stream'))).toEqual(STREAMS.map(performanceStream));
         asked().forEach((params) => {
             expect(params.get('Interval')).toBe('hour');
             expect(params.get('End')).toBe(localInstant(end));

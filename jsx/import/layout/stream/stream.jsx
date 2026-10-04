@@ -43,7 +43,7 @@ import { limitedUntil } from '../../general/rate-limit.js';
 import { readSort, writeSort } from '../../general/listing-preference.js';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
-import { STOCK_MARKET, STOCK_SPLIT, STREAMS } from '../../general/stream-id.js';
+import { STOCK_MARKET, STOCK_SPLIT, SEC_COMPANYFACTS, STREAMS } from '../../general/stream-id.js';
 import { streamBars, scheduleLabel } from '../../general/stream-bars.js';
 import scrollMargin from '../../general/scroll-margin.js';
 {/*
@@ -409,12 +409,15 @@ class StreamLayout extends Component {
             chart_data_bls_bls: [],
             chart_data_sec: [],
             chart_data_sec_sec: [],
+            'chart_data_sec-companyfacts': [],
+            'chart_data_sec-companyfacts_companyfacts': [],
             'chart_data_us-national-weather': [],
             field_datetime: 'window_start',
             'promise_get_data_stock-market': false,
             'promise_get_data_stock-split': false,
             promise_get_data_bls: false,
             promise_get_data_sec: false,
+            'promise_get_data_sec-companyfacts': false,
             'promise_get_data_us-national-weather': false,
             rate: rate,
             end: end,
@@ -429,16 +432,23 @@ class StreamLayout extends Component {
             'stream_source_stock-split': ['alpha', 'beta', 'gamma'],
             stream_source_bls: ['bls'],
             stream_source_sec: ['sec'],
+            //
+            // the sec report's other series: its company facts, a row of their
+            // own (#211)
+            //
+            'stream_source_sec-companyfacts': ['companyfacts'],
             'stream_source_us-national-weather': ['weather'],
             streams: streams,
             'stream_rate_stock-market': rate,
             'stream_rate_stock-split': rate,
             stream_rate_bls: rate,
             stream_rate_sec: rate,
+            'stream_rate_sec-companyfacts': rate,
             'stream_rate_us-national-weather': rate,
             stream_throughput: 0,
             stream_throughput_bls_bls: 0,
             stream_throughput_sec_sec: 0,
+            'stream_throughput_sec-companyfacts_companyfacts': 0,
             'stream_stock-market_total': 'n/a',
             'stream_stock-market_health': 'n/a',
             'stream_stock-split_total': 'n/a',
@@ -447,12 +457,15 @@ class StreamLayout extends Component {
             stream_bls_health: 'n/a',
             stream_sec_total: 'n/a',
             stream_sec_health: 'n/a',
+            'stream_sec-companyfacts_total': 'n/a',
+            'stream_sec-companyfacts_health': 'n/a',
             'stream_us-national-weather_total': 'n/a',
             'stream_us-national-weather_health': 'n/a',
             'stream_stock-market_coverage': 'n/a',
             'stream_stock-split_coverage': 'n/a',
             stream_bls_coverage: 'n/a',
             stream_sec_coverage: 'n/a',
+            'stream_sec-companyfacts_coverage': 'n/a',
             'stream_us-national-weather_coverage': 'n/a',
             //
             // where the 'This request' menu hangs from while it is open, or null
@@ -951,10 +964,14 @@ class StreamLayout extends Component {
                 </Link>
             );
 
-        return(
-            <div className='control-tray'>
-                {trigger_button}
-
+        //
+        // the stream's alarms. The company facts have none (#211): the alarms api
+        // answers their id 'no such stream', so a bell would lead to a page with
+        // nothing to subscribe to
+        //
+        const alarm_button = stream === SEC_COMPANYFACTS
+            ? null
+            : (
                 <Link
                     className='border-circle-radius control-button'
                     to={`/stream/${stream}/alarm`}
@@ -964,6 +981,12 @@ class StreamLayout extends Component {
                 >
                     {this.alarmBell(stream, font_size)}
                 </Link>
+            );
+
+        return(
+            <div className='control-tray'>
+                {trigger_button}
+                {alarm_button}
             </div>
         );
     }
@@ -1037,6 +1060,16 @@ class StreamLayout extends Component {
             get_data: 'sec-ingest',
             source: 'sec',
             source_local: 'sec'
+        },
+        //
+        // the same request as the filings' -- see performanceStream in
+        // api-url.js -- read for its other series. The two rows ask at once, and
+        // get-data.js sends one request for both (#211)
+        //
+        [SEC_COMPANYFACTS]: {
+            get_data: 'sec-ingest',
+            source: 'companyfacts',
+            source_local: 'companyfacts'
         },
         'us-national-weather': {
             get_data: 'us-national-weather-ingest',

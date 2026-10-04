@@ -521,15 +521,16 @@ describe('the day details', () => {
             expect(await screen.findByRole('tooltip')).toHaveTextContent(NOTE);
         });
 
-        it('is not a source whose node types the day holds, where the canvas draws none of them', async () => {
+        it('is not a source whose node types the day holds, however little they weigh', async () => {
             //
             // market's one type here is nine million snapshots, none of which can
-            // be found by name, so the canvas leaves it out. It is still in the
-            // tables, and so in the graph.
+            // be found by name. It is in the tables, and so in the graph -- and the
+            // canvas draws it, since it draws a type of every source the row
+            // names (#211).
             //
             await setup();
 
-            expect(explorer().dataset.types.split(' ')).not.toContain('market_quotes_OptionSnapshot');
+            expect(explorer().dataset.types.split(' ')).toContain('market_quotes_OptionSnapshot');
             expect(detailNoted('Sources').map((name) => name.textContent)).not.toContain('market');
         });
 
@@ -605,6 +606,31 @@ describe('the day details', () => {
 });
 
 describe('the canvas', () => {
+    it('draws a type of every source the Sources row names, whatever it weighs (#211)', async () => {
+        //
+        // the company facts' one type is numbers, and weighs nothing by what can
+        // be found by name. The day lists the source, so the canvas draws it, and
+        // the row names it with no note: it is in the graph
+        //
+        const day = namedDay();
+        day.node_types.companyfacts_CompanyFact = { count: 15_600, entities: 0, facts: 0, vocabulary: 'sec/companyfacts' };
+        day.edge_types['(companyfacts_CompanyFact, companyfacts_aboutIssuer, filings_Issuer)'] = {
+            src_type: 'companyfacts_CompanyFact', relation: 'companyfacts_aboutIssuer', dst_type: 'filings_Issuer',
+            count: 15_600, origin: 'raw',
+        };
+        getTableDays.mockResolvedValue([
+            { ...DAYS[0], sources: ['noaa', 'sec', 'sec-companyfacts', 'stock-split'] },
+            ...DAYS.slice(1),
+        ]);
+        getTableDay.mockResolvedValue(day);
+
+        await setup();
+
+        expect(explorer().dataset.types.split(' ')).toContain('companyfacts_CompanyFact');
+        expect(detail('Sources')).toBe('noaa, sec, sec-companyfacts, stock-split');
+        expect(detailNoted('Sources').map((name) => name.textContent)).toEqual(['stock-split']);
+    });
+
     it('draws the day by what can be found by name, not by its node count', async () => {
         //
         // by count, nine million market snapshots lead, as they lead the day's

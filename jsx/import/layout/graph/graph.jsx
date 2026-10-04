@@ -341,6 +341,10 @@ class GraphLayout extends Component {
             // and edge type from here; it used to be measured for the caption and
             // then discarded on the same line.
             build: null,
+            // the lists of types the slice keeps one of each, whatever they
+            // weigh: a day's, a list per source its Sources row names. See
+            // required, below (#211)
+            required: [],
             loading: true,
             failed: false,
             open: PANELS_START,
@@ -472,7 +476,7 @@ class GraphLayout extends Component {
             }
 
             this.setState({ listing: listing });
-            this.select(this.requested(listing));
+            this.select(this.requested(listing), listing);
         });
     }
 
@@ -560,7 +564,7 @@ class GraphLayout extends Component {
             const wanted = this.requested(listing);
 
             if (wanted !== this.state.selected) {
-                this.select(wanted);
+                this.select(wanted, listing);
             }
         }
     }
@@ -570,8 +574,12 @@ class GraphLayout extends Component {
      *       alternative leaves the previous build on screen under the new
      *       build's label for as long as the request takes, which reads as a
      *       correct answer and is not one.
+     *
+     * Note: `listing` is the one `id` was chosen from. The page selects the
+     *       default the moment the listing lands, in the same turn as it is put
+     *       in state, so state cannot be relied on to hold it yet.
      */
-    select(id) {
+    select(id, listing) {
         //
         // the legend's marks go with the build. They name a namespace or an
         // origin out of the build being left, and the next one need not carry
@@ -582,6 +590,7 @@ class GraphLayout extends Component {
             selected: id,
             schema: null,
             build: null,
+            required: [],
             loading: true,
             failed: false,
             hovered: null,
@@ -591,17 +600,33 @@ class GraphLayout extends Component {
         return this.props.source.load(id).then((schema) => {
             //
             // the slice is chosen by what the source weighs a type by: its
-            // nodes for a build, its findable entities for a day. See source.js
+            // nodes for a build, its findable entities for a day -- and for a
+            // day, with a type of every source its Sources row names (#211).
+            // See source.js
             //
-            const filtered = filterSchema(schema, GRAPH_NODE_TYPES, this.props.source.weight);
+            const required = this.required(id, schema, listing);
+            const filtered = filterSchema(schema, GRAPH_NODE_TYPES, this.props.source.weight, required);
 
             this.setState({
                 schema: filtered,
                 build: filtered ? schema : null,
+                required: required,
                 loading: false,
                 failed: !filtered,
             }, this.settle);
         });
+    }
+
+    //
+    // the lists of types the slice of `id` keeps one of each: the source's, for
+    // the choice and its whole document, or none. A day names a list per source
+    // its Sources row names, and a build none (#211).
+    //
+    required(id, schema, listing) {
+        const { source } = this.props;
+        const choice = listing.choices.find((each) => each.id === id);
+
+        return source.required && choice && schema ? source.required(choice, schema) : [];
     }
 
     selectedChoice() {
@@ -659,7 +684,7 @@ class GraphLayout extends Component {
         this.screenTheme = theme;
         this.screen = {
             namespaces: rankNamespaces(nodes),
-            painted: buildPalette(this.state.build, GRAPH_NODE_TYPES, this.props.source.weight, theme),
+            painted: buildPalette(this.state.build, GRAPH_NODE_TYPES, this.props.source.weight, theme, this.state.required),
             origins: [...new Set(
                 Object.values(schema.edge_types).map((e) => e.origin).filter(Boolean)
             )].sort(),

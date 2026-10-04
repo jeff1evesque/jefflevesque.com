@@ -164,6 +164,27 @@ export function typeSource(meta) {
 }
 
 /**
+ * every source name a node type comes from: each leading part of its
+ * vocabulary's path, joined on hyphens -- 'sec' and 'sec-companyfacts' for a type
+ * of 'sec/companyfacts', 'bls' and 'bls-jolts' for one of 'bls/jolts'.
+ *
+ * The builder names a source the way it files the source's vocabulary: the
+ * company facts are the source 'sec-companyfacts', and their vocabulary
+ * 'sec/companyfacts' (#211). So the first part alone answers 'sec' for them,
+ * which is a source as well, and is not the one a day lists them by.
+ *
+ * Note: the vocabulary as `vocabulary` reads it, the type's id standing in where
+ *       nothing published names one -- 'market' for 'market_quotes_EquitySnapshot'.
+ *       Which source a type comes from is asked of every type a day holds, and
+ *       the market quotes' vocabulary is named by no predicate.
+ */
+export function typeSources(meta, id) {
+    const path = vocabulary(meta, id);
+
+    return path.map((part, at) => path.slice(0, at + 1).join('-'));
+}
+
+/**
  * the namespaces present, ordered biggest first, ties broken by name.
  *
  * Note: ordered by how many node types a namespace contributes so the same
@@ -266,9 +287,14 @@ export function assignNamespaceColors(nodes, tail = 'roll-up', theme = 'light') 
  * Note: `theme` is the page's. Only the shaded tail differs between the two --
  *       see assignNamespaceColors -- so every namespace with a color of its own
  *       has the same one on either page.
+ *
+ * Note: `required` is the slice's as well, for the same reason as `weight`: the
+ *       Retrieval graph keeps a type of every source its Sources row names
+ *       (#211), and a palette ranked over a slice without them would give their
+ *       namespaces no color.
  */
-export function buildPalette(schema, limit = GRAPH_NODE_TYPES, weight = 'count', theme = 'light') {
-    const drawn = filterSchema(schema, limit, weight);
+export function buildPalette(schema, limit = GRAPH_NODE_TYPES, weight = 'count', theme = 'light', required = []) {
+    const drawn = filterSchema(schema, limit, weight, required);
 
     if (!drawn) {
         return null;

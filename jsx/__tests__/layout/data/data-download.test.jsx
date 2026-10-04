@@ -1,14 +1,14 @@
 /**
  * data-download.test.jsx: what the /data page actually asks the api for.
  *
- * downloadData is the page's real work: it picks one of four per-stream loaders, builds
+ * downloadData is the page's real work: it picks one of five per-stream loaders, builds
  * the datalake url with the selected scale, and wires the response back to
  * callbackGetData. data-callback.test.jsx covers what happens to the answer; this
  * covers the request -- which loader, which url, and what happens for a stream it does
  * not recognize.
  *
- * Note: the four loaders are mocked. They are the network boundary, and each is a
- *       ~250 line module with its own suite (get-data-distribution.test.js).
+ * Note: the five loaders are mocked. They are the network boundary, and each is a
+ *       module with its own suite (get-data-distribution.test.js).
  */
 
 import React from 'react';
@@ -27,11 +27,15 @@ jest.mock('../../../import/general/get-data/distribution/bls.js', () => ({
 jest.mock('../../../import/general/get-data/distribution/sec.js', () => ({
     __esModule: true, default: jest.fn(),
 }));
+jest.mock('../../../import/general/get-data/distribution/sec-companyfacts.js', () => ({
+    __esModule: true, default: jest.fn(),
+}));
 
 import getStockMarket from '../../../import/general/get-data/distribution/stock-market.js';
 import getUsWeatherAlert from '../../../import/general/get-data/distribution/us-weather-alert.js';
 import getBls from '../../../import/general/get-data/distribution/bls.js';
 import getSec from '../../../import/general/get-data/distribution/sec.js';
+import getSecCompanyFacts from '../../../import/general/get-data/distribution/sec-companyfacts.js';
 
 import DataLayout from '../../../import/layout/data/data.jsx';
 import { API_DOCS, DATASETS } from '../../../import/general/api-url.js';
@@ -48,7 +52,7 @@ function setup() {
     return held.current;
 }
 
-const LOADERS = [getStockMarket, getUsWeatherAlert, getBls, getSec];
+const LOADERS = [getStockMarket, getUsWeatherAlert, getBls, getSec, getSecCompanyFacts];
 
 //
 // downloadData calls setState, so every call is wrapped. React reports an update made
@@ -77,9 +81,10 @@ describe('choosing a loader per stream', () => {
         ['us-national-weather', () => getUsWeatherAlert],
         ['bls', () => getBls],
         ['sec', () => getSec],
+        ['sec-companyfacts', () => getSecCompanyFacts],
     ])('%s downloads through its own loader', (stream, expected) => {
         //
-        // the two stock streams share one loader; the other three each have their own.
+        // the two stock streams share one loader; the other four each have their own.
         // Getting this wrong would query the wrong table and quietly chart another
         // stream's rows.
         //
@@ -118,7 +123,7 @@ describe('choosing a loader per stream', () => {
 
     it('tags the request with its source and stream', () => {
         //
-        // all five streams are requested at once and answer out of order, so the tags
+        // every stream is requested at once, and they answer out of order, so the tags
         // are the only way callbackGetData can tell the responses apart.
         //
         const page = setup();
@@ -272,7 +277,7 @@ describe('the url it builds', () => {
 describe('an unrecognised stream', () => {
     it('requests nothing and says so', () => {
         //
-        // downloadData filters on the five known streams before looking anything up, so
+        // downloadData filters on the known streams before looking anything up, so
         // an unknown type reaches no loader.
         //
         const page = setup();
@@ -287,14 +292,14 @@ describe('an unrecognised stream', () => {
 
     it('throws rather than warning, because data_map has no entry', () => {
         //
-        // WORTH KNOWING: the guard tests 'type' against the five known streams, but the
+        // WORTH KNOWING: the guard tests 'type' against the known streams, but the
         // forEach that precedes it reads this.state.data_map[type] -- so an unknown type
         // dereferences undefined and raises a TypeError before the guard is ever
         // reached. The 'NOT valid for get-data' log below it is therefore unreachable
         // from here: nothing can get past data_map to reach it.
         //
         // It matters only if a caller ever passes an unvalidated string; every current
-        // call site passes one of the five.
+        // call site passes one of the six.
         //
         const page = setup();
 
@@ -341,8 +346,8 @@ describe('the api icons over the chart', () => {
 describe('the dataset it names', () => {
     it.each(Object.entries(DATASETS))('asks for %s as the dataset %s', (stream, dataset) => {
         //
-        // the dataset is not the stream id for three of the five; the datalake answers a
-        // stream id with a 400.
+        // the dataset is not always the stream id -- it is not for the weather stream --
+        // and the datalake answers a stream id with a 400.
         //
         const page = setup();
         LOADERS.forEach(l => l.mockClear());
@@ -365,6 +370,7 @@ describe('every loader\'s answer', () => {
         ['us-national-weather', () => getUsWeatherAlert],
         ['bls', () => getBls],
         ['sec', () => getSec],
+        ['sec-companyfacts', () => getSecCompanyFacts],
     ])('%s is handed back to callbackGetData', (stream, loaderOf) => {
         const page = setup();
         const loader = loaderOf();

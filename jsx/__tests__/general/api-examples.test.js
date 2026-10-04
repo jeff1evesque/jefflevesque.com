@@ -19,9 +19,10 @@ const path = require('path');
 
 import getData from '../../import/general/get-data.js';
 import getBlsDistribution from '../../import/general/get-data/distribution/bls.js';
+import getSecCompanyFactsDistribution from '../../import/general/get-data/distribution/sec-companyfacts.js';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import { getTableDays, getTableDay } from '../../import/general/get-graph-tables.js';
-import { buildDay } from '../../import/layout/graph/source.js';
+import { buildDay, graphSources, sourceTypes, outsideGraph } from '../../import/layout/graph/source.js';
 import filterSchema from '../../import/animation/filter-schema.js';
 import { sourceNamespace } from '../../import/animation/encoding.js';
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
@@ -111,6 +112,33 @@ describe('performance, as the /stream page loads it', () => {
         });
     });
 
+    it('reads the sec report\'s two series, the company facts\' a row per run (#211)', async () => {
+        //
+        // the company facts' row of /stream asks the sec stream, as the filings'
+        // row does, and reads its own series out of the one report
+        //
+        answering(successOf('performance').examples.companyfacts.value);
+        const callback = jest.fn();
+
+        await getData(
+            'sec-ingest',
+            performanceUrl('sec-companyfacts', 'day', 'America/New_York'),
+            callback,
+            true,
+            'companyfacts',
+            'sec-companyfacts'
+        );
+
+        const { data, source, stream } = callback.mock.calls[0][0];
+        const rows = data.filter(row => row.group_by);
+
+        expect({ source, stream }).toEqual({ source: 'companyfacts', stream: 'sec-companyfacts' });
+        expect(new Set(rows.map(row => row.group_by))).toEqual(new Set(['sec', 'companyfacts']));
+        expect(rows.filter(row => row.group_by === 'companyfacts')).toEqual([
+            expect.objectContaining({ total_success: '500', total_fail: '0' }),
+        ]);
+    });
+
     it('hands the page nothing, rather than a failure, when the window holds no rows', async () => {
         answering({ report: null });
         const callback = jest.fn();
@@ -154,7 +182,7 @@ describe('the performance archive, as each alarm page loads it', () => {
 
 describe('datalake, as the /data page loads it', () => {
     it('parses both sections into rows', async () => {
-        answering(successOf('datalake').example);
+        answering(successOf('datalake').examples.bls.value);
         const callback = jest.fn();
 
         await getBlsDistribution('data-distribution', datalakeUrl('bls', 2026, 8), callback, true, 'bls', 'bls');
@@ -167,6 +195,35 @@ describe('datalake, as the /data page loads it', () => {
             { category: 'Reports', series: 'XIMPIM', total_records: '1752' },
         ]);
         expect(answered.partition).toEqual([{ count: '5' }]);
+    });
+
+    it('parses the company facts\' rows, a form a row per status (#211)', async () => {
+        //
+        // read by the filings' own parse: the two answer one shape, the company
+        // facts' categories their statuses
+        //
+        answering(successOf('datalake').examples['sec-companyfacts'].value);
+        const callback = jest.fn();
+
+        await getSecCompanyFactsDistribution(
+            'data-distribution',
+            datalakeUrl('sec-companyfacts', 2026, 8),
+            callback,
+            true,
+            'sec-companyfacts',
+            'sec-companyfacts'
+        );
+
+        const answered = Object.assign({}, ...callback.mock.calls.map(([item]) => item));
+        const rows = answered['data-distribution'];
+
+        expect(rows).toHaveLength(28);
+        expect(rows).toContainEqual({ category: 'new', form: '10-Q', total_records: '41970' });
+        expect(rows).toContainEqual({ category: 'repeated', form: '10-Q', total_records: '37190' });
+        expect(new Set(rows.map((row) => row.category))).toEqual(new Set(['new', 'repeated', 'changed']));
+        expect(rows.reduce((sum, row) => sum + Number(row.total_records), 0)).toBe(97343);
+        expect(answered.partition).toEqual([{ count: '21' }]);
+        expect(answered.stream).toBe('sec-companyfacts');
     });
 });
 
@@ -229,7 +286,7 @@ describe('knowledge graph, as the /graph page loads it', () => {
     });
 
     it('reads a build\'s schema and cuts it to a drawable slice', async () => {
-        answering(schemaMedia.example);
+        answering(schemaMedia.examples['1.3'].value);
 
         const schema = await getGraphById('all-sources.2026-09.20260916T171546Z.1024d');
         const drawn = filterSchema(schema, 60);
@@ -249,13 +306,30 @@ describe('knowledge graph, as the /graph page loads it', () => {
         // source that publishes it, and one source publishes ten of them. The
         // first segment alone would pool them into one color.
         //
-        answering(schemaMedia.example);
+        answering(schemaMedia.examples['1.3'].value);
 
         const schema = await getGraphById('all-sources.2026-09.20260916T171546Z.1024d');
         const drawn = Object.entries(schema.node_types)
             .map(([id, meta]) => sourceNamespace(meta, id));
 
         expect([...new Set(drawn)]).toEqual(['bls/cpi']);
+    });
+
+    it('reads a 1.6 build\'s company facts: the source in its graph, and CompanyFact under it (#211)', async () => {
+        //
+        // the Training graph's Sources row reads sources_in_graph from a schema of
+        // 1.4 or later, and the canvas files CompanyFact under the vocabulary its
+        // uri names, sec/companyfacts
+        //
+        answering(schemaMedia.examples['1.6'].value);
+
+        const schema = await getGraphById('all-sources.2026-10.20261006T050015Z.1024d');
+
+        expect(graphSources({ sources: [] }, schema)).toBe('bls, market, sec, sec-companyfacts');
+        expect(sourceNamespace(schema.node_types.companyfacts_CompanyFact, 'companyfacts_CompanyFact'))
+            .toBe('sec/companyfacts');
+        expect(Object.keys(filterSchema(schema, 60).node_types).sort())
+            .toEqual(['companyfacts_CompanyFact', 'filings_Issuer']);
     });
 });
 
@@ -313,7 +387,8 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
     it('documents each day\'s sources, null for the days published before the builder recorded them', async () => {
         //
         // the Retrieval graph's Sources row reads the list, and falls back to a
-        // day's vocabularies where it is null -- as it is on every documented day
+        // day's vocabularies where it is null. The builder has recorded them from
+        // 2026-09-29, so every day from it lists them, and none before it
         //
         answering(days.example);
 
@@ -322,7 +397,34 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
         days.example.report.rows.forEach((row) => {
             expect({ day: row.day, documented: 'sources' in row }).toEqual({ day: row.day, documented: true });
         });
-        expect(listed.map((row) => row.sources)).toEqual(days.example.report.rows.map(() => null));
+        listed.forEach((row) => {
+            expect({ day: row.day, listed: Array.isArray(row.sources) })
+                .toEqual({ day: row.day, listed: row.day >= '2026-09-29' });
+        });
+    });
+
+    it('documents a day that holds the company facts, and names them as the Sources row does (#211)', async () => {
+        answering(days.example);
+
+        const listed = await getTableDays();
+        const first = listed.find((row) => (row.sources || []).includes('sec-companyfacts'));
+
+        expect(first.day).toBe('2026-10-05');
+        expect(first.sources).toEqual(['bls', 'market', 'noaa', 'sec', 'sec-companyfacts', 'stock-split']);
+
+        //
+        // and a day whose rows hold CompanyFact, under sec/companyfacts, holds the
+        // source in its graph: it is not noted as outside it, as the split feed
+        // is, and the canvas is handed its one type to draw
+        //
+        const types = {
+            companyfacts_CompanyFact: { count: 15600, entities: 0, facts: 0, vocabulary: 'sec/companyfacts' },
+            filings_Issuer: { count: 3412, entities: 3412, facts: 0, vocabulary: 'sec/filings' },
+        };
+
+        expect(outsideGraph(first, types)).not.toContain('sec-companyfacts');
+        expect(outsideGraph(first, types)).toContain('stock-split');
+        expect(sourceTypes(first, types)).toContainEqual(['companyfacts_CompanyFact']);
     });
 
     it('reads the documented node and edge types as one day', async () => {

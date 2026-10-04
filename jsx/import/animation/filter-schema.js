@@ -219,7 +219,15 @@ export function components(keep, adjacent) {
 //       Every type in a build holds nodes, so under the default weight no type
 //       weighs nothing, and none of this changes a build's slice.
 //
-export function selectTypes(node_types, edge_types, limit, weight = 'count') {
+//
+// Note: `required` is a list of lists of types, and at least one type of each
+//       is kept, whatever it weighs. The Retrieval graph passes the types of
+//       each source its Sources row names, so every source it names is drawn
+//       (#211): the company facts' one type is numbers, and weighs nothing by
+//       what can be found by name -- and neither does any of market's. See the
+//       pass that keeps them, below. A build passes none.
+//
+export function selectTypes(node_types, edge_types, limit, weight = 'count', required = []) {
     const ordered = rank(node_types, Object.keys(node_types).length, weight);
     const weighted = ordered.filter((id) => weighs(node_types[id], weight) > 0);
     const adjacent = adjacency(node_types, edge_types);
@@ -254,6 +262,58 @@ export function selectTypes(node_types, edge_types, limit, weight = 'count') {
             return;
         }
         keep.add(id);
+    });
+
+    {/*
+
+        a type of each list the caller requires, where none of the list was
+        kept: the one that joins the most of what is kept, then the heaviest.
+        It takes the place of the lightest type kept that is not the last kept
+        of a list -- one of the originals only where nothing else is left to
+        give -- and is pinned, so nothing traded below can take its place in
+        turn.
+
+        Note: before the joining up below, so a type kept here that joins
+              nothing can be joined on like any other floating piece.
+
+    */}
+
+    const pinned = new Set();
+    const lists = required
+        .map((list) => list.filter((id) => adjacent.has(id)))
+        .filter((list) => list.length);
+
+    //
+    // whether giving `id` up would leave a list with nothing kept
+    //
+    const lastOfList = (id) => lists.some((list) => list.includes(id)
+        && list.filter((other) => keep.has(other)).length === 1);
+
+    lists.forEach((list) => {
+        if (list.some((id) => keep.has(id))) {
+            return;
+        }
+
+        const linked = (id) => [...adjacent.get(id)].filter((other) => keep.has(other)).length;
+        const chosen = list.slice().sort((a, b) => (linked(b) - linked(a))
+            || (weighs(node_types[b], weight) - weighs(node_types[a], weight))
+            || (weighs(node_types[b], 'count') - weighs(node_types[a], 'count'))
+            || a.localeCompare(b))[0];
+
+        if (keep.size >= limit) {
+            const give_up = [...keep]
+                .filter((id) => !pinned.has(id) && !lastOfList(id))
+                .sort((a, b) => (seeds.has(a) - seeds.has(b))
+                    || (weighs(node_types[a], weight) - weighs(node_types[b], weight))
+                    || a.localeCompare(b))[0];
+
+            if (give_up) {
+                keep.delete(give_up);
+            }
+        }
+
+        keep.add(chosen);
+        pinned.add(chosen);
     });
 
     {/*
@@ -303,7 +363,8 @@ export function selectTypes(node_types, edge_types, limit, weight = 'count') {
         {/*
 
             what to give up for it: the smallest type that is not one of the
-            originals, and whose absence does not itself break the graph apart.
+            originals, nor kept for a list the caller required, and whose
+            absence does not itself break the graph apart.
 
             Note: a joiner that weighs nothing may only take the place of
                   another that weighs nothing, for the reason selectTypes'
@@ -314,7 +375,8 @@ export function selectTypes(node_types, edge_types, limit, weight = 'count') {
 
         const nameless = !(weighs(node_types[joins_up], weight) > 0);
         const give_up = [...keep]
-            .filter((id) => !seeds.has(id) && (!nameless || !(weighs(node_types[id], weight) > 0)))
+            .filter((id) => !seeds.has(id) && !pinned.has(id) && !lastOfList(id))
+            .filter((id) => !nameless || !(weighs(node_types[id], weight) > 0))
             .sort((a, b) => weighs(node_types[a], weight) - weighs(node_types[b], weight))
             .find((id) => {
                 const swapped = new Set(keep);
@@ -348,8 +410,12 @@ export function selectTypes(node_types, edge_types, limit, weight = 'count') {
  *       'build_metadata' and 'summary' cost nothing to carry and the explorer
  *       page will want them -- and a caller that reads 'summary.total_node_types'
  *       should still see the TRUE total rather than the filtered one.
+ *
+ * Note: `required` is lists of node types, at least one of each kept whatever
+ *       it weighs -- see selectTypes. The Retrieval graph's, a list per source
+ *       its Sources row names (#211).
  */
-export default function filterSchema(schema, limit = GRAPH_NODE_TYPES, weight = 'count') {
+export default function filterSchema(schema, limit = GRAPH_NODE_TYPES, weight = 'count', required = []) {
     if (!schema || typeof schema !== 'object') {
         return null;
     }
@@ -361,7 +427,7 @@ export default function filterSchema(schema, limit = GRAPH_NODE_TYPES, weight = 
         return null;
     }
 
-    const keep = selectTypes(node_types, edge_types, limit, weight);
+    const keep = selectTypes(node_types, edge_types, limit, weight, required);
 
     const kept_nodes = {};
     keep.forEach((id) => { kept_nodes[id] = node_types[id]; });

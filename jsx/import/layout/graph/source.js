@@ -57,7 +57,7 @@
 import { getGraphListing, getGraphById } from '../../general/get-graph-schema.js';
 import { DAY, getTableDays, getTableDay, daysRequest, dayRequests } from '../../general/get-graph-tables.js';
 import { knowledgeGraphUrl } from '../../general/api-url.js';
-import { typeSource, vocabulary } from '../../animation/encoding.js';
+import { typeSource, typeSources } from '../../animation/encoding.js';
 
 const COMPACT = new Intl.NumberFormat('en-US', {
     notation: 'compact',
@@ -443,20 +443,21 @@ function daySources(day, types) {
  * that nothing else on the page shows -- not the canvas, not the legend and not
  * the tables below them.
  *
- * A node type comes from a source when the first part of its namespace, as the
- * legend prints it, is the source's name: bls for 'bls/jolts', market for
- * 'market/quotes'. Nothing here names a source, so a feed the builder reads the
- * same way later is one of these with no change to the page, and one it stops
- * reading is gone with it.
+ * A node type comes from a source when its namespace, as the legend prints it,
+ * begins with the source's name, its parts joined on hyphens: bls for
+ * 'bls/jolts', market for 'market/quotes', and sec-companyfacts for
+ * 'sec/companyfacts' (#211). Nothing here names a source, so a feed the builder
+ * reads the same way later is one of these with no change to the page, and one
+ * it stops reading is gone with it.
  *
  * Note: the namespace, and not typeSource. Where no predicate names a type's
  *       vocabulary, as none names the market quotes', the namespace is read off
  *       the type's own name, and typeSource says nothing -- so a day with no
- *       market enrichment would have listed market here.
+ *       market enrichment would have listed market here. See typeSources.
  *
  * Note: every node type the day holds is asked, not only the sixty the canvas
- *       draws. None of market's is drawn, because none of them can be found by
- *       name, and every one of them is in the tables.
+ *       draws. The canvas draws a type of every source that has one, but the
+ *       rest of a source's are in the tables, and only there -- see sourceTypes.
  *
  * Note: none, for a day with no list of its own. Its Sources are read off its
  *       node types, so every one of them has some -- see daySources.
@@ -466,9 +467,28 @@ function outsideGraph(day, types) {
         return [];
     }
 
-    const inside = new Set(Object.keys(types).map((id) => vocabulary(types[id], id)[0]));
+    const inside = new Set(Object.keys(types).flatMap((id) => typeSources(types[id], id)));
 
     return day.sources.filter((name) => !inside.has(name));
+}
+
+/**
+ * the node types of each source a day's Sources row names, a list per source,
+ * for the canvas to draw at least one of each (#211).
+ *
+ * The Retrieval graph draws the sixty types weighed most by what can be found by
+ * name, and a source whose types carry no text weighs nothing: the company facts'
+ * one type, CompanyFact, is numbers, and so is every one of market's. Drawn by
+ * weight alone, a source the row names had nothing on the canvas. See
+ * filter-schema.js, which takes these lists.
+ *
+ * Note: a source outside the graph has no types, and so no list -- the canvas
+ *       cannot draw a type the day does not hold. See outsideGraph.
+ */
+function sourceTypes(day, types) {
+    return daySources(day, types)
+        .map((name) => Object.keys(types).filter((id) => typeSources(types[id], id).includes(name)))
+        .filter((ids) => ids.length);
 }
 
 //
@@ -606,6 +626,13 @@ const DAYS = {
     terms: false,
     scope: 'on this day',
     weight: 'entities',
+
+    //
+    // the types the canvas draws one of each list of, whatever they weigh: a
+    // type of every source the Sources row names (#211). A build has none, and
+    // its every source weighs enough by its nodes to be drawn
+    //
+    required: (day, whole) => sourceTypes(day, whole.node_types),
     lookups: true,
     chosen: 'by what can be found by name',
 
@@ -658,4 +685,4 @@ const DAYS = {
     },
 };
 
-export { BUILDS, DAYS, DETAILS, DAY_DETAILS, buildDay, outsideGraph, pickerLabels, graphSources, when };
+export { BUILDS, DAYS, DETAILS, DAY_DETAILS, buildDay, outsideGraph, sourceTypes, pickerLabels, graphSources, when };

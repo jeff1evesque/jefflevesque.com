@@ -13,6 +13,42 @@ import {parseCsv, papaParseCsv} from '../general/parse-csv.js';
 import { noteResponse } from './rate-limit.js';
 
 //
+// the answers on their way, by url, each until it lands.
+//
+// /stream's two SEC rows read one report: the filings are its series 'sec', and
+// the company facts its series 'companyfacts' (#211). The rows are asked for at
+// once, on opening, on every refresh and at every change of window, so the second
+// asks for a url the first is already waiting on, and shares its answer. Each
+// caller still reads the answer for itself, for the series it wants.
+//
+// Note: gone the moment the answer lands, whether it is a report or a failure,
+//       so the next time either row asks, it is asked again.
+//
+const answers = new Map();
+
+function answerOf(url) {
+    const key = String(url);
+
+    if (!answers.has(key)) {
+        const answer = fetch(url, {method: 'GET'})
+            .then((response) => {
+                noteResponse(response);
+
+                if (response.ok) {
+                    return response.json();
+                }
+                return Promise.reject(response);
+            });
+        const landed = () => answers.delete(key);
+
+        answers.set(key, answer);
+        answer.then(landed, landed);
+    }
+
+    return answers.get(key);
+}
+
+//
 // Note: 'on_error' is told when the request fails -- a response that is not ok,
 //       a body with no report, or no answer at all. The failure is still caught
 //       and logged, so a caller that passes nothing sees no change; a caller that
@@ -22,16 +58,11 @@ import { noteResponse } from './rate-limit.js';
 // Note: every answer is shown to rate-limit.js first, which tells the page when
 //       the api has said to wait, and when it no longer does (#210).
 //
+// Note: a url asked for again while its first answer is on its way shares that
+//       answer, rather than being asked twice -- see answerOf.
+//
 function get_promise(url, callback, source, stream, on_error = null) {
-    return fetch(url, {method: 'GET'})
-        .then((response) => {
-            noteResponse(response);
-
-            if (response.ok) {
-                return response.json();
-            }
-            return Promise.reject(response);
-        })
+    return answerOf(url)
         .then((json) => {
             if ('report' in json) {
                 if (json.report) {
@@ -160,6 +191,8 @@ function get(type, url, callback, worker, source, stream, on_error) {
             sec,${yyyy}-${mm}-${dd} 13:15:00,292,0,10.minutes,1.minutes
             sec,${yyyy}-${mm}-${dd} 13:16:00,292,1,10.minutes,1.minutes
             sec,${yyyy}-${mm}-${dd} 13:17:00,292,0,10.minutes,1.minutes
+            companyfacts,${yyyy}-${mm}-${before_yesterday} 23:15:00,4,0,10.minutes,1.minutes
+            companyfacts,${yyyy}-${mm}-${yesterday} 23:15:00,7,0,10.minutes,1.minutes
             ,,,`;
             var promise = papaParseCsv(csv, callback, worker, false, true, source, stream);
         }

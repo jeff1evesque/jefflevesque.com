@@ -26,9 +26,16 @@ export const SEC = 'sec';
 export const US_NATIONAL_WEATHER = 'us-national-weather';
 
 //
+// the XBRL numbers the S&P 500 companies filed, the SEC's second feed (#211).
+// A row of its own on both listings, though the performance api counts its runs
+// under the sec stream -- see performanceStream in api-url.js
+//
+export const SEC_COMPANYFACTS = 'sec-companyfacts';
+
+//
 // in the order the /stream and /data listings draw them
 //
-export const STREAMS = [STOCK_MARKET, STOCK_SPLIT, BLS, SEC, US_NATIONAL_WEATHER];
+export const STREAMS = [STOCK_MARKET, STOCK_SPLIT, BLS, SEC, SEC_COMPANYFACTS, US_NATIONAL_WEATHER];
 
 //
 // every name a stream has gone by, with its case and its hyphens taken off, and
@@ -48,6 +55,7 @@ const NAMES = new Map([
     ['stocksplit', STOCK_SPLIT],
     ['bls', BLS],
     ['sec', SEC],
+    ['seccompanyfacts', SEC_COMPANYFACTS],
     ['usnationalweather', US_NATIONAL_WEATHER],
 ]);
 

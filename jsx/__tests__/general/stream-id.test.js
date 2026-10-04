@@ -15,6 +15,7 @@ import {
     STOCK_SPLIT,
     BLS,
     SEC,
+    SEC_COMPANYFACTS,
     US_NATIONAL_WEATHER,
     STREAMS,
     canonicalStream,
@@ -26,8 +27,12 @@ describe('the ids', () => {
             .toEqual(['stock-market', 'stock-split', 'bls', 'sec', 'us-national-weather']);
     });
 
+    it('and the company facts, which it answers as a series of sec (#211)', () => {
+        expect(SEC_COMPANYFACTS).toBe('sec-companyfacts');
+    });
+
     it('are listed in the order the /stream and /data listings draw them', () => {
-        expect(STREAMS).toEqual(['stock-market', 'stock-split', 'bls', 'sec', 'us-national-weather']);
+        expect(STREAMS).toEqual(['stock-market', 'stock-split', 'bls', 'sec', 'sec-companyfacts', 'us-national-weather']);
     });
 
     it('are lower-case words joined by hyphens, which is what the urls and the api take', () => {
@@ -59,6 +64,7 @@ describe('canonicalStream', () => {
         ['usnationalweather', 'us-national-weather'],
         ['BLS', 'bls'],
         ['SEC', 'sec'],
+        ['SecCompanyFacts', 'sec-companyfacts'],
     ])('finds %s, a name the stream went by, as %s', (name, id) => {
         //
         // 'StockSplit' and 'stocksplit' too: the trigger page matched on
@@ -77,12 +83,14 @@ describe('canonicalStream', () => {
         expect(canonicalStream('stockmarketstock')).toBeNull();
     });
 
-    it.each(['no-such-stream', '', 'us-weather-alert', 'weather', 'market'])(
+    it.each(['no-such-stream', '', 'us-weather-alert', 'weather', 'market', 'companyfacts'])(
         'finds no stream for %p',
         (name) => {
             //
             // 'us-weather-alert' is the weather stream's DATASET, which is the
             // datalake's name for its data and not a name the stream went by.
+            // 'companyfacts' is the series the performance api answers the
+            // company facts under, and not a name either (#211).
             //
             expect(canonicalStream(name)).toBeNull();
         }

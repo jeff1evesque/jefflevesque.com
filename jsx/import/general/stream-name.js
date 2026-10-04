@@ -25,6 +25,7 @@ import {
     STOCK_SPLIT,
     BLS,
     SEC,
+    SEC_COMPANYFACTS,
     US_NATIONAL_WEATHER,
     canonicalStream,
 } from './stream-id.js';
@@ -34,7 +35,8 @@ const STREAM_LABELS = {
     [STOCK_SPLIT]: 'Stock Splits',
     [US_NATIONAL_WEATHER]: 'US Weather Alerts',
     [BLS]: 'Bureau of Labor Statistics',
-    [SEC]: 'SEC Filings'
+    [SEC]: 'SEC Filings',
+    [SEC_COMPANYFACTS]: 'SEC Company Facts'
 };
 
 {/*

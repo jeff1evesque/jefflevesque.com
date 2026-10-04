@@ -10,7 +10,7 @@ trailing window: one ending now, or one ending at an earlier [`End`](#an-earlier
 
 | Parameter | Values | The application sends |
 |---|---|---|
-| `Stream` | `bls`, `sec`, `stock-market`, `stock-split`, `us-national-weather` | each stream in turn, one request per row |
+| `Stream` | `bls`, `sec`, `stock-market`, `stock-split`, `us-national-weather` | each stream in turn, one request per row, and one for the SEC's two rows -- see [The sec stream's two feeds](#the-sec-streams-two-feeds) |
 | `Interval` | `minute`, `hour`, `day`, `month`; `minute` when omitted | the rate chosen over the rows |
 | `Timezone` | an IANA time zone, such as `America/New_York`; `UTC` when omitted | the reader's own, from the browser |
 | `End` | an ISO 8601 date-time with a UTC offset or `Z`, such as `2026-09-17T23:00:00-04:00`; now when omitted | the start of the last bar on screen, once a reader opens a bar or pages back; nothing for the window ending now |
@@ -25,6 +25,25 @@ The window trails from now, and its buckets are laid out on a calendar, so the t
 zone travels with the request rather than being applied to the answer: a trailing 20
 days ending at 22:00 in Tokyo is not the same 20 dates as one ending at 09:00 in New
 York.
+
+## The sec stream's two feeds
+
+The `sec` stream reads two feeds, and answers each as a series of its own, named in
+`group_by`:
+
+| Series | The feed | Runs | `total_success` |
+|---|---|---|---|
+| `sec` | its filings | every 5 minutes, 06:00 to 22:55 Eastern, Monday to Friday | filings ingested |
+| `companyfacts` | the XBRL numbers the S&P 500 companies filed | once a day at 23:15 Eastern, Monday to Saturday, from 2026-10-04 | companies fetched: on a weekday the handful that filed a 10-K or 10-Q that day, and on Saturday all 500 |
+
+A company facts run's `total_fail` is always 0, and a run that fails writes no row, so
+a day with no `companyfacts` row is a failed run. Its first run, on 2026-10-04, fetched
+all 500. The [archive](#the-archive-behind-it) holds the filings only.
+
+`/stream` draws the two as rows of their own, SEC Filings and SEC Company Facts, from the
+one request: each row reads its own series, and the company facts' row is graded on its
+own schedule. On the filings' five minutes, each daily run would read as one run among
+hundreds missed.
 
 ## An earlier window
 
@@ -63,7 +82,7 @@ failed report is not kept at all.
 
 | Column | |
 |---|---|
-| `group_by` | the source within the stream that the row counts |
+| `group_by` | the source within the stream that the row counts: for `sec`, `sec` for its filings and `companyfacts` for its company facts |
 | `window_start` | the start of the bucket, with its UTC offset |
 | `total_success` | records ingested successfully in the bucket |
 | `total_fail` | records that failed in the bucket |
@@ -158,6 +177,9 @@ what it answers.
   [`jsx/import/layout/stream/stream.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/stream/stream.jsx),
   through
   [`jsx/import/general/get-data.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/get-data.js).
+  The SEC's two rows ask for the same url at once, and get-data.js sends one request
+  for both: a url asked for again while its answer is on its way shares that answer.
+  `performanceStream`, in `api-url.js`, says which stream a row asks for.
 - Read in a web worker,
   [`jsx/import/worker/stream/performance.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/worker/stream/performance.js).
 - The archive listing is built by `performanceArchiveUrl`, in the same

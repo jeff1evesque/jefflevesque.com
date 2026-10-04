@@ -145,6 +145,19 @@ function bySector(a, b) {
 }
 
 //
+// members in the order a stream names, ahead of the rest, which run as they
+// always have -- see the `order` the tree takes
+//
+function byOrder(order) {
+    const at = (member) => {
+        const place = order.indexOf(member.name);
+        return place === -1 ? order.length : place;
+    };
+
+    return (a, b) => (at(a) - at(b)) || bySector(a, b);
+}
+
+//
 // the sectors a worker's row carries, each with its count and its tickers, or
 // none for a row without them
 //
@@ -219,7 +232,13 @@ export function share(part, whole) {
 // them, or for any other stream (#190). A day of them has its sectors as its
 // members, each holding its tickers.
 //
-export default function distributionTree(rows, aggregate_key, theme = 'light') {
+// 'order' names members that keep one place and one color in every group: the
+// company facts' statuses, 'new', 'repeated' and 'changed' (#211). By rank, a
+// status would take the color of its size in each form, and 'new' would be one
+// color on a form of mostly new facts and another on a form of mostly repeated
+// ones. A member it does not name runs after them, as it always has.
+//
+export default function distributionTree(rows, aggregate_key, theme = 'light', order = []) {
     const by_name = new Map();
     const names = new Set();
     const sectored = new Set();
@@ -314,7 +333,7 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
     });
 
     const groups = groupOrder(Array.from(by_name.values()));
-    groups.forEach((group) => group.members.sort(bySector));
+    groups.forEach((group) => group.members.sort(byOrder(order)));
 
     //
     // a sector's tickers run alphabetically, as a day's do, each keyed by its
@@ -340,8 +359,15 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
     //       ring wore one, a severity scale down one red ramp, and nothing else
     //       draws a group whole
     //
+    // Note: a member a stream names in its `order` wears the color of its place
+    //       there, the same in every group, and the rest take the colors after
+    //       all of those, so none of them wears a named member's color in a group
+    //       that happens not to hold it. With no order, a member's place is its
+    //       rank, as it always was
+    //
     groups.forEach((group) => {
-        const tail = Math.max(group.members.length - colors_categorical.length, 0);
+        const named = group.members.filter((member) => order.includes(member.name)).length;
+        const tail = Math.max(group.members.length - named + order.length - colors_categorical.length, 0);
 
         group.members.forEach((member, rank) => {
             if (member.sector !== undefined) {
@@ -349,9 +375,12 @@ export default function distributionTree(rows, aggregate_key, theme = 'light') {
                 return;
             }
 
-            member.shade = rank < colors_categorical.length
-                ? colors_categorical[rank]
-                : color_tail(rank - colors_categorical.length, tail, theme);
+            const placed = order.indexOf(member.name);
+            const slot = placed !== -1 ? placed : order.length + rank - named;
+
+            member.shade = slot < colors_categorical.length
+                ? colors_categorical[slot]
+                : color_tail(slot - colors_categorical.length, tail, theme);
         });
     });
 

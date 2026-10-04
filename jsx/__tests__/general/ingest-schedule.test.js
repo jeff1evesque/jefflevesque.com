@@ -39,9 +39,9 @@ const MON_1500_EDT = new Date('2026-03-16T19:00:00Z');   // Mon 15:00
 const MON_1500_EST = new Date('2026-01-19T20:00:00Z');   // Mon 15:00, winter
 
 describe('INGEST_SCHEDULE', () => {
-    it('describes all five streams', () => {
+    it('describes every stream', () => {
         //
-        // keyed by the streams' ids, the same five every other table uses
+        // keyed by the streams' ids, the same ones every other table uses
         //
         expect(Object.keys(INGEST_SCHEDULE).sort()).toEqual([...STREAMS].sort());
     });
@@ -273,6 +273,67 @@ describe('intervalExpected', () => {
         //
         expect(intervalExpected('StockMarket', 'DAY', MON_1000_EDT)).toBe(true);
         expect(intervalExpected('SEC', 'Hour', MON_1000_EDT)).toBe(true);
+    });
+});
+
+describe('the company facts (#211)', () => {
+    //
+    // the sec stream's second feed: once a day at 23:15 eastern, Monday to
+    // Saturday, from Sunday 2026-10-04. The fixtures are local times, which
+    // jest.config.js pins to New York
+    //
+    const at = (d, h = 0) => new Date(2026, 9, d, h);
+
+    it('is graded on a schedule of its own, not the filings\' five minutes', () => {
+        expect(INGEST_SCHEDULE['sec-companyfacts']).toMatchObject({
+            hours: [23],
+            days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+            every: null,
+            since: '2026-10-04T00:00:00-04:00',
+        });
+        expect(coverageSupported('sec-companyfacts', 'minute')).toBe(false);
+        expect(runsContinuously('sec-companyfacts')).toBe(false);
+    });
+
+    it('expects a run Monday to Saturday, and none on a Sunday', () => {
+        expect(intervalExpected('sec-companyfacts', 'day', at(5))).toBe(true);    // Mon
+        expect(intervalExpected('sec-companyfacts', 'day', at(10))).toBe(true);   // Sat
+        expect(intervalExpected('sec-companyfacts', 'day', at(11))).toBe(false);  // Sun
+    });
+
+    it('expects it in the 23:00 hour alone', () => {
+        expect(intervalExpected('sec-companyfacts', 'hour', at(5, 23))).toBe(true);
+        expect(intervalExpected('sec-companyfacts', 'hour', at(5, 22))).toBe(false);
+        expect(intervalExpected('sec-companyfacts', 'hour', at(11, 23))).toBe(false);
+    });
+
+    it('expects nothing before the schedule began', () => {
+        expect(intervalExpected('sec-companyfacts', 'day', at(3))).toBe(false);   // Sat, before
+        expect(intervalExpected('sec-companyfacts', 'hour', at(3, 23))).toBe(false);
+        expect(intervalExpected('sec-companyfacts', 'month', new Date(2026, 8, 1))).toBe(false);
+    });
+
+    it('expects the month it began in, and every one after', () => {
+        expect(intervalExpected('sec-companyfacts', 'month', new Date(2026, 9, 1))).toBe(true);
+        expect(intervalExpected('sec-companyfacts', 'month', new Date(2026, 10, 1))).toBe(true);
+    });
+
+    it('counts its coverage from the day it began, rather than from the window\'s start', () => {
+        //
+        // a window of twenty days ending Saturday the 10th reaches back to
+        // September 21, and expects the six days from Monday the 5th
+        //
+        const days = expectedIntervals('sec-companyfacts', 'day', at(10, 12));
+
+        expect(days).toEqual([at(5), at(6), at(7), at(8), at(9), at(10)]);
+        expect(expectedIntervals('sec-companyfacts', 'month', at(10, 12))).toEqual([new Date(2026, 9, 1)]);
+    });
+
+    it('leaves the filings\' schedule as it was', () => {
+        expect(intervalExpected('sec', 'day', at(10))).toBe(false);               // Sat
+        expect(intervalExpected('sec', 'day', at(3))).toBe(false);                // Sat
+        expect(intervalExpected('sec', 'day', at(2))).toBe(true);                 // Fri, before
+        expect(intervalExpected('sec', 'month', new Date(2026, 8, 1))).toBe(true);
     });
 });
 

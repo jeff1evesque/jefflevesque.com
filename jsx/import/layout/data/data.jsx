@@ -20,6 +20,7 @@ import { default as getStockMarketDistribution } from '../../general/get-data/di
 import { default as getUsWeatherAlertDistribution } from '../../general/get-data/distribution/us-weather-alert.js';
 import { default as getBlsDistribution } from '../../general/get-data/distribution/bls.js';
 import { default as getSecDistribution } from '../../general/get-data/distribution/sec.js';
+import { default as getSecCompanyFactsDistribution } from '../../general/get-data/distribution/sec-companyfacts.js';
 import getData from '../../general/get-data.js';
 import { datalakeUrl, API_DOCS, DATASETS } from '../../general/api-url.js';
 import ApiLinks from '../../general/api-links.jsx';
@@ -42,6 +43,7 @@ import {
     STOCK_SPLIT,
     BLS,
     SEC,
+    SEC_COMPANYFACTS,
     US_NATIONAL_WEATHER,
     STREAMS,
 } from '../../general/stream-id.js';
@@ -64,6 +66,7 @@ import scrollMargin from '../../general/scroll-margin.js';
         processed_stock_market.quotes                 rdf_turtle
         us_national_weather.alerts                    rdf_turtle
         securities_exchange_commission.feed_filings   triples
+        the sec company facts' daily snapshot         rdf_turtle
         raw/source=bls/feed=*                         triples   (not in source_bls)
         stock_split.stock_split_jefflevesque_com      (none -- processed, never scraped)
 
@@ -76,6 +79,7 @@ const RDF_ENABLED = {
     [STOCK_SPLIT]: false,
     [BLS]: true,
     [SEC]: true,
+    [SEC_COMPANYFACTS]: true,
     [US_NATIONAL_WEATHER]: true
 };
 
@@ -133,7 +137,7 @@ export const BLS_PUBLICATION_LAG_LABEL = '1-2 months';
     so its row would otherwise read 'Records 0' with nothing to say the month is
     unpublished rather than the stream unpopulated. a stream absent from this map
     renders no 'Lag' row rather than an empty one -- renderDetail prunes null,
-    which is the same mechanism that keeps 'Coverage' on two of the five rows
+    which is the same mechanism that keeps 'Coverage' on two of the six rows
 
 */}
 const STREAM_LAG = {
@@ -219,6 +223,7 @@ const DISTRIBUTION_NAMES = {
     [STOCK_SPLIT]: { group: ['day', 'days'], member: ['ticker', 'tickers'], unit: ['split', 'splits'] },
     [BLS]: { group: ['series', 'series'], member: ['category', 'categories'], unit: ['record', 'records'] },
     [SEC]: { group: ['form', 'forms'], member: ['category', 'categories'], unit: ['filing', 'filings'] },
+    [SEC_COMPANYFACTS]: { group: ['form', 'forms'], member: ['status', 'statuses'], unit: ['fact', 'facts'] },
     [US_NATIONAL_WEATHER]: {
         group: ['severity', 'severities'],
         member: ['event type', 'event types'],
@@ -235,6 +240,19 @@ export function distributionNames(stream, aggregate_key) {
 
     return { group: [group, `${group}s`], member: ['member', 'members'], unit: ['record', 'records'] };
 }
+
+
+{/*
+
+    the members a stream's charts keep in one place and one color in every group
+    -- see distribution-tree.js. The company facts' statuses: a number filed for
+    the first time, filed again with the same value, and filed again with
+    another (#211). A stream absent from this map colors its members by size
+
+*/}
+const MEMBER_ORDER = {
+    [SEC_COMPANYFACTS]: ['new', 'repeated', 'changed'],
+};
 
 
 {/*
@@ -571,6 +589,7 @@ class DataLayout extends Component {
             'promise_get_data_stock-split': false,
             promise_get_data_bls: false,
             promise_get_data_sec: false,
+            'promise_get_data_sec-companyfacts': false,
             'promise_get_data_us-national-weather': false,
             promise_list_ticker_complete: false,
             item: 'n/a',
@@ -629,16 +648,19 @@ class DataLayout extends Component {
             'records_stock-split': 'n/a',
             records_bls: 'n/a',
             records_sec: 'n/a',
+            'records_sec-companyfacts': 'n/a',
             'records_us-national-weather': 'n/a',
             'partitions_stock-market': 'n/a',
             'partitions_stock-split': 'n/a',
             partitions_bls: 'n/a',
             partitions_sec: 'n/a',
+            'partitions_sec-companyfacts': 'n/a',
             'partitions_us-national-weather': 'n/a',
             'data_distribution_stock-market': [],
             'data_distribution_stock-split': [],
             data_distribution_bls: [],
             data_distribution_sec: [],
+            'data_distribution_sec-companyfacts': [],
             'data_distribution_us-national-weather': [],
             listing_graphic_title: opening,
             //
@@ -988,6 +1010,15 @@ class DataLayout extends Component {
                         type,
                         type
                     );
+                } else if (type === SEC_COMPANYFACTS) {
+                    getSecCompanyFactsDistribution(
+                        'data-distribution',
+                        this.state.local ? null : url,
+                        (item) => this.callbackGetData(item, current),
+                        true,
+                        type,
+                        type
+                    );
                 } else {
                     console.log(`Error (data-distribution): ${type} NOT valid for get-data`);
                 }
@@ -1007,7 +1038,10 @@ class DataLayout extends Component {
                 var worker = new WorkerBuilder(workerUSWeatherAlert);
             } else if (item.stream === BLS) {
                 var worker = new WorkerBuilder(workerBls);
-            } else if (item.stream === SEC) {
+            } else if (item.stream === SEC || item.stream === SEC_COMPANYFACTS) {
+                //
+                // the company facts are the filings' shape, and read alike (#211)
+                //
                 var worker = new WorkerBuilder(workerSec);
             } else {
                 var worker = null;
@@ -1091,8 +1125,8 @@ class DataLayout extends Component {
 
                     {/*
 
-                        aggregate_key is stored per stream: on the first load all five
-                        streams download in parallel, so a single shared key would end
+                        aggregate_key is stored per stream: on the first load every
+                        stream downloads in parallel, so a single shared key would end
                         up holding whichever stream answered last, and the chart would
                         group the selected stream's rows by a column they do not have.
 
@@ -1151,7 +1185,7 @@ class DataLayout extends Component {
             return held.tree;
         }
 
-        const tree = distributionTree(rows, key, theme);
+        const tree = distributionTree(rows, key, theme, MEMBER_ORDER[stream] || []);
         this.trees[stream] = { rows: rows, key: key, theme: theme, tree: tree };
 
         return tree;
