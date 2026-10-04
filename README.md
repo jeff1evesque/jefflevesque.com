@@ -48,6 +48,9 @@ Every page comes in a light and a dark theme: light from 7 in the morning until 
 evening on the reader's own clock, and dark the rest of the day. The sun and moon beside
 Login switches to the other one until the next 7 o'clock, through reloads, and then the
 schedule takes over again.
+
+When the api says a reader has asked too often, every page says so in a notice under its
+header, with how long to wait, and `/stream` holds its five-minute refresh until then.
 <!-- --8<-- [end:routes] -->
 
 **Ingest coverage** is the figure on `/stream` worth knowing about: it is the only
