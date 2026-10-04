@@ -95,6 +95,54 @@ describe('the bars of a weekday stream, by the day', () => {
     });
 });
 
+describe('the company facts, by the day (#211)', () => {
+    //
+    // the sec report's second series, one run a day at 23:15 eastern, Monday to
+    // Saturday, from Sunday 2026-10-04. A window ending Saturday the 17th: runs on
+    // the 5th to the 10th, none on the 12th, and the 13th to the 17th
+    //
+    const NOW_FACTS = new Date(2026, 9, 17, 23, 30);
+    const night = (d) => new Date(2026, 9, d);
+    const rows = [5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17].map((d) => row('companyfacts', night(d), d === 10 ? 500 : 6));
+    const bars = streamBars(rows, 'sec-companyfacts', 'day', FIELD, ['companyfacts'], NOW_FACTS);
+
+    it('draws each daily run as the companies it fetched', () => {
+        expect(barAt(bars, night(5))).toEqual({ start: night(5), kind: 'reported', records: 6, failed: 0, health: 1 });
+        expect(barAt(bars, night(10)).records).toBe(500);
+    });
+
+    it('draws a weekday without a run as missed: a failed run writes no row', () => {
+        expect(barAt(bars, night(12)).kind).toBe('missed');
+    });
+
+    it('draws a Sunday as not scheduled', () => {
+        expect(barAt(bars, night(11)).kind).toBe('off');
+    });
+
+    it('calls nothing before the schedule began due, rather than missed or pending', () => {
+        expect(bars[0].start).toEqual(new Date(2026, 8, 28));
+        bars.filter((bar) => bar.start < night(4)).forEach((bar) => {
+            expect({ start: bar.start, kind: bar.kind }).toEqual({ start: bar.start, kind: 'off' });
+        });
+    });
+
+    it('marks no gap between its daily runs, as the filings\' five minutes would', () => {
+        //
+        // graded on the filings' schedule, a day of the company facts holds one
+        // run where twelve an hour were due. On its own, the days it ran are
+        // reports, and the one day it did not is the only miss
+        //
+        expect(bars.filter((bar) => bar.kind === 'missed').map((bar) => bar.start)).toEqual([night(12)]);
+    });
+
+    it('reads the company facts\' series alone, not the filings\'', () => {
+        const mixed = [...rows, row('sec', night(12), 292)];
+        const drawn = streamBars(mixed, 'sec-companyfacts', 'day', FIELD, ['companyfacts'], NOW_FACTS);
+
+        expect(barAt(drawn, night(12)).kind).toBe('missed');
+    });
+});
+
 describe('a row that carried nothing', () => {
     it('is not read as a report, so a zeroed day is still missed', () => {
         //
@@ -272,6 +320,7 @@ describe('how often a stream runs', () => {
         ['stock-split', 'weekdays, once a day'],
         ['bls', 'once a day'],
         ['sec', 'weekdays, every 5 min'],
+        ['sec-companyfacts', 'Mon-Sat, once a day'],
         ['us-national-weather', 'daily, every 5 min'],
         ['no-such-stream', ''],
     ])('%s: %s', (stream, said) => {
