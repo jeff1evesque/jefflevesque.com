@@ -562,6 +562,59 @@ describe('the colors', () => {
     });
 });
 
+describe('members a stream names in order (#211)', () => {
+    //
+    // the company facts' forms, each a row per status it holds, as the sec worker
+    // stacks them: 10-Q mostly new, 10-K mostly repeated
+    //
+    const STATUSES = ['new', 'repeated', 'changed'];
+    const rows = [
+        { form: 'Form 10-Q', new: 41970, repeated: 37190, changed: 900 },
+        { form: 'Form 10-K', repeated: 6949, new: 6563 },
+        { form: 'Form 424B2', changed: 1876 },
+    ];
+    const shades = (group) => Object.fromEntries(group.members.map((member) => [member.name, member.shade]));
+
+    it('gives each the same color in every group, whatever its size there', () => {
+        const tree = distributionTree(rows, 'form', 'light', STATUSES);
+        const by = Object.fromEntries(tree.groups.map((group) => [group.name, shades(group)]));
+
+        expect(by['Form 10-Q']).toEqual({ new: colors_categorical[0], repeated: colors_categorical[1], changed: colors_categorical[2] });
+        expect(by['Form 10-K']).toEqual({ new: colors_categorical[0], repeated: colors_categorical[1] });
+        expect(by['Form 424B2']).toEqual({ changed: colors_categorical[2] });
+    });
+
+    it('stacks them in the order named, not by size', () => {
+        const tree = distributionTree(rows, 'form', 'light', STATUSES);
+        const tenK = tree.groups.find((group) => group.name === 'Form 10-K');
+
+        expect(tenK.members.map((member) => member.name)).toEqual(['new', 'repeated']);
+    });
+
+    it('colors a member it does not name after all the named ones, and runs it after them', () => {
+        const [group] = distributionTree([{ form: 'Form 8-K', new: 3, other: 9 }], 'form', 'light', STATUSES).groups;
+
+        expect(group.members.map((member) => [member.name, member.shade])).toEqual([
+            ['new', colors_categorical[0]],
+            ['other', colors_categorical[3]],
+        ]);
+    });
+
+    it('changes nothing without an order: a member is colored by its rank', () => {
+        const tree = distributionTree(rows, 'form');
+        const tenK = tree.groups.find((group) => group.name === 'Form 10-K');
+
+        expect(tenK.members.map((member) => [member.name, member.shade])).toEqual([
+            ['repeated', colors_categorical[0]],
+            ['new', colors_categorical[1]],
+        ]);
+    });
+
+    it('nests, so a form opens to its statuses', () => {
+        expect(distributionTree(rows, 'form', 'light', STATUSES).nested).toBe(true);
+    });
+});
+
 describe('share', () => {
     it.each([
         [32, 100, '32%'],
