@@ -50,6 +50,15 @@ as a Swagger UI, with `mkdocs-swagger-ui-tag`. Try it out sends a real GET from 
 reader's browser, and Swagger UI's online validator is switched off; the documents are
 validated by the test suite instead. See [APIs](../api/index.md#how-these-pages-are-kept-true).
 
+## Colors
+
+The header is white by day and near-black by night, as the site's own header is, and
+links are in the site's greens, from
+[`documentation/stylesheets/theme.css`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/documentation/stylesheets/theme.css).
+Material's green header put white text on a light green, which reads at 2.8:1, well under
+the 4.5:1 that reading text needs
+([#204](https://github.com/jeff1evesque/jefflevesque.com/issues/204)).
+
 ## Links
 
 Every GitHub issue mentioned in these pages links to the issue, and every file in the
