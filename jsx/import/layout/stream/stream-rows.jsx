@@ -10,9 +10,10 @@
  *
  * Note: the sort is the page's to keep, so it comes in as a prop and every
  *       change goes back out through 'onSort' -- see stream.jsx, which keeps it
- *       for the reader's next visit. A heading's first click sorts largest
- *       first, the next smallest first, and the third puts the page's own order
- *       back. A phone, which has no room for the headings, gets the same
+ *       for the reader's next visit. A figure's heading's first click sorts
+ *       largest first, the next smallest first, and the third puts the page's
+ *       own order back. The Stream heading sorts by name the same way, from A
+ *       to Z first. A phone, which has no room for the headings, gets the same
  *       choices from SortMenu, which the page puts on its line of controls.
  *
  * Note: a bar's height is on its own row's scale, so a stream bringing a few
@@ -90,9 +91,15 @@ export const COLUMNS = [
 ];
 
 //
-// the figures a sort can name, for whoever keeps one to check it against
+// the streams' names, which head their column and sort the rows as well: from A
+// to Z first, as a list of names is read, where a figure sorts largest first
 //
-export const SORT_KEYS = COLUMNS.map((column) => column.key);
+export const NAME = { key: 'name', label: 'Stream', first: 'asc', asc: 'A to Z', desc: 'Z to A' };
+
+//
+// what a sort can name, for whoever keeps one to check it against
+//
+export const SORT_KEYS = [NAME.key, ...COLUMNS.map((column) => column.key)];
 
 //
 // dragging the divider between the bars and the figures (#161).
@@ -112,23 +119,33 @@ export const FIGURES_MIN = 260;
 export const FIGURES_FOLD = 40;
 
 //
-// the sort after a heading is clicked: largest first, then smallest first, then
-// the page's own order again
+// the way a heading sorts first, and then: largest first and smallest first for
+// a figure, A to Z and Z to A for the names
 //
-export function nextSort(sort, key) {
-    if (!sort || sort.key !== key) {
-        return { key: key, dir: 'desc' };
-    }
-
-    return sort.dir === 'desc' ? { key: key, dir: 'asc' } : null;
+function directions(key) {
+    return key === NAME.key ? ['asc', 'desc'] : ['desc', 'asc'];
 }
 
 //
-// the phone's menu: one choice per figure and direction, and the page's order
+// the sort after a heading is clicked: one way, then the other, then the page's
+// own order again
+//
+export function nextSort(sort, key) {
+    const [first, then] = directions(key);
+
+    if (!sort || sort.key !== key) {
+        return { key: key, dir: first };
+    }
+
+    return sort.dir === first ? { key: key, dir: then } : null;
+}
+
+//
+// the phone's menu: one choice per heading and direction, and the page's order
 //
 const SORT_CHOICES = [
     { value: '', label: 'Default order' },
-    ...COLUMNS.flatMap((column) => ['desc', 'asc'].map((dir) => ({
+    ...[NAME, ...COLUMNS].flatMap((column) => directions(column.key).map((dir) => ({
         value: `${column.key}:${dir}`,
         label: `${column.label}, ${column[dir]}`,
     }))),
@@ -317,10 +334,17 @@ export function StreamBars({ row, rate, onPoint, pointed = null, onOpen = null, 
         });
     }
 
+    //
+    // Note: and while it is up, the row's other bars are dimmed, so the one it
+    //       describes stands out of a row of sixty (#216). Every other row is
+    //       left as it is. It follows the popup rather than a hover, so the row
+    //       does not flash back between two bars, and a finger dims nothing --
+    //       see '.stream-row-bars.is-pointing' in _stream.scss
+    //
     return (
         <div ref={wrap} className={`stream-row-bars-wrap${row.status in STATUS ? ' stream-row-bars-waiting' : ''}${className ? ` ${className}` : ''}`}>
             <div
-                className={`stream-row-bars${row.bars.length > 30 ? ' stream-row-bars-dense' : ''}${onOpen ? ' stream-row-bars-open' : ''}`}
+                className={`stream-row-bars${row.bars.length > 30 ? ' stream-row-bars-dense' : ''}${onOpen ? ' stream-row-bars-open' : ''}${tip ? ' is-pointing' : ''}`}
                 onPointerLeave={() => setTip(null)}
             >
                 {row.bars.map((bar) => {
@@ -542,7 +566,7 @@ StreamRow.propTypes = {
     pointed: PropTypes.string,
     onOpen: PropTypes.func,
     onFocus: PropTypes.func,
-    pick: PropTypes.oneOf(SORT_KEYS).isRequired,
+    pick: PropTypes.oneOf(COLUMNS.map((column) => column.key)).isRequired,
 };
 
 //
@@ -651,8 +675,17 @@ function StreamRows({
         event.preventDefault();
     }
 
-    const ordered = sort && sort.key
-        ? [...rows].sort((a, b) => {
+    //
+    // Note: names are compared as a reader reads them, case aside
+    //
+    const byName = (a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' });
+
+    let ordered = rows;
+
+    if (sort && sort.key === NAME.key) {
+        ordered = [...rows].sort((a, b) => (sort.dir === 'asc' ? byName(a, b) : byName(b, a)));
+    } else if (sort && sort.key) {
+        ordered = [...rows].sort((a, b) => {
             const x = sortValue(a.figures[sort.key]);
             const y = sortValue(b.figures[sort.key]);
 
@@ -661,10 +694,30 @@ function StreamRows({
             }
 
             return sort.dir === 'asc' ? x - y : y - x;
-        })
-        : rows;
+        });
+    }
 
     const active = (key) => Boolean(sort) && sort.key === key;
+
+    //
+    // a heading's mark: a faint up-down while the rows are not sorted by it, and
+    // an arrow the way they are
+    //
+    const mark = (key) => {
+        if (!active(key)) {
+            return <UnfoldMoreIcon fontSize='inherit' data-mark='none' />;
+        }
+
+        return sort.dir === 'desc'
+            ? <ArrowDownwardIcon fontSize='inherit' data-mark='desc' />
+            : <ArrowUpwardIcon fontSize='inherit' data-mark='asc' />;
+    };
+
+    //
+    // the figure a phone's row shows: the one the rows are sorted by, and the
+    // coverage when they are sorted by name, or not at all
+    //
+    const pick = sort && COLUMNS.some((column) => column.key === sort.key) ? sort.key : 'coverage';
 
     return (
         <div
@@ -681,7 +734,16 @@ function StreamRows({
             */}
             <div className='stream-rows-table'>
                 <div className='stream-rows-head'>
-                    <span className='stream-rows-head-name'>Stream</span>
+                    <button
+                        type='button'
+                        className={`stream-rows-head-name stream-rows-sort${active(NAME.key) ? ' stream-rows-sort-active' : ''}`}
+                        aria-label={`Sort by ${NAME.label}`}
+                        aria-pressed={active(NAME.key)}
+                        onClick={() => onSort(nextSort(sort, NAME.key))}
+                    >
+                        {NAME.label}
+                        <span className='stream-rows-sort-mark' aria-hidden='true'>{mark(NAME.key)}</span>
+                    </button>
                     <span className='stream-rows-axis'>
                         <span>{first}</span>
                         <span>{last}</span>
@@ -697,13 +759,7 @@ function StreamRows({
                                 onClick={() => onSort(nextSort(sort, column.key))}
                             >
                                 {column.label}
-                                <span className='stream-rows-sort-mark' aria-hidden='true'>
-                                    {!active(column.key)
-                                        ? <UnfoldMoreIcon fontSize='inherit' data-mark='none' />
-                                        : sort.dir === 'desc'
-                                            ? <ArrowDownwardIcon fontSize='inherit' data-mark='desc' />
-                                            : <ArrowUpwardIcon fontSize='inherit' data-mark='asc' />}
-                                </span>
+                                <span className='stream-rows-sort-mark' aria-hidden='true'>{mark(column.key)}</span>
                             </button>
                         ))}
                     </span>
@@ -718,7 +774,7 @@ function StreamRows({
                         pointed={pointed ? pointed.key : null}
                         onOpen={onOpen}
                         onFocus={onFocus}
-                        pick={sort && sort.key ? sort.key : 'coverage'}
+                        pick={pick}
                     />
                 ))}
 
