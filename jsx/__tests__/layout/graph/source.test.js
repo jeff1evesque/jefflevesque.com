@@ -23,7 +23,14 @@
  *       zone tests below tell a run read as UTC from one read in the local zone.
  */
 
-import { DAY_DETAILS, buildDay, outsideGraph } from '../../../import/layout/graph/source.js';
+import {
+    BUILDS,
+    DAYS as RETRIEVAL,
+    DAY_DETAILS,
+    buildDay,
+    outsideGraph,
+    sourceTypes,
+} from '../../../import/layout/graph/source.js';
 
 //
 // the published days on 2026-09-25, newest first, as the tables list them. None
@@ -191,5 +198,56 @@ describe('a source outside the graph', () => {
 
         expect(noted.note).toBe('Not in the graph: its data is kept in a table of its own.');
         expect(noted).not.toHaveProperty('docs');
+    });
+
+    it('is not the company facts, whose namespace sec/companyfacts is the source sec-companyfacts (#211)', () => {
+        //
+        // its first part alone is 'sec', which is a source as well, and is not
+        // the one the day lists the company facts by
+        //
+        const types = { ...TYPES, companyfacts_CompanyFact: FACTS };
+
+        expect(outsideGraph({ sources: ['bls', 'market', 'noaa', 'sec', 'sec-companyfacts', 'stock-split'] }, types))
+            .toEqual(['stock-split']);
+    });
+
+    it('is the company facts on a day that lists them and holds none of their nodes', () => {
+        expect(outsideGraph({ sources: ['sec', 'sec-companyfacts'] }, TYPES)).toEqual(['sec-companyfacts']);
+    });
+});
+
+//
+// the company facts' one node type, filed under its source by the day's
+// predicates. It carries no text, so it weighs nothing by entities
+//
+const FACTS = { count: 15_600, entities: 0, facts: 0, vocabulary: 'sec/companyfacts' };
+
+describe('the types the canvas draws one of, for each source (#211)', () => {
+    const types = { ...TYPES, companyfacts_CompanyFact: FACTS };
+    const day = { sources: ['bls', 'market', 'noaa', 'sec', 'sec-companyfacts', 'stock-split'] };
+
+    it('lists each source\'s node types, in the order of the Sources row', () => {
+        expect(sourceTypes(day, types)).toEqual([
+            ['jolts_Industry'],
+            ['market_quotes_OptionSnapshot'],
+            ['cap_Info'],
+            ['filings_SECFiling', 'companyfacts_CompanyFact'],
+            ['companyfacts_CompanyFact'],
+        ]);
+    });
+
+    it('lists nothing for a source outside the graph', () => {
+        expect(sourceTypes({ sources: ['stock-split'] }, types)).toEqual([]);
+    });
+
+    it('reads the sources off the node types on a day with no list of its own', () => {
+        expect(sourceTypes({ sources: null }, types).map((ids) => ids.length)).toEqual([1, 1, 2]);
+    });
+
+    it('is what the Retrieval graph hands its canvas, and the Training graph has none', () => {
+        const whole = { node_types: types, edge_types: {} };
+
+        expect(RETRIEVAL.required(day, whole)).toEqual(sourceTypes(day, types));
+        expect(BUILDS.required).toBeUndefined();
     });
 });
