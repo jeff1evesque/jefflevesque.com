@@ -19,7 +19,7 @@
  */
 
 import React from 'react';
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 
 jest.mock('../../import/route/main-route.jsx', () => ({
     __esModule: true,
@@ -53,6 +53,8 @@ jest.mock('react-device-detect', () => ({
 
 import PageLayout, { copyrightYears } from '../../import/layout/page.jsx';
 import { DOCUMENTATION, TERMS } from '../../import/general/api-url.js';
+import { noteResponse, resetRateLimit } from '../../import/general/rate-limit.js';
+import { blockedAnswer } from '../../test-support/blocked-answer.js';
 
 //
 // the three sizes the render tree distinguishes, smallest first, so isGt and isLte
@@ -106,6 +108,42 @@ describe('the shell', () => {
         setup();
 
         expect(shell().className).toContain('container-fluid');
+    });
+});
+
+describe('the notice while the api has said to wait (#210)', () => {
+    afterEach(() => {
+        resetRateLimit();
+    });
+
+    it('is not there while there is no wait', () => {
+        setup();
+
+        expect(document.querySelector('.rate-limit-notice')).toBeNull();
+    });
+
+    it('sits under the header and over the page, on every page', async () => {
+        setup();
+
+        await act(async () => {
+            await noteResponse(blockedAnswer());
+        });
+
+        const notice = document.querySelector('.rate-limit-row');
+
+        expect(notice).not.toBeNull();
+        expect(notice.previousElementSibling).toHaveClass('menu-container');
+        expect(notice.nextElementSibling).toHaveClass('content');
+    });
+
+    it('is there for a signed-in reader too', async () => {
+        setup({ user: { name: 'jeff' } });
+
+        await act(async () => {
+            await noteResponse(blockedAnswer());
+        });
+
+        expect(document.querySelector('.authenticated .rate-limit-notice')).not.toBeNull();
     });
 });
 
