@@ -26,8 +26,40 @@ const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', '
 const SERVER = 'https://api.jefflevesque.com/v1/public';
 const DOCUMENTS = ['performance', 'datalake', 'knowledge-graph'];
 
-function documentOf(name) {
+//
+// a document as it is written: a response every operation gives -- the 429 of a
+// request past the rate limit (#210) -- is written once, under components, and
+// referred to by each operation
+//
+function rawDocumentOf(name) {
     return JSON.parse(fs.readFileSync(path.join(OPENAPI, `${name}.json`), 'utf8'));
+}
+
+//
+// what a '#/...' reference points at, in `document`
+//
+function pointedAt(document, ref) {
+    return ref.slice(2).split('/').reduce((node, key) => node[key], document);
+}
+
+//
+// a document as Swagger UI reads it, each operation's referred response in its
+// place, so the checks below read every response alike
+//
+function documentOf(name) {
+    const document = rawDocumentOf(name);
+
+    Object.values(document.paths).forEach((item) => {
+        Object.values(item).forEach((operation) => {
+            Object.entries(operation.responses || {}).forEach(([status, response]) => {
+                if (response && typeof response.$ref === 'string' && response.$ref.startsWith('#/')) {
+                    operation.responses[status] = pointedAt(document, response.$ref);
+                }
+            });
+        });
+    });
+
+    return document;
 }
 
 //
@@ -168,6 +200,27 @@ describe.each(DOCUMENTS)('%s.json', (name) => {
                 expect({ status, required: schema.required }).toEqual({ status, required: ['report'] });
             });
         });
+    });
+
+    it('answers every operation with a 429 past the rate limit, written once and shared (#210)', () => {
+        operationsOf(rawDocumentOf(name)).forEach(({ route, operation }) => {
+            expect({ route, ref: (operation.responses['429'] || {}).$ref })
+                .toEqual({ route, ref: '#/components/responses/RateLimited' });
+        });
+    });
+
+    it('says in that 429 how long to wait, and the limit and window in force (#210)', () => {
+        //
+        // a caller reads the numbers from the answer, so a change to the limit or
+        // its window needs no change in a client
+        //
+        const limited = document.components.responses.RateLimited;
+        const wait = limited.headers['Retry-After'];
+        const [[, example]] = examplesOf(limited.content['application/json']);
+
+        expect(wait.description).toBeTruthy();
+        expect(wait.schema).toEqual({ type: 'integer' });
+        expect(Object.keys(example.report).sort()).toEqual(['error', 'limit', 'window_seconds']);
     });
 
     it('has examples that match their own schemas', () => {

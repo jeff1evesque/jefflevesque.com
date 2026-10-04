@@ -39,6 +39,7 @@ import { performanceUrl, API_DOCS } from '../../general/api-url.js';
 import { listSubscriptions } from '../../general/account-api.js';
 import ApiLinks from '../../general/api-links.jsx';
 import { readRefresh, writeRefresh } from '../../general/refresh-preference.js';
+import { limitedUntil } from '../../general/rate-limit.js';
 import { readSort, writeSort } from '../../general/listing-preference.js';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
@@ -577,6 +578,21 @@ class StreamLayout extends Component {
         this.refresh_timer = null;
 
         if (document.hidden) {
+            return;
+        }
+
+        //
+        // Note: while the api has told the reader to wait, the turn is skipped
+        //       and the next one kept: a request made while blocked still counts
+        //       toward the limit, and would keep the block going (#210). A wait
+        //       with no end known -- an answer that gave neither its wait nor its
+        //       window -- lets it ask, since an answer that succeeds is what ends
+        //       that one
+        //
+        const until = limitedUntil();
+
+        if (until !== null && Number.isFinite(until)) {
+            this.scheduleRefresh(REFRESH_MS);
             return;
         }
 

@@ -19,6 +19,8 @@
  */
 
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
+import { limitedUntil, resetRateLimit } from '../../import/general/rate-limit.js';
+import { blockedAnswer } from '../../test-support/blocked-answer.js';
 
 const ORIGIN = 'https://www.jefflevesque.com/artifact/performance/ingest';
 
@@ -174,5 +176,15 @@ describe('asking for the listing', () => {
         global.fetch = jest.fn(() => Promise.reject(new Error('offline')));
 
         await expect(loadArchiveListing()).rejects.toThrow('offline');
+    });
+
+    it('tells the page to wait, and still refuses, past the api\'s rate limit (#210)', async () => {
+        resetRateLimit();
+        answering(blockedAnswer());
+
+        await expect(loadArchiveListing()).rejects.toThrow('429');
+        expect(limitedUntil()).toBeGreaterThan(Date.now());
+
+        resetRateLimit();
     });
 });

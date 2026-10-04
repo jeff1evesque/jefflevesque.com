@@ -15,17 +15,21 @@
  */
 
 import { performanceArchiveUrl } from './api-url.js';
+import { noteResponse } from './rate-limit.js';
 import { canonicalStream } from './stream-id.js';
 
 /**
  * the listing: every stream the api carries, and each file each has published.
  *
  * Rejects when the api does not answer with one, so the page can tell "nothing
- * published" apart from "could not ask".
+ * published" apart from "could not ask". The answer is shown to rate-limit.js
+ * first, which tells the page when the api has said to wait (#210).
  */
 export function loadArchiveListing(url = performanceArchiveUrl()) {
     return fetch(url)
         .then((response) => {
+            noteResponse(response);
+
             if (!response.ok) {
                 throw new Error(`the archive listing answered ${response.status}`);
             }

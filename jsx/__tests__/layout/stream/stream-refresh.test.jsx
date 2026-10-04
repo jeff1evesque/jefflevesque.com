@@ -47,6 +47,8 @@ import StreamLayout, { REFRESH_MS } from '../../../import/layout/stream/stream.j
 import THROUGHPUT_KEY from '../../../import/general/throughput-key.js';
 import { STREAMS } from '../../../import/general/stream-id.js';
 import { KEY } from '../../../import/general/refresh-preference.js';
+import { noteResponse, resetRateLimit } from '../../../import/general/rate-limit.js';
+import { blockedAnswer } from '../../../test-support/blocked-answer.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const MINUTE = 60 * 1000;
@@ -200,6 +202,46 @@ describe('every five minutes', () => {
 
         expect(asked()).not.toContain('sec');
         expect(asked()).toContain('bls');
+    });
+});
+
+describe('while the api has said to wait (#210)', () => {
+    //
+    // a request made while blocked still counts toward the limit, so the page
+    // asking on its own would keep the block going
+    //
+    async function blocked(options) {
+        await act(async () => {
+            await noteResponse(blockedAnswer(options));
+        });
+    }
+
+    afterEach(() => {
+        resetRateLimit();
+    });
+
+    it('asks for nothing, and asks again on its next turn once the wait has ended', async () => {
+        const { page } = setup();
+        settle(page);
+        await blocked({ retryAfter: (2 * REFRESH_MS) / 1000 });
+        getData.mockClear();
+
+        wait(REFRESH_MS);
+        expect(asked()).toEqual([]);
+
+        wait(REFRESH_MS);
+        expect(asked().sort()).toEqual([...STREAMS].sort());
+    });
+
+    it('asks as usual where the wait has no end known, since an answer that succeeds is what ends it', async () => {
+        const { page } = setup();
+        settle(page);
+        await blocked({ retryAfter: null, body: { report: { error: 'wait' } } });
+        getData.mockClear();
+
+        wait(REFRESH_MS);
+
+        expect(asked()).toHaveLength(STREAMS.length);
     });
 });
 

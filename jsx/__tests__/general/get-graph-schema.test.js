@@ -23,6 +23,8 @@ import getGraphSchema, {
     getGraphListing,
     getGraphById,
 } from '../../import/general/get-graph-schema.js';
+import { limitedUntil, resetRateLimit } from '../../import/general/rate-limit.js';
+import { blockedAnswer } from '../../test-support/blocked-answer.js';
 
 const BUILD_ID = 'example-build-id';
 
@@ -170,6 +172,16 @@ describe('when the listing cannot be had', () => {
         await getGraphSchema();
 
         expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    it('tells the page to wait, for a request past the api\'s rate limit (#210)', async () => {
+        resetRateLimit();
+        answering(Promise.resolve(blockedAnswer()));
+
+        await expect(getGraphSchema()).resolves.toBeNull();
+        expect(limitedUntil()).toBeGreaterThan(Date.now());
+
+        resetRateLimit();
     });
 });
 

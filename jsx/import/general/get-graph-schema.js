@@ -27,6 +27,7 @@
  */
 
 import { ENDPOINTS, knowledgeGraphUrl } from './api-url.js';
+import { noteResponse } from './rate-limit.js';
 
 //
 // fixed rather than configured: the '.replace' substitution mechanism carries
@@ -45,10 +46,15 @@ const KNOWLEDGE_GRAPH = ENDPOINTS.knowledgeGraph;
  *
  * Note: exported for get-graph-tables.js, which reads the same api's tables. One
  *       reading of the envelope, so the two cannot come to disagree about it.
+ *
+ * Note: every answer is shown to rate-limit.js first, which tells the page when
+ *       the api has said to wait (#210).
  */
 export function report(url) {
     return fetch(url, { method: 'GET' })
         .then((response) => {
+            noteResponse(response);
+
             if (response.ok) {
                 return response.json();
             }

@@ -10,6 +10,7 @@
 
 import React, { Component } from 'react';
 import Spinner from '../general/spinner.jsx';
+import RateLimitNotice from '../general/rate-limit-notice.jsx';
 import MainRoute from '../route/main-route.jsx';
 import UserMenuState from '../redux/container/user-menu.jsx';
 import HeaderMenuState from '../redux/container/header-menu.jsx';
@@ -87,6 +88,14 @@ class PageLayout extends Component {
                     <div className='menu-container'>
                         {sideBar}
                     </div>
+                    {/*
+
+                        the notice while the api has told the reader to wait,
+                        under the header on every page, and nothing otherwise
+                        (#210)
+
+                    */}
+                    <RateLimitNotice />
                     <div className='content'>
                         <MainRoute/>
                     </div>
