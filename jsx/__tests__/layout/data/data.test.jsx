@@ -62,10 +62,10 @@ describe('the listing', () => {
         expect(document.querySelector('.listing-table-title .listing-table-actions .data-month')).not.toBeNull();
     });
 
-    it('lists all five streams', () => {
+    it('lists all six streams', () => {
         setup();
 
-        expect(screen.getByText('5')).toBeInTheDocument();
+        expect(screen.getByText('6')).toBeInTheDocument();
     });
 
     it('renders each stream under its display label', () => {
@@ -81,6 +81,7 @@ describe('the listing', () => {
         expect(screen.getByText('Stock Splits')).toBeInTheDocument();
         expect(screen.getByText('Bureau of Labor Statistics')).toBeInTheDocument();
         expect(screen.getByText('SEC Filings')).toBeInTheDocument();
+        expect(screen.getByText('SEC Company Facts')).toBeInTheDocument();
         expect(screen.getByText('US Weather Alerts')).toBeInTheDocument();
     });
 
@@ -89,6 +90,7 @@ describe('the listing', () => {
 
         const text = bodyText();
         expect(text).not.toContain('stock-market');
+        expect(text).not.toContain('sec-companyfacts');
         expect(text).not.toContain('us-national-weather');
     });
 });
@@ -108,9 +110,9 @@ describe('the coverage row', () => {
 
     it('fills the Coverage column for the two stock streams alone', () => {
         //
-        // streamCoverage() returns null for bls, sec and weather, and the listing is
-        // expected to leave their cells blank rather than render the null. A filled
-        // cell on any of the three would mean it is being rendered.
+        // streamCoverage() returns null for bls, both of sec's and weather, and the
+        // listing is expected to leave their cells blank rather than render the
+        // null. A filled cell on any of the four would mean it is being rendered.
         //
         setup();
 
@@ -119,7 +121,7 @@ describe('the coverage row', () => {
         expect(coverage['S&P 500']).toHaveTextContent('S&P 500');
         expect(coverage['Stock Splits']).toHaveTextContent('Market-wide');
 
-        ['Bureau of Labor Statistics', 'SEC Filings', 'US Weather Alerts'].forEach((name) => {
+        ['Bureau of Labor Statistics', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts'].forEach((name) => {
             expect(coverage[name]).toHaveClass('listing-table-blank');
         });
     });
@@ -130,7 +132,7 @@ describe('the coverage row', () => {
         // on 'Records 0' against a populated table. The lag is what separates an
         // unpublished month from an unpopulated stream.
         //
-        // On bls's row alone: stream_lag() returns null for the other four, and a
+        // On bls's row alone: stream_lag() returns null for the other five, and a
         // lag on every row would read as a page-level note rather than bls's own.
         //
         setup();
@@ -139,7 +141,7 @@ describe('the coverage row', () => {
 
         expect(lag['Bureau of Labor Statistics']).toHaveTextContent('1-2 months');
 
-        ['S&P 500', 'Stock Splits', 'SEC Filings', 'US Weather Alerts'].forEach((name) => {
+        ['S&P 500', 'Stock Splits', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts'].forEach((name) => {
             expect(lag[name]).toHaveClass('listing-table-blank');
         });
     });
@@ -155,24 +157,25 @@ describe('each row before data arrives', () => {
 
         expect(bodyText()).toContain('Records');
         expect(bodyText()).toContain('Partitions');
-        expect(screen.getAllByText('n/a').length).toBeGreaterThanOrEqual(5);
+        expect(screen.getAllByText('n/a').length).toBeGreaterThanOrEqual(6);
     });
 
     it('describes every stream as a hive type', () => {
         setup();
 
-        expect(screen.getAllByText('Hive').length).toBe(5);
+        expect(screen.getAllByText('Hive').length).toBe(6);
     });
 
     it('states RDF availability per stream, not globally', () => {
         //
-        // four streams publish RDF and stock-split does not, so this is a per-stream
-        // flag rather than a page-level one. Rendering 'Available' for all five would
+        // five streams publish RDF -- the company facts' daily snapshot carries it
+        // too (#211) -- and stock-split does not, so this is a per-stream flag
+        // rather than a page-level one. Rendering 'Available' for all six would
         // advertise triples that are not there.
         //
         setup();
 
-        expect(screen.getAllByText('Available').length).toBe(4);
+        expect(screen.getAllByText('Available').length).toBe(5);
         expect(screen.getAllByText('None').length).toBe(1);
     });
 });
@@ -199,7 +202,7 @@ describe('the scale controls', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
 
         expect(document.querySelector('.data-month select').selectedIndex).toBe(1);
-        expect(spy).toHaveBeenCalledTimes(5);
+        expect(spy).toHaveBeenCalledTimes(6);
         spy.mockRestore();
     });
 
@@ -243,7 +246,7 @@ describe('the reader\'s order', () => {
 
         const kept = JSON.parse(window.localStorage.getItem(KEY));
 
-        expect(kept.data.order).toEqual(['bls', 'stock-market', 'sec', 'stock-split', 'us-national-weather']);
+        expect(kept.data.order).toEqual(['bls', 'stock-market', 'sec', 'stock-split', 'sec-companyfacts', 'us-national-weather']);
         expect(kept.stream.order).toEqual(['us-national-weather']);
     });
 });
@@ -265,7 +268,7 @@ describe('resilience', () => {
         setup();
 
         expect(screen.getAllByText('S&P 500').length).toBeGreaterThanOrEqual(1);
-        expect(screen.getAllByText('Hive').length).toBe(5);
+        expect(screen.getAllByText('Hive').length).toBe(6);
         expect(screen.getAllByText('n/a').length).toBeGreaterThan(0);
     });
 
