@@ -9,6 +9,7 @@
  */
 
 import { readString } from 'react-papaparse';
+import { noteResponse } from '../../rate-limit.js';
 
 function isValidUrl(string) {
     try {
@@ -23,6 +24,8 @@ function get_promise(url, callback, source, stream) {
     if (isValidUrl(url)) {
         return fetch(url, {method: 'GET'})
             .then((response) => {
+                noteResponse(response);
+
                 if (response.ok) {
                     return response.json();
                 }
