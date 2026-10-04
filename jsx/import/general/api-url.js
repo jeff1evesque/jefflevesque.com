@@ -38,6 +38,7 @@ import {
     STOCK_SPLIT,
     BLS,
     SEC,
+    SEC_COMPANYFACTS,
     US_NATIONAL_WEATHER,
     canonicalStream,
 } from './stream-id.js';
@@ -95,8 +96,29 @@ const DATASETS = {
     [STOCK_SPLIT]: 'stock-split',
     [BLS]: 'bls',
     [SEC]: 'sec',
+    [SEC_COMPANYFACTS]: 'sec-companyfacts',
     [US_NATIONAL_WEATHER]: 'us-weather-alert',
 };
+
+//
+// the performance api's stream for each row of /stream whose runs it counts
+// under another: the company facts are a second feed of the sec stream, and
+// answered as its series 'companyfacts', beside the filings' 'sec' (#211). Their
+// row and the filings' read one report.
+//
+const PERFORMANCE_STREAMS = {
+    [SEC_COMPANYFACTS]: SEC,
+};
+
+/**
+ * the stream the performance api is asked for, for a row of /stream: the row's
+ * own id, but where its runs are counted under another stream's.
+ */
+export function performanceStream(stream) {
+    const id = canonicalStream(stream);
+
+    return PERFORMANCE_STREAMS[id] || id;
+}
 
 function withParams(base, params) {
     const url = new URL(base);
@@ -118,6 +140,10 @@ function withParams(base, params) {
  *       canonicalStream. A name that is no stream's is sent lower-cased, as
  *       given, and the api answers it with a 400 that names what it accepts.
  *
+ * Note: and a row whose runs are counted under another stream asks for that
+ *       one: the company facts' row asks for the sec stream -- see
+ *       performanceStream.
+ *
  * Note: `end`, when given, ends the window there rather than now -- the api's
  *       `End` (#159). A Date is sent with the viewer's own offset, so it names the
  *       wall-clock time the page drew it at; see localInstant. Without one, the
@@ -125,7 +151,7 @@ function withParams(base, params) {
  */
 export function performanceUrl(stream, interval, timezone, end = null, base = ENDPOINTS.performance) {
     return withParams(base, {
-        Stream: canonicalStream(stream) || String(stream).toLowerCase(),
+        Stream: performanceStream(stream) || String(stream).toLowerCase(),
         Interval: String(interval).toLowerCase(),
         Timezone: timezone,
         ...(end ? { End: end instanceof Date ? localInstant(end) : String(end) } : {}),
@@ -149,9 +175,9 @@ export function performanceArchiveUrl(base = ENDPOINTS.performanceArchive) {
  * one dataset's record distribution, and its partition count, for a month.
  *
  * Note: `data` is a DATASET name -- 'stock-market', 'stock-split', 'bls', 'sec',
- *       'us-weather-alert' -- not a stream id. Read it from DATASETS: the two
- *       differ for the weather stream, and the api answers a name it does not
- *       know with a 400.
+ *       'sec-companyfacts', 'us-weather-alert' -- not a stream id. Read it from
+ *       DATASETS: the two differ for the weather stream, and the api answers a
+ *       name it does not know with a 400.
  */
 export function datalakeUrl(data, year, month, base = ENDPOINTS.datalake) {
     return withParams(base, {
@@ -281,4 +307,4 @@ export function subscriptionUrl(stream, alarm, base = ACCOUNT) {
     return new URL(`${base}/subscriptions/${encodeURIComponent(stream)}/${encodeURIComponent(alarm)}`);
 }
 
-export { API, ENDPOINTS, ACCOUNT, DOCUMENTATION, API_DOCS, TERMS, DATASETS, TABLES_VALUES };
+export { API, ENDPOINTS, ACCOUNT, DOCUMENTATION, API_DOCS, TERMS, DATASETS, PERFORMANCE_STREAMS, TABLES_VALUES };
