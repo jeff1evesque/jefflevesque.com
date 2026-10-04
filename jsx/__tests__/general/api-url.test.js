@@ -32,8 +32,17 @@ import {
     DOCUMENTATION,
     API_DOCS,
     DATASETS,
+    PERFORMANCE_STREAMS,
     TABLES_VALUES,
+    performanceStream,
 } from '../../import/general/api-url.js';
+import { STREAMS } from '../../import/general/stream-id.js';
+
+//
+// every stream the /stream page asks the performance api for: one per row, where
+// the company facts' row asks for the sec stream, as the filings' does (#211)
+//
+const PERFORMANCE_ASKED = [...new Set(STREAMS.map(performanceStream))].sort();
 
 const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', 'openapi');
 
@@ -121,6 +130,17 @@ describe('performanceUrl', () => {
         expect(performanceUrl('Nope', 'day', 'UTC').searchParams.get('Stream')).toBe('nope');
     });
 
+    it('asks for the sec stream for the company facts, whose runs it counts as a series of its own (#211)', () => {
+        //
+        // the api has no stream 'sec-companyfacts': it answers the company facts
+        // as the sec report's series 'companyfacts', beside the filings' 'sec'.
+        // Both rows ask the one request, and each reads its own series.
+        //
+        expect(String(performanceUrl('sec-companyfacts', 'day', 'UTC')))
+            .toBe(String(performanceUrl('sec', 'day', 'UTC')));
+        expect(performanceUrl('SecCompanyFacts', 'day', 'UTC').searchParams.get('Stream')).toBe('sec');
+    });
+
     it('lower-cases the interval, which the page holds capitalized', () => {
         expect(performanceUrl('bls', 'Month', 'UTC').searchParams.get('Interval')).toBe('month');
     });
@@ -201,6 +221,26 @@ describe('datalakeUrl', () => {
     it('can be pointed elsewhere', () => {
         expect(String(datalakeUrl('bls', 2026, 9, 'https://example.com/d')))
             .toMatch(/^https:\/\/example\.com\/d\?Data=bls/);
+    });
+});
+
+describe('the sec stream\'s two datasets (#211)', () => {
+    it('names the filings and the company facts, each a dataset of its own', () => {
+        expect(DATASETS.sec).toBe('sec');
+        expect(DATASETS['sec-companyfacts']).toBe('sec-companyfacts');
+        expect(datalakeUrl(DATASETS['sec-companyfacts'], 2026, 8).searchParams.get('Data')).toBe('sec-companyfacts');
+    });
+
+    it('asks the performance api for both under the sec stream', () => {
+        expect(performanceStream('sec')).toBe('sec');
+        expect(performanceStream('sec-companyfacts')).toBe('sec');
+    });
+
+    it('asks for every other stream by its own id', () => {
+        STREAMS.filter((stream) => !(stream in PERFORMANCE_STREAMS)).forEach((stream) => {
+            expect(performanceStream(stream)).toBe(stream);
+        });
+        expect(performanceStream('nope')).toBeNull();
     });
 });
 
@@ -567,7 +607,7 @@ describe('what is sent is what is documented', () => {
     });
 
     it('every stream a page asks performance about is a documented Stream', () => {
-        expect(Object.keys(DATASETS).sort())
+        expect(PERFORMANCE_ASKED)
             .toEqual([...parameterOf(documentOf('performance'), 'Stream').schema.enum].sort());
     });
 
@@ -575,14 +615,15 @@ describe('what is sent is what is documented', () => {
         //
         // the alarm page finds a stream's files by its stream id, so a listing
         // that named its streams any other way would offer every stream nothing
-        // -- quietly, as 'Nothing published yet'.
+        // -- quietly, as 'Nothing published yet'. The company facts have no
+        // alarm page, and their runs are the sec stream's (#211).
         //
         const document = documentOf('performance');
         const report = document.paths['/performance/archive'].get
             .responses['200'].content['application/json'].schema.properties.report;
 
-        expect(Object.keys(DATASETS).sort()).toEqual([...report.properties.streams.items.enum].sort());
-        expect(Object.keys(DATASETS).sort())
+        expect(PERFORMANCE_ASKED).toEqual([...report.properties.streams.items.enum].sort());
+        expect(PERFORMANCE_ASKED)
             .toEqual([...parameterOf(document, 'stream').schema.enum].sort());
     });
 
