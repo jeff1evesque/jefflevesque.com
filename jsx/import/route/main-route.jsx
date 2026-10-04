@@ -24,12 +24,18 @@ import HomePageState from '../redux/container/home-page.jsx';
 import ForgotPasswordState from '../redux/container/forgot-password.jsx';
 import ErrorPage from '../content/error-page.jsx';
 import CanonicalStream from './canonical-stream.jsx';
+import StreamItem from './stream-item.jsx';
 
 //
 // Note: every route that names a stream -- by its path, or by the '?item=' a
 //       listing links to -- is wrapped in CanonicalStream, which replaces a url
 //       naming the stream by a name it used to go by with the url naming it by
 //       its id. A bookmark keeps working, and the page is only handed the id.
+//
+// Note: '/stream/:stream' is the address the alarm emails link a stream by, and
+//       it is sent to the '?item=' that opens the stream on its own -- see
+//       stream-item.jsx (#214). The trigger and alarm pages are deeper, and
+//       never match it.
 //
 // Note: '/graph/retrieval' is a static segment, so react-router ranks it above
 //       '/graph/:graph' whatever order they are written in, and it is never read
@@ -49,6 +55,7 @@ class MainRoute extends Component {
                 <Route path='/:user' element={<AccountLayout />} />
                 <Route path='/:user/settings' element={<AccountSettingsLayout />} />
                 <Route path='/stream' element={<CanonicalStream><StreamLayoutState /></CanonicalStream>} />
+                <Route path='/stream/:stream' element={<StreamItem />} />
                 <Route
                     path='/stream/:stream/trigger'
                     element={<CanonicalStream><StreamTriggerLayoutState /></CanonicalStream>}
