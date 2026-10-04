@@ -2,14 +2,13 @@
  * stream-focus.jsx: one stream on its own (#161) -- what a stream's name on
  * /stream opens.
  *
- * Its Health, Coverage and Total Records are three boxes at the left, under the
- * title and its schedule, over a taller graph than a row has room for, and
- * nothing stands beside the graph, so it runs the page's width. The boxes were
- * centered on the page, in line with nothing above them (#206). The way back to
- * every stream is the page's, over the title -- see '.stream-back' in
- * stream.jsx. It was a green rail down the graph's left side, as /graph's
- * columns fold, which read oddly as a way back and cost the graph its width
- * (#167).
+ * Its Health, Coverage and Total Records are one ruled row as wide as the graph,
+ * over a taller graph than a row has room for (#208), and nothing stands beside
+ * the graph, so it runs the page's width. They were three boxes, centered on
+ * the page, then at its left (#206). The way back to every stream is the
+ * page's, over the title -- see '.stream-back' in stream.jsx. It was a green
+ * rail down the graph's left side, as /graph's columns fold, which read oddly
+ * as a way back and cost the graph its width (#167).
  *
  * Each value is drawn in a color that says how it stands, and each name is
  * followed by an info icon whose note says what the figure counts (#206). See
@@ -21,11 +20,12 @@
  * are the page's, and stay as they were -- see stream.jsx.
  *
  * Note: on a phone the same view is one column (#161): the graph first, then
- *       the figures in three boxes side by side, as a wide screen boxes them
- *       (#206), then the line that describes a bar, and the
- *       color key folded under its button. The way back there is the same
- *       '.stream-back', as a bar across the phone, and the stylesheet hides the
- *       dates under the graph, which a phone has no room for.
+ *       the figures in three boxes side by side (#206), then the line that
+ *       describes a bar, and the color key folded under its button. The way
+ *       back there is the same '.stream-back', as a bar across the phone, and
+ *       the stylesheet hides the dates under the graph, which a phone has no
+ *       room for. A wide screen hides the dates over it instead, which repeat
+ *       the first date under the bars and the line under the title (#208).
  *
  * Note: a phone shortens two things so the three figures keep to one line:
  *       'Records' for 'Total Records', and the count itself, '137M' for
