@@ -15,6 +15,7 @@ import DataObjectIcon from '@mui/icons-material/DataObject';
 import UpdateIcon from '@mui/icons-material/Update';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import UpdateDisabledIcon from '@mui/icons-material/UpdateDisabled';
 import QueryStatsIcon from '@mui/icons-material/QueryStats';
 import StreamRows, { FIGURES_MIN, SORT_KEYS, SortMenu } from './stream-rows.jsx';
@@ -40,7 +41,7 @@ import { listSubscriptions } from '../../general/account-api.js';
 import ApiLinks from '../../general/api-links.jsx';
 import { readRefresh, writeRefresh } from '../../general/refresh-preference.js';
 import { limitedUntil } from '../../general/rate-limit.js';
-import { readSort, writeSort } from '../../general/listing-preference.js';
+import { readOrder, readSort, writeOrder, writeSort } from '../../general/listing-preference.js';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
 import { STOCK_MARKET, STOCK_SPLIT, SEC_COMPANYFACTS, STREAMS } from '../../general/stream-id.js';
@@ -487,7 +488,13 @@ class StreamLayout extends Component {
             // the figure the rows are sorted by, as the reader last left them, or
             // null for the page's own order -- see listing-preference.js
             //
-            sort: readSort('stream', SORT_KEYS)
+            sort: readSort('stream', SORT_KEYS),
+            //
+            // the order the reader dragged the rows into, or null for the
+            // page's own (#218). An order kept before #152, when the rows last
+            // dragged, is theirs too
+            //
+            order: readOrder('stream', STREAMS)
         }
 
         this.updateMetrics = this.updateMetrics.bind(this);
@@ -502,6 +509,8 @@ class StreamLayout extends Component {
         this.refresh = this.refresh.bind(this);
         this.toggleRefresh = this.toggleRefresh.bind(this);
         this.chooseSort = this.chooseSort.bind(this);
+        this.reorder = this.reorder.bind(this);
+        this.resetOrder = this.resetOrder.bind(this);
         this.chooseWindow = this.chooseWindow.bind(this);
         this.openBar = this.openBar.bind(this);
         this.onVisibility = this.onVisibility.bind(this);
@@ -646,6 +655,32 @@ class StreamLayout extends Component {
     chooseSort(sort) {
         this.setState({ sort: sort });
         writeSort('stream', sort);
+    }
+
+    //
+    // the rows in the reader's new order, from a drag or the arrow keys, kept for
+    // their next visit; null puts the page's own order back (#218)
+    //
+    reorder(order) {
+        this.setState({ order: order });
+        writeOrder('stream', order);
+    }
+
+    resetOrder() {
+        this.reorder(null);
+    }
+
+    //
+    // whether the rows are in an order of the reader's that differs from the
+    // page's, on screen: what Reset order is offered for (#218). Sorted, the
+    // reader's order is not what they are looking at
+    //
+    resettable() {
+        const order = this.state.order;
+
+        return !this.state.sort
+            && Array.isArray(order)
+            && order.some((stream, index) => stream !== this.state.streams[index]);
     }
 
     //
@@ -1620,6 +1655,7 @@ class StreamLayout extends Component {
 
         const first = start ? axisLabel(start, rate) : '';
         const last = end ? axisLabel(end, rate) : 'Now';
+        const resettable = this.resettable();
 
         return (
             <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -1723,7 +1759,30 @@ class StreamLayout extends Component {
                                         </button>
                                     ) : null}
                             </div>
-                            {focused ? null : <SortMenu sort={this.state.sort} onSort={this.chooseSort} />}
+                            {/*
+
+                                the page's order put back, while the rows are in the
+                                reader's and it differs (#218): /data's pill at the end
+                                of the line on a wide screen, and the last choice in the
+                                sort button's menu on a phone, whose line has no room
+
+                            */}
+                            {!focused && resettable
+                                ? (
+                                    <button type='button' className='stream-reset' onClick={this.resetOrder}>
+                                        <RestartAltIcon fontSize='inherit' />
+                                        Reset order
+                                    </button>
+                                ) : null}
+                            {focused
+                                ? null
+                                : (
+                                    <SortMenu
+                                        sort={this.state.sort}
+                                        onSort={this.chooseSort}
+                                        onReset={resettable ? this.resetOrder : null}
+                                    />
+                                )}
                         </div>
                         {/*
 
@@ -1816,6 +1875,8 @@ class StreamLayout extends Component {
                                 onResize={this.resizeFigures}
                                 first={first}
                                 last={last}
+                                order={this.state.order}
+                                onReorder={this.reorder}
                             />
                         )}
                 </div>
