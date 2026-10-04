@@ -64,6 +64,13 @@ reads low with nothing missed. By the month on 2026-10-04, the S&P 500 stream re
 41.67% because its rows start in June, with no miss to point at, and red there would
 have been a false alarm.
 
+A schedule can say when it began, and nothing before then counts as due. The SEC's
+company facts run once a day at 23:15 eastern, Monday to Saturday, from 2026-10-04, so
+their coverage counts from that day rather than from the start of a window reaching
+back before it. They are a second feed of the `sec` stream, graded on their own
+schedule: on the filings' five minutes, each daily run would read as one run among
+hundreds missed.
+
 ## History
 
 - [#30](https://github.com/jeff1evesque/jefflevesque.com/issues/30): the bls stream's
@@ -76,3 +83,5 @@ have been a false alarm.
   every stream as a row of bars, and a missed interval as a crossed box.
 - [#206](https://github.com/jeff1evesque/jefflevesque.com/issues/206): a stream's own
   coverage is green at 95% or more, and never red.
+- [#211](https://github.com/jeff1evesque/jefflevesque.com/issues/211): the SEC's company
+  facts, graded once a day from the day their schedule began.
