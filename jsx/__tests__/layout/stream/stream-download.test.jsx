@@ -85,6 +85,7 @@ describe('downloadData, per stream', () => {
         ['stock-split', 'stock-split-ingest'],
         ['bls', 'bls-ingest'],
         ['sec', 'sec-ingest'],
+        ['sec-companyfacts', 'sec-ingest'],
         ['us-national-weather', 'us-national-weather-ingest'],
     ])('%s requests the %s report', (type, expected) => {
         //
@@ -126,7 +127,7 @@ describe('downloadData, per stream', () => {
         expect(page.state.stream_rate_bls).toBe('hour');
     });
 
-    it.each(STREAMS)('asks the performance api for %s by its id', (stream) => {
+    it.each(STREAMS.filter((stream) => stream !== 'sec-companyfacts'))('asks the performance api for %s by its id', (stream) => {
         //
         // the page used to hold 'StockMarket' for its links and lower-case it for
         // its requests, which sent 'stockmarket'. The id is what it holds, what
@@ -138,6 +139,25 @@ describe('downloadData, per stream', () => {
         download(page, stream, 'hour');
 
         expect(paramsOf(lastRequest().url).get('Stream')).toBe(stream);
+    });
+
+    it('asks the performance api for the sec stream for the company facts, and reads its other series (#211)', () => {
+        //
+        // the company facts are the sec report's series 'companyfacts', so their
+        // row asks the request the filings' row asks, and keeps its own series
+        //
+        const page = setup();
+        getData.mockClear();
+
+        download(page, 'sec', 'hour');
+        const filings = lastRequest();
+        download(page, 'sec-companyfacts', 'hour');
+        const facts = lastRequest();
+
+        expect(String(facts.url)).toBe(String(filings.url));
+        expect(paramsOf(facts.url).get('Stream')).toBe('sec');
+        expect(filings).toMatchObject({ type: 'sec-ingest', source: 'sec', stream: 'sec' });
+        expect(facts).toMatchObject({ type: 'sec-ingest', source: 'companyfacts', stream: 'sec-companyfacts' });
     });
 
     it('routes every answer back into callbackGetData', () => {
