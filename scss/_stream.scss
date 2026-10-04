@@ -183,6 +183,15 @@ $stream-held: rgba($green-2, 0.32);
 }
 
 //
+// the Stream heading sorts by name (#216), and stands at the start of its
+// column, where the names are, rather than at the end, as a figure's does
+//
+.stream-rows-head-name.stream-rows-sort {
+  justify-content: flex-start;
+  justify-self: start;
+}
+
+//
 // a phone's way to sort, since it has no room for the headings: the same
 // choices, from a round button on the line of controls (#173). Hidden wherever
 // the headings show. The rate's menu beside it is the phone's in place of the
@@ -476,9 +485,14 @@ $stream-held: rgba($green-2, 0.32);
   }
 }
 
+//
+// Note: a bar fades in and out as its row dims around another (#216) -- see
+//       '.stream-row-bars.is-pointing'
+//
 .stream-bar {
   border-radius: 3px 3px 0 0;
   display: block;
+  transition: opacity 0.1s ease;
   width: 100%;
 }
 
@@ -700,6 +714,17 @@ $stream-held: rgba($green-2, 0.32);
 //
 .stream-bar-slot.is-pointed {
   background-color: rgba(var(--ink-rgb), 0.06);
+}
+
+//
+// and the rest of its row dims while the popup is up, so the bar it describes
+// stands out of a row of sixty (#216). Only that row: every other stream's
+// keeps its color. Every kind of bar dims alike, and a missed one's cross and a
+// failed one's dot with it. The row is marked while a mouse's popup is up, which
+// a finger never brings up, so a phone dims nothing -- see StreamBars
+//
+.stream-row-bars.is-pointing .stream-bar-slot:not(.is-pointed) .stream-bar {
+  opacity: 0.45;
 }
 
 //
