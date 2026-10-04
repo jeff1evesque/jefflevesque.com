@@ -9,6 +9,9 @@
  *     sec      form     / category / total_records
  *     weather  severity / event    / total_events
  *
+ * The sec worker reads the company facts as well, whose rows are the filings'
+ * shape with each fact's status as its category (#211).
+ *
  * So they are driven from one table. Where the four distribution loaders under
  * general/get-data/ were byte-identical in their first 117 lines, these workers
  * are the same shape re-typed with different field names -- the same duplication
@@ -56,6 +59,7 @@ import weatherWorker from '../../import/worker/data/distribution/us-weather-aler
 //
 const WORKERS = [
     ['sec', secWorker, 'sec', 'form', 'category', 'total_records', 'Form '],
+    ['sec-companyfacts', secWorker, 'sec-companyfacts', 'form', 'category', 'total_records', 'Form '],
     ['us-weather-alert', weatherWorker, 'us-national-weather', 'severity', 'event', 'total_events', ''],
 ];
 
@@ -226,32 +230,13 @@ describe('the distribution transformation', () => {
         expect(posted[0].data_distribution[0]).toEqual({ severity: 'Severe', Flood: 5, Wind: 2 });
     });
 
-    it('sec OVERWRITES rather than merging a second category', () => {
+    it('sec stacks a second category onto its form, rather than overwriting the first', () => {
         //
-        // DOCUMENTS A DEFECT.
-        //
-        // The merge branch tests the UNPREFIXED key:
-        //
-        //     'form' in v && trim(v.form) in data_reformat && ...
-        //
-        // while the store branch writes under the PREFIXED one:
-        //
-        //     const form_key = `Form ${trim(v.form)}`;
-        //     data_reformat[form_key] = record;
-        //
-        // 'A' is never a key -- 'Form A' is -- so the merge branch can never match.
-        // Every row falls to the else branch, which assigns a fresh record, and the
-        // second category replaces the first instead of stacking beside it.
-        //
-        // Latent today: api-datalake's sec query selects a CONSTANT category
-        // ("select 'Filings' as category"), so a form only ever has one category and
-        // the collision never happens. It would appear the moment sec reported a
-        // second category, as a silently under-reported chart rather than an error.
-        //
-        // bls and us-weather-alert do not have this: both store under the same
-        // unprefixed key they test for. The prefix is what breaks the pairing.
-        //
-        // When fixed, this should assert both categories survive.
+        // a defect this documented until #211. The merge looked for the form
+        // WITHOUT its prefix, which is never a key -- 'Form A' is -- so every row
+        // was stored as a fresh record, and a second category replaced the first.
+        // Latent while the filings had one category, 'Filings'; not once the company
+        // facts gave a form a row per status.
         //
         secWorker();
 
@@ -264,15 +249,58 @@ describe('the distribution transformation', () => {
         }));
 
         expect(posted[0].data_distribution).toHaveLength(1);
-        expect(posted[0].data_distribution[0]).toEqual({ form: 'Form A', Y: 2 });
-        expect(posted[0].data_distribution[0]).not.toHaveProperty('X');
+        expect(posted[0].data_distribution[0]).toEqual({ form: 'Form A', X: 5, Y: 2 });
     });
 
-    it('sec still totals every row, even the ones it overwrites', () => {
+    it('sec adds up a category a form names twice', () => {
+        secWorker();
+
+        self.onmessage(payload({
+            'data-distribution': [
+                { form: 'A', category: 'X', total_records: '5' },
+                { form: 'A', category: 'X', total_records: '2' },
+            ],
+            stream: 'sec',
+        }));
+
+        expect(posted[0].data_distribution).toEqual([{ form: 'Form A', X: 7 }]);
+    });
+
+    it('stacks each company facts form by its statuses (#211)', () => {
         //
-        // the count is accumulated separately from the reshaping, so the total stays
-        // right while the breakdown loses a category. That asymmetry is what makes
-        // the defect hard to spot: the headline number agrees with the data.
+        // five of August 2026's rows, as the datalake answers them: a form a row
+        // per status it holds
+        //
+        secWorker();
+
+        self.onmessage(payload({
+            'data-distribution': [
+                { category: 'new', form: '10-Q', total_records: '41970' },
+                { category: 'repeated', form: '10-Q', total_records: '37190' },
+                { category: 'repeated', form: '10-K', total_records: '6949' },
+                { category: 'new', form: '10-K', total_records: '6563' },
+                { category: 'changed', form: '424B2', total_records: '1876' },
+            ],
+            stream: 'sec-companyfacts',
+            source: 'sec-companyfacts',
+        }));
+
+        expect(posted[0]).toMatchObject({
+            aggregate_key: 'form',
+            records: 94548,
+            selected_stream: 'sec-companyfacts',
+        });
+        expect(posted[0].data_distribution).toEqual([
+            { form: 'Form 10-Q', new: 41970, repeated: 37190 },
+            { form: 'Form 10-K', repeated: 6949, new: 6563 },
+            { form: 'Form 424B2', changed: 1876 },
+        ]);
+    });
+
+    it('sec totals every row', () => {
+        //
+        // the count is accumulated apart from the reshaping, so it agrees with the
+        // data whatever the breakdown does with a row
         //
         secWorker();
 
@@ -432,8 +460,9 @@ describe('an item carrying no stream', () => {
 describe('two rows sharing an aggregate key', () => {
     //
     // the case the 'merge objects from array of objects having common field'
-    // branch exists for: one key, two stacked categories. The two workers do NOT
-    // agree on it, so they are asserted separately rather than from the table.
+    // branch exists for: one key, two stacked categories. The two workers did not
+    // agree on it until #211, so they are asserted separately rather than from
+    // the table.
     //
     it('us-weather-alert merges both events onto the one severity', () => {
         weatherWorker();
@@ -452,17 +481,14 @@ describe('two rows sharing an aggregate key', () => {
         expect(posted[0].records).toBe(7);
     });
 
-    it('sec drops the first category instead of merging', () => {
+    it('sec merges both categories onto the one form', () => {
         //
-        // NOT the intended behavior, and inert only because the chart rarely
-        // sees two categories for one form. The merge arm tests
-        // 'trim(v.form) in data_reformat', but the insert below it stores under
-        // `Form ${trim(v.form)}` -- the prefix the axis needs. The two keys never
-        // match, so the arm is unreachable and the second row overwrites the
-        // first through the insert path instead. Weather has no prefix and so
-        // merges correctly, which is why only sec loses data here.
-        //
-        // 'records' still totals both rows, so the count and the bars disagree.
+        // it dropped the first until #211. The merge arm tested
+        // 'trim(v.form) in data_reformat', but the insert below it stored under
+        // `Form ${trim(v.form)}` -- the prefix the axis needs -- so the two keys
+        // never matched, and the second row overwrote the first while 'records'
+        // still totaled both. The company facts give a form a row per status,
+        // which would have charted one status of each.
         //
         secWorker();
 
@@ -475,7 +501,7 @@ describe('two rows sharing an aggregate key', () => {
         }));
 
         expect(posted[0].data_distribution).toEqual([
-            { form: 'Form 8-K', Amendments: 4 },
+            { form: 'Form 8-K', Filings: 3, Amendments: 4 },
         ]);
         expect(posted[0].records).toBe(7);
     });
