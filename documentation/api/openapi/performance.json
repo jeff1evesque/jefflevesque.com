@@ -21,7 +21,7 @@
             "name": "Stream",
             "in": "query",
             "required": true,
-            "description": "The stream to report on, by its id. The names three of them went by before -- stockmarket, stockmarketstocksplit and usnationalweather -- are still accepted for now.",
+            "description": "The stream to report on, by its id. The names three of them went by before -- stockmarket, stockmarketstocksplit and usnationalweather -- are still accepted for now. The sec stream reads two feeds, and answers each as a series of its own in group_by: sec, its filings, and companyfacts, the XBRL numbers the S&P 500 companies filed.",
             "schema": {
               "type": "string",
               "enum": [
@@ -105,6 +105,12 @@
                     "summary": "An earlier window: Sep 17, 2026 by the hour, from Interval=hour and End=2026-09-17T23:00:00-04:00",
                     "value": {
                       "report": "group_by,window_start,total_success,total_success_mean,total_success_max,total_fail,total_fail_mean,total_fail_max\noptions,2026-09-17 09:00:00-0400,529618,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 10:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 11:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 12:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 13:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 14:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\noptions,2026-09-17 15:00:00-0400,1588854,1061.3587174348697,6966,0,0.0,0\nprice,2026-09-17 09:00:00-0400,499,1.0,1,0,0.0,0\nprice,2026-09-17 10:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 11:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 12:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 13:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 14:00:00-0400,1497,1.0,1,0,0.0,0\nprice,2026-09-17 15:00:00-0400,1497,1.0,1,0,0.0,0\n"
+                    }
+                  },
+                  "companyfacts": {
+                    "summary": "The sec stream by the day, from Stream=sec and Interval=day: its filings' series, sec, and its company facts', companyfacts, whose first run fetched all 500 companies",
+                    "value": {
+                      "report": "group_by,window_start,total_success,total_success_mean,total_success_max,total_fail,total_fail_mean,total_fail_max\nsec,2026-10-01 12:00:00-0400,434837,434837.0,434837,0,0.0,0\nsec,2026-10-02 12:00:00-0400,460015,460015.0,460015,0,0.0,0\ncompanyfacts,2026-10-04 12:00:00-0400,500,500.0,500,0,0.0,0\n"
                     }
                   }
                 }
