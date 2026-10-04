@@ -1,10 +1,11 @@
 /**
  * stylesheet.test.js: what /stream's stylesheet promises about a stream on its
- * own (#206), read out of '_stream.scss'.
+ * own (#206, #208), read out of '_stream.scss'.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see where
  * the figures stand or the color a value is drawn in. What can be held is the
- * rule that decides them: the figures' line starting at the left, the color of
+ * rule that decides them: the figures as one ruled row on a wide screen and as
+ * boxes on a phone, the dates over the graph on a phone alone, the color of
  * each tone stream-focus.jsx gives a value, and the info icon after each name.
  *
  * Note: read the way navigation/stylesheet.test.js reads '_navigation.scss':
@@ -63,39 +64,82 @@ function own(text) {
     return out;
 }
 
-describe('the figures of a stream on its own (#206)', () => {
-    const [wide, phone] = blocks(source, '.stream-focus-figures');
+//
+// the first block a header opens -- the wide screen's, since the phone's rules
+// come after it -- and the last, the phone's
+//
+const first = (header) => blocks(source, header)[0] || '';
+const last = (header) => blocks(source, header).slice(-1)[0] || '';
 
-    it('start at the left, in line with the title and its schedule', () => {
-        //
-        // centered on the page, they lined up with nothing: the title over them
-        // starts at the left, and the rate's buttons are centered on another
-        // point
-        //
-        expect(own(wide)).toMatch(/justify-content\s*:\s*flex-start\s*;/);
-        expect(own(wide)).not.toMatch(/justify-content\s*:\s*center\s*;/);
+describe('the figures of a stream on its own, on a wide screen (#208)', () => {
+    const row = own(first('.stream-focus-figures'));
+    const figure = own(first('.stream-focus-figure'));
+
+    it('are one row as wide as the graph, in three even columns', () => {
+        expect(row).toMatch(/display\s*:\s*grid\s*;/);
+        expect(row).toMatch(/grid-template-columns\s*:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)\s*;/);
+        expect(row).not.toMatch(/(^|[^-])gap\s*:/);
     });
 
-    it('split a phone\'s line in three even columns, under the graph, with room between them', () => {
-        expect(own(phone)).toMatch(/display\s*:\s*grid\s*;/);
-        expect(own(phone)).toMatch(/grid-template-columns\s*:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)\s*;/);
-        expect(own(phone)).toMatch(/gap\s*:\s*0\.75rem\s*;/);
+    it('are ruled above and below, with a divider between each and the next', () => {
+        expect(row).toMatch(/border-top\s*:\s*1px solid \$gray-2\s*;/);
+        expect(row).toMatch(/border-bottom\s*:\s*1px solid \$gray-2\s*;/);
+        expect(own(first('.stream-focus-figure + .stream-focus-figure')))
+            .toMatch(/border-left\s*:\s*1px solid \$gray-2\s*;/);
     });
 
-    it('keep the wide screen\'s box on a phone, name and value centered in it', () => {
+    it('draw nothing filled or rounded that could read as a button', () => {
         //
-        // the phone's rule takes away only the wide screen's width and its wide
-        // sides: the box, its corners and its centering are the wide screen's
+        // as boxes the graph's width, cut short to one line, they read as tabs
+        // under the rate's buttons
         //
-        const [box, phoneBox] = blocks(source, '.stream-focus-figure');
+        expect(figure).not.toMatch(/background|border|radius/);
+    });
 
-        expect(own(box)).toMatch(/align-items\s*:\s*center\s*;/);
-        expect(own(box)).toMatch(/background-color\s*:\s*\$white-2\s*;/);
-        expect(own(box)).toMatch(/border\s*:\s*1px solid \$gray-2\s*;/);
-        expect(own(phoneBox)).toMatch(/min-width\s*:\s*0\s*;/);
-        expect(own(box)).toMatch(/padding\s*:\s*0\.6rem 1\.5rem\s*;/);
-        expect(own(phoneBox)).toMatch(/padding\s*:\s*0\.6rem 0\.25rem\s*;/);
-        expect(own(phoneBox)).not.toMatch(/align-items|background|border/);
+    it('set each figure on one line, centered in its third, on one baseline', () => {
+        expect(figure).toMatch(/align-items\s*:\s*baseline\s*;/);
+        expect(figure).toMatch(/justify-content\s*:\s*center\s*;/);
+        expect(figure).not.toMatch(/flex-direction\s*:\s*column/);
+        expect(figure).toMatch(/padding\s*:\s*0\.55rem 1rem\s*;/);
+    });
+
+    it('draw each value at a phone\'s size, under the title\'s', () => {
+        expect(own(first('.stream-focus-figure-value'))).toMatch(/font-size\s*:\s*1\.3rem\s*;/);
+    });
+
+    it('leave no line of dates over the graph, which said nothing more', () => {
+        //
+        // its first date is the first under the bars, and the line under the
+        // title says where the window ends
+        //
+        expect(own(first('.stream-focus-axis'))).toMatch(/display\s*:\s*none\s*;/);
+    });
+});
+
+describe('the figures of a stream on its own, on a phone (#206)', () => {
+    it('split the line in three even columns under the graph, with room between and no rules', () => {
+        const row = own(last('.stream-focus-figures'));
+
+        expect(row).toMatch(/display\s*:\s*grid\s*;/);
+        expect(row).toMatch(/grid-template-columns\s*:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)\s*;/);
+        expect(row).toMatch(/gap\s*:\s*0\.75rem\s*;/);
+        expect(row).toMatch(/border\s*:\s*0\s*;/);
+    });
+
+    it('keep each figure in a box, its name over its value, both centered', () => {
+        const box = own(last('.stream-focus-figure'));
+
+        expect(box).toMatch(/align-items\s*:\s*center\s*;/);
+        expect(box).toMatch(/flex-direction\s*:\s*column\s*;/);
+        expect(box).toMatch(/background-color\s*:\s*\$white-2\s*;/);
+        expect(box).toMatch(/border\s*:\s*1px solid \$gray-2\s*;/);
+        expect(box).toMatch(/border-radius\s*:\s*0\.75rem\s*;/);
+        expect(box).toMatch(/padding\s*:\s*0\.6rem 0\.25rem\s*;/);
+    });
+
+    it('keep the line of dates over the graph, the only dates a phone has', () => {
+        expect(own(last('.stream-focus-axis'))).toMatch(/display\s*:\s*flex\s*;/);
+        expect(own(last('.stream-focus-ticks'))).toMatch(/display\s*:\s*none\s*;/);
     });
 });
 
