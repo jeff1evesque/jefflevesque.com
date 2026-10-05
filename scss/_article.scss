@@ -269,7 +269,9 @@
 
 //
 // the menu's text at 16px, the least an iPhone focuses without zooming the
-// page in
+// page in. A phone too narrow for the month's row at full size sets it
+// smaller, with the rest of the row (#224): one narrower than about 366px,
+// which no iPhone since the first SE is
 //
 .data-month-menu {
   display: flex;
@@ -289,6 +291,67 @@
     font-size: 16px;
     min-height: 2.75rem;
     padding: 0 1.9rem 0 0.9rem;
+  }
+}
+
+//
+// a phone's month, on one line on every phone (#224): beside the listing's
+// title, and with a dataset's api icons. Each row is a fit row -- see
+// '_fit-row.scss' -- and the month and the icons are sized in '--fit-rem',
+// so a phone without the room sees them smaller rather than the month on a
+// line of its own, or the icons past the screen's edge.
+//
+// The listing's month takes the room beside "Data 6", 0.5rem from it, and
+// needs 18.25rem of it, with its longest month, September. A dataset's row,
+// the month and the icons, needs 22.25rem
+//
+@media (max-width: 767.98px) {
+  .listing-table .listing-table-title.has-actions {
+    column-gap: 0.5rem;
+    flex-wrap: nowrap;
+  }
+
+  .listing-table .listing-table-actions {
+    @include fit-row(18.25);
+    display: flex;
+    flex: 1 1 0;
+    justify-content: flex-end;
+    margin-left: 0;
+    min-width: 0;
+  }
+
+  .data-month-row {
+    @include fit-row(22.25);
+    gap: calc(0.5 * var(--fit-rem));
+
+    .api-links {
+      gap: calc(0.5 * var(--fit-rem));
+    }
+
+    .api-links svg {
+      font-size: calc(1.5 * var(--fit-rem));
+    }
+  }
+
+  .data-month {
+    gap: calc(0.4 * var(--fit-rem));
+  }
+
+  .data-month-step {
+    font-size: calc(1.4 * var(--fit-rem));
+    height: calc(2.75 * var(--fit-rem));
+    width: calc(2.75 * var(--fit-rem));
+  }
+
+  //
+  // 16px at full size: 16 / 14 of the rem. The arrow's image is 12px by 8px
+  //
+  .data-month-menu select {
+    background-position: right calc(0.75 * var(--fit-rem)) center;
+    background-size: calc(12 / 14 * var(--fit-rem)) auto;
+    font-size: calc(16 / 14 * var(--fit-rem));
+    min-height: calc(2.75 * var(--fit-rem));
+    padding: 0 calc(1.9 * var(--fit-rem)) 0 calc(0.9 * var(--fit-rem));
   }
 }
 
