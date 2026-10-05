@@ -343,3 +343,208 @@ export function windowHeading(rate, end) {
 
     return `${date(first, !sameYear)}, ${time(first, r === 'minute')} to ${date(last, false)}, ${time(last, r === 'minute')}, ${year}`;
 }
+
+
+{/*
+
+    a phone's menu of windows, between the arrows (#222): the window ending now,
+    then the whole periods before it, newest first, so the menu's label says
+    exactly what the rows cover:
+
+      - day:    the 20 days before, and the 20 before those -- '8/26–9/14'
+      - hour:   each whole day before today -- 'Oct 3'
+      - minute: each whole hour before this one -- '7 PM'
+      - month:  each whole year before this one -- '2025'
+
+    A Day window is 20 days, never a calendar month: the api's windows are
+    ROLLING_WINDOW's lengths. WINDOW_CHOICES is how many whole periods the menu
+    reaches back -- about a year of days, a month of hours, a day of minutes,
+    three years of months. The arrows go on past them, a period at a time.
+
+*/}
+export const WINDOW_CHOICES = {
+    minute: 24,
+    hour: 30,
+    day: 18,
+    month: 3
+};
+
+
+{/*
+
+    the whole period before the window ending at 'end' -- before the window
+    ending now, for null -- as the start of its last bucket.
+
+    Note: the calendar's own arithmetic, as stepInterval's is, so a day 23 or 25
+          hours long across a daylight boundary still ends at 23:00
+
+*/}
+function previousPeriod(rate, end, now) {
+    if (rate === 'day') {
+        return pageWindow(rate, end, -1, now);
+    }
+
+    const at = end ? intervalStart(rate, end) : intervalStart(rate, now);
+    const [y, m, d, h] = [at.getFullYear(), at.getMonth(), at.getDate(), at.getHours()];
+
+    if (rate === 'hour') {
+        return new Date(y, m, d - 1, 23);
+    }
+
+    if (rate === 'minute') {
+        return new Date(y, m, d, h - 1, 59);
+    }
+
+    return new Date(y - 1, 11, 1);
+}
+
+
+{/*
+
+    the menu's windows, newest first: null for the window ending now, then the
+    whole periods, then -- where 'end' is none of these, as a window a month's
+    bar opened is not -- 'end' itself, in its place by date
+
+*/}
+function choiceEnds(rate, end, now) {
+    const ends = [null];
+    let at = previousPeriod(rate, null, now);
+
+    while (ends.length <= WINDOW_CHOICES[rate]) {
+        ends.push(at);
+        at = previousPeriod(rate, at, now);
+    }
+
+    const shown = end ? intervalStart(rate, end) : null;
+
+    if (shown && !ends.some((e) => e && e.valueOf() === shown.valueOf())) {
+        const older = ends.findIndex((e) => e && e < shown);
+
+        ends.splice(older < 0 ? ends.length : older, 0, shown);
+    }
+
+    return ends;
+}
+
+
+{/*
+
+    how the menu writes a date and an hour: '9/14', '7 PM'. Written out rather
+    than by toLocaleString, which puts a narrow no-break space before the AM or
+    PM in newer ICU
+
+*/}
+const monthDay = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
+
+function clockHour(d) {
+    const h = d.getHours();
+
+    return `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+function clockTime(d) {
+    const h = d.getHours();
+
+    return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+
+{/*
+
+    a window's name in the menu, kept short so the line of controls fits a
+    phone: '9/15–10/4' for 20 days, 'Last 24h' for the hours ending now, 'Oct 3'
+    for a whole day, '7 PM' for a whole hour of today and '10/3 7 PM' for one of
+    another day, '2025' for a whole year. A window that is no whole period -- one
+    an address names -- is written from its first bucket to its last
+
+*/}
+export function choiceLabel(rate, end, now = new Date()) {
+    const r = String(rate || '').toLowerCase();
+
+    if (!(r in ROLLING_WINDOW)) {
+        return null;
+    }
+
+    const last = intervalStart(r, end || now);
+    const first = windowStart(r, end ? lastInstant(r, end) : now);
+
+    if (r === 'day') {
+        return `${monthDay(first)}–${monthDay(last)}`;
+    }
+
+    if (!end) {
+        return { minute: 'Last hour', hour: 'Last 24h', month: 'Last 12 mo' }[r];
+    }
+
+    if (r === 'hour') {
+        if (last.getHours() !== 23) {
+            return `${monthDay(first)} ${clockHour(first)}–${monthDay(last)} ${clockHour(last)}`;
+        }
+
+        return last.getFullYear() === now.getFullYear()
+            ? last.toLocaleString('en-US', { month: 'short', day: 'numeric' })
+            : `${monthDay(last)}/${String(last.getFullYear()).slice(-2)}`;
+    }
+
+    if (r === 'minute') {
+        if (last.getMinutes() !== 59) {
+            return `${monthDay(first)} ${clockTime(first)}–${clockTime(last)}`;
+        }
+
+        return last.toDateString() === now.toDateString()
+            ? clockHour(last)
+            : `${monthDay(last)} ${clockHour(last)}`;
+    }
+
+    if (last.getMonth() !== 11) {
+        const month = (d) => `${d.toLocaleString('en-US', { month: 'short' })} '${String(d.getFullYear()).slice(-2)}`;
+
+        return `${month(first)}–${month(last)}`;
+    }
+
+    return String(last.getFullYear());
+}
+
+
+/**
+ * the menu's choices for `rate`, newest first, as `{ end, label }` -- `end` the
+ * start of the window's last bucket, or null for the window ending now. The
+ * window on screen, `end`, is always among them.
+ */
+export function windowChoices(rate, end, now = new Date()) {
+    const r = String(rate || '').toLowerCase();
+
+    if (!(r in WINDOW_CHOICES)) {
+        return [];
+    }
+
+    return choiceEnds(r, end, now).map((at) => ({ end: at, label: choiceLabel(r, at, now) }));
+}
+
+
+/**
+ * the window an arrow shows next where the menu is on screen: one choice back
+ * (`direction` -1) or forward (+1) from the window ending at `end`. From the
+ * window ending now, back is the latest whole period: the 20 days before,
+ * yesterday, the last whole hour, last year. Past the oldest choice, back steps
+ * a period further. Forward stops at the window ending now, null, as pageWindow
+ * does.
+ */
+export function stepChoice(rate, end, direction, now = new Date()) {
+    const r = String(rate || '').toLowerCase();
+
+    if (!(r in WINDOW_CHOICES)) {
+        return null;
+    }
+
+    const ends = choiceEnds(r, end, now);
+    const shown = end ? intervalStart(r, end) : null;
+    const at = ends.findIndex((e) => (e && shown ? e.valueOf() === shown.valueOf() : e === shown));
+    const to = at - Math.sign(direction);
+
+    if (to < 0) {
+        return null;
+    }
+
+    return to < ends.length ? ends[to] : previousPeriod(r, ends[ends.length - 1], now);
+}
