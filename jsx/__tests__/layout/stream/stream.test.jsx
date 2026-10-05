@@ -43,6 +43,13 @@ import getData from '../../../import/general/get-data.js';
 import { KEY, VERSION } from '../../../import/general/listing-preference.js';
 import { STREAMS, SEC_COMPANYFACTS } from '../../../import/general/stream-id.js';
 import { performanceStream } from '../../../import/general/api-url.js';
+import {
+    WINDOW_CHOICES,
+    localInstant,
+    pageWindow,
+    stepChoice,
+    windowChoices,
+} from '../../../import/general/rolling-window.js';
 import StreamLayout from '../../../import/layout/stream/stream.jsx';
 
 function setup(props = {}) {
@@ -427,6 +434,79 @@ describe('the sort, kept for the next visit', () => {
         setup();
 
         expect(pressed()).toEqual([]);
+    });
+});
+
+describe('the window menu between the arrows (#222)', () => {
+    const menu = () => screen.getByRole('combobox', { name: 'Window' });
+    const chosen = () => menu().options[menu().selectedIndex].textContent;
+    const addressEnd = () => new URLSearchParams(window.location.search).get('end');
+    const earlier = () => screen.getByRole('button', { name: 'Earlier 24 hours' });
+
+    it('sits between the arrows, naming the window on screen', () => {
+        setup();
+
+        const pager = document.querySelector('.stream-pager');
+
+        expect([...pager.children].map((child) => child.className)).toEqual(['stream-page', 'stream-window-menu', 'stream-page']);
+        expect(chosen()).toBe(windowChoices('day', null)[0].label);
+    });
+
+    it('offers the window ending now first, then the whole periods before it', () => {
+        window.history.replaceState({}, '', '/?rate=month');
+
+        setup();
+
+        expect(menu().options).toHaveLength(WINDOW_CHOICES.month + 1);
+        expect(menu().options[0].textContent).toBe('Last 12 mo');
+    });
+
+    it('shows the window a choice names, and the address names it', () => {
+        window.history.replaceState({}, '', '/?rate=hour');
+
+        setup();
+
+        const choice = windowChoices('hour', null)[2];
+
+        fireEvent.change(menu(), { target: { value: '2' } });
+
+        expect(chosen()).toBe(choice.label);
+        expect(addressEnd()).toBe(localInstant(choice.end));
+    });
+
+    describe('where it is on screen', () => {
+        const real = window.matchMedia;
+
+        beforeEach(() => {
+            window.matchMedia = jest.fn(() => ({ matches: true }));
+        });
+
+        afterEach(() => {
+            window.matchMedia = real;
+        });
+
+        it('steps the arrows through its choices: back from now is yesterday', () => {
+            window.history.replaceState({}, '', '/?rate=hour');
+
+            setup();
+
+            fireEvent.click(earlier());
+
+            expect(window.matchMedia).toHaveBeenCalledWith('(max-width: 767.98px)');
+            expect(addressEnd()).toBe(localInstant(stepChoice('hour', null, -1)));
+            expect(chosen()).toBe(windowChoices('hour', null)[1].label);
+        });
+    });
+
+    it('leaves a wide screen\'s arrows paging a whole window, with Now', () => {
+        window.history.replaceState({}, '', '/?rate=hour');
+
+        setup();
+
+        fireEvent.click(earlier());
+
+        expect(addressEnd()).toBe(localInstant(pageWindow('hour', null, -1)));
+        expect(screen.getByRole('button', { name: 'Now' })).toBeInTheDocument();
     });
 });
 
