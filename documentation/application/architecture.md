@@ -61,6 +61,25 @@ Both themes also give every tooltip on the site its look: centered just above wh
 belongs to, with an arrow pointing at it, in the selected rate button's colors, and
 never off the screen's edge ([#206](https://github.com/jeff1evesque/jefflevesque.com/issues/206)).
 
+## A row of controls on a phone
+
+A row of controls that would break across two lines on a narrow phone, or run off its
+edge, keeps to one line instead, smaller
+([#224](https://github.com/jeff1evesque/jefflevesque.com/issues/224)). The `fit-row`
+mixin in
+[`scss/_fit-row.scss`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/scss/_fit-row.scss)
+makes the row a size container, and what is in it is sized in `--fit-rem`,
+`min(1rem, 100cqi / <needs>)`: 1rem wherever the row has the width its controls need,
+and less, in step with the row, below that. A phone with the room sees the row at full
+size, and a narrower one sees the same row in proportion. A row's needs are its width at
+full size with the longest label it can show, plus a few px, since text set smaller is
+spaced a little wider.
+
+The rows that use it are /stream's line of controls, with its sort button or a stream's
+api icons; /data's month, beside the listing's title and in a dataset's row; and the
+graphs' table tabs with their filter, and their pager. The graphs' title and picker
+share a line without it.
+
 ## Web workers
 
 API responses are parsed off the main thread. Each page hands the response to a worker
