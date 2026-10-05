@@ -1,0 +1,32 @@
+// _fit-row.scss: a row of controls that keeps to one line on a phone (#224)
+//     -- /stream's controls, /data's month, the graphs' title, tables and pager.
+//
+// Note: this partial, is ignored by the scss compiler, and can be imported
+//       into another scss file.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+
+//
+// a row that would break across two lines on a narrow phone, or run off its
+// edge, keeps to one line instead, smaller. The row is a size container, and
+// what is in it -- heights, widths, padding, gaps, text and icons -- is sized
+// in '--fit-rem': a rem that is 1rem wherever the row has the width its
+// controls need, and shrinks in step with the row below that. A phone with the
+// room sees the row as it was; a narrower one sees the same row, in proportion.
+//
+// `$needs` is that width, in rem, unitless: the row at full size with the
+// longest label it can show in it, and a few px more. Text set smaller is
+// spaced a little wider -- /stream's '10/30 10 AM' at 9.5px is 3% wider than
+// at 11.9px scaled down -- so a row with no room to spare at full size would
+// run over on the narrowest phones.
+//
+// Note: what is IN the row reads '--fit-rem', and the row itself does not. A
+//       custom property is substituted where it is used, so each control
+//       resolves '100cqi' against the row, its nearest container; the row's own
+//       '100cqi' would be its container's, or the screen's.
+//
+@mixin fit-row($needs) {
+  container-type: inline-size;
+  --fit-rem: min(1rem, 100cqi / #{$needs});
+}
