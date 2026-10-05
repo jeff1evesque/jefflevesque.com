@@ -1832,30 +1832,32 @@ $graph-held-edge: $green-4;
 }
 
 //
-// phone: the controls that head the tables no longer fit on one line together.
-//
-// Left to wrap on their own, the two tabs hold two thirds of the first line and
-// the filter box drops below them -- still carrying the margin that parks it at
-// the right end of a wide screen, so the pair ends up in opposite corners of a
-// two line block, which reads as a mistake rather than as a row that wrapped.
-//
-// So each takes a line of its own: the tabs split theirs between them, which is
-// what a two-button segmented control should look like at this width, and the
-// filter fills the one below. The build picker above does the same thing.
+// phone: the page's rows of controls, each on one line (#224) -- the title and
+// the picker, the tables' tabs and their filter, and the pager at the tables'
+// foot. Each of them used to take a second line on a phone, or, for the pager
+// below 360px, put its arrows on one.
 //
 @media (max-width: 575.98px) {
+  //
+  // the title and the picker share a line, as they do on a wide screen: the
+  // title, then the label and the control, which fills the rest of the line, as
+  // /stream's window menu fills its own. Nothing shrinks -- a day's picker fits
+  // beside either title on a 320px phone, 0.75rem from it. A label too long to
+  // fit beside the title, as a day with two builds has -- '2026-09-09 · run
+  // 2026-09-13 15:04 UTC' -- still takes the field to a line of its own, the
+  // label beside the control.
   //
   // Note: '.graph-header' again, and for a second reason. The base rule above
   //       carries it for mui's sake, and a bare '.graph-picker' here would now
   //       be the weaker of the two selectors -- a media query that loses to the
   //       rule it is meant to override.
   //
-  //
-  // the label stays beside the control and the pair takes the line, rather than
-  // the control alone taking it and leaving its label stranded above.
-  //
+  .graph-header {
+    column-gap: 0.75rem;
+  }
+
   .graph-picker-field {
-    flex-basis: 100%;
+    flex: 1 1 auto;
     margin-left: 0;
   }
 
@@ -1863,17 +1865,41 @@ $graph-held-edge: $green-4;
     flex: 1 1 auto;
   }
 
+  //
+  // the two tabs at their own width, then the filter box taking the rest of the
+  // line. A fit row -- see '_fit-row.scss' -- so a phone without the room sees
+  // the tabs, their gaps and the box's padding smaller, rather than the box on a
+  // line of its own. It needs 24.25rem, with the box 6rem wide.
+  //
+  // Note: the box's text stays 16px, as every input's on a phone -- see
+  //       '_webform.scss' -- so an iPhone does not zoom the page in on a tap,
+  //       and the box is the line's tallest. The tabs stretch to its height.
+  //
+  .graph-tables-controls {
+    @include fit-row(24.25);
+    column-gap: calc(0.5 * var(--fit-rem));
+    flex-wrap: nowrap;
+  }
+
   .graph-tables-tabs {
-    flex: 1 1 100%;
+    align-self: stretch;
+    flex: none;
+    gap: calc(0.25 * var(--fit-rem));
   }
 
   .graph-tables-tab {
-    flex: 1 1 0;
+    font-size: calc(0.9 * var(--fit-rem));
+    padding: calc(0.35 * var(--fit-rem)) calc(0.75 * var(--fit-rem));
+  }
+
+  .graph-tables-tally {
+    margin-left: calc(0.4 * var(--fit-rem));
   }
 
   .graph-tables-search {
-    flex-basis: 100%;
+    flex: 1 1 calc(6 * var(--fit-rem));
     margin-left: 0;
+    padding: calc(0.35 * var(--fit-rem)) calc(0.5 * var(--fit-rem));
   }
 
   //
@@ -1890,18 +1916,28 @@ $graph-held-edge: $green-4;
   // is 21px wider than the first page's, and a row that fits only the first page
   // moves the next-page arrow out from under the thumb that is pressing it.
   //
-  // Note: wrap is for anything narrower still, which gets the arrows on a line of
-  //       their own rather than off the edge. The spacer goes because it is
-  //       'flex: 1 1 100%', which in a row that can wrap claims a line for
-  //       itself -- 'flex-end' is what keeps the row at the right without it.
+  // A narrower phone sees the same line smaller (#224): the pager is a fit row,
+  // needing 22.25rem with a label such as '801–825 of 834', and mui's sizes --
+  // the toolbar's 52px, its 14px text, the dropdown's padding and arrow, the
+  // arrows' 8px padding and 1.5rem icons -- are in '--fit-rem'. The line does
+  // not wrap. The spacer goes because it is 'flex: 1 1 100%'; 'flex-end' is
+  // what keeps the row at the right without it.
   //
   // Note: the arrows carry the toolbar class as well as '.graph-tables'. mui
   //       spaces them from a two-class selector, '.css-<hash>
-  //       .MuiTablePagination-actions', injected after this stylesheet.
+  //       .MuiTablePagination-actions', injected after this stylesheet. The
+  //       dropdown's padding carries four classes: mui pads it from a
+  //       three-class selector, '&&&' in its NativeSelectInput.
   //
+  .graph-tables .MuiTablePagination-root {
+    @include fit-row(22.25);
+  }
+
   .graph-tables .MuiTablePagination-toolbar {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    font-size: calc(0.875 * var(--fit-rem));
     justify-content: flex-end;
+    min-height: calc(52 / 14 * var(--fit-rem));
     padding-left: 0;
   }
 
@@ -1909,12 +1945,34 @@ $graph-held-edge: $green-4;
     display: none;
   }
 
+  .graph-tables .MuiTablePagination-selectLabel,
+  .graph-tables .MuiTablePagination-displayedRows {
+    font-size: calc(0.875 * var(--fit-rem));
+  }
+
   .graph-tables .MuiTablePagination-input {
     margin-left: 0;
-    margin-right: 0.5rem;
+    margin-right: calc(0.5 * var(--fit-rem));
+  }
+
+  .graph-tables .MuiTablePagination-toolbar .MuiTablePagination-input .MuiTablePagination-select {
+    padding-left: calc(8 / 14 * var(--fit-rem));
+    padding-right: calc(24 / 14 * var(--fit-rem));
+  }
+
+  .graph-tables .MuiTablePagination-input .MuiTablePagination-selectIcon {
+    font-size: calc(1.5 * var(--fit-rem));
   }
 
   .graph-tables .MuiTablePagination-toolbar .MuiTablePagination-actions {
     margin-left: 0;
+  }
+
+  .graph-tables .MuiTablePagination-actions .MuiIconButton-root {
+    padding: calc(8 / 14 * var(--fit-rem));
+  }
+
+  .graph-tables .MuiTablePagination-actions svg {
+    font-size: calc(1.5 * var(--fit-rem));
   }
 }
