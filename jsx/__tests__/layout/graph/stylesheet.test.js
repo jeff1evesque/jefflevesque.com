@@ -1,6 +1,7 @@
 /**
  * stylesheet.test.js: what the graph page's stylesheet promises about the legend,
- * the reference columns and the page's title, read out of '_graph.scss'.
+ * the reference columns, the page's title, and a phone's rows of controls, each
+ * on one line (#224), read out of '_graph.scss'.
  *
  * jsdom lays nothing out, so no suite can see a name run past the edge of its
  * column. What can be held is the rule that decides it: a namespace's name wraps
@@ -396,5 +397,73 @@ describe('the tables\' rows', () => {
 
     it('keep the line under the headings and the last row, in the page\'s rule gray', () => {
         expect(cell).toMatch(/border-bottom-color\s*:\s*\$gray-2/);
+    });
+});
+
+describe('a phone\'s rows of controls, each on one line (#224)', () => {
+    const [phone] = blocks(source, '@media (max-width: 575.98px)');
+    const within = (header) => blocks(phone || '', header)[0] || '';
+
+    it('puts the picker on the title\'s line, 0.75rem from it, filling the rest', () => {
+        const field = within('.graph-picker-field');
+
+        expect(within('.graph-header')).toMatch(/column-gap\s*:\s*0\.75rem\s*;/);
+        expect(field).toMatch(/flex\s*:\s*1 1 auto\s*;/);
+        expect(field).toMatch(/margin-left\s*:\s*0\s*;/);
+        expect(field).not.toMatch(/flex-basis\s*:\s*100%/);
+    });
+
+    it('sets the tables\' tabs at their own width, and the filter box in the rest of their line', () => {
+        const controls = within('.graph-tables-controls');
+        const tabs = within('.graph-tables-tabs');
+        const search = within('.graph-tables-search');
+
+        expect(controls).toMatch(/@include fit-row\(24\.25\)\s*;/);
+        expect(controls).toMatch(/flex-wrap\s*:\s*nowrap\s*;/);
+        expect(controls).toMatch(/column-gap\s*:\s*calc\(0\.5 \* var\(--fit-rem\)\)\s*;/);
+        expect(tabs).toMatch(/flex\s*:\s*none\s*;/);
+        expect(within('.graph-tables-tab')).not.toMatch(/flex\s*:/);
+        expect(search).toMatch(/flex\s*:\s*1 1 calc\(6 \* var\(--fit-rem\)\)\s*;/);
+        expect(search).not.toMatch(/flex-basis\s*:\s*100%/);
+    });
+
+    it('stretches the tabs to the filter box, whose text stays 16px so an iPhone does not zoom', () => {
+        const webform = fs.readFileSync(path.resolve(__dirname, '../../../../scss/_webform.scss'), 'utf8');
+
+        expect(within('.graph-tables-tabs')).toMatch(/align-self\s*:\s*stretch\s*;/);
+        expect(within('.graph-tables-search')).not.toMatch(/font-size/);
+        expect(webform).toMatch(/\.small-viewport\s*\{\s*input\s*\{\s*font-size\s*:\s*16px\s*;/);
+    });
+
+    it('sizes the tabs in --fit-rem', () => {
+        const tab = within('.graph-tables-tab');
+
+        expect(tab).toMatch(/font-size\s*:\s*calc\(0\.9 \* var\(--fit-rem\)\)\s*;/);
+        expect(tab).toMatch(/padding\s*:\s*calc\(0\.35 \* var\(--fit-rem\)\) calc\(0\.75 \* var\(--fit-rem\)\)\s*;/);
+    });
+
+    it('keeps the pager to one line, a fit row needing 22.25rem', () => {
+        const toolbar = within('.graph-tables .MuiTablePagination-toolbar');
+
+        expect(within('.graph-tables .MuiTablePagination-root')).toMatch(/@include fit-row\(22\.25\)\s*;/);
+        expect(toolbar).toMatch(/flex-wrap\s*:\s*nowrap\s*;/);
+        expect(toolbar).toMatch(/min-height\s*:\s*calc\(52 \/ 14 \* var\(--fit-rem\)\)\s*;/);
+        expect(phone).not.toMatch(/flex-wrap\s*:\s*wrap\s*;/);
+    });
+
+    it('sizes mui\'s parts of the pager in --fit-rem, outranking mui\'s own rules', () => {
+        //
+        // mui pads the dropdown from a three-class selector, and spaces the rest
+        // from one or two
+        //
+        const select = within('.graph-tables .MuiTablePagination-toolbar .MuiTablePagination-input .MuiTablePagination-select');
+
+        expect(select).toMatch(/padding-right\s*:\s*calc\(24 \/ 14 \* var\(--fit-rem\)\)\s*;/);
+        expect(within('.graph-tables .MuiTablePagination-displayedRows'))
+            .toMatch(/font-size\s*:\s*calc\(0\.875 \* var\(--fit-rem\)\)\s*;/);
+        expect(within('.graph-tables .MuiTablePagination-actions .MuiIconButton-root'))
+            .toMatch(/padding\s*:\s*calc\(8 \/ 14 \* var\(--fit-rem\)\)\s*;/);
+        expect(within('.graph-tables .MuiTablePagination-actions svg'))
+            .toMatch(/font-size\s*:\s*calc\(1\.5 \* var\(--fit-rem\)\)\s*;/);
     });
 });

@@ -1592,11 +1592,12 @@ class GraphLayout extends Component {
                                 way as well as once it has arrived, holding a
                                 box the size of the control.
 
-                                It is a whole line of the page on a phone --
-                                '.graph-picker-field' takes one to itself below
-                                576px -- so a control that arrives with the
-                                listing is a header that grows a line under the
-                                reader, and everything below it moves down.
+                                It shares the title's line on a phone, as on a
+                                wide screen (#224), and takes a line of its own
+                                when its label is too long to sit beside the
+                                title -- so a control that arrives with the
+                                listing can be a header that grows a line under
+                                the reader, and everything below it moves down.
 
                             */}
                             {listing || loading ? (

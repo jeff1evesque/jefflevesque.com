@@ -12,6 +12,9 @@
  * And about a month of stock splits banded by sector (#190): the legend over
  * the chart, and the heads a day's tickers sit under.
  *
+ * And about the month on a phone, beside the listing's title and in a
+ * dataset's row with the icons, on one line on every phone (#224).
+ *
  * Note: read the way navigation/stylesheet.test.js reads its partials:
  *       comments taken out, and a block found by its header, whole.
  */
@@ -228,6 +231,49 @@ describe('the stack over the chart on a phone (#185)', () => {
         expect(row).toMatch(/display\s*:\s*flex\s*;/);
         expect(row).toMatch(/justify-content\s*:\s*space-between\s*;/);
         expect(row).toMatch(/align-items\s*:\s*center\s*;/);
+    });
+});
+
+describe('the month on a phone, on one line on every phone (#224)', () => {
+    const article = read('_article.scss');
+    const [phone] = blocks(article, '@media (max-width: 767.98px)');
+    const within = (header) => blocks(phone || '', header)[0] || '';
+
+    it('sits beside the listing\'s title, and takes the rest of its row', () => {
+        const title = within('.listing-table .listing-table-title.has-actions');
+        const actions = within('.listing-table .listing-table-actions');
+
+        expect(title).toMatch(/flex-wrap\s*:\s*nowrap\s*;/);
+        expect(title).toMatch(/column-gap\s*:\s*0\.5rem\s*;/);
+        expect(actions).toMatch(/flex\s*:\s*1 1 0\s*;/);
+        expect(actions).toMatch(/min-width\s*:\s*0\s*;/);
+        expect(actions).toMatch(/justify-content\s*:\s*flex-end\s*;/);
+    });
+
+    it('is a fit row: 18.25rem beside the title, and 22.25rem with a dataset\'s icons', () => {
+        expect(within('.listing-table .listing-table-actions')).toMatch(/@include fit-row\(18\.25\)\s*;/);
+        expect(within('.data-month-row')).toMatch(/@include fit-row\(22\.25\)\s*;/);
+    });
+
+    it('sizes the arrows, the menu and the icons in --fit-rem', () => {
+        const step = within('.data-month-step');
+        const menu = within('.data-month-menu select');
+        const row = within('.data-month-row');
+
+        expect(step).toMatch(/height\s*:\s*calc\(2\.75 \* var\(--fit-rem\)\)\s*;/);
+        expect(step).toMatch(/width\s*:\s*calc\(2\.75 \* var\(--fit-rem\)\)\s*;/);
+        expect(step).toMatch(/font-size\s*:\s*calc\(1\.4 \* var\(--fit-rem\)\)\s*;/);
+        expect(menu).toMatch(/min-height\s*:\s*calc\(2\.75 \* var\(--fit-rem\)\)\s*;/);
+        expect(menu).toMatch(/padding\s*:\s*0 calc\(1\.9 \* var\(--fit-rem\)\) 0 calc\(0\.9 \* var\(--fit-rem\)\)\s*;/);
+        expect(within('.data-month')).toMatch(/gap\s*:\s*calc\(0\.4 \* var\(--fit-rem\)\)\s*;/);
+        expect(blocks(row, '.api-links svg')[0]).toMatch(/font-size\s*:\s*calc\(1\.5 \* var\(--fit-rem\)\)\s*;/);
+    });
+
+    it('keeps the menu\'s 16px wherever the row has the room, the least an iPhone focuses without zooming', () => {
+        const [menu] = blocks(article, '.data-month-menu');
+
+        expect(blocks(menu, 'select')[0]).toMatch(/font-size\s*:\s*16px\s*;/);
+        expect(within('.data-month-menu select')).toMatch(/font-size\s*:\s*calc\(16 \/ 14 \* var\(--fit-rem\)\)\s*;/);
     });
 });
 
