@@ -314,11 +314,17 @@ const COLLIDE_GAP = 8;
 // one -- and the stylesheet decides which is on screen. A constant here would be
 // right at one breakpoint and wrong at the other.
 //
+// Note: a wide screen's daylight only. A phone's canvas starts at the bar's own
+//       line, and its nodes may come up to it (#226): the page is short of
+//       height there, and the daylight read as a gap under the menu.
+//
 const GRAPH_TOP_PAD = 16;
+
+const topPad = (width) => (width < medium_minWidth ? 0 : GRAPH_TOP_PAD);
 
 /**
  * the y the canvas starts at: below everything fixed at the top of the page,
- * plus a little daylight.
+ * plus `pad` of daylight.
  *
  * Note: bottoms are taken against the DOCUMENT rather than the viewport. A
  *       resize can arrive while the page is scrolled, and a viewport-relative
@@ -329,7 +335,7 @@ const GRAPH_TOP_PAD = 16;
  *       zero rect, so whichever of the two is actually on screen is the one
  *       that wins, without this needing to know which that is.
  */
-export function topInset(doc = document, scrolled = window.scrollY) {
+export function topInset(doc = document, scrolled = window.scrollY, pad = GRAPH_TOP_PAD) {
     const bars = [...doc.querySelectorAll('.under-construction, .main-navigation')];
     const lowest = bars.reduce((most, bar) => {
         const rect = bar.getBoundingClientRect();
@@ -337,7 +343,38 @@ export function topInset(doc = document, scrolled = window.scrollY) {
         return Math.max(most, rect.height ? rect.bottom + scrolled : 0);
     }, 0);
 
-    return Math.ceil(lowest) + GRAPH_TOP_PAD;
+    return Math.ceil(lowest) + pad;
+}
+
+/**
+ * the corner the canvas's `top` and `left` are counted from, against the
+ * document: its containing block's, its nearest positioned ancestor's.
+ *
+ * That is the document on a wide screen. On a phone it is the page's shell,
+ * which holds the footer at its foot (#202), so it is positioned: it starts
+ * under the banner, and 0.75rem in from either side. Placed as though counted
+ * from the document, the canvas stood the banner's height too low -- and so ran
+ * that far past the bottom of the screen, taking the page past its footer --
+ * and 0.75rem right of the screen's edge, past its other side (#226).
+ *
+ * Note: measured, as topInset is, rather than known: which ancestor is
+ *       positioned is the stylesheet's to say, and at which widths.
+ */
+export function blockOrigin(el, scrolledY = window.scrollY, scrolledX = window.scrollX) {
+    for (let at = el ? el.parentElement : null; at; at = at.parentElement) {
+        const { position } = window.getComputedStyle(at);
+
+        if (position && position !== 'static') {
+            const rect = at.getBoundingClientRect();
+
+            return {
+                top: rect.top + scrolledY + at.clientTop,
+                left: rect.left + scrolledX + at.clientLeft,
+            };
+        }
+    }
+
+    return { top: 0, left: 0 };
 }
 
 export function clamp(v, lo, hi) {
@@ -473,13 +510,10 @@ class GraphCluster extends Component {
     // expanding/shrinking the browser doesn't clip the animation.
     applyResize() {
         this.resizeTimer = null;
-        this.topMargin = topInset();
         const width = window.innerWidth;
+        this.topMargin = topInset(document, window.scrollY, topPad(width));
         const height = window.innerHeight - this.topMargin;
-        d3.select(this.svgRef.current)
-            .attr('width', width)
-            .attr('height', height)
-            .style('top', `${this.topMargin}px`);
+        this.place(width, height);
         // rebuild the gray field so it re-fills the new viewport size — but
         // only when the viewport really changed shape. A pure height nudge
         // within BG_RESIZE_SLOP is a mobile URL bar, not a new layout, and the
@@ -503,6 +537,22 @@ class GraphCluster extends Component {
             this.simulation.force('y').y(height / 2);
             this.simulation.alpha(0.3).restart();
         }
+    }
+
+    //
+    // the canvas sized to the window under the page's furniture, and placed
+    // there: its top at `topMargin` and its left at the screen's edge, both in
+    // the document's terms -- see blockOrigin, which turns them into its
+    // containing block's
+    //
+    place(width, height) {
+        const origin = blockOrigin(this.svgRef.current);
+
+        d3.select(this.svgRef.current)
+            .attr('width', width)
+            .attr('height', height)
+            .style('top', `${this.topMargin - origin.top}px`)
+            .style('left', `${-origin.left}px`);
     }
 
     // color a node by its source namespace, falling back to a neutral gray for a
@@ -860,13 +910,15 @@ class GraphCluster extends Component {
     }
 
     renderD3() {
-        // offset the whole canvas below the page furniture at the top -- the
-        // banner and the navigation -- so no node ever renders behind either
-        this.topMargin = topInset();
-
         const width = window.innerWidth;
-        const height = window.innerHeight - this.topMargin;
         const small = width < medium_minWidth;
+
+        // offset the whole canvas below the page furniture at the top -- the
+        // banner and the navigation -- so no node ever renders behind either.
+        // A wide screen leaves some daylight under them, and a phone none
+        this.topMargin = topInset(document, window.scrollY, topPad(width));
+
+        const height = window.innerHeight - this.topMargin;
 
         const nodeRadius = small ? 6 : 9;
 
@@ -891,7 +943,7 @@ class GraphCluster extends Component {
             && Math.abs(height - this.viewH) <= BG_RESIZE_SLOP;
 
         const svg = d3.select(this.svgRef.current);
-        svg.attr('width', width).attr('height', height).style('top', `${this.topMargin}px`);
+        this.place(width, height);
         svg.selectAll('*').remove();
 
         // background groups first so the gray field renders behind the cluster
@@ -1004,9 +1056,14 @@ class GraphCluster extends Component {
         //       daylight is unchanged at 16px, and the median gap between
         //       neighbors goes UP, from 16px to 18px.
         //
+        // Note: a phone's top edge keeps no margin: its nodes may come up to
+        //       the canvas's top, which is the menu's own line there (#226).
+        //       The other three edges, and a wide screen's top, keep theirs.
+        //
         const edgeForce = () => {
             const viewW = this.viewW || width;
             const viewH = this.viewH || height;
+            const topEdge = viewW < medium_minWidth ? 0 : EDGE_MARGIN;
 
             //
             // Note: no 'is this a background node' guard, unlike pointerForce
@@ -1020,7 +1077,7 @@ class GraphCluster extends Component {
                 const edge = EDGE_MARGIN + n.r;
                 const left = edge - n.x;
                 const right = n.x - (viewW - edge);
-                const top = edge - n.y;
+                const top = topEdge + n.r - n.y;
                 const bottom = n.y - (viewH - edge);
 
                 if (left > 0) n.vx += left * EDGE_STRENGTH;
