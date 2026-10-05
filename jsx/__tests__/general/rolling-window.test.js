@@ -27,7 +27,11 @@ import {
     shiftInterval,
     pageWindow,
     finerWindow,
-    windowHeading
+    windowHeading,
+    WINDOW_CHOICES,
+    choiceLabel,
+    windowChoices,
+    stepChoice
 } from '../../import/general/rolling-window.js';
 
 //
@@ -425,5 +429,162 @@ describe('windowHeading', () => {
     it('is null for the window ending now, which windowLabel names', () => {
         expect(windowHeading('day', null)).toBeNull();
         expect(windowHeading('week', SEP(10))).toBeNull();
+    });
+});
+
+//
+// a phone's window menu (#222), seen on a Sunday evening in October
+//
+const OCT = (day, hour = 0, minute = 0) => new Date(2026, 9, day, hour, minute);
+const EVENING = OCT(4, 20, 15);
+
+const labels = (rate, end = null, now = EVENING) => windowChoices(rate, end, now).map((choice) => choice.label);
+
+describe('WINDOW_CHOICES', () => {
+    it('reaches back about a year of days, a month of hours, a day of minutes and three years', () => {
+        expect(WINDOW_CHOICES).toEqual({ minute: 24, hour: 30, day: 18, month: 3 });
+    });
+});
+
+describe('windowChoices', () => {
+    it('lists the 20 days ending now, then each 20 days before them, by date', () => {
+        const choices = windowChoices('day', null, EVENING);
+
+        expect(choices).toHaveLength(WINDOW_CHOICES.day + 1);
+        expect(choices.slice(0, 3)).toEqual([
+            { end: null, label: '9/15–10/4' },
+            { end: SEP(14), label: '8/26–9/14' },
+            { end: new Date(2026, 7, 25), label: '8/6–8/25' },
+        ]);
+    });
+
+    it('lists the 24 hours ending now, then each whole day before today', () => {
+        const choices = windowChoices('hour', null, EVENING);
+
+        expect(choices).toHaveLength(WINDOW_CHOICES.hour + 1);
+        expect(choices.slice(0, 3)).toEqual([
+            { end: null, label: 'Last 24h' },
+            { end: OCT(3, 23), label: 'Oct 3' },
+            { end: OCT(2, 23), label: 'Oct 2' },
+        ]);
+    });
+
+    it('lists the hour ending now, then each whole hour, an earlier day\'s with its date', () => {
+        const all = labels('minute');
+
+        expect(all).toHaveLength(WINDOW_CHOICES.minute + 1);
+        expect(all.slice(0, 3)).toEqual(['Last hour', '7 PM', '6 PM']);
+        expect(all.slice(-2)).toEqual(['10/3 9 PM', '10/3 8 PM']);
+        expect(windowChoices('minute', null, EVENING)[1].end).toEqual(OCT(4, 19, 59));
+    });
+
+    it('lists the 12 months ending now, then each whole year before this one', () => {
+        expect(windowChoices('month', null, EVENING)).toEqual([
+            { end: null, label: 'Last 12 mo' },
+            { end: new Date(2025, 11, 1), label: '2025' },
+            { end: new Date(2024, 11, 1), label: '2024' },
+            { end: new Date(2023, 11, 1), label: '2023' },
+        ]);
+    });
+
+    it('adds the window on screen in its place, when it is none of the choices', () => {
+        //
+        // September's bar opens the 20 days ending on its 30th
+        //
+        const choices = windowChoices('day', SEP(30), EVENING);
+
+        expect(choices).toHaveLength(WINDOW_CHOICES.day + 2);
+        expect(choices.slice(0, 3).map((choice) => choice.label)).toEqual(['9/15–10/4', '9/11–9/30', '8/26–9/14']);
+        expect(choices[1].end).toEqual(SEP(30));
+    });
+
+    it('adds a window older than every choice at the end', () => {
+        const choices = windowChoices('hour', new Date(2026, 6, 1, 23), EVENING);
+
+        expect(choices[choices.length - 1]).toEqual({ end: new Date(2026, 6, 1, 23), label: 'Jul 1' });
+    });
+
+    it('adds nothing for a window already among them', () => {
+        expect(windowChoices('hour', OCT(2, 23), EVENING)).toHaveLength(WINDOW_CHOICES.hour + 1);
+    });
+
+    it('writes a day of another year by its numbers, and a range across New Year', () => {
+        const jan = new Date(2027, 0, 2, 10);
+
+        expect(labels('hour', null, jan).slice(0, 4)).toEqual(['Last 24h', 'Jan 1', '12/31/26', '12/30/26']);
+        expect(labels('day', null, new Date(2027, 0, 5, 10))[0]).toBe('12/17–1/5');
+    });
+
+    it('ends every whole day at 23:00, across a daylight boundary too', () => {
+        const ends = windowChoices('hour', null, new Date(2026, 10, 3, 12)).slice(1).map((choice) => choice.end);
+
+        ends.forEach((end) => expect(end.getHours()).toBe(23));
+        expect(ends[1]).toEqual(new Date(2026, 10, 1, 23));
+    });
+
+    it('is empty for a rate it does not know', () => {
+        expect(windowChoices('week', null, EVENING)).toEqual([]);
+    });
+});
+
+describe('choiceLabel', () => {
+    it('writes a window that is no whole period from its first bucket to its last', () => {
+        expect(choiceLabel('hour', OCT(3, 15), EVENING)).toBe('10/2 4 PM–10/3 3 PM');
+        expect(choiceLabel('minute', OCT(4, 19, 30), EVENING)).toBe('10/4 6:31 PM–7:30 PM');
+        expect(choiceLabel('month', new Date(2025, 8, 1), EVENING)).toBe('Oct \'24–Sep \'25');
+    });
+
+    it('writes noon and midnight as a clock does', () => {
+        expect(choiceLabel('minute', OCT(4, 12, 59), EVENING)).toBe('12 PM');
+        expect(choiceLabel('minute', OCT(4, 0, 59), EVENING)).toBe('12 AM');
+        expect(choiceLabel('minute', OCT(4, 9, 30), EVENING)).toBe('10/4 8:31 AM–9:30 AM');
+        expect(choiceLabel('minute', OCT(4, 12, 30), EVENING)).toBe('10/4 11:31 AM–12:30 PM');
+    });
+
+    it('is null for a rate it does not know, or none', () => {
+        expect(choiceLabel('week', null, EVENING)).toBeNull();
+        expect(choiceLabel(undefined, null)).toBeNull();
+    });
+
+    it('measures from the present when it is given no other', () => {
+        expect(choiceLabel('hour', null)).toBe('Last 24h');
+        expect(windowChoices('month', null)).toHaveLength(WINDOW_CHOICES.month + 1);
+        expect(windowChoices(null, null)).toEqual([]);
+        expect(stepChoice('hour', null, 1)).toBeNull();
+        expect(stepChoice(undefined, null, -1)).toBeNull();
+    });
+});
+
+describe('stepChoice', () => {
+    it('steps back from the window ending now to the latest whole period', () => {
+        expect(stepChoice('day', null, -1, EVENING)).toEqual(SEP(14));
+        expect(stepChoice('hour', null, -1, EVENING)).toEqual(OCT(3, 23));
+        expect(stepChoice('minute', null, -1, EVENING)).toEqual(OCT(4, 19, 59));
+        expect(stepChoice('month', null, -1, EVENING)).toEqual(new Date(2025, 11, 1));
+    });
+
+    it('steps one choice back and forward, and stops at the window ending now', () => {
+        expect(stepChoice('hour', OCT(3, 23), -1, EVENING)).toEqual(OCT(2, 23));
+        expect(stepChoice('hour', OCT(2, 23), 1, EVENING)).toEqual(OCT(3, 23));
+        expect(stepChoice('hour', OCT(3, 23), 1, EVENING)).toBeNull();
+        expect(stepChoice('hour', null, 1, EVENING)).toBeNull();
+    });
+
+    it('steps from a window that is none of the choices to its neighbors', () => {
+        expect(stepChoice('day', SEP(30), -1, EVENING)).toEqual(SEP(14));
+        expect(stepChoice('day', SEP(30), 1, EVENING)).toBeNull();
+    });
+
+    it('keeps stepping a period at a time past the oldest choice', () => {
+        const oldest = windowChoices('hour', null, EVENING).slice(-1)[0].end;
+        const older = stepChoice('hour', oldest, -1, EVENING);
+
+        expect(oldest).toEqual(SEP(4, 23));
+        expect(older).toEqual(SEP(3, 23));
+        expect(stepChoice('hour', older, -1, EVENING)).toEqual(SEP(2, 23));
+    });
+
+    it('is null for a rate it does not know', () => {
+        expect(stepChoice('week', null, -1, EVENING)).toBeNull();
     });
 });

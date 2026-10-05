@@ -239,10 +239,12 @@ $stream-held: rgba($green-2, 0.32);
 //
 // The rate's menu is a pill, as round as the buttons beside it, with a chevron
 // of its own, so every browser draws it alike -- iOS and Android each draw a
-// menu's arrow their own way, and a box among round buttons (#173).
+// menu's arrow their own way, and a box among round buttons (#173). The window
+// menu between a phone's arrows is one too (#222).
 //
 .stream-rows-sort-menu,
-.stream-rate-menu {
+.stream-rate-menu,
+.stream-window-menu {
   align-items: center;
   color: $gray-6;
   display: none;
@@ -264,6 +266,16 @@ $stream-held: rgba($green-2, 0.32);
     min-height: 2.75rem;
     padding: 0 1.9rem 0 0.9rem;
   }
+}
+
+//
+// the window menu's label kept to the line a phone has for it (#222): slimmer
+// at its sides than the rate's menu, its arrow nearer the edge, with room
+// still between the arrow and the label
+//
+.stream-window-menu select {
+  background-position: right 0.55rem center;
+  padding: 0 1.7rem 0 0.6rem;
 }
 
 //
@@ -1411,12 +1423,15 @@ $stream-held: rgba($green-2, 0.32);
 @media (max-width: 767.98px) {
   //
   // the title and the icons, then one line of controls: the rate's menu, the
-  // pager, and the sort's button. Every control is 2.75rem tall and round, and
-  // the line fits the narrowest phone with Now in it (#173). A stream on its
-  // own has the way back over its title, and the icons at the end of the
-  // controls' line, since its title has its bell beside it (#171). That line
-  // has no sort's button, and a pager too wide for it wraps under the rate's
-  // menu
+  // pager, and the sort's button. Every control is 2.75rem tall and round
+  // (#173). Between the arrows, the window menu names the window the rows
+  // cover, and fills the room the line leaves it, so the arrows stay put as
+  // its label changes (#222). Below 375px the arrows and the menu take a line
+  // of their own.
+  //
+  // A stream on its own has the way back over its title, and the icons beside
+  // the rate's menu, since its title has its bell beside it (#171). The arrows
+  // and the menu take the line under them, at every phone's width (#222)
   //
   .stream-rows-bar {
     align-items: start;
@@ -1441,7 +1456,8 @@ $stream-held: rgba($green-2, 0.32);
   }
 
   .stream-rate-menu,
-  .stream-rows-sort-menu {
+  .stream-rows-sort-menu,
+  .stream-window-menu {
     display: flex;
   }
 
@@ -1458,20 +1474,48 @@ $stream-held: rgba($green-2, 0.32);
   }
 
   //
-  // Now as tall as the arrows beside it, and a little narrower than a rate
-  // button, so the line keeps it, and the sort's button, on a 320px phone
+  // the pager takes the line's spare room, and the window menu all of the
+  // pager's but the arrows'. The menu's first choice is the window ending now,
+  // so Now goes (#222)
   //
-  .stream-now {
-    min-height: 2.75rem;
-    padding: 0 0.85rem;
+  .stream-pager,
+  .stream-window-menu {
+    flex: 1 1 auto;
+    min-width: 0;
   }
+
+  .stream-window-menu select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .stream-now {
+    display: none;
+  }
+
+  //
+  // where the line's controls sit once they take two lines: below 375px, and
+  // for a stream on its own
+  //
+  .stream-controls > .stream-rate-menu {
+    grid-area: rate;
+    justify-self: start;
+  }
+
+  .stream-controls > .stream-pager { grid-area: pager; }
+  .stream-controls > .stream-rows-sort-menu { grid-area: sort; }
 
   .stream-layout-focused .stream-rows-bar {
     grid-template-areas:
       'back back'
       'intro intro'
-      'controls links';
+      'rate links'
+      'pager pager';
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .stream-layout-focused .stream-controls {
+    display: contents;
   }
 
   .stream-back {
@@ -1764,5 +1808,27 @@ $stream-held: rgba($green-2, 0.32);
   #bootstrap-override .stream-layout .control-tray .control-button {
     height: 2.75rem;
     width: 2.75rem;
+  }
+}
+
+//
+// a phone narrower than 375px (#222): the rate's menu and the sort's button
+// on top, the arrows and the window menu across the line under them. A Day
+// range such as '10/26–11/14' leaves too little room beside the rate's menu
+// for one line at 360px, and a line that broke only for some ranges would
+// jump as the reader paged
+//
+@media (max-width: 374.98px) {
+  .stream-layout:not(.stream-layout-focused) .stream-controls {
+    display: grid;
+    grid-template-areas:
+      'rate . sort'
+      'pager pager pager';
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: 0.75rem;
+  }
+
+  .stream-controls > .stream-rows-sort-menu {
+    margin-left: 0;
   }
 }

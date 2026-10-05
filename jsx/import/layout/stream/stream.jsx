@@ -84,7 +84,9 @@ import {
     lastInstant,
     localInstant,
     pageWindow,
-    finerWindow
+    finerWindow,
+    windowChoices,
+    stepChoice
 } from '../../general/rolling-window.js';
 
 
@@ -185,6 +187,19 @@ function writeWindow(rate, end) {
     }
 
     window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params}${window.location.hash}`);
+}
+
+
+{/*
+
+    whether the window menu is on screen: a phone's width, where the stylesheet
+    shows it between the arrows, and the arrows step through its choices rather
+    than a whole window at a time (#222). Guarded, as graph.jsx's reading of the
+    width is: jsdom has no matchMedia
+
+*/}
+function windowMenuShown() {
+    return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767.98px)').matches;
 }
 
 
@@ -504,6 +519,7 @@ class StreamLayout extends Component {
         this.reset_stream = this.reset_stream.bind(this);
         this.loadSubscriptions = this.loadSubscriptions.bind(this);
         this.chooseRate = this.chooseRate.bind(this);
+        this.stepWindow = this.stepWindow.bind(this);
         this.retryStream = this.retryStream.bind(this);
         this.failedData = this.failedData.bind(this);
         this.refresh = this.refresh.bind(this);
@@ -746,6 +762,18 @@ class StreamLayout extends Component {
     //
     chooseRate(rate) {
         this.chooseWindow(rate, null);
+    }
+
+    //
+    // the window an arrow shows next: one of the window menu's choices where it
+    // is on screen (#222), and a whole window back or forward elsewhere (#159)
+    //
+    stepWindow(direction) {
+        const { rate, end } = this.state;
+
+        this.chooseWindow(rate, windowMenuShown()
+            ? stepChoice(rate, end, direction)
+            : pageWindow(rate, end, direction));
     }
 
     //
@@ -1657,6 +1685,11 @@ class StreamLayout extends Component {
         const last = end ? axisLabel(end, rate) : 'Now';
         const resettable = this.resettable();
 
+        //
+        // the window menu's choices, the window on screen among them (#222)
+        //
+        const choices = windowChoices(rate, end);
+
         return (
             <ErrorBoundary FallbackComponent={ErrorFallback}>
                 <div
@@ -1727,7 +1760,10 @@ class StreamLayout extends Component {
 
                                 a window back, a window forward -- forward stops at the
                                 window ending now -- and the way back to now from
-                                wherever the reader has gone (#159)
+                                wherever the reader has gone (#159). On a phone, between
+                                the arrows, a menu naming the window the rows cover, and
+                                offering the ones before it (#222); its first choice is
+                                the window ending now, in Now's place
 
                             */}
                             <div className='stream-pager' role='group' aria-label='Window'>
@@ -1735,16 +1771,31 @@ class StreamLayout extends Component {
                                     type='button'
                                     className='stream-page'
                                     aria-label={`Earlier ${windowLabel(rate).replace('Last ', '').toLowerCase()}`}
-                                    onClick={() => this.chooseWindow(rate, pageWindow(rate, end, -1))}
+                                    onClick={() => this.stepWindow(-1)}
                                 >
                                     <ChevronLeftIcon fontSize='inherit' />
                                 </button>
+                                <label className='stream-window-menu'>
+                                    <span className='visually-hidden'>Window</span>
+                                    <select
+                                        value={String(choices.findIndex((choice) => (choice.end && end
+                                            ? choice.end.valueOf() === end.valueOf()
+                                            : choice.end === end)))}
+                                        onChange={(event) => this.chooseWindow(rate, choices[Number(event.target.value)].end)}
+                                    >
+                                        {choices.map((choice, index) => (
+                                            <option key={choice.end ? choice.end.valueOf() : 'now'} value={String(index)}>
+                                                {choice.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
                                 <button
                                     type='button'
                                     className='stream-page'
                                     aria-label={`Later ${windowLabel(rate).replace('Last ', '').toLowerCase()}`}
                                     disabled={!end}
-                                    onClick={() => this.chooseWindow(rate, pageWindow(rate, end, 1))}
+                                    onClick={() => this.stepWindow(1)}
                                 >
                                     <ChevronRightIcon fontSize='inherit' />
                                 </button>

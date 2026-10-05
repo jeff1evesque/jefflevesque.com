@@ -244,6 +244,49 @@ describe('the grip a row is dragged by (#218)', () => {
     });
 });
 
+describe('the window menu between a phone\'s arrows (#222)', () => {
+    const [phone] = blocks(source, '@media (max-width: 767.98px)');
+    const within = (header) => blocks(phone, header);
+    const holding = (header, pattern) => own(within(header).find((block) => pattern.test(own(block))) || '');
+
+    it('is hidden on a wide screen, and drawn as the rate\'s menu is', () => {
+        const [shared] = blocks(source, '.stream-window-menu');
+
+        expect(own(shared)).toMatch(/display\s*:\s*none\s*;/);
+        expect(blocks(shared, 'select')[0]).toMatch(/border-radius\s*:\s*999px\s*;/);
+        expect(holding('.stream-window-menu', /display\s*:\s*flex/)).toMatch(/display\s*:\s*flex\s*;/);
+    });
+
+    it('is slimmer at its sides than the rate\'s menu, with room left before its arrow', () => {
+        const slim = own(first('.stream-window-menu select'));
+
+        expect(slim).toMatch(/padding\s*:\s*0 1\.7rem 0 0\.6rem\s*;/);
+        expect(slim).toMatch(/background-position\s*:\s*right 0\.55rem center\s*;/);
+    });
+
+    it('fills the line\'s spare room, so the arrows stay put as its label changes', () => {
+        expect(holding('.stream-window-menu', /flex\s*:/)).toMatch(/flex\s*:\s*1 1 auto\s*;/);
+        expect(own(within('.stream-window-menu select')[0])).toMatch(/width\s*:\s*100%\s*;/);
+    });
+
+    it('takes Now\'s place, since its first choice is the window ending now', () => {
+        expect(own(within('.stream-now')[0])).toMatch(/display\s*:\s*none\s*;/);
+    });
+
+    it('takes a line of its own, with the arrows, below 375px', () => {
+        const [narrow] = blocks(source, '@media (max-width: 374.98px)');
+        const [grid] = blocks(narrow, '.stream-layout:not(.stream-layout-focused) .stream-controls');
+
+        expect(grid).toMatch(/grid-template-areas\s*:\s*'rate \. sort'\s*'pager pager pager'\s*;/);
+    });
+
+    it('takes the line under the rate\'s menu and the icons, for a stream on its own', () => {
+        expect(own(within('.stream-layout-focused .stream-rows-bar')[0]))
+            .toMatch(/'rate links'\s*'pager pager'\s*;/);
+        expect(own(within('.stream-layout-focused .stream-controls')[0])).toMatch(/display\s*:\s*contents\s*;/);
+    });
+});
+
 describe('a phone\'s rows, a table of their own (#218)', () => {
     const [phone] = blocks(source, '@media (max-width: 767.98px)');
     const within = (header) => blocks(phone, header);
