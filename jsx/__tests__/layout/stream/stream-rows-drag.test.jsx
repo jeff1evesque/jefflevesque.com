@@ -33,10 +33,10 @@ jest.mock('framer-motion', () => {
 });
 
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { DragControls, groups, items } from 'framer-motion';
 
-import StreamRows from '../../../import/layout/stream/stream-rows.jsx';
+import StreamRows, { STILL } from '../../../import/layout/stream/stream-rows.jsx';
 
 const ROWS = ['Alpha', 'Beta', 'Gamma'].map((name) => ({
     stream: name.toLowerCase(),
@@ -123,5 +123,37 @@ describe('the rows, dragged', () => {
         expect(groups).toHaveLength(0);
         expect(items).toHaveLength(0);
         expect(document.querySelectorAll('.stream-rows-body > .stream-row')).toHaveLength(3);
+    });
+});
+
+describe('the rows, at rest (#220)', () => {
+    //
+    // what each row was last drawn with
+    //
+    const latest = () => ROWS.map((row) => items.filter((given) => given.value === row.stream).slice(-1)[0]);
+
+    it('take a new size or place at once, with nothing animated, while no row is dragged', () => {
+        render(rows());
+
+        expect(STILL).toEqual({ layout: { type: false } });
+        latest().forEach((given) => {
+            expect(given.transition).toBe(STILL);
+        });
+    });
+
+    it('slide into their places while a row is dragged, and stop once it is let go', () => {
+        render(rows());
+
+        act(() => latest()[1].onDragStart());
+
+        latest().forEach((given) => {
+            expect(given.transition).toBeUndefined();
+        });
+
+        act(() => latest()[1].onDragEnd());
+
+        latest().forEach((given) => {
+            expect(given.transition).toBe(STILL);
+        });
     });
 });

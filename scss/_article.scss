@@ -1000,6 +1000,14 @@
     grid-column: 3;
     justify-self: end;
   }
+
+  //
+  // Reset order a rem apart from the filter it sits beside (#220), where half
+  // that ran the two together. The sort menu between them is a narrow screen's
+  //
+  .listing-table-tools {
+    gap: 1rem;
+  }
 }
 
 .large-viewport .data-listing .listing-table {

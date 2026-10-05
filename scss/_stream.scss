@@ -1645,6 +1645,16 @@ $stream-held: rgba($green-2, 0.32);
   }
 
   //
+  // a row still on its first wait says so by the spinner beside its name
+  // alone (#220): a line under the name made every row taller while the page
+  // opened, and the table shrank to shape as the reports came in. Still
+  // loading, or could not load, is worth the line
+  //
+  .stream-row .stream-row-status-loading {
+    display: none;
+  }
+
+  //
   // above the stretched link, so a tap on it asks again rather than opening
   // the stream
   //

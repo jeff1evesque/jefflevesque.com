@@ -193,6 +193,12 @@ describe('the listing\'s title row on a wide screen (#194)', () => {
         expect(blocks(wide, '.listing-table-head.has-actions .listing-table-actions')[0]).toMatch(/justify-self\s*:\s*center\s*;/);
         expect(blocks(wide, '.listing-table-head.has-actions .listing-table-tools')[0]).toMatch(/justify-self\s*:\s*end\s*;/);
     });
+
+    it('sets Reset order a rem apart from the filter beside it, where half that ran them together (#220)', () => {
+        const tools = blocks(wide, '.listing-table-tools').find((block) => /gap\s*:/.test(block));
+
+        expect(tools).toMatch(/gap\s*:\s*1rem\s*;/);
+    });
 });
 
 describe('the listing\'s None pill (#192)', () => {

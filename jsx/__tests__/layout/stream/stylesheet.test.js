@@ -292,6 +292,18 @@ describe('a phone\'s rows, a table of their own (#218)', () => {
         expect(source).not.toMatch(/nth-of-type\(odd\)/);
     });
 
+    it('say a first wait by the spinner alone, so no row grows while the page opens (#220)', () => {
+        //
+        // a line under each name made every row taller until its report came
+        // in, and the table shrank to shape as they did
+        //
+        const [quiet] = within('.stream-row .stream-row-status-loading');
+
+        expect(own(quiet)).toMatch(/display\s*:\s*none\s*;/);
+        expect(within('.stream-row .stream-row-status-slow')).toHaveLength(0);
+        expect(within('.stream-row .stream-row-status-failed')).toHaveLength(0);
+    });
+
     it('leave Reset order to the sort button\'s menu, hiding a wide screen\'s pill', () => {
         const [hidden] = within('.stream-reset');
 
