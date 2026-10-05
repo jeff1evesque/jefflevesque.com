@@ -38,6 +38,7 @@ import GraphCluster, {
     LINK_DISTANCE_BASE,
     LINK_DISTANCE_SCALE,
     GRAPH_TOP_PAD,
+    blockOrigin,
     topInset,
 } from '../../import/animation/graph-cluster.jsx';
 import schema from '../fixtures/graph-schema.mock.json';
@@ -547,5 +548,72 @@ describe('topInset', () => {
     it('rounds up, so the canvas never starts half a pixel high', () => {
         expect(topInset(docOf({ height: 63.4, bottom: 63.4 }), 0))
             .toBe(64 + GRAPH_TOP_PAD);
+    });
+
+    it('leaves no daylight where it is handed none, as a phone is (#226)', () => {
+        expect(topInset(docOf({ height: 57, bottom: 84 }), 0, 0)).toBe(84);
+    });
+
+    it('reads the page itself, as it stands, with a wide screen\'s daylight, unless told otherwise', () => {
+        //
+        // nothing is kept at the top of this test's page, so the page itself
+        // measures as the empty fake one does
+        //
+        expect(topInset()).toBe(topInset(docOf(), 0));
+        expect(topInset()).toBe(GRAPH_TOP_PAD);
+    });
+});
+
+//
+// the corner the canvas's `top` and `left` are counted from: its containing
+// block's, which on a phone is the page's shell, under the banner and 0.75rem in
+// from the screen's edge (#226).
+//
+describe('blockOrigin', () => {
+    let shell = null;
+
+    afterEach(() => {
+        if (shell) {
+            shell.remove();
+            shell = null;
+        }
+    });
+
+    //
+    // a canvas inside an unplaced wrapper, inside the shell -- positioned, with
+    // its corner where it is said to be -- or straight in the body
+    //
+    function canvasIn(corner) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const wrapper = document.createElement('div');
+
+        wrapper.appendChild(svg);
+        shell = document.createElement('div');
+
+        if (corner) {
+            shell.style.position = 'relative';
+            shell.getBoundingClientRect = () => corner;
+        }
+
+        shell.appendChild(wrapper);
+        document.body.appendChild(shell);
+
+        return svg;
+    }
+
+    it('is the document\'s corner where nothing around the canvas is positioned', () => {
+        expect(blockOrigin(canvasIn(null), 0, 0)).toEqual({ top: 0, left: 0 });
+    });
+
+    it('is the nearest positioned ancestor\'s corner, as a phone\'s shell is', () => {
+        expect(blockOrigin(canvasIn({ top: 27, left: 11 }), 0, 0)).toEqual({ top: 27, left: 11 });
+    });
+
+    it('measures against the document, not the scrolled viewport', () => {
+        expect(blockOrigin(canvasIn({ top: -373, left: 11 }), 400, 0)).toEqual({ top: 27, left: 11 });
+    });
+
+    it('is the document\'s corner for a canvas not yet drawn', () => {
+        expect(blockOrigin(null)).toEqual({ top: 0, left: 0 });
     });
 });

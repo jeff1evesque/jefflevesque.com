@@ -800,6 +800,99 @@ describe('applyResize', () => {
     });
 });
 
+//
+// a phone's canvas runs from the menu bar's own line to the foot of the screen,
+// edge to edge (#226). It is counted from the page's shell there, which holds
+// the footer at its foot and so is positioned: it starts under the banner and
+// 0.75rem in. Counted as though from the document, the canvas stood the banner's
+// height too low, ran that far past the foot -- and the page past its footer --
+// and stood 0.75rem right of the screen's edge.
+//
+describe('the canvas on a phone (#226)', () => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    let bar;
+    let shell = null;
+
+    beforeEach(() => {
+        bar = document.createElement('div');
+        bar.className = 'main-navigation';
+        bar.getBoundingClientRect = () => ({ height: 57, bottom: 84 });
+        document.body.appendChild(bar);
+    });
+
+    afterEach(() => {
+        window.innerWidth = width;
+        window.innerHeight = height;
+        bar.remove();
+
+        if (shell) {
+            shell.remove();
+            shell = null;
+        }
+    });
+
+    //
+    // the page drawn inside a shell placed as a phone's is: under the 27px
+    // banner, and 11px in from the screen's edge
+    //
+    function inShell() {
+        const held = React.createRef();
+
+        shell = document.createElement('div');
+        shell.style.position = 'relative';
+        shell.getBoundingClientRect = () => ({ top: 27, left: 11 });
+        document.body.appendChild(shell);
+        render(<GraphCluster ref={held} data={schema} />, { container: shell.appendChild(document.createElement('div')) });
+
+        return held.current;
+    }
+
+    it('starts at the bar\'s line and the screen\'s edge, counted from the shell', () => {
+        window.innerWidth = 390;
+        window.innerHeight = 844;
+        const page = inShell();
+        const svg = page.svgRef.current;
+
+        expect(page.topMargin).toBe(84);
+        expect(svg.style.top).toBe('57px');
+        expect(svg.style.left).toBe('-11px');
+    });
+
+    it('ends at the foot of the screen, as wide as it', () => {
+        window.innerWidth = 390;
+        window.innerHeight = 844;
+        const svg = inShell().svgRef.current;
+
+        expect(svg.getAttribute('height')).toBe('760');
+        expect(svg.getAttribute('width')).toBe('390');
+    });
+
+    it('is placed the same after a resize', () => {
+        window.innerWidth = 390;
+        window.innerHeight = 844;
+        const page = inShell();
+        window.innerWidth = 430;
+        window.innerHeight = 932;
+
+        page.applyResize();
+
+        expect(page.svgRef.current.style.top).toBe('57px');
+        expect(page.svgRef.current.style.left).toBe('-11px');
+        expect(page.svgRef.current.getAttribute('height')).toBe('848');
+    });
+
+    it('keeps a wide screen\'s daylight under the bar, from the document\'s corner', () => {
+        window.innerWidth = 1280;
+        window.innerHeight = 800;
+        const { page } = setup();
+
+        expect(page.topMargin).toBe(84 + GRAPH_TOP_PAD);
+        expect(page.svgRef.current.style.top).toBe(`${84 + GRAPH_TOP_PAD}px`);
+        expect(page.svgRef.current.style.left).toBe('0px');
+    });
+});
+
 describe('handleResize', () => {
     afterEach(() => {
         jest.useRealTimers();
@@ -1389,6 +1482,43 @@ describe('the canvas edge', () => {
         const far = strayed(page, 'top', 100).vy;
 
         expect(far).toBeGreaterThan(near);
+    });
+
+    //
+    // a phone's canvas starts at the menu bar's own line, and its nodes may come
+    // up to it (#226): its top keeps no margin, where a wide screen's keeps
+    // EDGE_MARGIN. Its other three edges keep theirs.
+    //
+    it('lets a phone\'s node come up to the top, inside where a wide screen holds it', () => {
+        const { page } = setup();
+        const node = strayed(page, 'top', 0, { w: 390, h: 760 });
+
+        node.y = node.r + EDGE_MARGIN / 2;
+        node.vy = 0;
+        page.simulation.force('edge')(1);
+
+        expect(node.vy).toBe(0);
+        expect(strayed(page, 'top', EDGE_MARGIN / 2).vy).toBeGreaterThan(0);
+    });
+
+    it('still pushes a phone\'s node back down once it passes the top', () => {
+        const { page } = setup();
+        const node = strayed(page, 'top', 0, { w: 390, h: 760 });
+
+        node.y = node.r - 10;
+        node.vy = 0;
+        page.simulation.force('edge')(1);
+
+        expect(node.vy).toBeGreaterThan(0);
+    });
+
+    it('keeps a phone\'s other three edges', () => {
+        const { page } = setup();
+        const view = { w: 390, h: 760 };
+
+        expect(strayed(page, 'bottom', 10, view).vy).toBeLessThan(0);
+        expect(strayed(page, 'left', 10, view).vx).toBeGreaterThan(0);
+        expect(strayed(page, 'right', 10, view).vx).toBeLessThan(0);
     });
 
     it('follows a resize rather than bounding the window that has gone', () => {
