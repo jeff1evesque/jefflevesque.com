@@ -240,7 +240,9 @@ $stream-held: rgba($green-2, 0.32);
 // The rate's menu is a pill, as round as the buttons beside it, with a chevron
 // of its own, so every browser draws it alike -- iOS and Android each draw a
 // menu's arrow their own way, and a box among round buttons (#173). The window
-// menu between a phone's arrows is one too (#222).
+// menu between a phone's arrows is one too (#222). Both are shown on a phone
+// alone, so their sizes are in the phone's rules below, which fit the line to
+// the phone (#224).
 //
 .stream-rows-sort-menu,
 .stream-rate-menu,
@@ -248,7 +250,6 @@ $stream-held: rgba($green-2, 0.32);
   align-items: center;
   color: $gray-6;
   display: none;
-  font-size: 0.85rem;
   gap: 0.5rem;
   margin: 0;
 
@@ -257,25 +258,12 @@ $stream-held: rgba($green-2, 0.32);
     appearance: none;
     background-color: $white-1;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23888' stroke-width='1.6'/%3E%3C/svg%3E");
-    background-position: right 0.75rem center;
     background-repeat: no-repeat;
     border: 1px solid $gray-3;
     border-radius: 999px;
     color: $gray-8;
     font: inherit;
-    min-height: 2.75rem;
-    padding: 0 1.9rem 0 0.9rem;
   }
-}
-
-//
-// the window menu's label kept to the line a phone has for it (#222): slimmer
-// at its sides than the rate's menu, its arrow nearer the edge, with room
-// still between the arrow and the label
-//
-.stream-window-menu select {
-  background-position: right 0.55rem center;
-  padding: 0 1.7rem 0 0.6rem;
 }
 
 //
@@ -1423,17 +1411,26 @@ $stream-held: rgba($green-2, 0.32);
 @media (max-width: 767.98px) {
   //
   // the title and the icons, then one line of controls: the rate's menu, the
-  // pager, and the sort's button. Every control is 2.75rem tall and round
-  // (#173). Between the arrows, the window menu names the window the rows
-  // cover, and fills the room the line leaves it, so the arrows stay put as
-  // its label changes (#222). Below 375px the arrows and the menu take a line
-  // of their own.
+  // pager, and the sort's button, each as round as the next (#173). Between
+  // the arrows, the window menu names the window the rows cover, and fills the
+  // room the line leaves it, so the arrows stay put as its label changes
+  // (#222).
   //
-  // A stream on its own has the way back over its title, and the icons beside
-  // the rate's menu, since its title has its bell beside it (#171). The arrows
-  // and the menu take the line under them, at every phone's width (#222)
+  // A stream on its own has the way back over its title, and its bell beside
+  // the title (#171), so the icons join the controls: the rate's menu, the
+  // pager and the icons, on one row (#224).
+  //
+  // The line is one line on every phone (#224). The bar is a fit row -- see
+  // '_fit-row.scss' -- and every control on the line is sized in '--fit-rem':
+  // a phone with the room sees them at full size, 2.75rem tall with 0.85rem
+  // text in the menus, and a narrower one sees them smaller, rather than the
+  // line broken in two. The line needs 23.25rem, with the longest label the
+  // window menu can show, '10/30 10 AM', an hour of yesterday's at the Minute
+  // rate. A stream on its own, with three icons where the sort's button was,
+  // needs 25.25rem
   //
   .stream-rows-bar {
+    @include fit-row(23.25);
     align-items: start;
     display: grid;
     gap: 0.75rem 0.5rem;
@@ -1447,7 +1444,7 @@ $stream-held: rgba($green-2, 0.32);
   .stream-api-links { grid-area: links; }
 
   .stream-controls {
-    gap: 0.5rem;
+    gap: calc(0.5 * var(--fit-rem));
     grid-area: controls;
   }
 
@@ -1462,15 +1459,45 @@ $stream-held: rgba($green-2, 0.32);
   }
 
   //
+  // the two menus, at the window menu's slim sides (#222): its label kept to
+  // the room the line has for it, and its arrow near the edge, with room still
+  // before the label. The rate's menu has them too, so the two pills match and
+  // the window menu has the room (#224). The arrow's image is 12px by 8px
+  //
+  .stream-rate-menu,
+  .stream-window-menu {
+    font-size: calc(0.85 * var(--fit-rem));
+  }
+
+  .stream-rate-menu select,
+  .stream-window-menu select {
+    background-position: right calc(0.55 * var(--fit-rem)) center;
+    background-size: calc(12 / 14 * var(--fit-rem)) auto;
+    min-height: calc(2.75 * var(--fit-rem));
+    padding: 0 calc(1.7 * var(--fit-rem)) 0 calc(0.6 * var(--fit-rem));
+  }
+
+  //
   // the sort's button at the end of the line
   //
   .stream-rows-sort-menu {
     margin-left: auto;
   }
 
+  //
+  // the arrows and the sort's button, round at every size: a line short of
+  // room takes it from the window menu, and never squeezes an arrow into an
+  // oval (#224)
+  //
+  .stream-page,
+  .stream-sort {
+    font-size: calc(1.4 * var(--fit-rem));
+    height: calc(2.75 * var(--fit-rem));
+    width: calc(2.75 * var(--fit-rem));
+  }
+
   .stream-page {
-    height: 2.75rem;
-    width: 2.75rem;
+    flex-shrink: 0;
   }
 
   //
@@ -1484,6 +1511,10 @@ $stream-held: rgba($green-2, 0.32);
     min-width: 0;
   }
 
+  .stream-pager {
+    gap: calc(0.4 * var(--fit-rem));
+  }
+
   .stream-window-menu select {
     min-width: 0;
     width: 100%;
@@ -1494,28 +1525,34 @@ $stream-held: rgba($green-2, 0.32);
   }
 
   //
-  // where the line's controls sit once they take two lines: below 375px, and
-  // for a stream on its own
+  // a stream on its own: the way back, the title, and then one row of the
+  // rate's menu, the pager and the icons, the pager taking the room the other
+  // two leave it. They are 0.4rem apart, the arrows' own gap, and the icons
+  // 0.25rem, so the row fits a 390px phone with its longest label (#224)
   //
+  .stream-layout-focused .stream-rows-bar {
+    @include fit-row(25.25);
+    column-gap: 0;
+    grid-template-areas:
+      'back back back'
+      'intro intro intro'
+      'rate pager links';
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .stream-layout-focused .stream-controls {
+    display: contents;
+  }
+
   .stream-controls > .stream-rate-menu {
     grid-area: rate;
     justify-self: start;
   }
 
   .stream-controls > .stream-pager { grid-area: pager; }
-  .stream-controls > .stream-rows-sort-menu { grid-area: sort; }
 
-  .stream-layout-focused .stream-rows-bar {
-    grid-template-areas:
-      'back back'
-      'intro intro'
-      'rate links'
-      'pager pager';
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .stream-layout-focused .stream-controls {
-    display: contents;
+  .stream-layout-focused .stream-pager {
+    margin: 0 calc(0.4 * var(--fit-rem));
   }
 
   .stream-back {
@@ -1525,6 +1562,11 @@ $stream-held: rgba($green-2, 0.32);
 
   .stream-layout-focused .stream-api-links {
     align-self: center;
+    gap: calc(0.25 * var(--fit-rem));
+
+    svg {
+      font-size: calc(1.5 * var(--fit-rem));
+    }
   }
 
   .stream-rows-title h4 {
@@ -1808,27 +1850,5 @@ $stream-held: rgba($green-2, 0.32);
   #bootstrap-override .stream-layout .control-tray .control-button {
     height: 2.75rem;
     width: 2.75rem;
-  }
-}
-
-//
-// a phone narrower than 375px (#222): the rate's menu and the sort's button
-// on top, the arrows and the window menu across the line under them. A Day
-// range such as '10/26–11/14' leaves too little room beside the rate's menu
-// for one line at 360px, and a line that broke only for some ranges would
-// jump as the reader paged
-//
-@media (max-width: 374.98px) {
-  .stream-layout:not(.stream-layout-focused) .stream-controls {
-    display: grid;
-    grid-template-areas:
-      'rate . sort'
-      'pager pager pager';
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    row-gap: 0.75rem;
-  }
-
-  .stream-controls > .stream-rows-sort-menu {
-    margin-left: 0;
   }
 }
