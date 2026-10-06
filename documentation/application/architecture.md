@@ -77,8 +77,10 @@ spaced a little wider.
 
 The rows that use it are /stream's line of controls, with its sort button or a stream's
 api icons; /data's month, beside the listing's title and in a dataset's row; and the
-graphs' table tabs with their filter, and their pager. The graphs' title and picker
-share a line without it.
+graphs' table pager. The graphs' title and picker share a line without it. The graphs'
+table tabs and their filter are not a row of this kind: on a phone they keep two lines,
+each as wide as the page, the tabs side by side on the first and the filter under them
+([#228](https://github.com/jeff1evesque/jefflevesque.com/issues/228)).
 
 ## Web workers
 
