@@ -1833,9 +1833,9 @@ $graph-held-edge: $green-4;
 
 //
 // phone: the page's rows of controls, each on one line (#224) -- the title and
-// the picker, the tables' tabs and their filter, and the pager at the tables'
-// foot. Each of them used to take a second line on a phone, or, for the pager
-// below 360px, put its arrows on one.
+// the picker, and the pager at the tables' foot. Each of them used to take a
+// second line on a phone, or, for the pager below 360px, put its arrows on one.
+// The tables' tabs and their filter keep their two lines (#228).
 //
 @media (max-width: 575.98px) {
   //
@@ -1866,40 +1866,27 @@ $graph-held-edge: $green-4;
   }
 
   //
-  // the two tabs at their own width, then the filter box taking the rest of the
-  // line. A fit row -- see '_fit-row.scss' -- so a phone without the room sees
-  // the tabs, their gaps and the box's padding smaller, rather than the box on a
-  // line of its own. It needs 24.25rem, with the box 6rem wide.
+  // the controls that head the tables take two lines, each as wide as the page,
+  // and are not made to fit one (#228): the two tabs split the first line
+  // between them, which is what a two-button segmented control should look like
+  // at this width, and the filter fills the one below.
   //
-  // Note: the box's text stays 16px, as every input's on a phone -- see
-  //       '_webform.scss' -- so an iPhone does not zoom the page in on a tap,
-  //       and the box is the line's tallest. The tabs stretch to its height.
+  // Left to wrap on their own, the two tabs hold two thirds of the first line and
+  // the filter box drops below them -- still carrying the margin that parks it at
+  // the right end of a wide screen, so the pair ends up in opposite corners of a
+  // two line block, which reads as a mistake rather than as a row that wrapped.
   //
-  .graph-tables-controls {
-    @include fit-row(24.25);
-    column-gap: calc(0.5 * var(--fit-rem));
-    flex-wrap: nowrap;
-  }
-
   .graph-tables-tabs {
-    align-self: stretch;
-    flex: none;
-    gap: calc(0.25 * var(--fit-rem));
+    flex: 1 1 100%;
   }
 
   .graph-tables-tab {
-    font-size: calc(0.9 * var(--fit-rem));
-    padding: calc(0.35 * var(--fit-rem)) calc(0.75 * var(--fit-rem));
-  }
-
-  .graph-tables-tally {
-    margin-left: calc(0.4 * var(--fit-rem));
+    flex: 1 1 0;
   }
 
   .graph-tables-search {
-    flex: 1 1 calc(6 * var(--fit-rem));
+    flex-basis: 100%;
     margin-left: 0;
-    padding: calc(0.35 * var(--fit-rem)) calc(0.5 * var(--fit-rem));
   }
 
   //
