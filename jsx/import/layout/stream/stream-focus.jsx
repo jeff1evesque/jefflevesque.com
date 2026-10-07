@@ -12,7 +12,9 @@
  *
  * Each value is drawn in a color that says how it stands, and each name is
  * followed by an info icon whose note says what the figure counts (#206). See
- * figureTone and figureNote.
+ * figureTone and figureNote. The boxes themselves are /data's too, since a
+ * dataset opened on its own on a phone draws its month in them (#230) -- see
+ * general/figure-boxes.jsx.
  *
  * Everything the rows do, this does to the one stream: the bars, what they say
  * when pointed at, a bar opening its interval one rate finer, and the line it
@@ -29,34 +31,26 @@
  *
  * Note: a phone shortens two things so the three figures keep to one line:
  *       'Records' for 'Total Records', and the count itself, '137M' for
- *       '136,963,495'. Both forms are drawn, and the stylesheet shows the one
- *       that fits.
+ *       '136,963,495'. This hands the boxes both forms, and they draw both for
+ *       the stylesheet to show the one that fits.
  */
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import InfoNote from '../../general/info-note.jsx';
+import FigureBoxes, { shortCount } from '../../general/figure-boxes.jsx';
 import { COLUMNS, StreamBars, StreamLegend, StreamReadout } from './stream-rows.jsx';
+
+//
+// a count in a few characters, as the boxes draw one on a phone -- see
+// figure-boxes.jsx, where it moved with them (#230)
+//
+export { shortCount };
 
 //
 // about how many dates the graph is labeled with: few enough that each has
 // room under a minute's sixty bars, and every so many bars from the first
 //
 const TICKS = 6;
-
-//
-// a count in a few characters -- '137M', '4.2M', '282' -- or whatever stands in
-// for one while there is no count, as it is
-//
-export function shortCount(figure) {
-    const value = parseFloat(String(figure).replace(/,/g, ''));
-
-    if (!Number.isFinite(value)) {
-        return figure;
-    }
-
-    return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
-}
 
 //
 // a date under the graph, as short as its rate allows: 'Sep 14', '4 PM',
@@ -130,55 +124,23 @@ export function figureTone(key, figure) {
     return key === 'health' ? 'bad' : null;
 }
 
-//
-// both forms of a label or a value, where a phone draws a shorter one
-//
-function Fitted({ long, short }) {
-    if (long === short) {
-        return long;
-    }
-
-    return (
-        <>
-            <span className='stream-focus-long'>{long}</span>
-            <span className='stream-focus-short'>{short}</span>
-        </>
-    );
-}
-
-Fitted.propTypes = {
-    long: PropTypes.node,
-    short: PropTypes.node,
-};
-
 function StreamFocus({ row, rate, first, last, onOpen = null }) {
     const [pointed, setPointed] = useState(null);
     const every = Math.max(1, Math.ceil(row.bars.length / TICKS));
 
     return (
         <div className='stream-focus' data-stream={row.stream}>
-            <div className='stream-focus-figures'>
-                {COLUMNS.map((column) => {
-                    const tone = figureTone(column.key, row.figures[column.key]);
-
-                    return (
-                        <div key={column.key} className='stream-focus-figure'>
-                            <InfoNote
-                                note={figureNote(column.key, rate)}
-                                className='stream-focus-figure-label stream-focus-noted'
-                            >
-                                <Fitted long={column.label} short={column.short} />
-                            </InfoNote>
-                            <span className={`stream-focus-figure-value${tone ? ` stream-focus-figure-${tone}` : ''}`}>
-                                <Fitted
-                                    long={row.figures[column.key]}
-                                    short={column.key === 'total' ? shortCount(row.figures.total) : row.figures[column.key]}
-                                />
-                            </span>
-                        </div>
-                    );
-                })}
-            </div>
+            <FigureBoxes
+                figures={COLUMNS.map((column) => ({
+                    key: column.key,
+                    label: column.label,
+                    short: column.short,
+                    note: figureNote(column.key, rate),
+                    value: row.figures[column.key],
+                    shortValue: column.key === 'total' ? shortCount(row.figures.total) : row.figures[column.key],
+                    tone: figureTone(column.key, row.figures[column.key]),
+                }))}
+            />
 
             <div className='stream-focus-axis'>
                 <span>{first}</span>
