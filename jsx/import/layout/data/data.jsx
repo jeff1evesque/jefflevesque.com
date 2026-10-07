@@ -14,6 +14,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ArticleListing from '../../general/article-listing.jsx';
 import CubeChart from '../../general/cube-chart.jsx';
 import CubeRows from '../../general/cube-rows.jsx';
+import FigureBoxes, { shortCount } from '../../general/figure-boxes.jsx';
 import distributionTree from '../../general/distribution-tree.js';
 import trim from '../../general/trim-object.js';
 import { default as getStockMarketDistribution } from '../../general/get-data/distribution/stock-market.js';
@@ -254,6 +255,18 @@ const MEMBER_ORDER = {
     [SEC_COMPANYFACTS]: ['new', 'repeated', 'changed'],
 };
 
+{/*
+
+    and the names the charts give members, where the api's are not the page's:
+    the company facts' statuses, which the api writes in lower case, beside
+    forms, sectors and severities named with a capital (#230). Their order and
+    colors still go by the api's
+
+*/}
+const MEMBER_NAMES = {
+    [SEC_COMPANYFACTS]: { new: 'New', repeated: 'Repeated', changed: 'Changed' },
+};
+
 
 {/*
 
@@ -274,6 +287,16 @@ function format_count(value) {
 
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric.toLocaleString() : value;
+}
+
+
+{/*
+
+    a word as a figure's name starts it: 'Filings', 'Severities'
+
+*/}
+function capitalized(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 
@@ -431,7 +454,8 @@ const LAYOUT = ['data', 'wide'];
 {/*
 
     and where it keeps how a phone's rows of cubes are arranged: whether the
-    stock splits' legend is folded away over them (#192)
+    stock splits' legend is folded away over them (#192), and the company
+    facts' (#230)
 
 */}
 const PHONE_LAYOUT = ['data', 'phone'];
@@ -556,8 +580,9 @@ class DataLayout extends Component {
         this.reorderListing = this.reorderListing.bind(this);
         this.keepNames = this.keepNames.bind(this);
         this.keepRowsSort = this.keepRowsSort.bind(this);
-        this.keepSectors = this.keepSectors.bind(this);
+        this.keepFold = this.keepFold.bind(this);
         this.treeFor = this.treeFor.bind(this);
+        this.figures = this.figures.bind(this);
         this.chart = this.chart.bind(this);
         this.openDataset = this.openDataset.bind(this);
         this.showListing = this.showListing.bind(this);
@@ -591,6 +616,12 @@ class DataLayout extends Component {
             promise_get_data_sec: false,
             'promise_get_data_sec-companyfacts': false,
             'promise_get_data_us-national-weather': false,
+            //
+            // whether each stream's partitions have come in for the month it
+            // was last asked for. They come apart from its records, so a phone's
+            // Partitions box waits for its own -- see figures (#230)
+            //
+            ...Object.fromEntries(STREAMS.map((stream) => [`promise_partitions_${stream}`, false])),
             promise_list_ticker_complete: false,
             item: 'n/a',
             ticker: 'n/a',
@@ -634,10 +665,11 @@ class DataLayout extends Component {
             //
             rows_sort: {},
             //
-            // whether a phone's legend of the stock splits' sectors is shown
-            // over the rows: shown unless this browser folded it away (#192)
+            // which of a phone's legends over the rows are folded away, by name:
+            // the stock splits' sectors (#192) and the company facts' statuses
+            // (#230). Each is shown unless this browser folded it away
             //
-            sectors_shown: readLayout(...PHONE_LAYOUT).fold.sectors !== true,
+            folds: readLayout(...PHONE_LAYOUT).fold,
             list_article: list_article,
             //
             // each stream's datalake dataset, which is its own name for the data
@@ -839,12 +871,16 @@ class DataLayout extends Component {
     }
 
     //
-    // a phone's legend of the sectors shown or folded away, kept for this
-    // browser's next visit, as a wide screen keeps its names (#192)
+    // a phone's legend folded away or shown again, by name, kept for this
+    // browser's next visit with the other legend's, as a wide screen keeps its
+    // names (#192, #230). Every fold is written together, since a write takes
+    // the place of the one before
     //
-    keepSectors(shown) {
-        this.setState({ sectors_shown: shown });
-        writeLayout(...PHONE_LAYOUT, { fold: { sectors: !shown } });
+    keepFold(name, folded) {
+        const folds = { ...this.state.folds, [name]: folded };
+
+        this.setState({ folds: folds });
+        writeLayout(...PHONE_LAYOUT, { fold: folds });
     }
 
     //
@@ -964,7 +1000,10 @@ class DataLayout extends Component {
         this.requests[type] = request;
         const current = () => this.requests[type] === request;
 
-        this.setState({ [`promise_get_data_${type}`]: false} );
+        this.setState({
+            [`promise_get_data_${type}`]: false,
+            [`promise_partitions_${type}`]: false
+        });
 
         this.state.data_map[type].forEach((dataset) => {
             if (STREAMS.includes(type)) {
@@ -1072,7 +1111,8 @@ class DataLayout extends Component {
                 ) {
                     const selected_stream = event.data.selected_stream;
                     this.setState({
-                        [`partitions_${selected_stream}`]: event.data.count
+                        [`partitions_${selected_stream}`]: event.data.count,
+                        [`promise_partitions_${selected_stream}`]: true
                     }, () => {
                         this.updateStreamListing();
                     });
@@ -1185,10 +1225,55 @@ class DataLayout extends Component {
             return held.tree;
         }
 
-        const tree = distributionTree(rows, key, theme, MEMBER_ORDER[stream] || []);
+        const tree = distributionTree(rows, key, theme, MEMBER_ORDER[stream] || [], MEMBER_NAMES[stream] || {});
         this.trees[stream] = { rows: rows, key: key, theme: theme, tree: tree };
 
         return tree;
+    }
+
+    //
+    // a phone's three boxes for `stream`'s month, over its rows (#230): the
+    // month's total, named for what the rows count, as their column is --
+    // Records, Splits, Filings, Facts or Events -- in the blue /stream draws its
+    // Total Records in, since it is the rows added up; how many rows the month
+    // holds, named for them; and its partitions, as the listing counts them.
+    // Each reads n/a while its month is on its way, rather than the last
+    // month's number, and Partitions waits for its own answer, which comes
+    // apart from the rows'
+    //
+    figures(stream) {
+        const names = distributionNames(stream, this.state[`aggregate_key_${stream}`]);
+        const loaded = this.state[`promise_get_data_${stream}`];
+        const counted = loaded && this.state[`promise_partitions_${stream}`];
+        const records = this.state[`records_${stream}`];
+        const total = loaded ? format_count(records) : 'n/a';
+        const rows = loaded ? format_count(this.treeFor(stream, this.context.theme).groups.length) : 'n/a';
+        const unit = capitalized(names.unit[1]);
+        const group = capitalized(names.group[1]);
+
+        return [
+            {
+                key: 'total',
+                label: `Total ${unit}`,
+                short: unit,
+                note: `All the ${names.unit[1]} below, added up`,
+                value: total,
+                shortValue: shortCount(total),
+                tone: loaded && typeof records === 'number' ? 'total' : null,
+            },
+            {
+                key: 'rows',
+                label: group,
+                note: `One row per ${names.group[0]}, below`,
+                value: rows,
+            },
+            {
+                key: 'partitions',
+                label: 'Partitions',
+                note: 'Partitions the month is stored in',
+                value: counted ? format_count(this.state[`partitions_${stream}`]) : 'n/a',
+            },
+        ];
     }
 
     //
@@ -1281,7 +1366,12 @@ class DataLayout extends Component {
     // control under it -- which says the month, as '(2026/09)' after the name
     // did -- and at the end of the month row the api icons, which the chart's own
     // head drew over it until #185. A tablet's too, since #192: its month was a
-    // calendar in a column beside the listing, which is gone
+    // calendar in a column beside the listing, which is gone.
+    //
+    // Under the month, the month in three figures, as /stream draws a stream's
+    // (#230) -- see figures. The listing's Records and Partitions go once a
+    // dataset is open, so the month's total was nowhere on a phone's screen.
+    // A tablet draws them as /stream's wide screen does, one ruled row
     //
     phoneHeader() {
         const header = this.state.listing_graphic_title
@@ -1298,6 +1388,7 @@ class DataLayout extends Component {
                     {this.monthControl()}
                     {this.apiLinks(this.state.selected_stream)}
                 </div>
+                <FigureBoxes figures={this.figures(this.state.selected_stream)} />
             </div>
         );
     }
@@ -1452,8 +1543,8 @@ class DataLayout extends Component {
                             actions={null}
                             sort={this.state.rows_sort[stream] || null}
                             onSort={(sort) => this.keepRowsSort(stream, sort)}
-                            sectorsShown={this.state.sectors_shown}
-                            onSectors={this.keepSectors}
+                            folds={this.state.folds}
+                            onFold={this.keepFold}
                         />
                     ) : (
                         <CubeChart

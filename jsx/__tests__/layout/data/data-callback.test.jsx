@@ -393,6 +393,23 @@ describe('the chart on the page', () => {
     });
 });
 
+describe('a wide screen\'s month (#230)', () => {
+    it('draws no figure boxes: its listing gives Records and Partitions beside the chart', () => {
+        const page = setup();
+        page.callbackGetData({ stream: 'stock-market' });
+
+        deliver(global.__workers[0], {
+            selected_stream: 'stock-market',
+            aggregate_key: 'sector',
+            records: 9,
+            data_distribution: [{ sector: 'Energy', Refining: 9 }],
+        });
+
+        expect(document.querySelector('.cube-chart')).not.toBeNull();
+        expect(document.querySelector('.stream-focus-figures')).toBeNull();
+    });
+});
+
 describe('the names the ring uses', () => {
     it.each([
         ['stock-market', 'sectors', 'industries', 'records'],

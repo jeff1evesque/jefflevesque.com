@@ -765,21 +765,21 @@ describe('the sectors\' legend fold on a phone (#192)', () => {
     });
 
     it('folds the legend away at a tap, and shows it again at another, telling the page each time', () => {
-        const onSectors = jest.fn();
-        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS, onSectors: onSectors });
+        const onFold = jest.fn();
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS, onFold: onFold });
 
         fireEvent.click(fold());
         expect(legend(container)).toBeNull();
         expect(fold()).toHaveAttribute('aria-expanded', 'false');
-        expect(onSectors).toHaveBeenLastCalledWith(false);
+        expect(onFold).toHaveBeenLastCalledWith('sectors', true);
 
         fireEvent.click(fold());
         expect(legend(container)).not.toBeNull();
-        expect(onSectors).toHaveBeenLastCalledWith(true);
+        expect(onFold).toHaveBeenLastCalledWith('sectors', false);
     });
 
     it('starts folded where the page kept it folded', () => {
-        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS, sectorsShown: false });
+        const { container } = draw({ rows: SECTORED, key: 'split_date', names: DAYS, folds: { sectors: true } });
 
         expect(legend(container)).toBeNull();
         expect(fold()).toHaveAttribute('aria-expanded', 'false');
@@ -792,6 +792,92 @@ describe('the sectors\' legend fold on a phone (#192)', () => {
         draw({ rows: SPLITS, key: 'split_date', names: DAYS });
 
         expect(screen.queryByRole('button', { name: 'Sectors' })).toBeNull();
+    });
+});
+
+describe('the company facts\' statuses legend on a phone (#230)', () => {
+    const FACTS = { group: ['form', 'forms'], member: ['status', 'statuses'], unit: ['fact', 'facts'] };
+    const STATUSES = ['new', 'repeated', 'changed'];
+    const LABELS = { new: 'New', repeated: 'Repeated', changed: 'Changed' };
+    const MONTH = [
+        { form: 'Form 10-Q', new: 3691, repeated: 3300, changed: 98 },
+        { form: 'Form 10-K', repeated: 1500, new: 1051 },
+        { form: 'Form 424B2', changed: 40 },
+    ];
+
+    //
+    // the month as the page hands it over, its statuses in their order and
+    // named as the page names them
+    //
+    function facts(props = {}) {
+        const tree = distributionTree(MONTH, 'form', 'light', STATUSES, LABELS);
+
+        return render(<CubeRows tree={tree} names={FACTS} caption='September 2026' {...props} />);
+    }
+
+    const fold = () => screen.getByRole('button', { name: 'Statuses' });
+    const legend = (container) => container.querySelector('.cube-rows-legend');
+
+    it('names the statuses in their colors over the rows, under what a cube is worth', () => {
+        const { container } = facts();
+
+        expect(fold().parentElement).toHaveClass('cube-rows-key-row');
+        expect(fold()).toHaveAttribute('aria-expanded', 'true');
+        expect(legend(container)).toHaveAttribute('aria-label', 'Statuses');
+        expect(key(container).parentElement.nextElementSibling).toBe(legend(container));
+        expect([...legend(container).querySelectorAll('li')].map((item) => item.textContent))
+            .toEqual(['New', 'Repeated', 'Changed']);
+        expect([...legend(container).querySelectorAll('.cube-rows-swatch')].map((swatch) => swatch.style.background))
+            .toEqual(['rgb(42, 120, 214)', 'rgb(235, 104, 52)', 'rgb(27, 175, 122)']);
+    });
+
+    it('folds away under its own name, apart from the sectors\' legend', () => {
+        const onFold = jest.fn();
+        const { container } = facts({ onFold: onFold, folds: { sectors: true } });
+
+        expect(legend(container)).not.toBeNull();
+
+        fireEvent.click(fold());
+        expect(legend(container)).toBeNull();
+        expect(fold()).toHaveAttribute('aria-expanded', 'false');
+        expect(onFold).toHaveBeenLastCalledWith('statuses', true);
+    });
+
+    it('starts folded where the page kept it folded', () => {
+        const { container } = facts({ folds: { statuses: true } });
+
+        expect(legend(container)).toBeNull();
+        expect(fold()).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('names a form\'s statuses with a capital once it is opened, and draws no legend over them', () => {
+        const { container } = facts();
+
+        fireEvent.click(row('Form 10-Q'));
+
+        expect(names(container)).toEqual(['New', 'Repeated', 'Changed']);
+        expect(legend(container)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Statuses' })).toBeNull();
+    });
+});
+
+describe('no legend where a color means only a rank in its row, or there is one color (#230)', () => {
+    it.each([
+        ['a market\'s sectors, their industries colored by size', { rows: ROWS, key: 'sector', names: SECTORS }],
+        ['a severity scale, its event types colored by size', {
+            rows: [
+                { severity: 'Minor', 'Flood Advisory': 90, 'Wind Advisory': 10 },
+                { severity: 'Severe', 'Flood Warning': 30, 'Storm Warning': 5 },
+            ],
+            key: 'severity',
+            names: SEVERITIES,
+        }],
+        ['forms of one category, a bar of one color each', { rows: forms(12), key: 'form', names: FORMS }],
+    ])('draws none for %s', (name, props) => {
+        const { container } = draw(props);
+
+        expect(container.querySelector('.cube-rows-legend')).toBeNull();
+        expect(container.querySelector('.cube-rows-legend-fold')).toBeNull();
     });
 });
 

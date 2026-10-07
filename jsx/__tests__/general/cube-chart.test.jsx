@@ -968,3 +968,39 @@ describe('the keyboard', () => {
         expect(list(container)).toBeNull();
     });
 });
+
+describe('the company facts\' statuses, named as the page names them (#230)', () => {
+    const FACTS = { group: ['form', 'forms'], member: ['status', 'statuses'], unit: ['fact', 'facts'] };
+    const MONTH = [
+        { form: 'Form 10-Q', new: 3691, repeated: 3300, changed: 98 },
+        { form: 'Form 424B2', new: 3046 },
+    ];
+
+    function facts() {
+        const tree = distributionTree(
+            MONTH,
+            'form',
+            'light',
+            ['new', 'repeated', 'changed'],
+            { new: 'New', repeated: 'Repeated', changed: 'Changed' }
+        );
+
+        return render(<CubeChart tree={tree} names={FACTS} caption='September 2026' height={392} />);
+    }
+
+    it('names a status with a capital where the pointer is', () => {
+        const { container } = facts();
+
+        fireEvent.mouseEnter(bandOf(container, 'Form 10-Q\u0000New')[0]);
+
+        expect(tip(container).textContent).toMatch(/^Form 10-QNew3,691/);
+    });
+
+    it('names them with a capital in a form\'s list, in their order', () => {
+        const { container } = facts();
+
+        fireEvent.keyDown(barOf(container, 'Form 10-Q'), { key: 'Enter' });
+
+        expect(texts(container, '.cube-list-name')).toEqual(['New', 'Repeated', 'Changed']);
+    });
+});

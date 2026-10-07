@@ -13,7 +13,8 @@
  * the chart, and the heads a day's tickers sit under.
  *
  * And about the month on a phone, beside the listing's title and in a
- * dataset's row with the icons, on one line on every phone (#224).
+ * dataset's row with the icons, on one line on every phone (#224), across a
+ * dataset's row (#230).
  *
  * Note: read the way navigation/stylesheet.test.js reads its partials:
  *       comments taken out, and a block found by its header, whole.
@@ -274,6 +275,37 @@ describe('the month on a phone, on one line on every phone (#224)', () => {
 
         expect(blocks(menu, 'select')[0]).toMatch(/font-size\s*:\s*16px\s*;/);
         expect(within('.data-month-menu select')).toMatch(/font-size\s*:\s*calc\(16 \/ 14 \* var\(--fit-rem\)\)\s*;/);
+    });
+});
+
+describe('a dataset\'s month across its row on a phone (#230)', () => {
+    const article = read('_article.scss');
+    const [phone] = blocks(article, '@media (max-width: 767.98px)');
+    const within = (header) => blocks(phone || '', header)[0] || '';
+
+    it('grows the month and its menu to fill the row, as /stream\'s window menu fills its line (#222)', () => {
+        expect(phone).toMatch(/\.data-month-row \.data-month,\s*\.data-month-row \.data-month-menu\s*\{/);
+
+        const grows = within('.data-month-row .data-month-menu');
+
+        expect(grows).toMatch(/flex\s*:\s*1 1 auto\s*;/);
+        expect(grows).toMatch(/min-width\s*:\s*0\s*;/);
+    });
+
+    it('stretches the menu across the room it takes', () => {
+        const select = within('.data-month-row .data-month-menu select');
+
+        expect(select).toMatch(/width\s*:\s*100%\s*;/);
+        expect(select).toMatch(/min-width\s*:\s*0\s*;/);
+    });
+
+    it('leaves the listing\'s month, beside its title, its own width', () => {
+        expect(within('.data-month')).not.toMatch(/flex\s*:/);
+        expect(within('.data-month-menu select')).not.toMatch(/(^|[^-])width\s*:/);
+    });
+
+    it('keeps the row a fit row, so a phone without the room sees it smaller (#224)', () => {
+        expect(within('.data-month-row')).toMatch(/@include fit-row\(22\.25\)\s*;/);
     });
 });
 

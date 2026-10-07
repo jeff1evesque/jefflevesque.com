@@ -353,6 +353,25 @@
     min-height: calc(2.75 * var(--fit-rem));
     padding: 0 calc(1.9 * var(--fit-rem)) 0 calc(0.9 * var(--fit-rem));
   }
+
+  //
+  // a dataset's month across its row, the menu taking the room, as /stream's
+  // window menu takes its line's (#222): › sits the row's gap from the api
+  // icons, 7px at 390px wide, rather than wherever the menu's longest month
+  // leaves it, 47px. A phone too narrow for the row at full size is full
+  // already, and the listing's month, beside its title, keeps its own width
+  // (#230)
+  //
+  .data-month-row .data-month,
+  .data-month-row .data-month-menu {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .data-month-row .data-month-menu select {
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 .articles {
