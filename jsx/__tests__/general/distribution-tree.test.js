@@ -165,7 +165,7 @@ describe('the groups and what they hold', () => {
         ['a row that is not an object', ['Energy', 7, null]],
         ['a row that counts nothing', [{ sector: 'Energy', total: 0 }]],
     ])('draws nothing for %s', (name, rows) => {
-        expect(distributionTree(rows, 'sector')).toEqual({ groups: [], total: 0, nested: false, sectors: [] });
+        expect(distributionTree(rows, 'sector')).toEqual({ groups: [], total: 0, nested: false, ordered: [], sectors: [] });
     });
 
     it.each([
@@ -612,6 +612,70 @@ describe('members a stream names in order (#211)', () => {
 
     it('nests, so a form opens to its statuses', () => {
         expect(distributionTree(rows, 'form', 'light', STATUSES).nested).toBe(true);
+    });
+});
+
+describe('the names the page gives members, and the legend of those it orders (#230)', () => {
+    const STATUSES = ['new', 'repeated', 'changed'];
+    const NAMES = { new: 'New', repeated: 'Repeated', changed: 'Changed' };
+    const rows = [
+        { form: 'Form 10-Q', new: 41970, repeated: 37190, changed: 900 },
+        { form: 'Form 10-K', repeated: 6949, new: 6563 },
+        { form: 'Form 424B2', changed: 1876 },
+    ];
+
+    it('names each status as the page does, and keeps the api\'s column as its field', () => {
+        const tree = distributionTree(rows, 'form', 'light', STATUSES, NAMES);
+        const tenQ = tree.groups.find((group) => group.name === 'Form 10-Q');
+
+        expect(tenQ.members.map((member) => [member.name, member.field])).toEqual([
+            ['New', 'new'],
+            ['Repeated', 'repeated'],
+            ['Changed', 'changed'],
+        ]);
+    });
+
+    it('still orders and colors them by the api\'s column', () => {
+        const tree = distributionTree(rows, 'form', 'light', STATUSES, NAMES);
+        const tenK = tree.groups.find((group) => group.name === 'Form 10-K');
+        const sixFour = tree.groups.find((group) => group.name === 'Form 424B2');
+
+        expect(tenK.members.map((member) => [member.name, member.shade])).toEqual([
+            ['New', colors_categorical[0]],
+            ['Repeated', colors_categorical[1]],
+        ]);
+        expect(sixFour.members.map((member) => [member.name, member.shade])).toEqual([['Changed', colors_categorical[2]]]);
+    });
+
+    it('lists the month\'s statuses for the legend, in order, each in the color it wears in every form', () => {
+        expect(distributionTree(rows, 'form', 'light', STATUSES, NAMES).ordered).toEqual([
+            { key: 'new', name: 'New', shade: colors_categorical[0] },
+            { key: 'repeated', name: 'Repeated', shade: colors_categorical[1] },
+            { key: 'changed', name: 'Changed', shade: colors_categorical[2] },
+        ]);
+    });
+
+    it('leaves a status the month holds none of out of the legend', () => {
+        const ordered = distributionTree(rows.slice(1, 2), 'form', 'light', STATUSES, NAMES).ordered;
+
+        expect(ordered.map((status) => status.key)).toEqual(['new', 'repeated']);
+    });
+
+    it('names them by the api\'s column where the page gives no names', () => {
+        const tree = distributionTree(rows, 'form', 'light', STATUSES);
+
+        expect(tree.ordered.map((status) => status.name)).toEqual(['new', 'repeated', 'changed']);
+        expect(tree.groups[0].members.map((member) => member.name)).toEqual(['new', 'repeated', 'changed']);
+    });
+
+    it('lists nothing for the legend without an order', () => {
+        expect(distributionTree(rows, 'form').ordered).toEqual([]);
+    });
+
+    it('names a member only by the labels\' own names, not by what every object has', () => {
+        const [group] = distributionTree([{ form: 'Form 4', constructor: 2, new: 1 }], 'form', 'light', STATUSES, NAMES).groups;
+
+        expect(group.members.map((member) => member.name)).toEqual(['New', 'constructor']);
     });
 });
 
