@@ -146,11 +146,12 @@ function bySector(a, b) {
 
 //
 // members in the order a stream names, ahead of the rest, which run as they
-// always have -- see the `order` the tree takes
+// always have -- see the `order` the tree takes. Named by the column the api
+// counts them in, whatever the page calls them (#230)
 //
 function byOrder(order) {
     const at = (member) => {
-        const place = order.indexOf(member.name);
+        const place = order.indexOf(member.field);
         return place === -1 ? order.length : place;
     };
 
@@ -238,7 +239,24 @@ export function share(part, whole) {
 // color on a form of mostly new facts and another on a form of mostly repeated
 // ones. A member it does not name runs after them, as it always has.
 //
-export default function distributionTree(rows, aggregate_key, theme = 'light', order = []) {
+// 'ordered' is every member the order names that the month holds, in that
+// order, each in the color it wears in every group, for a phone's legend of
+// them, as 'sectors' is for the stock splits' (#230). None where there is no
+// order.
+//
+// 'labels' names a member as the page shows it, where the api's column is not
+// that name: the statuses, which the api writes in lower case, are 'New',
+// 'Repeated' and 'Changed' wherever a chart names them (#230). The order and
+// the colors still go by the api's column, which a member keeps as its 'field'.
+//
+export default function distributionTree(rows, aggregate_key, theme = 'light', order = [], labels = {}) {
+    //
+    // a member's name as the page shows it, by the api's column: its own name
+    // where the page gives it none. Looked up as the labels' own, so a column
+    // named 'constructor' is not named by the object's
+    //
+    const labelOf = (field) => (Object.prototype.hasOwnProperty.call(labels, field) ? labels[field] : field);
+
     const by_name = new Map();
     const names = new Set();
     const sectored = new Set();
@@ -271,7 +289,7 @@ export default function distributionTree(rows, aggregate_key, theme = 'light', o
         } else {
             found = counted
                 .filter((key) => row[key] > 0)
-                .map((key) => ({ name: key, value: row[key], note: null }));
+                .map((key) => ({ name: labelOf(key), field: key, value: row[key], note: null }));
         }
 
         if (!found.length) {
@@ -366,7 +384,7 @@ export default function distributionTree(rows, aggregate_key, theme = 'light', o
     //       rank, as it always was
     //
     groups.forEach((group) => {
-        const named = group.members.filter((member) => order.includes(member.name)).length;
+        const named = group.members.filter((member) => order.includes(member.field)).length;
         const tail = Math.max(group.members.length - named + order.length - colors_categorical.length, 0);
 
         group.members.forEach((member, rank) => {
@@ -375,7 +393,7 @@ export default function distributionTree(rows, aggregate_key, theme = 'light', o
                 return;
             }
 
-            const placed = order.indexOf(member.name);
+            const placed = order.indexOf(member.field);
             const slot = placed !== -1 ? placed : order.length + rank - named;
 
             member.shade = slot < colors_categorical.length
@@ -384,10 +402,24 @@ export default function distributionTree(rows, aggregate_key, theme = 'light', o
         });
     });
 
+    //
+    // the color each member the order names wears, from the first group that
+    // holds it, since it wears the same in every one
+    //
+    const worn = new Map();
+    groups.forEach((group) => group.members.forEach((member) => {
+        if (order.includes(member.field) && !worn.has(member.field)) {
+            worn.set(member.field, member.shade);
+        }
+    }));
+
     return {
         groups: groups,
         total: groups.reduce((sum, group) => sum + group.value, 0),
         nested: noted || names.size > 1,
+        ordered: order
+            .filter((field) => worn.has(field))
+            .map((field) => ({ key: field, name: labelOf(field), shade: worn.get(field) })),
         sectors: Array.from(sectored)
             .sort((a, b) => (sectorRank(a) - sectorRank(b)) || a.localeCompare(b))
             .map((sector) => ({ key: sector, name: sectorName(sector), shade: sectorShade(sector, theme) })),
