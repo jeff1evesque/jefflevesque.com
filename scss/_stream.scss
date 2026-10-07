@@ -961,12 +961,9 @@ $stream-held: rgba($green-2, 0.32);
 // see '.stream-back' -- since a rail down the graph's left side gave way to it
 // (#167).
 //
-// On a wide screen the figures are one ruled row as wide as the graph: a line
-// above and below, a divider between them, and nothing filled or rounded to
-// read as a button (#208). Three boxes at the left lined up with nothing past
-// them (#206); as wide as the graph they overwhelmed it, and cut short they
-// read as tabs under the rate's buttons. A phone keeps them in boxes -- see
-// below.
+// On a wide screen the figures are one ruled row as wide as the graph, 1.25rem
+// over it (#208), and a phone keeps them in boxes, under it -- see below. How
+// they look is '_figure-boxes.scss''s, since /data draws them too (#230).
 //
 .stream-focus {
   display: flex;
@@ -974,85 +971,8 @@ $stream-held: rgba($green-2, 0.32);
   margin: 1rem 0 2rem;
 }
 
-.stream-focus-figures {
-  border-bottom: 1px solid $gray-2;
-  border-top: 1px solid $gray-2;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.stream-focus .stream-focus-figures {
   margin-bottom: 1.25rem;
-}
-
-//
-// each figure one line: its name, its icon and its value side by side on one
-// baseline, centered in its third of the row (#208)
-//
-.stream-focus-figure {
-  align-items: baseline;
-  display: flex;
-  gap: 0.6rem;
-  justify-content: center;
-  min-width: 0;
-  padding: 0.55rem 1rem;
-}
-
-.stream-focus-figure + .stream-focus-figure {
-  border-left: 1px solid $gray-2;
-}
-
-.stream-focus-figure-label {
-  color: $gray-6;
-  font-size: 0.85rem;
-}
-
-//
-// a phone's size on a wide screen too, under the title's 21px: at 1.7rem the
-// figures stood bigger than the stream's name (#208)
-//
-.stream-focus-figure-value {
-  font-size: 1.3rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-}
-
-//
-// a value in the color that says how it stands (#206) -- see figureTone in
-// stream-focus.jsx: green where Health or Coverage is 95% or more, the bars' red
-// where Health is under it, and the bars' darkest blue for Total Records, which
-// is the bars added up. A Coverage under 95% keeps the page's text. Each color
-// is a theme pair already, so the night draws its own
-//
-.stream-focus-figure-good {
-  color: $green-6;
-}
-
-.stream-focus-figure-bad {
-  color: var(--stream-missed);
-}
-
-.stream-focus-figure-total {
-  color: var(--stream-shade-0);
-}
-
-//
-// the info icon after each figure's name, whose note says what the figure
-// counts (#206): in the name's gray and at its size, as /graph's after a source
-// outside the graph. See info-note.jsx.
-//
-// Note: scoped two classes deep, since MUI's own class on the icon would
-//       otherwise win -- see '_api-links.scss'.
-//
-.stream-focus .stream-focus-noted {
-  white-space: nowrap;
-
-  svg {
-    font-size: 1em;
-    margin-left: 0.2em;
-    vertical-align: -0.125em;
-  }
-}
-
-.stream-focus-short {
-  display: none;
 }
 
 //
@@ -1786,42 +1706,13 @@ $stream-held: rgba($green-2, 0.32);
     height: 15rem;
   }
 
-  .stream-focus-figures {
-    border: 0;
-    display: grid;
-    gap: 0.75rem;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  //
+  // its figures in three boxes side by side, under the graph -- see
+  // '_figure-boxes.scss' for the boxes (#206, #230)
+  //
+  .stream-focus .stream-focus-figures {
     margin: 1rem 0 0;
     order: 3;
-    padding-left: 0;
-  }
-
-  //
-  // each figure in a box of its own, its name over its value and both
-  // centered, the three boxes splitting the line evenly (#206), where a wide
-  // screen draws one ruled row (#208). Slim at the sides, so 'Coverage' and its
-  // icon fit a third of the narrowest phone's line -- about 86px at 320px wide
-  //
-  .stream-focus-figure {
-    align-items: center;
-    background-color: $white-2;
-    border: 1px solid $gray-2;
-    border-radius: 0.75rem;
-    flex-direction: column;
-    gap: 0.1rem;
-    padding: 0.6rem 0.25rem;
-  }
-
-  .stream-focus-figure-label {
-    font-size: 0.8rem;
-  }
-
-  .stream-focus-long {
-    display: none;
-  }
-
-  .stream-focus-short {
-    display: inline;
   }
 
   .stream-focus .stream-rows-readout {
