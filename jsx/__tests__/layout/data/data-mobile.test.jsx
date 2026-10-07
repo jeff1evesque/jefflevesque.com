@@ -19,6 +19,22 @@ import React from 'react';
 
 jest.mock('react-device-detect', () => ({ isMobile: true }));
 
+//
+// the workers, captured so a case can answer for one, with what the real ones
+// post -- see data-callback.test.jsx. Under jsdom no worker ever answers
+//
+global.__workers = [];
+
+jest.mock('../../../import/worker/web-worker.js', () => ({
+    __esModule: true,
+    default: function WorkerBuilderMock(script) {
+        this.script = script;
+        this.postMessage = jest.fn();
+        this.terminate = jest.fn();
+        global.__workers.push(this);
+    },
+}));
+
 const { render, fireEvent, screen, act } = require('@testing-library/react');
 const { MemoryRouter } = require('react-router-dom');
 const DataLayout = require('../../../import/layout/data/data.jsx').default;
@@ -487,5 +503,182 @@ describe('a phone\'s month', () => {
         expect(monthMenu().selectedIndex).toBe(4);
         expect(backBar()).not.toBeNull();
         expect(chartShown()).toBe(true);
+    });
+});
+
+//
+// #230: a dataset opened on its own, on a phone, sums its month up in three
+// boxes under the month row, as /stream's stream on its own does
+//
+
+//
+// the page, held so a case can answer for its workers
+//
+function setupPage() {
+    const held = React.createRef();
+
+    render(
+        <MemoryRouter>
+            <DataLayout ref={held} />
+        </MemoryRouter>
+    );
+
+    return held.current;
+}
+
+//
+// what a worker for `stream` posts, delivered as the real one does
+//
+function deliver(page, stream, data) {
+    page.callbackGetData({ stream: stream });
+
+    act(() => {
+        global.__workers[global.__workers.length - 1].onmessage({ data: data });
+    });
+}
+
+//
+// the boxes, each its name and its value as a phone reads them: the shorter
+// form, where there is one
+//
+function figures() {
+    return [...document.querySelectorAll('.filter-month .stream-focus-figure')].map((box) => {
+        const phone = (part) => (box.querySelector(`${part} .stream-focus-short`) || box.querySelector(part)).textContent;
+
+        return [phone('.stream-focus-figure-label'), phone('.stream-focus-figure-value')];
+    });
+}
+
+//
+// a month of SEC filings, three forms of them
+//
+const FILINGS = {
+    selected_stream: 'sec',
+    aggregate_key: 'form',
+    records: 83246,
+    data_distribution: [
+        { form: 'Form 4', Filings: 60513 },
+        { form: 'Form 424B2', Filings: 17321 },
+        { form: 'Form 144', Filings: 5412 },
+    ],
+};
+
+describe('a dataset\'s month in three boxes on a phone (#230)', () => {
+    beforeEach(() => {
+        global.__workers.length = 0;
+    });
+
+    it('sits under the month row, over the rows', () => {
+        setup();
+        fireEvent.click(chartButton('SEC Filings'));
+
+        expect(document.querySelector('.filter-month .data-month-row').nextElementSibling)
+            .toHaveClass('stream-focus-figures');
+        expect(document.querySelectorAll('.stream-focus-figure')).toHaveLength(3);
+    });
+
+    it.each([
+        ['S&P 500', 'Records', 'Sectors', 'records', 'sector'],
+        ['Stock Splits', 'Splits', 'Days', 'splits', 'day'],
+        ['Bureau of Labor Statistics', 'Records', 'Series', 'records', 'series'],
+        ['SEC Filings', 'Filings', 'Forms', 'filings', 'form'],
+        ['SEC Company Facts', 'Facts', 'Forms', 'facts', 'form'],
+        ['US Weather Alerts', 'Events', 'Severities', 'events', 'severity'],
+    ])('names %s\'s for what its rows count: %s, %s and Partitions', (label, unit, rows, units, row) => {
+        setup();
+        fireEvent.click(chartButton(label));
+
+        const names = [...document.querySelectorAll('.filter-month .stream-focus-figure-label')];
+
+        expect(figures().map(([name]) => name)).toEqual([unit, rows, 'Partitions']);
+        expect(names[0].querySelector('.stream-focus-long')).toHaveTextContent(`Total ${unit}`);
+        expect(names[0]).toHaveAccessibleDescription(`All the ${units} below, added up`);
+        expect(names[1]).toHaveAccessibleDescription(`One row per ${row}, below`);
+        expect(names[2]).toHaveAccessibleDescription('Partitions the month is stored in');
+    });
+
+    it('reads n/a while the month is on its way, then the month\'s total, rows and partitions', () => {
+        const page = setupPage();
+        fireEvent.click(chartButton('SEC Filings'));
+
+        expect(figures()).toEqual([['Filings', 'n/a'], ['Forms', 'n/a'], ['Partitions', 'n/a']]);
+
+        deliver(page, 'sec', FILINGS);
+        expect(figures()).toEqual([['Filings', '83.2K'], ['Forms', '3'], ['Partitions', 'n/a']]);
+
+        deliver(page, 'sec', { count: 1, selected_stream: 'sec' });
+        expect(figures()).toEqual([['Filings', '83.2K'], ['Forms', '3'], ['Partitions', '1']]);
+        expect(document.querySelector('.filter-month .stream-focus-figure-value .stream-focus-long'))
+            .toHaveTextContent('83,246');
+    });
+
+    it('waits for the rows before showing partitions that came first', () => {
+        const page = setupPage();
+        fireEvent.click(chartButton('SEC Filings'));
+
+        deliver(page, 'sec', { count: 1, selected_stream: 'sec' });
+        expect(figures().map(([, value]) => value)).toEqual(['n/a', 'n/a', 'n/a']);
+
+        deliver(page, 'sec', FILINGS);
+        expect(figures().map(([, value]) => value)).toEqual(['83.2K', '3', '1']);
+    });
+
+    it('shows a month\'s own partitions, never the month before\'s', () => {
+        const page = setupPage();
+        fireEvent.click(chartButton('SEC Filings'));
+        deliver(page, 'sec', FILINGS);
+        deliver(page, 'sec', { count: 1, selected_stream: 'sec' });
+
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+        expect(figures().map(([, value]) => value)).toEqual(['n/a', 'n/a', 'n/a']);
+
+        deliver(page, 'sec', { ...FILINGS, records: 120248 });
+        expect(figures().map(([, value]) => value)).toEqual(['120.2K', '3', 'n/a']);
+
+        deliver(page, 'sec', { count: 2, selected_stream: 'sec' });
+        expect(figures().map(([, value]) => value)).toEqual(['120.2K', '3', '2']);
+    });
+
+    it('draws the total in /stream\'s Total Records blue once it lands, and nothing else in color', () => {
+        const page = setupPage();
+        fireEvent.click(chartButton('SEC Filings'));
+
+        expect(document.querySelector('.stream-focus-figure-total')).toBeNull();
+
+        deliver(page, 'sec', FILINGS);
+        deliver(page, 'sec', { count: 1, selected_stream: 'sec' });
+
+        expect([...document.querySelectorAll('.filter-month .stream-focus-figure-value')].map((value) => value.className))
+            .toEqual([
+                'stream-focus-figure-value stream-focus-figure-total',
+                'stream-focus-figure-value',
+                'stream-focus-figure-value',
+            ]);
+    });
+
+    it('draws none over the listing', () => {
+        setup();
+
+        expect(document.querySelector('.stream-focus-figures')).toBeNull();
+    });
+
+    it('names the company facts\' statuses with a capital, in a legend that folds as Statuses', () => {
+        const page = setupPage();
+        fireEvent.click(chartButton('SEC Company Facts'));
+
+        deliver(page, 'sec-companyfacts', {
+            selected_stream: 'sec-companyfacts',
+            aggregate_key: 'form',
+            records: 10135,
+            data_distribution: [
+                { form: 'Form 10-Q', repeated: 3300, new: 3691, changed: 98 },
+                { form: 'Form 424B2', new: 3046 },
+            ],
+        });
+
+        expect(screen.getByRole('button', { name: 'Statuses' })).toHaveAttribute('aria-expanded', 'true');
+        expect([...document.querySelectorAll('.cube-rows-legend li')].map((item) => item.textContent))
+            .toEqual(['New', 'Repeated', 'Changed']);
+        expect(figures()).toEqual([['Facts', '10.1K'], ['Forms', '2'], ['Partitions', 'n/a']]);
     });
 });
