@@ -1,7 +1,8 @@
 /**
  * data-rows-sort.test.jsx: what the page keeps of how a phone's rows of cubes
  * were arranged (#192) -- the order their titles put them in, for the rest of
- * the visit, and whether the stock splits' legend is folded away, for the next.
+ * the visit, and whether the stock splits' legend is folded away, and the
+ * company facts' (#230), for the next.
  *
  * The rows themselves are held by cube-rows.test.jsx. Here they are stood in
  * for, so the props the page hands them, and what it does with what they tell
@@ -46,12 +47,12 @@ function open(label) {
 }
 
 describe('a phone\'s rows of cubes, as the page keeps them (#192)', () => {
-    it('start in their own order, with the sectors\' legend shown', () => {
+    it('start in their own order, with every legend shown', () => {
         setup();
         open('S&P 500');
 
         expect(handed.sort).toBeNull();
-        expect(handed.sectorsShown).toBe(true);
+        expect(handed.folds).toEqual({});
     });
 
     it('keep the order their titles put them in from one month to the next', () => {
@@ -92,8 +93,8 @@ describe('a phone\'s rows of cubes, as the page keeps them (#192)', () => {
         const view = setup();
         open('Stock Splits');
 
-        act(() => handed.onSectors(false));
-        expect(handed.sectorsShown).toBe(false);
+        act(() => handed.onFold('sectors', true));
+        expect(handed.folds).toEqual({ sectors: true });
         expect(readLayout('data', 'phone').fold).toEqual({ sectors: true });
         expect(readLayout('data', 'wide').fold).toEqual({});
         view.unmount();
@@ -104,6 +105,21 @@ describe('a phone\'s rows of cubes, as the page keeps them (#192)', () => {
         window.history.replaceState(null, '', '/');
         setup();
         open('Stock Splits');
-        expect(handed.sectorsShown).toBe(false);
+        expect(handed.folds).toEqual({ sectors: true });
+    });
+
+    it('keep the company facts\' legend folded beside the sectors\', each its own (#230)', () => {
+        setup();
+        open('Stock Splits');
+        act(() => handed.onFold('sectors', true));
+
+        fireEvent.click(document.querySelector('button.data-back'));
+        open('SEC Company Facts');
+        act(() => handed.onFold('statuses', true));
+        expect(readLayout('data', 'phone').fold).toEqual({ sectors: true, statuses: true });
+
+        act(() => handed.onFold('sectors', false));
+        expect(handed.folds).toEqual({ sectors: false, statuses: true });
+        expect(readLayout('data', 'phone').fold).toEqual({ sectors: false, statuses: true });
     });
 });
