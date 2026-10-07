@@ -14,7 +14,9 @@
  *
  * A day of stock splits the api names the companies of is banded by sector,
  * each in its own color, which a legend over the rows names, and opens to its
- * tickers under their sectors' heads (#190).
+ * tickers under their sectors' heads (#190). A form of company facts is banded
+ * by status, each status in one color on every form, which a legend names too
+ * (#230). Each folds away under its name, as the page keeps it.
  *
  * A long list shows its first rows and a button for the rest, so a sector of
  * twenty industries, or a month of a hundred forms, is not a page of scrolling.
@@ -206,8 +208,8 @@ export default function CubeRows({
     overlay,
     sort = null,
     onSort = () => {},
-    sectorsShown = true,
-    onSectors = () => {},
+    folds = {},
+    onFold = () => {},
 }) {
     const box = useRef(null);
     const width = useWidth(box, FALLBACK_WIDTH);
@@ -229,14 +231,14 @@ export default function CubeRows({
     }
 
     //
-    // whether the sectors' legend is shown or folded away under its line, and
-    // the page told, so it can keep which (#192). It starts shown
+    // which legends are folded away under their line, by name, and the page
+    // told, so it can keep which (#192, #230). Each starts shown
     //
-    const [sectors_shown, setSectorsShown] = useState(sectorsShown);
+    const [folded, setFolded] = useState(folds);
 
-    function showSectors(shown) {
-        setSectorsShown(shown);
-        onSectors(shown);
+    function fold(name, value) {
+        setFolded((held) => ({ ...held, [name]: value }));
+        onFold(name, value);
     }
 
     //
@@ -355,8 +357,22 @@ export default function CubeRows({
     rows = sortRows(rows, sorting);
 
     const opening = rows.some((row) => row.open);
-    const sectored = !opened && Boolean(tree.sectors && tree.sectors.length);
     const columns = Math.max(1, Math.floor((width - (opening ? ARROW_ROOM : 0) + GAP) / PITCH));
+
+    //
+    // the legend over the rows, where a color means one thing on every row: the
+    // sectors a month of stock splits is banded by (#190), or the members a
+    // stream keeps in one color in every group, the company facts' statuses
+    // (#230). None while a group is open, or where a color means only a rank
+    // in its row, as an industry's in its sector does
+    //
+    let swatches = null;
+    if (!opened && tree.sectors && tree.sectors.length) {
+        swatches = { name: 'sectors', items: tree.sectors };
+    } else if (!opened && tree.ordered && tree.ordered.length) {
+        swatches = { name: names.member[1], items: tree.ordered };
+    }
+    const swatches_shown = Boolean(swatches) && folded[swatches.name] !== true;
     const { unit: per_cube, depth } = rowCut(Math.max(1, ...rows.map((row) => row.value)), columns);
     const legend = per_cube === 1 ? `Each cube is 1 ${unit[0]}` : `Each cube ≈ ${fmt(per_cube)} ${unit[1]}`;
 
@@ -506,22 +522,23 @@ export default function CubeRows({
             {head}
             {/*
 
-                what a cube is worth, and, beside it, the fold for the sectors'
-                legend under it (#192)
+                what a cube is worth, and, beside it, the fold for the legend
+                under it, named for what it names: 'Sectors' (#192) or
+                'Statuses' (#230)
 
             */}
             {rows.length ? (
                 <div className='cube-rows-key-row'>
                     <p className='cube-rows-key'>{legend}</p>
-                    {sectored ? (
+                    {swatches ? (
                         <button
                             type='button'
                             className='cube-rows-legend-fold'
-                            aria-expanded={sectors_shown}
-                            onClick={() => showSectors(!sectors_shown)}
+                            aria-expanded={swatches_shown}
+                            onClick={() => fold(swatches.name, swatches_shown)}
                         >
-                            Sectors
-                            {sectors_shown
+                            {capitalized(swatches.name)}
+                            {swatches_shown
                                 ? <ExpandLessIcon fontSize='inherit' aria-hidden='true' />
                                 : <ExpandMoreIcon fontSize='inherit' aria-hidden='true' />}
                         </button>
@@ -530,16 +547,17 @@ export default function CubeRows({
             ) : null}
             {/*
 
-                the sectors a month of stock splits is banded by, each in its
-                color, over the rows they band (#190), unless folded away
+                the sectors a month of stock splits is banded by (#190), or the
+                statuses a month of company facts is (#230), each in its color,
+                over the rows they band, unless folded away
 
             */}
-            {sectored && sectors_shown ? (
-                <ul className='cube-rows-legend' aria-label='Sectors'>
-                    {tree.sectors.map((sector) => (
-                        <li key={sector.key} className='cube-rows-legend-item'>
-                            <span className='cube-rows-swatch' style={{ background: sector.shade }} />
-                            {sector.name}
+            {swatches_shown ? (
+                <ul className='cube-rows-legend' aria-label={capitalized(swatches.name)}>
+                    {swatches.items.map((item) => (
+                        <li key={item.key} className='cube-rows-legend-item'>
+                            <span className='cube-rows-swatch' style={{ background: item.shade }} />
+                            {item.name}
                         </li>
                     ))}
                 </ul>
@@ -628,6 +646,11 @@ CubeRows.propTypes = {
             name: PropTypes.string.isRequired,
             shade: PropTypes.string.isRequired,
         })),
+        ordered: PropTypes.arrayOf(PropTypes.shape({
+            key: PropTypes.string.isRequired,
+            name: PropTypes.string.isRequired,
+            shade: PropTypes.string.isRequired,
+        })),
     }).isRequired,
     names: PropTypes.shape({
         group: PropTypes.arrayOf(PropTypes.string).isRequired,
@@ -647,9 +670,10 @@ CubeRows.propTypes = {
     }),
     onSort: PropTypes.func,
     //
-    // whether the sectors' legend starts shown, and what is told when it is
-    // shown or folded -- the page keeps it for the next visit (#192)
+    // which legends start folded away, by name ('sectors', 'statuses'), and
+    // what is told when one is folded or shown -- the page keeps it for the next
+    // visit (#192, #230)
     //
-    sectorsShown: PropTypes.bool,
-    onSectors: PropTypes.func,
+    folds: PropTypes.objectOf(PropTypes.bool),
+    onFold: PropTypes.func,
 };
