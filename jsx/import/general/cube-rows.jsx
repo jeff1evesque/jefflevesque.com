@@ -200,6 +200,49 @@ export function sortRows(rows, sort) {
     return rows.slice().sort((a, b) => (sort.direction === 'descending' ? compare(b, a) : compare(a, b)));
 }
 
+//
+// whether `tree`'s bars are banded by what each group holds: where the groups
+// hold more than themselves, and none holds a day's tickers, which a group
+// opens to a list of instead
+//
+function noteOf(tree) {
+    return tree.groups.some((group) => group.members.some((member) => member.note));
+}
+
+function rankOf(tree) {
+    return tree.nested && !noteOf(tree);
+}
+
+//
+// how many things `group` opens to: its members, where the bars are banded by
+// them, or a day's tickers -- from its sectors, where it is banded by them,
+// whatever their number, so a day of one sector opens as well (#190). None for
+// a group that holds only itself
+//
+function opensOf(group, ranked) {
+    const held = ranked && group.members.length > 1 ? group.members.length : 0;
+    const listed = group.members.reduce(
+        (sum, member) => sum + (member.tickers ? member.tickers.length : 0) + (member.note ? 1 : 0), 0
+    );
+
+    return listed || held;
+}
+
+//
+// the group `key` names in `tree`, where it opens to anything, or null. A page
+// can name one the month does not hold, or one that opens nothing -- from an
+// address, say -- and either shows the groups (#232)
+//
+export function openedGroup(tree, key) {
+    if (!key) {
+        return null;
+    }
+
+    const group = tree.groups.find((each) => each.key === key);
+
+    return group && opensOf(group, rankOf(tree)) ? group : null;
+}
+
 export default function CubeRows({
     tree,
     names,
@@ -210,11 +253,37 @@ export default function CubeRows({
     onSort = () => {},
     folds = {},
     onFold = () => {},
+    open,
+    onOpen = () => {},
 }) {
     const box = useRef(null);
     const width = useWidth(box, FALLBACK_WIDTH);
-    const [open, setOpen] = useState(null);
-    const [whole, setWhole] = useState(false);
+
+    //
+    // the group open in place of the groups: the page's, where it hands one
+    // in -- a phone's /data keeps it in the address, so Back closes it, and its
+    // green bar closes it too (#232) -- and the rows' own otherwise
+    //
+    const [inner, setInner] = useState(null);
+    const opened = openedGroup(tree, open === undefined ? inner : open);
+    const open_key = opened ? opened.key : null;
+
+    //
+    // whether the groups are shown whole, and which open group's list is, so
+    // the groups come back as they were left, with the row of a group opened
+    // past the first 8 still there to go back to
+    //
+    const [whole_groups, setWholeGroups] = useState(false);
+    const [whole_open, setWholeOpen] = useState(null);
+    const whole = opened ? whole_open === opened.key : whole_groups;
+
+    function showWhole(value) {
+        if (opened) {
+            setWholeOpen(value ? opened.key : null);
+        } else {
+            setWholeGroups(value);
+        }
+    }
 
     //
     // the order the reader put the rows in from their titles, or null for the
@@ -243,60 +312,72 @@ export default function CubeRows({
 
     //
     // where the keyboard goes once a group opens or closes, since the button
-    // pressed is gone: the open group's ×, or the row of the group just closed
+    // pressed is gone: the open group's ×, where a tap opened it, or the row of
+    // the group just closed, however it was closed
     //
     const focus_next = useRef(null);
     const close_button = useRef(null);
-
-    //
-    // whether the groups were shown whole when one was opened, so they come
-    // back as they were left, with the row of a group opened past the first 8
-    // still there to go back to
-    //
-    const was_whole = useRef(false);
+    const last_open = useRef(open_key);
 
     const unit = names.unit;
     const groups = tree.groups;
-    const noted = groups.some((group) => group.members.some((member) => member.note));
-    const ranked = tree.nested && !noted;
-    const opened = open ? groups.find((group) => group.key === open) || null : null;
-
-    useEffect(() => {
-        const next = focus_next.current;
-        focus_next.current = null;
-
-        if (next === 'close' && close_button.current) {
-            close_button.current.focus({ preventScroll: true });
-        } else if (next && box.current) {
-            const row = [...box.current.querySelectorAll('button.cube-rows-row')].find((button) => button.dataset.key === next);
-
-            if (row) {
-                row.focus({ preventScroll: true });
-            }
-        }
-    }, [open]);
+    const noted = noteOf(tree);
+    const ranked = rankOf(tree);
 
     //
     // a group opened, or every group again, from the top of the rows: the list
     // it leaves may have been scrolled well past it. The top is out of sight
     // above the screen, or under a phone's pinned header, whose height the
-    // rows' scroll margin holds -- as the page does for a dataset (#177)
+    // rows' scroll margin holds -- as the page does for a dataset (#177). By
+    // whichever way it opened or closed: a tap, the page's green bar, or Back
+    // (#232)
     //
     // Note: scrollIntoView is guarded, since jsdom has none
     //
-    function choose(key) {
-        if (key) {
-            was_whole.current = whole;
+    useEffect(() => {
+        const was = last_open.current;
+        last_open.current = open_key;
+
+        if (was === open_key) {
+            return;
         }
 
-        focus_next.current = key ? 'close' : open;
-        setOpen(key);
-        setWhole(key ? false : was_whole.current);
+        const next = focus_next.current;
+        focus_next.current = null;
+
+        if (open_key && next === 'close' && close_button.current) {
+            close_button.current.focus({ preventScroll: true });
+        } else if (!open_key && was && box.current) {
+            const row = [...box.current.querySelectorAll('button.cube-rows-row')].find((button) => button.dataset.key === was);
+
+            if (row) {
+                row.focus({ preventScroll: true });
+            }
+        }
 
         const node = box.current;
         if (node && typeof node.scrollIntoView === 'function' && node.getBoundingClientRect().top < scrollMargin(node)) {
             node.scrollIntoView({ block: 'start' });
         }
+    }, [open_key]);
+
+    //
+    // a group opened from its row, or every group again from the ×: the page
+    // told, where it holds which, and the rows' own kept otherwise. A group
+    // opens with its list cut short
+    //
+    function choose(key) {
+        focus_next.current = key ? 'close' : null;
+
+        if (key) {
+            setWholeOpen(null);
+        }
+
+        if (open === undefined) {
+            setInner(key);
+        }
+
+        onOpen(key);
     }
 
     let rows = [];
@@ -305,16 +386,7 @@ export default function CubeRows({
 
     if (!opened) {
         rows = groups.map((group) => {
-            //
-            // a group opens to its members, or to a day's tickers: from its
-            // sectors, where it is banded by them, whatever their number, so a
-            // day of one sector opens as well (#190)
-            //
-            const held = ranked && group.members.length > 1 ? group.members.length : 0;
-            const listed = group.members.reduce(
-                (sum, member) => sum + (member.tickers ? member.tickers.length : 0) + (member.note ? 1 : 0), 0
-            );
-            const opens = listed || held;
+            const opens = opensOf(group, ranked);
 
             return {
                 key: group.key,
@@ -399,7 +471,11 @@ export default function CubeRows({
 
     //
     // the open group's head: its name, what it holds, and the way back to every
-    // group. A day's splits are its tickers, so it counts them once
+    // group. A day's splits are its tickers, so it counts them once.
+    //
+    // Note: each part of what it holds keeps to one line, its dot with it, so
+    //       the line breaks between parts -- '28% of all' on a line of its own
+    //       -- rather than inside one, '28% of' over 'all' (#232)
     //
     let head = null;
     if (opened) {
@@ -413,7 +489,14 @@ export default function CubeRows({
             <div className='cube-rows-head'>
                 <div className='cube-rows-heading'>
                     <span className='cube-rows-title'>{opened.name}</span>
-                    <span className='cube-rows-meta'>{meta.join(' · ')}</span>
+                    <span className='cube-rows-meta'>
+                        {meta.map((part, at) => (
+                            <React.Fragment key={part}>
+                                {at ? ' ' : null}
+                                <span className='cube-rows-meta-part'>{at < meta.length - 1 ? `${part} ·` : part}</span>
+                            </React.Fragment>
+                        ))}
+                    </span>
                 </div>
                 <button
                     type='button'
@@ -511,9 +594,14 @@ export default function CubeRows({
         listed = tickerList(tickers.slice(0, shown), `${opened.name}: its ${names.member[1]}`);
     }
 
+    //
+    // an open group is a panel of its own, with its name and × at the top, as
+    // a wide screen's list under its chart is, so the × closes the whole of it
+    // (#232)
+    //
     return (
         <div
-            className='cube-rows'
+            className={opened ? 'cube-rows is-open' : 'cube-rows'}
             ref={box}
             role='group'
             aria-label={`${capitalized(unit[1])} by ${names.group[0]}, ${caption}`}
@@ -614,13 +702,13 @@ export default function CubeRows({
                 </ul>
             )}
             {rest > 0 ? (
-                <button type='button' className='cube-rows-more' onClick={() => setWhole(true)}>
+                <button type='button' className='cube-rows-more' onClick={() => showWhole(true)}>
                     <ExpandMoreIcon fontSize='inherit' aria-hidden='true' />
                     {`Show ${rest} more ${noun(rest, pair)}`}
                 </button>
             ) : null}
             {whole && items.length > cut ? (
-                <button type='button' className='cube-rows-more' onClick={() => setWhole(false)}>
+                <button type='button' className='cube-rows-more' onClick={() => showWhole(false)}>
                     <ExpandLessIcon fontSize='inherit' aria-hidden='true' />
                     Show fewer
                 </button>
@@ -676,4 +764,12 @@ CubeRows.propTypes = {
     //
     folds: PropTypes.objectOf(PropTypes.bool),
     onFold: PropTypes.func,
+    //
+    // the group open in place of the groups, by its key, where the page holds
+    // it -- null for none -- and what is told when a group is opened or closed
+    // from the rows, with its key or null. Without it, the rows hold their own
+    // (#232)
+    //
+    open: PropTypes.string,
+    onOpen: PropTypes.func,
 };
