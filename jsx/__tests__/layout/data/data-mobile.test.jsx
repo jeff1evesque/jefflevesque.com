@@ -682,3 +682,188 @@ describe('a dataset\'s month in three boxes on a phone (#230)', () => {
         expect(figures()).toEqual([['Facts', '10.1K'], ['Forms', '2'], ['Partitions', 'n/a']]);
     });
 });
+
+//
+// #232: on a phone, the green bar goes back one step from a group open on its
+// own, as Back does, and the group is a step in the address
+//
+
+//
+// a month of stock splits: three days, each opening to its tickers
+//
+const SPLIT_DAYS = {
+    selected_stream: 'stock-split',
+    aggregate_key: 'sector',
+    records: 7,
+    data_distribution: [
+        { sector: 'Day 1', splits: 3, tickers: 'reto 1:20, zcmd 1:2, mmsmy 2:1' },
+        { sector: 'Day 2', splits: 2, tickers: 'ngksy 3:1, nipmy 1:1' },
+        { sector: 'Day 5', splits: 2, tickers: 'npngy 1:1, stkxf 1:10' },
+    ],
+};
+
+//
+// a group's row tapped open, by its name
+//
+function openRow(name) {
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${name},`) }));
+}
+
+function openTitle() {
+    const title = document.querySelector('.cube-rows-title');
+
+    return title ? title.textContent : null;
+}
+
+const where = () => `${window.location.pathname}${window.location.search}`;
+
+describe('the green bar, one step back from a group open on its own (#232)', () => {
+    beforeEach(() => {
+        global.__workers.length = 0;
+    });
+
+    function splits() {
+        const page = setupPage();
+        fireEvent.click(chartButton('Stock Splits'));
+        deliver(page, 'stock-split', SPLIT_DAYS);
+
+        return page;
+    }
+
+    it('reads All days while a day is open, and goes back to the days, then to the listing', () => {
+        splits();
+        expect(backBar()).toHaveTextContent(/^All data$/);
+
+        openRow('Day 2');
+        expect(openTitle()).toBe('Day 2');
+        expect(backBar()).toHaveTextContent(/^All days$/);
+
+        fireEvent.click(backBar());
+        expect(openTitle()).toBeNull();
+        expect(backBar()).toHaveTextContent(/^All data$/);
+        expect(chartShown()).toBe(true);
+
+        fireEvent.click(backBar());
+        expect(listingShown()).toBe(true);
+    });
+
+    it('puts the open day in the address, opening and closing it each a step', () => {
+        splits();
+        const before = window.history.length;
+
+        openRow('Day 2');
+        expect(where()).toBe('/?item=stock-split&group=Day+2');
+        expect(window.history.length).toBe(before + 1);
+
+        fireEvent.click(backBar());
+        expect(where()).toBe('/?item=stock-split');
+        expect(window.history.length).toBe(before + 2);
+    });
+
+    it('closes the day on Back, and opens it again on Forward', () => {
+        splits();
+        openRow('Day 2');
+
+        travel('/?item=stock-split');
+        expect(openTitle()).toBeNull();
+        expect(backBar()).toHaveTextContent(/^All data$/);
+
+        travel('/?item=stock-split&group=Day+2');
+        expect(openTitle()).toBe('Day 2');
+        expect(backBar()).toHaveTextContent(/^All days$/);
+    });
+
+    it('closes the day from its × as well, out of the address', () => {
+        splits();
+        openRow('Day 2');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to all days' }));
+
+        expect(openTitle()).toBeNull();
+        expect(where()).toBe('/?item=stock-split');
+    });
+
+    it('opens the day an address names, once its month comes', () => {
+        window.history.replaceState(null, '', '/?item=stock-split&group=Day+5');
+        const page = setupPage();
+
+        expect(backBar()).toHaveTextContent(/^All data$/);
+
+        deliver(page, 'stock-split', SPLIT_DAYS);
+
+        expect(openTitle()).toBe('Day 5');
+        expect(backBar()).toHaveTextContent(/^All days$/);
+    });
+
+    it('shows the days where the address names one the month does not hold', () => {
+        window.history.replaceState(null, '', '/?item=stock-split&group=Day+9');
+        const page = setupPage();
+
+        deliver(page, 'stock-split', SPLIT_DAYS);
+
+        expect(openTitle()).toBeNull();
+        expect(backBar()).toHaveTextContent(/^All data$/);
+    });
+
+    it('closes the day on a new month, and takes it out of the address without a step', () => {
+        splits();
+        openRow('Day 2');
+        const before = window.history.length;
+
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+
+        expect(openTitle()).toBeNull();
+        expect(where()).toBe('/?item=stock-split');
+        expect(window.history.length).toBe(before);
+    });
+
+    it('opens another dataset with none of its groups open', () => {
+        splits();
+        openRow('Day 2');
+
+        fireEvent.click(backBar());
+        fireEvent.click(backBar());
+        fireEvent.click(chartButton('S&P 500'));
+
+        expect(openTitle()).toBeNull();
+        expect(where()).toBe('/?item=stock-market');
+    });
+
+    it.each([
+        ['S&P 500', 'stock-market', 'sector', [
+            { sector: 'Energy', Refining: 3, 'Oil & Gas Storage': 2 },
+            { sector: 'Utilities', Water: 4, Electric: 1 },
+        ], 'Energy', 'All sectors'],
+        ['SEC Company Facts', 'sec-companyfacts', 'form', [
+            { form: 'Form 10-Q', new: 5, repeated: 3 },
+        ], 'Form 10-Q', 'All forms'],
+        ['US Weather Alerts', 'us-national-weather', 'severity', [
+            { severity: 'Severe', 'Flood Warning': 3, 'Storm Warning': 2 },
+        ], 'Severe', 'All severities'],
+    ])('names the bar for %s\'s groups while one is open', (label, stream, key, rows, name, words) => {
+        const page = setupPage();
+        fireEvent.click(chartButton(label));
+        deliver(page, stream, { selected_stream: stream, aggregate_key: key, records: 10, data_distribution: rows });
+
+        openRow(name);
+
+        expect(backBar()).toHaveTextContent(new RegExp(`^${words}$`));
+    });
+
+    it('stays All data on a dataset whose groups open nothing', () => {
+        const page = setupPage();
+        fireEvent.click(chartButton('SEC Filings'));
+        deliver(page, 'sec', FILINGS);
+
+        expect(screen.queryByRole('button', { name: /^Form 4,/ })).toBeNull();
+        expect(backBar()).toHaveTextContent(/^All data$/);
+    });
+
+    it('draws a group open on its own in a panel', () => {
+        splits();
+        expect(document.querySelector('.cube-rows')).not.toHaveClass('is-open');
+
+        openRow('Day 1');
+        expect(document.querySelector('.cube-rows')).toHaveClass('is-open');
+    });
+});
