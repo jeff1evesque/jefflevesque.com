@@ -353,6 +353,14 @@ $cube-rows-share: 3.8rem;
 }
 
 //
+// what an open group holds, each part on one line with its dot, so the line
+// breaks between parts rather than inside one (#232)
+//
+.cube-rows-meta-part {
+  white-space: nowrap;
+}
+
+//
 // a day's tickers, three to a line, each with its ratio, with room between
 // them (#192)
 //
@@ -446,5 +454,33 @@ $cube-rows-share: 3.8rem;
   &:hover,
   &:focus-visible {
     color: $gray-8;
+  }
+}
+
+//
+// an open group, a panel of its own with its name and × at the top, as a wide
+// screen's list under its chart is -- see '.cube-list' in '_cube_chart.scss' --
+// so the × closes the whole of it (#232). With room all around, between its
+// rows and under its head: a row stands 0.75rem over and under its name and
+// bar, where the groups' list keeps 0.5rem, and a day's tickers sit further
+// apart
+//
+.cube-rows.is-open {
+  background: $white-1;
+  border: 1px solid $gray-2;
+  border-radius: 8px;
+  padding: 1rem;
+
+  .cube-rows-head {
+    margin-bottom: 0.75rem;
+  }
+
+  .cube-rows-row {
+    padding-bottom: 0.75rem;
+    padding-top: 0.75rem;
+  }
+
+  .cube-rows-tickers {
+    gap: 0.65rem;
   }
 }

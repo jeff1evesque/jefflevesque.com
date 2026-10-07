@@ -16,6 +16,8 @@
  * dataset's row with the icons, on one line on every phone (#224), across a
  * dataset's row (#230).
  *
+ * And about a group open on its own on a phone, a panel with room in it (#232).
+ *
  * Note: read the way navigation/stylesheet.test.js reads its partials:
  *       comments taken out, and a block found by its header, whole.
  */
@@ -306,6 +308,40 @@ describe('a dataset\'s month across its row on a phone (#230)', () => {
 
     it('keeps the row a fit row, so a phone without the room sees it smaller (#224)', () => {
         expect(within('.data-month-row')).toMatch(/@include fit-row\(22\.25\)\s*;/);
+    });
+});
+
+describe('a group open on its own on a phone (#232)', () => {
+    const rows = read('_cube_rows.scss');
+    const [panel] = blocks(rows, '.cube-rows.is-open');
+
+    it('is a panel, as a wide screen\'s list under its chart is', () => {
+        const [list] = blocks(read('_cube_chart.scss'), '.cube-list');
+
+        for (const box of [panel, list]) {
+            expect(box).toMatch(/border\s*:\s*1px solid \$gray-2\s*;/);
+            expect(box).toMatch(/border-radius\s*:\s*8px\s*;/);
+        }
+        expect(panel).toMatch(/background\s*:\s*\$white-1\s*;/);
+    });
+
+    it('has room all around, between its rows, under its head and between a day\'s tickers', () => {
+        const [row] = blocks(panel, '.cube-rows-row');
+
+        expect(panel).toMatch(/padding\s*:\s*1rem\s*;/);
+        expect(row).toMatch(/padding-top\s*:\s*0\.75rem\s*;/);
+        expect(row).toMatch(/padding-bottom\s*:\s*0\.75rem\s*;/);
+        expect(blocks(panel, '.cube-rows-head')[0]).toMatch(/margin-bottom\s*:\s*0\.75rem\s*;/);
+        expect(blocks(panel, '.cube-rows-tickers')[0]).toMatch(/gap\s*:\s*0\.65rem\s*;/);
+    });
+
+    it('leaves the groups\' own rows as they were', () => {
+        expect(blocks(rows, '.cube-rows-row')[0]).toMatch(/padding\s*:\s*0\.5rem\s*;/);
+        expect(blocks(rows, '.cube-rows-head')[0]).toMatch(/margin-bottom\s*:\s*0\.4rem\s*;/);
+    });
+
+    it('keeps each part of what it holds to one line, so its head breaks between parts', () => {
+        expect(blocks(rows, '.cube-rows-meta-part')[0]).toMatch(/white-space\s*:\s*nowrap\s*;/);
     });
 });
 

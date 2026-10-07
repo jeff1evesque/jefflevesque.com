@@ -20,7 +20,12 @@ jest.mock('../../../import/general/cube-rows.jsx', () => {
         return <div className='cube-rows' />;
     };
 
-    return { __esModule: true, default: Rows };
+    //
+    // the rows' own helpers as they are, which the page reads too (#232)
+    //
+    const actual = jest.requireActual('../../../import/general/cube-rows.jsx');
+
+    return { __esModule: true, default: Rows, openedGroup: actual.openedGroup };
 });
 
 const { render, fireEvent, screen, act } = require('@testing-library/react');

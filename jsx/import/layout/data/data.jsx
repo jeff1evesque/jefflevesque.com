@@ -13,7 +13,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ArticleListing from '../../general/article-listing.jsx';
 import CubeChart from '../../general/cube-chart.jsx';
-import CubeRows from '../../general/cube-rows.jsx';
+import CubeRows, { openedGroup } from '../../general/cube-rows.jsx';
 import FigureBoxes, { shortCount } from '../../general/figure-boxes.jsx';
 import distributionTree from '../../general/distribution-tree.js';
 import trim from '../../general/trim-object.js';
@@ -376,28 +376,69 @@ export function linkedDataset(search) {
 
 {/*
 
-    a dataset opened on its own, or the listing again, in the address. PUSHED,
-    so the back button -- or a phone's back gesture -- returns to where the
-    reader was, and everything else the address carries is kept. As /stream's
-    writeItem (#165)
+    the group a phone shows open, in place of a dataset's groups
+    ('?item=stock-split&group=Day%201'), or null where the address names none
+    (#232). Whether the month holds it, and whether it opens, is the rows' to
+    say -- see openedGroup in cube-rows.jsx
+
+*/}
+export function linkedGroup(search) {
+    const asked = new URLSearchParams(search).get('group');
+
+    return asked ? asked : null;
+}
+
+
+{/*
+
+    the address with `changes` made to it: a name set, or taken out where it is
+    null, and everything else the address carries kept. PUSHED, so the back
+    button -- or a phone's back gesture -- returns to where the reader was, or
+    put in place of the address where the change is no step of its own
+
+*/}
+function writeAddress(changes, replace = false) {
+    const params = new URLSearchParams(window.location.search);
+
+    Object.keys(changes).forEach((name) => {
+        if (changes[name]) {
+            params.set(name, changes[name]);
+        } else {
+            params.delete(name);
+        }
+    });
+
+    const search = params.toString();
+    const address = `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`;
+
+    if (replace) {
+        window.history.replaceState(window.history.state, '', address);
+    } else {
+        window.history.pushState(window.history.state, '', address);
+    }
+}
+
+
+{/*
+
+    a dataset opened on its own, or the listing again, in the address, with no
+    group open in it. As /stream's writeItem (#165)
 
 */}
 function writeDataset(stream) {
-    const params = new URLSearchParams(window.location.search);
+    writeAddress({ item: stream, group: null });
+}
 
-    if (stream) {
-        params.set('item', stream);
-    } else {
-        params.delete('item');
-    }
 
-    const search = params.toString();
+{/*
 
-    window.history.pushState(
-        window.history.state,
-        '',
-        `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`
-    );
+    a group opened, or a dataset's groups again, in the address (#232): a step
+    of its own, so Back closes a group as the green bar does -- or, where a new
+    month closed it, put in place of the address
+
+*/}
+function writeGroup(group, replace = false) {
+    writeAddress({ group: group }, replace);
 }
 
 
@@ -515,6 +556,12 @@ class DataLayout extends Component {
         //
         const linked = isMobile ? linkedDataset(window.location.search) : null;
         const opening = linked || readChart('data', STREAMS) || STOCK_MARKET;
+
+        //
+        // and a group of it the address names opens once its month comes, where
+        // the month holds it (#232) -- see linkedGroup
+        //
+        const linked_group = linked ? linkedGroup(window.location.search) : null;
         const landing = opening === BLS ? blsLandingDate(today, today) : null;
         const opened = landing || selected;
 
@@ -586,6 +633,7 @@ class DataLayout extends Component {
         this.chart = this.chart.bind(this);
         this.openDataset = this.openDataset.bind(this);
         this.showListing = this.showListing.bind(this);
+        this.openGroup = this.openGroup.bind(this);
         this.onAddress = this.onAddress.bind(this);
         this.pickMonth = this.pickMonth.bind(this);
         this.monthControl = this.monthControl.bind(this);
@@ -700,6 +748,11 @@ class DataLayout extends Component {
             // null while it shows the listing -- see openDataset (#165)
             //
             opened: linked,
+            //
+            // the group of it a phone shows open, in place of its groups, by its
+            // key, or null -- see openGroup (#232)
+            //
+            open_group: linked_group,
             artifact_link: 'https://www.jefflevesque.com/artifact',
             chart_height: chartHeight()
         }
@@ -764,6 +817,10 @@ class DataLayout extends Component {
             // keep the mobile chart header in sync with the selected
             // stream (was stuck on the default, the S&P 500)
             listing_graphic_title: stream,
+            //
+            // a group of another dataset is none of this one's (#232)
+            //
+            open_group: null,
             [`promise_get_data_${stream}`]: false,
             ...(month ? {
                 selected_date: month,
@@ -807,7 +864,7 @@ class DataLayout extends Component {
     openDataset(stream) {
         writeDataset(stream);
 
-        this.setState({ opened: stream }, () => {
+        this.setState({ opened: stream, open_group: null }, () => {
             const page = this.page.current;
 
             if (page && typeof page.scrollIntoView === 'function' && page.getBoundingClientRect().top < scrollMargin(page)) {
@@ -821,14 +878,30 @@ class DataLayout extends Component {
     //
     showListing() {
         writeDataset(null);
-        this.setState({ opened: null });
+        this.setState({ opened: null, open_group: null });
+    }
+
+    //
+    // a group of the dataset opened in place of its groups, from its row, or
+    // the groups again, from the green bar or the group's × -- by its key, or
+    // null -- as a step in the address, so Back closes it as the bar does
+    // (#232)
+    //
+    openGroup(group) {
+        if (group === this.state.open_group) {
+            return;
+        }
+
+        writeGroup(group);
+        this.setState({ open_group: group });
     }
 
     //
     // the back or forward button, landing on another of this page's addresses:
     // a phone shows the dataset it names on its own, charting it where it is not
-    // the one charted, or the listing where it names none. An address on another
-    // page is that page's to draw. Only a phone listens (#165)
+    // the one charted, or the listing where it names none, and the group of it
+    // the address names open (#232). An address on another page is that page's
+    // to draw. Only a phone listens (#165)
     //
     onAddress() {
         if (window.location.pathname !== this.path) {
@@ -841,7 +914,7 @@ class DataLayout extends Component {
             this.chart(opened);
         }
 
-        this.setState({ opened: opened });
+        this.setState({ opened: opened, open_group: opened ? linkedGroup(window.location.search) : null });
     }
 
     //
@@ -1282,11 +1355,21 @@ class DataLayout extends Component {
     // another dataset is charted, bls's step or not (#198)
     //
     pickMonth(date) {
+        //
+        // and closes a group left open, which the next month may not hold: out
+        // of the address too, in its place, since a month is no step in it
+        // (#232)
+        //
+        if (this.state.open_group) {
+            writeGroup(null, true);
+        }
+
         this.setState({
             selected_date: date,
             mm: date.getMonth() + 1,
             yyyy: date.getFullYear(),
-            bls_stepped: false
+            bls_stepped: false,
+            open_group: null
         }, () => {
             this.state.streams.forEach((stream) => {
                 this.downloadData(stream);
@@ -1545,6 +1628,8 @@ class DataLayout extends Component {
                             onSort={(sort) => this.keepRowsSort(stream, sort)}
                             folds={this.state.folds}
                             onFold={this.keepFold}
+                            open={this.state.open_group}
+                            onOpen={this.openGroup}
                         />
                     ) : (
                         <CubeChart
@@ -1574,15 +1659,24 @@ class DataLayout extends Component {
         {/*
 
             the way back from a dataset on its own to the listing, as /stream's
-            "All streams" bar is on a phone (#165)
+            "All streams" bar is on a phone (#165) -- one step at a time: from a
+            group open on its own, back to the dataset's groups, named for them,
+            "All days" or "All sectors", as its × goes (#232)
 
         */}
+        const group = opened ? openedGroup(this.treeFor(stream, this.context.theme), this.state.open_group) : null;
         const back = opened
             ? (
                 <div className='data-back-row'>
-                    <button type='button' className='data-back' onClick={this.showListing}>
+                    <button
+                        type='button'
+                        className='data-back'
+                        onClick={group ? () => this.openGroup(null) : this.showListing}
+                    >
                         <ChevronLeftIcon fontSize='inherit' />
-                        All data
+                        {group
+                            ? `All ${distributionNames(stream, this.state[`aggregate_key_${stream}`]).group[1]}`
+                            : 'All data'}
                     </button>
                 </div>
             ) : null;

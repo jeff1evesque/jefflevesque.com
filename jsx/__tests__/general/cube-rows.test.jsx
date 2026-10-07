@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import CubeRows, { rowUnit, rowCut, shownOf, cubesOf } from '../../import/general/cube-rows.jsx';
+import CubeRows, { rowUnit, rowCut, shownOf, cubesOf, openedGroup } from '../../import/general/cube-rows.jsx';
 import distributionTree from '../../import/general/distribution-tree.js';
 import { colors_categorical, color_other } from '../../import/general/colors.js';
 
@@ -907,5 +907,89 @@ describe('a severity scale', () => {
 
         expect(names(container)).toEqual(['Extreme', 'Severe', 'Minor']);
         expect(row('Extreme')).toHaveAttribute('aria-label', 'Extreme, 2 events, 1.5% of all. Opens its 2 event types');
+    });
+});
+
+describe('openedGroup (#232)', () => {
+    const tree = distributionTree(ROWS, 'sector');
+
+    it('finds the group a key names, where it opens to anything', () => {
+        expect(openedGroup(tree, 'Energy').name).toBe('Energy');
+    });
+
+    it('finds none for no key, a key the month does not hold, or a group that opens nothing', () => {
+        expect(openedGroup(tree, null)).toBeNull();
+        expect(openedGroup(tree, 'Day 99')).toBeNull();
+        expect(openedGroup(distributionTree(forms(3), 'form'), 'Form 1')).toBeNull();
+    });
+});
+
+describe('a group the page holds open (#232)', () => {
+    const panel = (container) => container.querySelector('.cube-rows');
+
+    it('opens the group the page names, in a panel of its own', () => {
+        const { container } = draw({ open: 'Energy' });
+
+        expect(container.querySelector('.cube-rows-title').textContent).toBe('Energy');
+        expect(panel(container)).toHaveClass('is-open');
+    });
+
+    it('draws the groups, and no panel, where the page names none', () => {
+        const { container } = draw({ open: null });
+
+        expect(names(container)[0]).toBe('Information Technology');
+        expect(panel(container)).not.toHaveClass('is-open');
+    });
+
+    it('draws the groups where the page names one that opens nothing', () => {
+        const { container } = draw({ rows: forms(3), key: 'form', names: FORMS, open: 'Form 1' });
+
+        expect(container.querySelector('.cube-rows-head')).toBeNull();
+        expect(names(container)).toEqual(['Form 1', 'Form 2', 'Form 3']);
+    });
+
+    it('tells the page of a group tapped open, and of the × tapped, and waits for it', () => {
+        const onOpen = jest.fn();
+        const { container, rerender, tree } = draw({ open: null, onOpen: onOpen });
+
+        fireEvent.click(row('Industrials'));
+        expect(onOpen).toHaveBeenLastCalledWith('Industrials');
+        expect(container.querySelector('.cube-rows-head')).toBeNull();
+
+        rerender(<CubeRows tree={tree} names={SECTORS} caption='September 2026' open='Industrials' onOpen={onOpen} />);
+        expect(container.querySelector('.cube-rows-title').textContent).toBe('Industrials');
+
+        fireEvent.click(close());
+        expect(onOpen).toHaveBeenLastCalledWith(null);
+    });
+
+    it('sends the keyboard back to the row of a group the page closed', () => {
+        const { rerender, tree } = draw({ open: 'Industrials' });
+
+        rerender(<CubeRows tree={tree} names={SECTORS} caption='September 2026' open={null} />);
+
+        expect(document.activeElement).toBe(row('Industrials'));
+    });
+
+    it('holds its own open group where the page holds none, as it always has', () => {
+        const { container } = draw();
+
+        fireEvent.click(row('Industrials'));
+
+        expect(panel(container)).toHaveClass('is-open');
+    });
+});
+
+describe('what an open group holds, on its head (#232)', () => {
+    it('keeps each part to one line with its dot, so the line breaks between parts', () => {
+        const { container } = draw({ rows: SPLITS, key: 'split_date', names: DAYS });
+
+        fireEvent.click(row('Day 7'));
+
+        const meta = container.querySelector('.cube-rows-meta');
+
+        expect([...meta.querySelectorAll('.cube-rows-meta-part')].map((part) => part.textContent))
+            .toEqual(['24 splits ·', '48% of all']);
+        expect(meta.textContent).toBe('24 splits · 48% of all');
     });
 });
