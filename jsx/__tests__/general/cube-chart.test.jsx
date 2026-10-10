@@ -1004,3 +1004,124 @@ describe('the company facts\' statuses, named as the page names them (#230)', ()
         expect(texts(container, '.cube-list-name')).toEqual(['New', 'Repeated', 'Changed']);
     });
 });
+
+//
+// #235: the page can hold which bar's list is open -- /data keeps it in its
+// address, so a link opens the list -- and is told each time one is opened or
+// cleared. It knows Other's bar as 'Other'
+//
+describe('a list the page holds open (#235)', () => {
+    const title = (container) => list(container).querySelector('.cube-list-title').textContent;
+
+    it('opens the bar the page names, and leaves the next one to the page', () => {
+        const onOpen = jest.fn();
+        const { container } = draw({ open: 'Energy', onOpen: onOpen });
+
+        expect(title(container)).toBe('Energy');
+        expect(barOf(container, 'Energy')).toHaveAttribute('aria-expanded', 'true');
+
+        fireEvent.click(barOf(container, 'Financials'));
+
+        expect(onOpen).toHaveBeenCalledWith('Financials');
+        expect(title(container)).toBe('Energy');
+    });
+
+    it.each([
+        ['a second click on its bar', (container) => fireEvent.click(barOf(container, 'Energy'))],
+        ['its ×', () => fireEvent.click(screen.getByRole('button', { name: 'Clear the list' }))],
+        ['Escape', (container) => fireEvent.keyDown(barOf(container, 'Energy'), { key: 'Escape' })],
+    ])('tells the page the list is cleared, from %s', (way, clear) => {
+        const onOpen = jest.fn();
+        const { container } = draw({ open: 'Energy', onOpen: onOpen });
+
+        clear(container);
+
+        expect(onOpen).toHaveBeenCalledWith(null);
+    });
+
+    it('tells the page nothing at Escape with no list open', () => {
+        const onOpen = jest.fn();
+        const { container } = draw({ open: null, onOpen: onOpen });
+
+        fireEvent.keyDown(barOf(container, 'Energy'), { key: 'Escape' });
+
+        expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it('tells the page of a day opened from +N more', () => {
+        const onOpen = jest.fn();
+        const { container } = draw({ rows: SPLITS, key: 'split_date', names: DAYS, open: null, onOpen: onOpen });
+
+        fireEvent.mouseEnter(bandOf(container, 'Day 19')[0]);
+        fireEvent.click(tip(container).querySelector('.cube-chart-tip-more'));
+
+        expect(onOpen).toHaveBeenCalledWith('Day 19');
+    });
+
+    it('names Other\'s bar Other to the page, and opens Other\'s list by that name', () => {
+        const onOpen = jest.fn();
+        const view = draw({ rows: forms(25), key: 'form', names: FORMS, open: null, onOpen: onOpen });
+
+        fireEvent.click(barOf(view.container, 'Other'));
+        expect(onOpen).toHaveBeenCalledWith('Other');
+
+        view.rerender(
+            <CubeChart tree={view.tree} names={FORMS} caption='September 2026' height={392} open='Other' onOpen={onOpen} />
+        );
+        expect(list(view.container).querySelector('.cube-list-meta').textContent).toBe('2,100 filings · 6 forms');
+    });
+
+    it('opens Other\'s list for a group it rolled up, and clears it from Other\'s bar', () => {
+        const onOpen = jest.fn();
+        const { container } = draw({ rows: forms(25), key: 'form', names: FORMS, open: 'Form 25', onOpen: onOpen });
+
+        expect(title(container)).toBe('Other');
+        expect(barOf(container, 'Other')).toHaveAttribute('aria-expanded', 'true');
+
+        fireEvent.click(barOf(container, 'Other'));
+
+        expect(onOpen).toHaveBeenCalledWith(null);
+    });
+
+    it('keeps Other\'s own key where a group of the month is named Other, and the name opens that group', () => {
+        const onOpen = jest.fn();
+        const rows = [{ form: 'Other', Filings: 5000 }].concat(forms(25));
+        const view = draw({ rows: rows, key: 'form', names: FORMS, open: null, onOpen: onOpen });
+        const redraw = (open) => view.rerender(
+            <CubeChart tree={view.tree} names={FORMS} caption='September 2026' height={392} open={open} onOpen={onOpen} />
+        );
+        const others = view.container.querySelectorAll('rect.cube-chart-bar[data-name="Other"]');
+
+        expect(others).toHaveLength(2);
+
+        fireEvent.click(others[1]);
+        expect(onOpen).toHaveBeenCalledWith('\u0000other');
+
+        redraw('\u0000other');
+        expect(list(view.container).querySelector('.cube-list-meta').textContent).toBe('2,800 filings · 7 forms');
+
+        redraw('Other');
+        expect(list(view.container)).toBeNull();
+    });
+
+    it.each([
+        ['a group the month does not hold', {}, 'Nope'],
+        ['a bar with nothing under it', {}, 'Utilities'],
+        ['a form neither drawn nor rolled into Other', { rows: forms(25), key: 'form', names: FORMS }, 'Form 99'],
+    ])('opens nothing for %s', (name, options, open) => {
+        const { container } = draw({ ...options, open: open });
+
+        expect(list(container)).toBeNull();
+        expect(lit(container)).toHaveLength(cubes(container).length);
+    });
+
+    it('keeps its own list where the page names none', () => {
+        const onOpen = jest.fn();
+        const { container } = draw({ onOpen: onOpen });
+
+        fireEvent.click(barOf(container, 'Energy'));
+
+        expect(title(container)).toBe('Energy');
+        expect(onOpen).toHaveBeenCalledWith('Energy');
+    });
+});

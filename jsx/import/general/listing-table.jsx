@@ -44,6 +44,16 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 const NAME = '$name';
 
 //
+// the transition a row takes into a new place while no row is being dragged:
+// none, as /stream's rows take since #220. framer-motion animates every change
+// in a row's place on the page, so a table moved down the page -- by the list
+// a bar opens under /data's chart, say -- slid its rows down after it, over its
+// header, which had moved at once (#235). While a row is dragged, the rows
+// slide into their places
+//
+export const STILL = { layout: { type: false } };
+
+//
 // what a figure sorts by: its number where it starts with one, and its text,
 // case aside, where it does not. Null for a figure that holds nothing -- 'n/a',
 // a blank -- which sorts after everything, whichever way round.
@@ -151,6 +161,11 @@ class ListingTable extends Component {
             query: '',
             sort: null,
             announcement: '',
+            //
+            // whether a row is being dragged, which the rows slide into their
+            // places only while -- see STILL
+            //
+            dragging: false,
         };
 
         //
@@ -472,6 +487,9 @@ class ListingTable extends Component {
             counts a row dragged out past the table as more to scroll, so the table
             grew a scrollbar of its own, longer the further the row went.
 
+            and it is animated into its place only while a row is being dragged
+            -- see STILL
+
         */}
         return draggable ? (
             <Reorder.Item
@@ -482,6 +500,9 @@ class ListingTable extends Component {
                 dragControls={this.control(row.name)}
                 dragConstraints={this.body}
                 dragElastic={0}
+                transition={this.state.dragging ? undefined : STILL}
+                onDragStart={() => this.setState({ dragging: true })}
+                onDragEnd={() => this.setState({ dragging: false })}
                 className={className}
             >
                 {cells}

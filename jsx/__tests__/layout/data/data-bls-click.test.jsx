@@ -16,7 +16,9 @@
  *       is what this asserts on.
  *
  * Note: a click keeps the stream it charts for the next visit, in localStorage,
- *       which lasts the whole of this file. Each case starts from an empty one.
+ *       and writes it and its month into the address (#235), both of which
+ *       last the whole of this file. Each case starts from an empty store and
+ *       a bare address.
  */
 
 import React from 'react';
@@ -28,6 +30,7 @@ import { KEY, VERSION } from '../../../import/general/listing-preference.js';
 
 beforeEach(() => {
     window.localStorage.clear();
+    window.history.replaceState(null, '', '/');
 });
 
 function setup() {

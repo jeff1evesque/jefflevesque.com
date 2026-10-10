@@ -805,7 +805,7 @@ describe('the green bar, one step back from a group open on its own (#232)', () 
         expect(backBar()).toHaveTextContent(/^All data$/);
     });
 
-    it('closes the day on a new month, and takes it out of the address without a step', () => {
+    it('closes the day on a new month, which takes its place in the address without a step (#235)', () => {
         splits();
         openRow('Day 2');
         const before = window.history.length;
@@ -813,7 +813,7 @@ describe('the green bar, one step back from a group open on its own (#232)', () 
         fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
 
         expect(openTitle()).toBeNull();
-        expect(where()).toBe('/?item=stock-split');
+        expect(where()).toBe(`/?item=stock-split&month=${monthMenu().value}`);
         expect(window.history.length).toBe(before);
     });
 
@@ -865,5 +865,125 @@ describe('the green bar, one step back from a group open on its own (#232)', () 
 
         openRow('Day 1');
         expect(document.querySelector('.cube-rows')).toHaveClass('is-open');
+    });
+});
+
+//
+// #235: on a phone, the month joins the address in place of it, as /stream's
+// window does, and the back and forward buttons keep the month on screen
+//
+
+//
+// the month the menu offers at `index`, newest first, as the page keys it
+//
+function monthAt(index) {
+    return monthMenu().options[index].value;
+}
+
+describe('a phone\'s month in the address (#235)', () => {
+    beforeEach(() => {
+        global.__workers.length = 0;
+    });
+
+    it('names a month stepped to on the listing, in place of the address', () => {
+        setup();
+        const before = window.history.length;
+
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+
+        expect(where()).toBe(`/?month=${monthMenu().value}`);
+        expect(window.history.length).toBe(before);
+    });
+
+    it('names none again on the month the page opens on', () => {
+        setup();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+        fireEvent.click(screen.getByRole('button', { name: /^Later month/ }));
+
+        expect(where()).toBe('/');
+    });
+
+    it('keeps the month when a dataset opens, a step of its own, and when the green bar goes back', () => {
+        setup();
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+        const month = monthMenu().value;
+        const before = window.history.length;
+
+        fireEvent.click(chartButton('SEC Filings'));
+        expect(where()).toBe(`/?item=sec&month=${month}`);
+        expect(window.history.length).toBe(before + 1);
+
+        fireEvent.click(backBar());
+        expect(where()).toBe(`/?month=${month}`);
+        expect(window.history.length).toBe(before + 2);
+    });
+
+    it('keeps the month on screen on Back, and names it in the address Back lands on', () => {
+        setup();
+        fireEvent.click(chartButton('SEC Filings'));
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+        const month = monthMenu().value;
+
+        travel('/');
+
+        expect(listingShown()).toBe(true);
+        expect(monthMenu().value).toBe(month);
+        expect(where()).toBe(`/?month=${month}`);
+    });
+
+    it('keeps it on Forward too', () => {
+        setup();
+        fireEvent.click(chartButton('SEC Filings'));
+        fireEvent.click(backBar());
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+        const month = monthMenu().value;
+
+        travel('/?item=sec');
+
+        expect(chartHeader()).toBe('SEC Filings');
+        expect(monthMenu().value).toBe(month);
+        expect(where()).toBe(`/?item=sec&month=${month}`);
+    });
+
+    it('keeps it on Back to a group a new month has closed', () => {
+        const page = setupPage();
+        fireEvent.click(chartButton('Stock Splits'));
+        deliver(page, 'stock-split', SPLIT_DAYS);
+        openRow('Day 2');
+        fireEvent.click(screen.getByRole('button', { name: /^Earlier month/ }));
+        const month = monthMenu().value;
+
+        travel('/?item=stock-split');
+
+        expect(monthMenu().value).toBe(month);
+        expect(where()).toBe(`/?item=stock-split&month=${month}`);
+    });
+
+    it('names the month while bls is charted, the latest too, since a link naming none opens bls a step back', () => {
+        setup();
+        fireEvent.click(chartButton('Bureau of Labor'));
+        expect(where()).toBe(`/?item=bls&month=${monthMenu().value}`);
+
+        fireEvent.click(backBar());
+        chooseMonth(0);
+
+        expect(where()).toBe(`/?month=${monthAt(0)}`);
+    });
+
+    it('opens on the month a link names, with the dataset and the day it names', () => {
+        const { unmount } = setup();
+        const month = monthAt(3);
+
+        unmount();
+        window.history.replaceState(null, '', `/?item=stock-split&month=${month}&group=Day+5`);
+
+        const page = setupPage();
+        deliver(page, 'stock-split', SPLIT_DAYS);
+
+        expect(chartHeader()).toBe('Stock Splits');
+        expect(monthMenu().value).toBe(month);
+        expect(openTitle()).toBe('Day 5');
+        expect(where()).toBe(`/?item=stock-split&month=${month}&group=Day+5`);
     });
 });

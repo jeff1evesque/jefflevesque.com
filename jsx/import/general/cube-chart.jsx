@@ -41,6 +41,11 @@
  *       sectors. The popup is where a wide screen says what each color is: a
  *       legend over the chart wrapped onto a second line, and was folded into
  *       it. A phone keeps its legend over the rows -- see cube-rows.jsx.
+ *
+ * Note: the bar whose list is open can be the page's (#235). /data keeps it in
+ *       its address, so a link opens the list -- see 'open' and 'onOpen'. The
+ *       page knows Other's bar as 'Other', and a group Other rolled up opens
+ *       Other's list.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -164,6 +169,51 @@ function rowNoun(holds, names) {
 }
 
 //
+// the name the page knows Other's bar by, in /data's address (#235). The bar's
+// own key is apart from every group's, since a stream may hold a group named
+// Other of its own -- see cube-layout.js
+//
+export const OTHER = 'Other';
+
+//
+// whether `bar` is Other's: the one bar that lists groups, the ones it rolled up
+//
+function isOther(bar) {
+    return Boolean(bar.holds) && bar.holds.kind === 'groups';
+}
+
+//
+// the bar a page's `key` opens, of `bars`, or null (#235): a group's own bar,
+// where it lists anything, or Other's, by its name or by a group it rolled up.
+// A page can name a group the month does not hold, or one that lists nothing --
+// from an address, say -- and either opens nothing, as a phone's rows do
+//
+export function openedBar(bars, key) {
+    if (!key) {
+        return null;
+    }
+
+    const own = bars.find((bar) => bar.key === key);
+
+    if (own) {
+        return own.holds ? own : null;
+    }
+
+    const other = bars.find(isOther);
+
+    return other && (key === OTHER || other.holds.items.some((group) => group.key === key)) ? other : null;
+}
+
+//
+// the name the page is told a bar by: its group's, and 'Other' for Other's,
+// unless a group of the month has a bar of its own by that name, where Other's
+// keeps its own key
+//
+function nameOf(bar, bars) {
+    return isOther(bar) && !bars.some((each) => each.key === OTHER) ? OTHER : bar.key;
+}
+
+//
 // the chart's width as the page lays it out, measured again whenever it
 // changes: by a ResizeObserver where there is one, and on the window's resize
 // where there is not
@@ -194,11 +244,28 @@ export function useWidth(ref, fallback = FALLBACK_WIDTH) {
     return width;
 }
 
-export default function CubeChart({ tree, names, caption, height, actions, overlay, namesShown = false, onNames = () => {} }) {
+export default function CubeChart({
+    tree,
+    names,
+    caption,
+    height,
+    actions,
+    overlay,
+    namesShown = false,
+    onNames = () => {},
+    open,
+    onOpen = () => {},
+}) {
     const box = useRef(null);
     const width = useWidth(box);
     const [lit, setLit] = useState(null);
-    const [open, setOpen] = useState(null);
+
+    //
+    // the bar whose list is open, by the name the page knows it by: the page's,
+    // where it hands one in -- /data keeps it in its address (#235) -- and the
+    // chart's own otherwise
+    //
+    const [inner, setInner] = useState(null);
     const [shownNames, setShownNames] = useState(namesShown);
     const linger = useRef(null);
 
@@ -257,9 +324,23 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
     const { plot } = layout;
     const unit = names.unit;
     const bars = new Map(layout.bars.map((bar) => [bar.key, bar]));
-    const opened = open ? bars.get(open) || null : null;
+    const opened = openedBar(layout.bars, open === undefined ? inner : open);
     const band = lit ? layout.bands.get(lit.key) || null : null;
     const yOf = (value) => plot.bottom - ((value / layout.top) * (plot.bottom - plot.top));
+
+    //
+    // `bar`'s list opened, or none with null: the page told, where it holds
+    // which, and the chart's own kept otherwise
+    //
+    function choose(bar) {
+        const name = bar ? nameOf(bar, layout.bars) : null;
+
+        if (open === undefined) {
+            setInner(name);
+        }
+
+        onOpen(name);
+    }
 
     //
     // a click on a bar lists what it holds, and a second click on the same bar
@@ -267,7 +348,7 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
     //
     function toggle(bar) {
         if (bar.holds) {
-            setOpen(open === bar.key ? null : bar.key);
+            choose(opened && opened.key === bar.key ? null : bar);
         }
     }
 
@@ -478,7 +559,7 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                         className='cube-list-close'
                         aria-label='Clear the list'
                         title='Clear the list'
-                        onClick={() => setOpen(null)}
+                        onClick={() => choose(null)}
                     >
                         <CloseIcon fontSize='small' />
                     </button>
@@ -518,8 +599,8 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
         <div
             className='cube-chart'
             onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                    setOpen(null);
+                if (event.key === 'Escape' && opened) {
+                    choose(null);
                 }
             }}
         >
@@ -605,7 +686,7 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                             {...(bar.holds ? {
                                 tabIndex: 0,
                                 role: 'button',
-                                'aria-expanded': open === bar.key,
+                                'aria-expanded': Boolean(opened) && opened.key === bar.key,
                                 'aria-label': `${bar.name}, ${fmt(bar.value)} ${noun(bar.value, unit)}, `
                                     + `${share(bar.value, tree.total)} of all. Lists its `
                                     + `${bar.holds.items.length} ${noun(bar.holds.items.length, rowNoun(bar.holds, names))}`,
@@ -727,7 +808,7 @@ export default function CubeChart({ tree, names, caption, height, actions, overl
                                         onMouseLeave={letGo}
                                         onClick={() => {
                                             light(null);
-                                            setOpen(tip.bar);
+                                            choose(bars.get(tip.bar));
                                         }}
                                     >
                                         {`+${tip.more} more`}
@@ -765,4 +846,11 @@ CubeChart.propTypes = {
     //
     namesShown: PropTypes.bool,
     onNames: PropTypes.func,
+    //
+    // the bar whose list is open, by the name the page knows it by, where the
+    // page holds it -- null for none -- and what is told when a list is opened
+    // or cleared (#235)
+    //
+    open: PropTypes.string,
+    onOpen: PropTypes.func,
 };
