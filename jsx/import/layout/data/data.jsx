@@ -362,9 +362,10 @@ export function recordsLabel(stream, value, selected, now, lag = BLS_PUBLICATION
 
 {/*
 
-    the dataset a phone shows on its own ('?item=sec'), or null for the listing:
-    when the address names none, or names one that is not a dataset (#165). As
-    /stream's linkedItem reads its own
+    the dataset an address names ('?item=sec'), or null: when it names none, or
+    names one that is not a dataset (#165). Every screen charts it, and a phone
+    shows it on its own, in place of the listing (#235). As /stream's
+    linkedItem reads its own
 
 */}
 export function linkedDataset(search) {
@@ -376,10 +377,11 @@ export function linkedDataset(search) {
 
 {/*
 
-    the group a phone shows open, in place of a dataset's groups
-    ('?item=stock-split&group=Day%201'), or null where the address names none
-    (#232). Whether the month holds it, and whether it opens, is the rows' to
-    say -- see openedGroup in cube-rows.jsx
+    the group an address names open ('?item=stock-split&group=Day+1'), or null
+    where it names none: a phone's row, open in place of a dataset's groups
+    (#232), and a wide screen's bar, its list open under the chart (#235).
+    Whether the month holds it, and whether it opens, is the chart's to say --
+    see openedGroup in cube-rows.jsx, and openedBar in cube-chart.jsx
 
 */}
 export function linkedGroup(search) {
@@ -391,25 +393,73 @@ export function linkedGroup(search) {
 
 {/*
 
-    the address with `changes` made to it: a name set, or taken out where it is
-    null, and everything else the address carries kept. PUSHED, so the back
-    button -- or a phone's back gesture -- returns to where the reader was, or
-    put in place of the address where the change is no step of its own
+    the month an address names ('?month=2026-09'), as its first day, where it
+    is one the month menu offers, `first`'s to `last`'s; null where the address
+    names none, or names a month in any other form, or one the menu does not
+    offer (#235)
 
 */}
-function writeAddress(changes, replace = false) {
+export function linkedMonth(search, first, last) {
+    const asked = new URLSearchParams(search).get('month');
+
+    return monthsBetween(first, last).find((month) => keyOf(month) === asked) || null;
+}
+
+
+{/*
+
+    the month the address names for the month on screen, '2026-09', or null
+    for none (#235). None on `own`, the month the page opens on by itself,
+    which a link leaves out as /stream's leaves out a window ending now. Bls
+    charted names its month on any month, since a link naming none opens bls a
+    step back off this one -- see blsLandingDate
+
+*/}
+export function addressMonth(yyyy, mm, own, stream) {
+    const shown = monthKey(yyyy, mm);
+
+    return shown === own && stream !== BLS ? null : shown;
+}
+
+
+{/*
+
+    the names this page writes in its address, in the order it writes them
+    (#235)
+
+*/}
+const ADDRESS_NAMES = ['item', 'month', 'group'];
+
+
+{/*
+
+    the address with the page's `names` in it: each set, in one order after
+    everything else the address carries, which is kept, or taken out where it
+    is null. PUSHED where the change is a step of its own, a phone opening a
+    dataset or a group or going back from one, so the back button -- or a
+    phone's back gesture -- returns to where the reader was. Put in place of the
+    address otherwise: a new month, and anything on a wide screen, where nothing
+    opens in place of anything else, so Back leaves the page, as it leaves
+    /stream after a new window (#235). An address that already says it is left
+    as it is
+
+*/}
+function writeAddress(names, replace) {
     const params = new URLSearchParams(window.location.search);
 
-    Object.keys(changes).forEach((name) => {
-        if (changes[name]) {
-            params.set(name, changes[name]);
-        } else {
-            params.delete(name);
+    ADDRESS_NAMES.forEach((name) => params.delete(name));
+    ADDRESS_NAMES.forEach((name) => {
+        if (names[name]) {
+            params.set(name, names[name]);
         }
     });
 
     const search = params.toString();
     const address = `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`;
+
+    if (address === `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+        return;
+    }
 
     if (replace) {
         window.history.replaceState(window.history.state, '', address);
@@ -421,35 +471,22 @@ function writeAddress(changes, replace = false) {
 
 {/*
 
-    a dataset opened on its own, or the listing again, in the address, with no
-    group open in it. As /stream's writeItem (#165)
-
-*/}
-function writeDataset(stream) {
-    writeAddress({ item: stream, group: null });
-}
-
-
-{/*
-
-    a group opened, or a dataset's groups again, in the address (#232): a step
-    of its own, so Back closes a group as the green bar does -- or, where a new
-    month closed it, put in place of the address
-
-*/}
-function writeGroup(group, replace = false) {
-    writeAddress({ group: group }, replace);
-}
-
-
-{/*
-
     a month as the page keys it, '2026-09', from a year and a month as state
     holds them: the month a number, or the two digits the constructor pads it to
 
 */}
 export function monthKey(yyyy, mm) {
     return `${Number(yyyy)}-${String(Number(mm)).padStart(2, '0')}`;
+}
+
+
+{/*
+
+    a date's month as the page keys it, '2026-09'
+
+*/}
+function keyOf(date) {
+    return monthKey(date.getFullYear(), date.getMonth() + 1);
 }
 
 
@@ -551,10 +588,11 @@ class DataLayout extends Component {
 
         */}
         //
-        // on a phone, a dataset the address names opens on its own, and charts
-        // ahead of the remembered one -- see linkedDataset (#165)
+        // a dataset the address names charts ahead of the remembered one, and
+        // on a phone opens on its own -- see linkedDataset (#165). On a wide
+        // screen too, so a phone's link opens the same dataset there (#235)
         //
-        const linked = isMobile ? linkedDataset(window.location.search) : null;
+        const linked = linkedDataset(window.location.search);
         const opening = linked || readChart('data', STREAMS) || STOCK_MARKET;
 
         //
@@ -562,8 +600,19 @@ class DataLayout extends Component {
         // the month holds it (#232) -- see linkedGroup
         //
         const linked_group = linked ? linkedGroup(window.location.search) : null;
+
+        //
+        // the first month the month menu offers, January three years back
+        //
+        const first = new Date(new Date(selected.getFullYear() - 3, 0, 1).toLocaleString('en-US', {timeZone: 'America/New_York'}));
+
+        //
+        // and a month the address names, which the page opens on, bls's step
+        // or not: a link opens the month it names (#235) -- see linkedMonth
+        //
+        const linked_month = linkedMonth(window.location.search, first, today);
         const landing = opening === BLS ? blsLandingDate(today, today) : null;
-        const opened = landing || selected;
+        const opened = linked_month || landing || selected;
 
         const dd = String(opened.getDate()).padStart(2, '0');
         const mm = String(opened.getMonth() + 1).padStart(2, '0'); // january is 0
@@ -655,6 +704,13 @@ class DataLayout extends Component {
         //
         this.requests = {};
 
+        //
+        // whether the change being made is a step of its own in the address,
+        // which the back button steps back over, rather than one put in its
+        // place -- see componentDidUpdate (#235)
+        //
+        this.step = false;
+
         this.state = {
             local: is_local,
             promise_data_distribution: false,
@@ -685,15 +741,23 @@ class DataLayout extends Component {
             // Note: from the year it is, not the year the page opens on, which bls
             //       can step back into the last one -- see `landing` above.
             //
-            min_date: new Date(new Date(selected.getFullYear() - 3, 0, 1).toLocaleString('en-US', {timeZone: 'America/New_York'})),
-            selected_date: landing || today,
+            min_date: first,
+            selected_date: linked_month || landing || today,
+            //
+            // the month the page opens on by itself: this one, or the last on a
+            // weekend that starts a month. A link leaves it out of the address
+            // -- see addressMonth (#235)
+            //
+            own_month: keyOf(selected),
             //
             // whether the month on screen is bls's step back off the latest
             // month -- from opening on bls, or choosing it -- rather than one
             // the reader picked. Only bls is lagged: charting another dataset
-            // while it is goes back to the latest month (#198)
+            // while it is goes back to the latest month (#198). A link naming
+            // the month bls steps to is that step, so the page goes on as the
+            // one it was copied from would (#235)
             //
-            bls_stepped: Boolean(landing),
+            bls_stepped: Boolean(landing) && (!linked_month || keyOf(linked_month) === keyOf(landing)),
             streams: streams,
             selected_stream: opening,
             //
@@ -747,10 +811,11 @@ class DataLayout extends Component {
             // the dataset a phone shows on its own, in place of the listing, or
             // null while it shows the listing -- see openDataset (#165)
             //
-            opened: linked,
+            opened: isMobile ? linked : null,
             //
-            // the group of it a phone shows open, in place of its groups, by its
-            // key, or null -- see openGroup (#232)
+            // the group of it open, by its key, or null -- see openGroup: a
+            // phone's, in place of its groups (#232), and a wide screen's bar,
+            // its list under the chart (#235)
             //
             open_group: linked_group,
             artifact_link: 'https://www.jefflevesque.com/artifact',
@@ -768,7 +833,8 @@ class DataLayout extends Component {
         //
         // a phone follows the address, which holds the dataset it shows on its
         // own; this page's own path, so the back button landing on another
-        // page's address is left to that page -- see onAddress
+        // page's address is left to that page -- see onAddress. A wide screen
+        // writes its address only in place, so it has no steps to follow (#235)
         //
         if (isMobile) {
             this.path = window.location.pathname;
@@ -776,9 +842,41 @@ class DataLayout extends Component {
         }
     }
 
+    //
+    // the address, as what it names changes (#235): put in place of the
+    // address, or a step of its own where the change was one -- see `step`.
+    // Nothing is written until the reader changes something, so a page opened
+    // on '/data' keeps that address, as /stream's does
+    //
+    componentDidUpdate(prevProps, prevState) {
+        const was = this.address(prevState);
+        const names = this.address();
+        const step = this.step;
+
+        this.step = false;
+
+        if (ADDRESS_NAMES.some((name) => was[name] !== names[name])) {
+            writeAddress(names, !step);
+        }
+    }
+
     componentWillUnmount() {
         window.removeEventListener('resize', this.updateChartHeight);
         window.removeEventListener('popstate', this.onAddress);
+    }
+
+    //
+    // the page's names in its address, for what `state` shows -- see
+    // writeAddress (#235): the dataset charted, or on a phone the one open on
+    // its own; the month, where a link has to name it -- see addressMonth; and
+    // the group open
+    //
+    address(state = this.state) {
+        return {
+            item: isMobile ? state.opened : state.selected_stream,
+            month: addressMonth(state.yyyy, state.mm, state.own_month, state.selected_stream),
+            group: state.open_group,
+        };
     }
 
     //
@@ -862,7 +960,7 @@ class DataLayout extends Component {
     // Note: scrollIntoView is guarded, since jsdom has none
     //
     openDataset(stream) {
-        writeDataset(stream);
+        this.step = true;
 
         this.setState({ opened: stream, open_group: null }, () => {
             const page = this.page.current;
@@ -877,7 +975,7 @@ class DataLayout extends Component {
     // the listing again, from the bar over a dataset shown on its own (#165)
     //
     showListing() {
-        writeDataset(null);
+        this.step = true;
         this.setState({ opened: null, open_group: null });
     }
 
@@ -885,14 +983,15 @@ class DataLayout extends Component {
     // a group of the dataset opened in place of its groups, from its row, or
     // the groups again, from the green bar or the group's × -- by its key, or
     // null -- as a step in the address, so Back closes it as the bar does
-    // (#232)
+    // (#232). A wide screen's bar opens its list under the chart, in place of
+    // nothing, so its address is put in place rather than stepped (#235)
     //
     openGroup(group) {
         if (group === this.state.open_group) {
             return;
         }
 
-        writeGroup(group);
+        this.step = isMobile;
         this.setState({ open_group: group });
     }
 
@@ -902,6 +1001,11 @@ class DataLayout extends Component {
     // the one charted, or the listing where it names none, and the group of it
     // the address names open (#232). An address on another page is that page's
     // to draw. Only a phone listens (#165)
+    //
+    // Note: the month on screen stays. A month is no step in the address, so
+    //       the one an address Back lands on names is only the month it was
+    //       left on, and the address is written again with the month on
+    //       screen, so it says what the page shows (#235)
     //
     onAddress() {
         if (window.location.pathname !== this.path) {
@@ -914,7 +1018,10 @@ class DataLayout extends Component {
             this.chart(opened);
         }
 
-        this.setState({ opened: opened, open_group: opened ? linkedGroup(window.location.search) : null });
+        this.setState(
+            { opened: opened, open_group: opened ? linkedGroup(window.location.search) : null },
+            () => writeAddress(this.address(), true)
+        );
     }
 
     //
@@ -1357,13 +1464,9 @@ class DataLayout extends Component {
     pickMonth(date) {
         //
         // and closes a group left open, which the next month may not hold: out
-        // of the address too, in its place, since a month is no step in it
-        // (#232)
+        // of the address too (#232), which takes the month in its place, since
+        // a month is no step in it (#235)
         //
-        if (this.state.open_group) {
-            writeGroup(null, true);
-        }
-
         this.setState({
             selected_date: date,
             mm: date.getMonth() + 1,
@@ -1387,7 +1490,6 @@ class DataLayout extends Component {
     //
     monthControl() {
         const months = monthsBetween(this.state.min_date, this.state.now);
-        const keyOf = (month) => monthKey(month.getFullYear(), month.getMonth() + 1);
         const shown = monthKey(this.state.yyyy, this.state.mm);
         const at = months.findIndex((month) => keyOf(month) === shown);
         const later = at > 0 ? months[at - 1] : null;
@@ -1638,6 +1740,8 @@ class DataLayout extends Component {
                             height={this.state.chart_height}
                             namesShown={this.state.names_shown}
                             onNames={this.keepNames}
+                            open={this.state.open_group}
+                            onOpen={this.openGroup}
                         />
                     )}
                 </div>
