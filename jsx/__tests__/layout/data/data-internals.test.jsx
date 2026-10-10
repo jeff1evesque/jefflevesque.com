@@ -7,6 +7,9 @@
  * reachable only through the component -- none is exported -- so this drives the
  * instance through a ref, the same boundary data-callback.test.jsx documents.
  *
+ * And the two month helpers behind the address (#235), linkedMonth and
+ * addressMonth, which are exported and pure, so they are called directly.
+ *
  * Note: the weekend rule runs in the CONSTRUCTOR, so the clock has to be set before
  *       render rather than inside the assertion. Those tests own their fake timers
  *       and restore real ones afterwards, because a fake clock left installed makes
@@ -17,7 +20,7 @@ import React from 'react';
 import { render, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import DataLayout from '../../../import/layout/data/data.jsx';
+import DataLayout, { linkedMonth, addressMonth } from '../../../import/layout/data/data.jsx';
 
 function setup() {
     const held = React.createRef();
@@ -207,5 +210,95 @@ describe('the weekday rule in the constructor', () => {
         const page = setup();
 
         expect(page.state.date).toBe('08/17/2026');
+    });
+});
+
+describe('the month an address names (#235)', () => {
+    //
+    // the menu's months, January 2023 to October 2026, and what an address
+    // naming one opens on: its first day, as [year, month, day]
+    //
+    const first = new Date(2023, 0, 1);
+    const last = new Date(2026, 9, 10);
+
+    function named(search) {
+        const month = linkedMonth(search, first, last);
+
+        return month ? [month.getFullYear(), month.getMonth() + 1, month.getDate()] : null;
+    }
+
+    it('reads a month the menu offers, as its first day', () => {
+        expect(named('?month=2026-09')).toEqual([2026, 9, 1]);
+        expect(named('?item=sec&month=2025-12')).toEqual([2025, 12, 1]);
+    });
+
+    it('reads the menu\'s first month and its last', () => {
+        expect(named('?month=2023-01')).toEqual([2023, 1, 1]);
+        expect(named('?month=2026-10')).toEqual([2026, 10, 1]);
+    });
+
+    it.each([
+        ['no month', ''],
+        ['an empty month', '?month='],
+        ['a month before the first', '?month=2022-12'],
+        ['a month after this one', '?month=2026-11'],
+        ['a thirteenth month', '?month=2026-13'],
+        ['a month 00', '?month=2026-00'],
+        ['an unpadded month', '?month=2026-9'],
+        ['a day', '?month=2026-09-01'],
+        ['a word', '?month=september'],
+    ])('reads nothing from %s', (name, search) => {
+        expect(named(search)).toBeNull();
+    });
+});
+
+describe('the month the address names for the month on screen (#235)', () => {
+    it('names none on the month the page opens on', () => {
+        expect(addressMonth(2026, 10, '2026-10', 'sec')).toBeNull();
+        expect(addressMonth('2026', '10', '2026-10', 'stock-market')).toBeNull();
+    });
+
+    it('names any other month, as the menu keys it', () => {
+        expect(addressMonth(2026, 9, '2026-10', 'sec')).toBe('2026-09');
+        expect(addressMonth(2026, '09', '2026-10', 'sec')).toBe('2026-09');
+        expect(addressMonth(2027, 1, '2026-12', 'sec')).toBe('2027-01');
+    });
+
+    it('names bls\'s month on the month the page opens on too, since a link naming none opens bls a step back', () => {
+        expect(addressMonth(2026, 10, '2026-10', 'bls')).toBe('2026-10');
+    });
+});
+
+describe('a weekend that starts a month, in the address (#235)', () => {
+    //
+    // a Saturday the 1st opens on the month before, by the weekday rule above,
+    // and that is the month a link leaves out of the address: the one the page
+    // opens on by itself
+    //
+    beforeEach(() => {
+        window.localStorage.clear();
+        window.history.replaceState(null, '', '/');
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+        window.history.replaceState(null, '', '/');
+    });
+
+    it('leaves out the month before, which it opens on, and names this one', () => {
+        // Saturday, 1 August 2026
+        jest.useFakeTimers().setSystemTime(new Date(2026, 7, 1, 12));
+
+        const page = setup();
+
+        expect(page.state.own_month).toBe('2026-07');
+        expect(page.address()).toEqual({ item: 'stock-market', month: null, group: null });
+
+        act(() => {
+            page.pickMonth(new Date(2026, 7, 1));
+        });
+
+        expect(page.address().month).toBe('2026-08');
+        expect(window.location.search).toBe('?item=stock-market&month=2026-08');
     });
 });
