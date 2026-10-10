@@ -1,5 +1,6 @@
 /**
- * listing-table-drag.test.jsx: how far a dragged row can go.
+ * listing-table-drag.test.jsx: how far a dragged row can go, and how the rows
+ * move while none is dragged.
  *
  * Nowhere past the table's body. The frame around the table scrolls sideways
  * where a window is too narrow for it, which makes it a scroll box both ways, and
@@ -34,10 +35,11 @@ jest.mock('framer-motion', () => {
 });
 
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import { given } from 'framer-motion';
 
 import ArticleListing from '../../import/general/article-listing.jsx';
+import { STILL } from '../../import/general/listing-table.jsx';
 
 const COLUMNS = [{ key: 'Health', numeric: true, sortable: true }];
 
@@ -77,6 +79,42 @@ describe('a dragged row', () => {
         given.forEach((props) => {
             expect(props.dragListener).toBe(false);
             expect(props.dragControls).toBeDefined();
+        });
+    });
+});
+
+describe('the rows, at rest (#235)', () => {
+    //
+    // what each row was last drawn with
+    //
+    const latest = () => ROWS.map((row) => given.filter((props) => props.value === row.name).slice(-1)[0]);
+
+    it('take a new place at once, with nothing animated, while no row is dragged', () => {
+        //
+        // a table moved down the page, by a list opened over it, slid its rows
+        // down after it, over its own header -- as /stream's rows did (#220)
+        //
+        render(<ArticleListing columns={COLUMNS} list_article={ROWS} onReorder={jest.fn()} />);
+
+        expect(STILL).toEqual({ layout: { type: false } });
+        latest().forEach((props) => {
+            expect(props.transition).toBe(STILL);
+        });
+    });
+
+    it('slide into their places while a row is dragged, and stop once it is let go', () => {
+        render(<ArticleListing columns={COLUMNS} list_article={ROWS} onReorder={jest.fn()} />);
+
+        act(() => latest()[1].onDragStart());
+
+        latest().forEach((props) => {
+            expect(props.transition).toBeUndefined();
+        });
+
+        act(() => latest()[1].onDragEnd());
+
+        latest().forEach((props) => {
+            expect(props.transition).toBe(STILL);
         });
     });
 });
