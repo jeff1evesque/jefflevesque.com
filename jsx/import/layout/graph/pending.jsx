@@ -124,10 +124,10 @@ const DETAIL_WIDTHS = ['6rem', '9rem', '9rem', '7rem', '4.5rem', '5.5rem', '6rem
  * one of the build panel's values that has not arrived, by its row.
  *
  * The whole panel's stand-in draws one of these in every row. The real panel
- * draws one in its Sources row alone, which waits for the schema a round trip
- * after the rest of the panel has filled in from the listing -- see graphSources
- * in source.js -- so the row keeps the bar it had rather than changing size
- * twice.
+ * draws one in its Sources and Variant rows alone, which wait for the schema a
+ * round trip after the rest of the panel has filled in from the listing -- see
+ * graphSources and buildVariant in source.js -- so each row keeps the bar it had
+ * rather than changing size twice.
  *
  * Note: `width` is for a panel whose values are not the build panel's. A day's
  *       rows are a date and four totals, and each says what it measures -- see
