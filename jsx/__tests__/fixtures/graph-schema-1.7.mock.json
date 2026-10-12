@@ -1,0 +1,133 @@
+{
+    "version": "1.7",
+    "build_metadata": {
+        "time_period": "2026-10",
+        "day": "2026-10-09",
+        "dataset": "all-sources",
+        "sources": [
+            "bls",
+            "market",
+            "noaa",
+            "sec",
+            "sec-companyfacts"
+        ],
+        "sources_in_graph": [
+            "bls",
+            "market",
+            "sec",
+            "sec-companyfacts"
+        ],
+        "excluded_node_types": [
+            "cap_Area",
+            "cap_Geocode",
+            "cap_Info",
+            "filings_XbrlDimension",
+            "filings_XbrlFact",
+            "weather_WeatherAlert"
+        ],
+        "build_timestamp": "2026-10-10T06:43:08.461845+00:00",
+        "node_feature_dim": 1024
+    },
+    "node_types": {
+        "market_quotes_OptionSnapshot": {
+            "index": 98,
+            "count": 10715848,
+            "source_type_uri": "https://jefflevesque.com/ontology/market/quotes/OptionSnapshot",
+            "category": "entity",
+            "has_features": true,
+            "stored_dim": 173
+        },
+        "companyfacts_CompanyFact": {
+            "index": 9,
+            "count": 32290,
+            "source_type_uri": "https://jefflevesque.com/ontology/sec/companyfacts/CompanyFact",
+            "category": "entity",
+            "has_features": true,
+            "stored_dim": 1024
+        },
+        "filings_InstitutionalHolding": {
+            "index": 49,
+            "count": 26244,
+            "source_type_uri": "https://jefflevesque.com/ontology/sec/filings/InstitutionalHolding",
+            "category": "entity",
+            "has_features": true,
+            "stored_dim": 1024
+        },
+        "market_quotes_EquitySnapshot": {
+            "index": 97,
+            "count": 9557,
+            "source_type_uri": "https://jefflevesque.com/ontology/market/quotes/EquitySnapshot",
+            "category": "entity",
+            "has_features": true,
+            "stored_dim": 1024
+        },
+        "bls_enrichment_PriceIndex": {
+            "index": 3,
+            "count": 7886,
+            "source_type_uri": "https://jefflevesque.com/ontology/bls/enrichment/PriceIndex",
+            "category": "entity",
+            "has_features": true,
+            "stored_dim": 1024
+        }
+    },
+    "edge_types": {
+        "(market_quotes_OptionSnapshot, market_enrichment_hasUnderlyingEquity, market_quotes_EquitySnapshot)": {
+            "src_type": "market_quotes_OptionSnapshot",
+            "relation": "market_enrichment_hasUnderlyingEquity",
+            "dst_type": "market_quotes_EquitySnapshot",
+            "count": 10715848,
+            "predicate_uri": "https://jefflevesque.com/ontology/market/enrichment/hasUnderlyingEquity",
+            "origin": "enrichment",
+            "has_features": true,
+            "feature_dim": 32,
+            "relation_group": "market_enrichment_hasUnderlyingEquity",
+            "src_type_index": 98,
+            "dst_type_index": 97
+        },
+        "(market_quotes_OptionSnapshot, market_enrichment_precedes, market_quotes_OptionSnapshot)": {
+            "src_type": "market_quotes_OptionSnapshot",
+            "relation": "market_enrichment_precedes",
+            "dst_type": "market_quotes_OptionSnapshot",
+            "count": 10151856,
+            "predicate_uri": "https://jefflevesque.com/ontology/market/enrichment/precedes",
+            "origin": "enrichment",
+            "has_features": true,
+            "feature_dim": 32,
+            "relation_group": "market_enrichment_precedes",
+            "src_type_index": 98,
+            "dst_type_index": 98
+        },
+        "(market_quotes_EquitySnapshot, market_enrichment_precedes, market_quotes_EquitySnapshot)": {
+            "src_type": "market_quotes_EquitySnapshot",
+            "relation": "market_enrichment_precedes",
+            "dst_type": "market_quotes_EquitySnapshot",
+            "count": 9054,
+            "predicate_uri": "https://jefflevesque.com/ontology/market/enrichment/precedes",
+            "origin": "enrichment",
+            "has_features": true,
+            "feature_dim": 32,
+            "relation_group": "market_enrichment_precedes",
+            "src_type_index": 97,
+            "dst_type_index": 97
+        },
+        "(bls_enrichment_PriceIndex, bls_enrichment_precedes, bls_enrichment_PriceIndex)": {
+            "src_type": "bls_enrichment_PriceIndex",
+            "relation": "bls_enrichment_precedes",
+            "dst_type": "bls_enrichment_PriceIndex",
+            "count": 6897,
+            "predicate_uri": "https://jefflevesque.com/ontology/bls/enrichment/precedes",
+            "origin": "enrichment",
+            "has_features": true,
+            "feature_dim": 32,
+            "relation_group": "bls_enrichment_precedes",
+            "src_type_index": 3,
+            "dst_type_index": 3
+        }
+    },
+    "summary": {
+        "total_node_types": 5,
+        "total_edge_types": 4,
+        "total_nodes": 10791825,
+        "total_edges": 20883655
+    }
+}

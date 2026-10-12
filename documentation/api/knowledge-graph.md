@@ -85,7 +85,7 @@ Each build in `graphs` carries:
 
 | Field | |
 |---|---|
-| `node_types` | keyed by node type, each with its `count` and the ontology term it comes from, `source_type_uri` |
+| `node_types` | keyed by node type, each with its `count` and the ontology term it comes from, `source_type_uri`; from version `1.7`, also `stored_dim`, how many features its nodes store |
 | `edge_types` | keyed by an opaque label, each naming its `src_type`, `relation` and `dst_type`, with its `count` and its `origin`: `raw`, `enrichment` or `unification` |
 | `summary` | totals: `total_node_types`, `total_edge_types`, `total_nodes`, `total_edges` |
 | `version` | the schema's version, which says which fields the rest of it carries |
@@ -127,6 +127,16 @@ type, `companyfacts_CompanyFact`, is each company's latest numbers, about 15,600
 day, each linked to the `filings_Issuer` that reported it. Its vocabulary is
 `sec/companyfacts`, so the graph pages draw and list it under that namespace, beside the
 filings' `sec/filings`.
+
+**From schema `1.7`, each node type says how many features its nodes store**, as
+`stored_dim`. A build's `variant` is named for the width of its feature layout, `1024d`,
+and keeps that name when a type stores fewer: on the nightly's layout
+`market_quotes_OptionSnapshot` stores 173 of the 1024, and those snapshots are about 98%
+of a build's nodes; every other type stores all 1024. `/graph` lists each type's number in
+a Features column of its node table, and where a build's types store two or more different
+numbers, its Build details read the Variant as Multi-D, with a note pointing to that
+column. Below `1.7` a build says nothing of its types' widths, and `/graph` shows its
+`variant` as before.
 
 **`period` is a partition key, not a window over the data.** Builds are published under
 a partition -- `YYYY-MM`, nested year then month -- and an `id` is selected from within

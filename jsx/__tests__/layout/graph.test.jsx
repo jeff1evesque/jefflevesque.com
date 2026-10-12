@@ -58,7 +58,7 @@ jest.mock('../../import/animation/graph-explorer.jsx', () => ({
 //
 jest.mock('../../import/layout/graph/tables.jsx', () => ({
     __esModule: true,
-    default: ({ schema, drawn, painted, loading, theme }) => (
+    default: ({ schema, drawn, painted, loading, widths, theme }) => (
         <div
             data-testid='tables'
             data-theme={theme}
@@ -66,6 +66,7 @@ jest.mock('../../import/layout/graph/tables.jsx', () => ({
             data-drawn={drawn ? Object.keys(drawn.node_types).length : 'none'}
             data-painted={painted ? painted.size : 'none'}
             data-loading={String(!!loading)}
+            data-widths={String(!!widths)}
         />
     ),
 }));
@@ -99,6 +100,7 @@ import { API_DOCS, knowledgeGraphUrl } from '../../import/general/api-url.js';
 import { writeLayout } from '../../import/general/layout-preference.js';
 import { ThemeModeContext } from '../../import/general/theme-mode.jsx';
 import { colors, colors_dark } from '../../import/general/colors.js';
+import SCHEMA_1_7 from '../fixtures/graph-schema-1.7.mock.json';
 
 // the shim setup.js installs, kept so a test that replaces it can put it back
 const storage = window.localStorage;
@@ -469,17 +471,29 @@ describe('while the build is still on its way', () => {
 
     it('holds the Sources row\'s place until the schema says which list it is', async () => {
         //
-        // the one row that waits for the schema, whose version says which of a
-        // build's two source lists the row reads. The listing's own list, put
-        // up in the meantime, would name noaa over a graph holding none of it,
-        // and then change under the reader.
+        // the schema's version says which of a build's two source lists the row
+        // reads. The listing's own list, put up in the meantime, would name noaa
+        // over a graph holding none of it, and then change under the reader.
         //
         getGraphById.mockReturnValue(new Promise(() => {}));
 
         await setup();
 
         expect(detail('Sources')).toBe('');
-        expect(document.querySelectorAll('.graph-panel-build .graph-pending-bar')).toHaveLength(1);
+        expect(document.querySelectorAll('.graph-panel-build .graph-pending-bar')).toHaveLength(2);
+    });
+
+    it('holds the Variant row\'s place until the schema says whether the build is Multi-D', async () => {
+        //
+        // the other row that waits (#237). The listing's '1024d', put up in the
+        // meantime, would change to Multi-D under the reader
+        //
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(detail('Variant')).toBe('');
+        expect(detail('Dataset')).toBe('all-sources');
     });
 
     it('draws each row\'s stand-in at that row\'s own width', async () => {
@@ -512,12 +526,12 @@ describe('while the build is still on its way', () => {
         expect(labels('.graph-details-ruled')).toEqual(['Sources']);
     });
 
-    it('keeps the Sources row\'s bar that width while the schema is on its way', async () => {
+    it('keeps the Sources and Variant rows\' bars those widths while the schema is on its way', async () => {
         getGraphById.mockReturnValue(new Promise(() => {}));
 
         await setup();
 
-        expect(barWidths()).toEqual({ Sources: '7rem' });
+        expect(barWidths()).toEqual({ Sources: '7rem', Variant: '3.5rem' });
     });
 
     it('stands in for a legend of about the size the build will need', async () => {
@@ -673,6 +687,18 @@ describe('the tables below the graph', () => {
         await setup();
 
         expect(tables().getAttribute('data-painted')).toBe('2');
+    });
+
+    it('are told a build\'s rows will say how many features each type stores', async () => {
+        //
+        // so the stand-in drawn while the build is on its way heads a Features
+        // column as the table replacing it will (#237)
+        //
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(tables().getAttribute('data-widths')).toBe('true');
     });
 
     it('cost the page no extra request', async () => {
@@ -1173,6 +1199,66 @@ describe('the build details', () => {
 
         expect(detail('Nodes')).toBe('n/a');
         expect(detail('Sources')).toBe('n/a');
+    });
+
+    //
+    // a build's variant is named for the width of its feature layout, and keeps
+    // the name when a type stores fewer: the option snapshots store 173 of 1024.
+    // From schema 1.7 every type says how many it stores, and the row reads
+    // Multi-D where they differ, with a note saying where each type's is (#237).
+    //
+    const variantNote = () => [...document.querySelectorAll('.graph-details-row')]
+        .find((row) => row.querySelector('dt').textContent === 'Variant')
+        .querySelector('.graph-details-noted');
+
+    it('reads Multi-D, with a note, for a build whose node types store different numbers of features', async () => {
+        getGraphById.mockResolvedValue(SCHEMA_1_7);
+
+        await setup();
+
+        expect(detail('Variant')).toBe('Multi-D');
+        expect(variantNote().querySelector('svg')).not.toBeNull();
+        expect(variantNote()).toHaveAccessibleDescription(
+            'Node types store different numbers of features. See the Features column under Node types, below.'
+        );
+    });
+
+    it('keeps the variant\'s name, with no note, where every type stores one number', async () => {
+        const node_types = Object.fromEntries(Object.entries(SCHEMA_1_7.node_types)
+            .map(([id, meta]) => [id, { ...meta, stored_dim: 1024 }]));
+
+        getGraphById.mockResolvedValue({ ...SCHEMA_1_7, node_types: node_types });
+
+        await setup();
+
+        expect(detail('Variant')).toBe('1024d');
+        expect(variantNote()).toBeNull();
+    });
+
+    it('keeps the listing\'s name for a build whose schema could not be loaded', async () => {
+        //
+        // no schema says nothing of the widths, and the build is still the
+        // variant the listing names
+        //
+        getGraphById.mockResolvedValue(null);
+
+        await setup();
+
+        expect(detail('Variant')).toBe('1024d');
+    });
+
+    it('reads the variant again for another build', async () => {
+        getGraphById.mockResolvedValue(SCHEMA_1_7);
+
+        await setup();
+
+        expect(detail('Variant')).toBe('Multi-D');
+
+        getGraphById.mockResolvedValue(schemaOf(4));
+
+        await chooseBuild('build-b');
+
+        expect(detail('Variant')).toBe('512d');
     });
 });
 

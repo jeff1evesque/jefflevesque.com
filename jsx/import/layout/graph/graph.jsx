@@ -59,9 +59,9 @@
  *       and their controls -- is on screen at its own size from the first
  *       paint, holding a placeholder, and the data fills those in. See
  *       pending.jsx, and note that the page arrives in two pieces: the listing
- *       answers the picker and all of the build panel but its Sources row, and
- *       only that row, the legend, the canvas and the tables are waiting on the
- *       schema behind it.
+ *       answers the picker and all of the build panel but its Sources and
+ *       Variant rows, and only those rows, the legend, the canvas and the
+ *       tables are waiting on the schema behind it.
  */
 
 import React, { Component } from 'react';
@@ -248,6 +248,9 @@ function detailsRow(row) {
 // note in a tooltip over it. See `noted` in source.js: a source none of the
 // day's node types come from, which nothing else on the page shows.
 //
+// A single value the row's `noted` names carries its note the same way: a
+// build's Variant, where it reads Multi-D (#237).
+//
 // Note: the name is followed by a small info icon, so a reader knows there is a
 //       note to find, and the note DESCRIBES the name rather than replacing it.
 //       It shows from the keyboard too, and at a tap. See info-note.jsx, which
@@ -257,7 +260,9 @@ function detailValue(row, choice, whole) {
     const value = row.read(choice, whole);
 
     if (!Array.isArray(value)) {
-        return value || 'n/a';
+        return value && row.noted && row.noted.names(choice, whole).includes(value)
+            ? <InfoNote note={row.noted.note} className='graph-details-noted'>{value}</InfoNote>
+            : value || 'n/a';
     }
 
     if (!value.length) {
@@ -1330,9 +1335,10 @@ class GraphLayout extends Component {
     //       and fifty. The label said the second over the first, which made the
     //       canvas look like it was missing all but sixty of ten million.
     //
-    // Note: Sources waits for the schema as well -- see graphSources. It holds
-    //       its place with the bar the whole panel's stand-in draws in that
-    //       row, and reads 'n/a' once there is no schema coming.
+    // Note: Sources and Variant wait for the schema as well -- see graphSources
+    //       and buildVariant. Each holds its place with the bar the whole
+    //       panel's stand-in draws in that row. Once there is no schema coming,
+    //       Sources reads 'n/a' and Variant the listing's name.
     //
     // Note: Day does not wait. It is the day the listing's entry names, or, for
     //       a build too old to name one, the day list() read off the published
@@ -1351,7 +1357,8 @@ class GraphLayout extends Component {
     //       -- see '.graph-details' in '_graph.scss'.
     //
     // Note: a day's Sources is a list, and a source in it that is outside the
-    //       graph carries a note in a tooltip over it. See detailValue.
+    //       graph carries a note in a tooltip over it. A build's Variant
+    //       carries one where it reads Multi-D. See detailValue.
     //
     details(build) {
         if (!build) {
@@ -1389,8 +1396,8 @@ class GraphLayout extends Component {
      * Note: which matters, because the two columns stop waiting a whole round
      *       trip apart. The build panel is drawn from the LISTING, so it fills
      *       in at the first response, while the legend is waiting on the schema
-     *       behind it. The panel's Sources row waits with the legend, and holds
-     *       its own place meanwhile -- see details.
+     *       behind it. The panel's Sources and Variant rows wait with the
+     *       legend, and hold their own places meanwhile -- see details.
      */
     pending(key) {
         if (!this.state.loading) {
@@ -1695,6 +1702,7 @@ class GraphLayout extends Component {
                             loading={loading}
                             terms={source.terms}
                             lookups={source.lookups}
+                            widths={source.widths}
                             scope={source.scope}
                             weight={source.weight}
                             theme={this.context.theme}
