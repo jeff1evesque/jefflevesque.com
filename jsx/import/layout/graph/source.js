@@ -26,7 +26,7 @@
  * and in the words the page uses for it: its heading, the address a choice is
  * linked at, the picker's name, the panel's title, what a failure says, where the
  * reader's arrangement of the page is kept, and whether its node types carry an
- * ontology term.
+ * ontology term and say how many features they store.
  *
  * And by what a node type WEIGHS, which decides which sixty of them the canvas
  * draws -- see filter-schema.js. The two are drawn alike, every node the same
@@ -188,9 +188,65 @@ function buildDay(build, days) {
 }
 
 //
+// the first schema version that says how many features each node type's nodes
+// store, as `stored_dim`. See mixedWidths.
+//
+const FEATURE_WIDTHS = [1, 7];
+
+//
+// what the Variant row says of a build whose node types store different numbers
+// of features, in place of the variant's own name. See buildVariant.
+//
+const MULTI_D = 'Multi-D';
+
+/**
+ * whether a build's node types store two or more different numbers of features.
+ *
+ * A build's variant is named for the width of its feature layout -- '1024d' --
+ * and keeps that name when a type stores fewer: from the builder's #443 the
+ * option snapshots store 173 of the 1024 positions, and they are 98% of a
+ * build's nodes. From schema 1.7 every node type says how many it stores, as
+ * `stored_dim`, and two different numbers among them mean '1024d' no longer
+ * describes every node.
+ *
+ * Note: by the version, as the Sources row goes -- see graphSources. Below 1.7
+ *       a build says nothing of its types' widths, and one trimmed before the
+ *       builder said so is not guessed at.
+ *
+ * Note: a width of 0 is not counted. The builder writes it for a type whose
+ *       features it never assembled, as it writes `has_features` false there,
+ *       and no published build has one.
+ */
+function mixedWidths(schema) {
+    if (!schema || !atLeast(schema.version, FEATURE_WIDTHS)) {
+        return false;
+    }
+
+    const widths = Object.values(schema.node_types || {})
+        .map((type) => type.stored_dim)
+        .filter((width) => typeof width === 'number' && width > 0);
+
+    return new Set(widths).size > 1;
+}
+
+//
+// the Variant row's value: the build's variant, as the listing names it, or
+// MULTI_D for a build whose node types store different numbers of features. See
+// mixedWidths, and `noted` on the row, which points the reader at each type's
+// number in the tables below.
+//
+// Note: the listing's name while there is no schema, which is a build whose
+//       schema could not be had. One on its way is a bar -- see DETAILS.
+//
+function buildVariant(build, schema) {
+    return mixedWidths(schema) ? MULTI_D : build.variant;
+}
+
+//
 // the build panel's rows: what each is called, and how to read it off a listing
-// entry. `schema` marks the one row that is read off the build's schema as
-// well, and so has to wait for it. See details in graph.jsx.
+// entry. `schema` marks the two rows that are read off the build's schema as
+// well, Sources and Variant, and so have to wait for it. See details in
+// graph.jsx.
 //
 // A table rather than a list built inline, because the placeholder that stands
 // in for this panel while the listing is still on its way is laid out from the
@@ -206,9 +262,16 @@ function buildDay(build, days) {
 //
 // Note: 'Sources' comes straight after the dates, where the day panel has its
 //       own under Published: what the run brought in is read with when it ran,
-//       ahead of how much it came to. It is the one row read off the schema, so
-//       for the round trip the schema takes it holds its bar between rows the
-//       listing has already filled -- see details in graph.jsx.
+//       ahead of how much it came to. It is read off the schema, so for the
+//       round trip the schema takes it holds its bar between rows the listing
+//       has already filled -- see details in graph.jsx.
+//
+// Note: 'Variant' is read off the schema too (#237). It is the build's own
+//       name, '1024d', unless the build's node types store different numbers
+//       of features, when it says MULTI_D, with a note pointing at the Features
+//       column of the tables below -- see buildVariant. The listing's name put
+//       up in the meantime would change under the reader when the schema
+//       landed, so it waits as Sources does.
 //
 // Note: `ruled` draws a light rule under a row, dividing the panel in two: when
 //       the build ran and what it read, over what it holds. The day panel is
@@ -228,7 +291,16 @@ const DETAILS = [
     { label: 'Nodes', read: (build) => count(build.nodes), pair: true },
     { label: 'Edges', read: (build) => count(build.edges), pair: true },
     { label: 'Dataset', read: (build) => build.dataset, pair: true },
-    { label: 'Variant', read: (build) => build.variant, pair: true },
+    {
+        label: 'Variant',
+        read: buildVariant,
+        noted: {
+            names: (build, schema) => (mixedWidths(schema) ? [MULTI_D] : []),
+            note: 'Node types store different numbers of features. See the Features column under Node types, below.',
+        },
+        schema: true,
+        pair: true,
+    },
 ];
 
 //
@@ -355,6 +427,13 @@ const BUILDS = {
     scope: 'in this build',
     weight: 'count',
     lookups: false,
+
+    //
+    // whether the tables' stand-in heads a Features column, which every build
+    // from schema 1.7 has (#237). The rows decide once they are here, so a
+    // build too old to say drops it -- see tables.jsx
+    //
+    widths: true,
 
     //
     // Note: the listing is what decides which builds exist. An empty one is no
@@ -634,6 +713,7 @@ const DAYS = {
     //
     required: (day, whole) => sourceTypes(day, whole.node_types),
     lookups: true,
+    widths: false,
     chosen: 'by what can be found by name',
 
     //
@@ -685,4 +765,18 @@ const DAYS = {
     },
 };
 
-export { BUILDS, DAYS, DETAILS, DAY_DETAILS, buildDay, outsideGraph, sourceTypes, pickerLabels, graphSources, when };
+export {
+    BUILDS,
+    DAYS,
+    DETAILS,
+    DAY_DETAILS,
+    MULTI_D,
+    buildDay,
+    buildVariant,
+    mixedWidths,
+    outsideGraph,
+    sourceTypes,
+    pickerLabels,
+    graphSources,
+    when,
+};
