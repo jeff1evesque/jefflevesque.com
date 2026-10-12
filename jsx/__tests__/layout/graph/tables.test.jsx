@@ -26,6 +26,7 @@ import GraphTables, {
     PENDING_ROWS,
 } from '../../../import/layout/graph/tables.jsx';
 import { originColor } from '../../../import/animation/encoding.js';
+import SCHEMA_1_7 from '../../fixtures/graph-schema-1.7.mock.json';
 
 //
 // `n` node types across two namespaces with descending counts, and one edge per
@@ -738,5 +739,104 @@ describe('a day of the tables', () => {
         render(<GraphTables schema={DAY} drawn={null} painted={new Map()} />);
 
         expect(headings()).not.toContain('Ontology term');
+    });
+});
+
+describe('how many features each type stores (#237)', () => {
+    //
+    // from schema 1.7 a build says, for each node type, how many features its
+    // nodes store. The fixture is five of the node types of the build of
+    // 2026-10-09, as the nightly's layout stores them: the option snapshots at
+    // 173 of the 1024 positions, every other type at all 1024.
+    //
+    const widths = (props = {}) => render(
+        <GraphTables
+            schema={SCHEMA_1_7}
+            drawn={{ node_types: {} }}
+            painted={new Map()}
+            {...props}
+        />
+    );
+
+    const headings = () => [...document.querySelectorAll('thead th')].map((th) => th.textContent);
+    const featuresOf = (id) => {
+        const row = bodyRows().find((r) => r.querySelector('td').textContent === id);
+
+        return cells(row)[2];
+    };
+
+    it('puts a Features column beside Nodes', () => {
+        widths();
+
+        expect(headings()).toEqual(['Node type', 'Nodes', 'Features', 'On canvas', 'Ontology term']);
+    });
+
+    it('opens on the option snapshots, with their 173 beside the count that makes it matter', () => {
+        widths();
+
+        expect(cells(bodyRows()[0]).slice(0, 3)).toEqual(['market_quotes_OptionSnapshot', '10,715,848', '173']);
+    });
+
+    it('writes a number as the variant writes its width, with no thousands comma', () => {
+        widths();
+
+        expect(featuresOf('companyfacts_CompanyFact')).toBe('1024');
+    });
+
+    it('sorts it as a number, biggest first on the first click, as the counts beside it do', () => {
+        widths();
+
+        const sortBy = () => screen.getByRole('button', { name: 'Features' });
+
+        fireEvent.click(sortBy());
+        expect(cells(bodyRows()[bodyRows().length - 1])[2]).toBe('173');
+
+        fireEvent.click(sortBy());
+        expect(cells(bodyRows()[0])[2]).toBe('173');
+    });
+
+    it('draws no Features column for a build too old to say, whatever it was told', () => {
+        //
+        // the rows decide once they are here: an older build's types carry no
+        // width, and a column of 'n/a' would read as widths the page lost
+        //
+        setup({ widths: true });
+
+        expect(headings()).toEqual(['Node type', 'Nodes', 'On canvas', 'Ontology term']);
+    });
+
+    it('is headed with Features while a build is on its way, where the page says it will have one', () => {
+        //
+        // so the headings are the same before and after the rows arrive
+        //
+        setup({ schema: null, loading: true, widths: true });
+
+        expect(headings()).toEqual(['Node type', 'Nodes', 'Features', 'On canvas', 'Ontology term']);
+    });
+
+    it('reads each row\'s number off its type, and none where a type says none', () => {
+        const rows = nodeRows(
+            { node_types: { a_X: { count: 1, stored_dim: 173 }, a_Y: { count: 1 } } },
+            new Set(),
+            PAINTED
+        );
+
+        expect(rows.map((row) => row.features)).toEqual([173, undefined]);
+    });
+
+    it('prints n/a for a type with no number, on a build whose other types have one', () => {
+        const schema = {
+            ...SCHEMA_1_7,
+            node_types: {
+                ...SCHEMA_1_7.node_types,
+                odd_Type: { count: 1, source_type_uri: 'https://example.com/ontology/odd/Type' },
+            },
+        };
+
+        widths({ schema: schema });
+
+        fireEvent.change(filter(), { target: { value: 'odd_Type' } });
+
+        expect(cells(bodyRows()[0])[2]).toBe('n/a');
     });
 });

@@ -19,6 +19,11 @@
  * What is held is outsideGraph, which says which sources those are, and what
  * the note says.
  *
+ * A build's node types need not all store the same number of features: from the
+ * builder's #443 the option snapshots store 173 of the 1024 positions its variant
+ * is named for, and from schema 1.7 each type says how many it stores. What is
+ * held is the Variant row, which says Multi-D where they differ (#237).
+ *
  * Note: jest.config.js runs this suite in New York time, which is what lets the
  *       zone tests below tell a run read as UTC from one read in the local zone.
  */
@@ -26,11 +31,15 @@
 import {
     BUILDS,
     DAYS as RETRIEVAL,
+    DETAILS,
     DAY_DETAILS,
+    MULTI_D,
     buildDay,
+    mixedWidths,
     outsideGraph,
     sourceTypes,
 } from '../../../import/layout/graph/source.js';
+import SCHEMA from '../../fixtures/graph-schema-1.7.mock.json';
 
 //
 // the published days on 2026-09-25, newest first, as the tables list them. None
@@ -249,5 +258,108 @@ describe('the types the canvas draws one of, for each source (#211)', () => {
 
         expect(RETRIEVAL.required(day, whole)).toEqual(sourceTypes(day, types));
         expect(BUILDS.required).toBeUndefined();
+    });
+});
+
+//
+// the Variant row, and a listing entry for the build the fixture describes: five
+// of the node types of the build of 2026-10-09, as a 1.7 schema says them on the
+// nightly's layout -- the option snapshots at 173, every other type at 1024.
+//
+const VARIANT = DETAILS.find((row) => row.label === 'Variant');
+const LISTED_BUILD = { variant: '1024d', schema_version: '1.7' };
+
+//
+// the fixture with each node type's width as `width` says, at `version`
+//
+function storing(width, version = SCHEMA.version) {
+    const node_types = Object.fromEntries(
+        Object.entries(SCHEMA.node_types).map(([id, meta]) => [id, { ...meta, stored_dim: width(id) }])
+    );
+
+    return { ...SCHEMA, version: version, node_types: node_types };
+}
+
+describe('the Variant row (#237)', () => {
+    it('reads Multi-D for a build whose node types store different numbers of features', () => {
+        expect(mixedWidths(SCHEMA)).toBe(true);
+        expect(VARIANT.read(LISTED_BUILD, SCHEMA)).toBe('Multi-D');
+        expect(MULTI_D).toBe('Multi-D');
+    });
+
+    it('keeps the variant\'s own name where every type stores the same number', () => {
+        expect(VARIANT.read(LISTED_BUILD, storing(() => 1024))).toBe('1024d');
+    });
+
+    it('reads any two numbers as Multi-D, not only one below the layout\'s width', () => {
+        //
+        // the row goes by whether the types differ, which is what makes one
+        // number wrong for all of them. It reads nothing else of the build.
+        //
+        const halves = storing((id) => (id.startsWith('market_') ? 512 : 1024));
+
+        expect(VARIANT.read(LISTED_BUILD, halves)).toBe('Multi-D');
+    });
+
+    it('goes by the version: below 1.7 no type\'s width is read, whatever the schema holds', () => {
+        expect(VARIANT.read(LISTED_BUILD, storing((id) => SCHEMA.node_types[id].stored_dim, '1.6')))
+            .toBe('1024d');
+    });
+
+    it.each(['1.10', '2.0'])('counts %s as newer than 1.7, compared a part at a time', (version) => {
+        //
+        // as one float, 1.10 is 1.1, and would read no widths at all
+        //
+        expect(VARIANT.read(LISTED_BUILD, { ...SCHEMA, version: version })).toBe('Multi-D');
+    });
+
+    it('reads a build with no version as too old to say', () => {
+        expect(VARIANT.read(LISTED_BUILD, { ...SCHEMA, version: undefined })).toBe('1024d');
+    });
+
+    it('does not count a width of 0, which the builder writes for a type it never assembled', () => {
+        const unassembled = storing((id) => (id === 'market_quotes_OptionSnapshot' ? 0 : 1024));
+
+        expect(VARIANT.read(LISTED_BUILD, unassembled)).toBe('1024d');
+    });
+
+    it('keeps the listing\'s name where there is no schema', () => {
+        //
+        // a schema that could not be had. One still on its way is a bar, since
+        // the row waits for it -- see below
+        //
+        expect(VARIANT.read(LISTED_BUILD, null)).toBe('1024d');
+        expect(mixedWidths(undefined)).toBe(false);
+    });
+
+    it('reads no widths off a 1.7 schema with no node types, rather than failing', () => {
+        expect(VARIANT.read(LISTED_BUILD, { version: '1.7' })).toBe('1024d');
+    });
+
+    it('waits for the schema, as Sources does, beside Dataset', () => {
+        //
+        // the listing's name put up first would change to Multi-D under the
+        // reader when the schema landed
+        //
+        expect(VARIANT.schema).toBe(true);
+        expect(VARIANT.pair).toBe(true);
+    });
+
+    it('carries a note where it reads Multi-D, and only there, pointing at the Features column', () => {
+        expect(VARIANT.noted.names(LISTED_BUILD, SCHEMA)).toEqual(['Multi-D']);
+        expect(VARIANT.noted.names(LISTED_BUILD, storing(() => 1024))).toEqual([]);
+        expect(VARIANT.noted.names(LISTED_BUILD, null)).toEqual([]);
+        expect(VARIANT.noted.note).toBe(
+            'Node types store different numbers of features. See the Features column under Node types, below.'
+        );
+    });
+
+    it('has the tables head a Features column on the Training graph, and not on the Retrieval graph', () => {
+        //
+        // what the tables' stand-in goes on while the rows are on their way. A
+        // day of the tables says nothing of widths
+        //
+        expect(BUILDS.widths).toBe(true);
+        expect(RETRIEVAL.widths).toBe(false);
     });
 });
