@@ -86,9 +86,17 @@ const TABS = [
 // a count is short, and 'On canvas' is a single dot. Only the node columns
 // carry one, because the placeholder is always the node table -- see pending().
 //
+// 'Features' is how many features a type's nodes store, from schema 1.7 (#237).
+// It sits beside Nodes, so the type that stores fewer than the rest shows its
+// number beside the count that makes it matter: the option snapshots store 173
+// of 1024, and they are 98% of a build's nodes. The build panel's Variant points
+// here when a build's types store different numbers -- see buildVariant in
+// source.js.
+//
 const NODE_COLUMNS = [
     { key: 'id', label: 'Node type', pending: '11rem' },
     { key: 'count', label: 'Nodes', numeric: true, pending: '3.5rem' },
+    { key: 'features', label: 'Features', numeric: true, pending: '2rem' },
     { key: 'drawn', label: 'On canvas', pending: '0.6rem' },
     { key: 'uri', label: 'Ontology term', className: 'graph-tables-uri', pending: '15rem' },
 ];
@@ -105,19 +113,24 @@ const LOOKUP_COLUMNS = [
 ];
 
 //
-// the columns that open sorted biggest first, being counts
+// the columns that open sorted biggest first, being counts -- and Features, which
+// sorts as the counts beside it do
 //
-const DESCENDING = ['count', 'entities', 'facts'];
+const DESCENDING = ['count', 'entities', 'facts', 'features'];
 
 //
 // the node table's columns, for what its rows carry: the ontology term only
-// where a row has one, and a day's two measures ahead of its node count where
-// the rows carry them. See the notes at the top of this file.
+// where a row has one, a day's two measures ahead of its node count where the
+// rows carry them, and Features where they say how many each type stores. See
+// the notes at the top of this file.
 //
-export function nodeColumns(terms, lookups) {
+export function nodeColumns(terms, lookups, widths = false) {
     return NODE_COLUMNS.flatMap((column) => {
         if (column.key === 'uri') {
             return terms ? [column] : [];
+        }
+        if (column.key === 'features') {
+            return widths ? [column] : [];
         }
         if (column.key === 'count' && lookups) {
             return [...LOOKUP_COLUMNS, column];
@@ -171,6 +184,15 @@ function number(n) {
     return typeof n === 'number' ? n.toLocaleString() : 'n/a';
 }
 
+//
+// how many features a type stores, written as the build's variant writes its
+// width -- '1024', not '1,024'. It is a size, where every other number in the
+// table is a count.
+//
+function width(n) {
+    return typeof n === 'number' ? String(n) : 'n/a';
+}
+
 /**
  * the origin's own line, as the legend draws it.
  *
@@ -216,6 +238,9 @@ export function nodeRows(schema, drawn, painted) {
             // a day's two measures; a build's types carry neither
             entities: meta.entities,
             facts: meta.facts,
+            // how many features its nodes store, which a build says from
+            // schema 1.7 (#237); a day's types and an older build's do not
+            features: meta.stored_dim,
             uri: meta.source_type_uri || '',
             drawn: !!(drawn && drawn.has(id)),
             search: `${id} ${namespace} ${meta.source_type_uri || ''}`.toLowerCase(),
@@ -310,12 +335,14 @@ class GraphTables extends Component {
         // schema, and only the first of them is worth drawing an empty table
         // for.
         loading: PropTypes.bool,
-        // whether the rows on their way will carry an ontology term, and a
-        // day's two measures. The rows decide once they are here; this is all an
-        // empty table has to go on, and heading it with columns the rows then
-        // drop, or add, would be headings that change when the data arrives.
+        // whether the rows on their way will carry an ontology term, a day's
+        // two measures, and how many features each type stores. The rows decide
+        // once they are here; this is all an empty table has to go on, and
+        // heading it with columns the rows then drop, or add, would be headings
+        // that change when the data arrives.
         terms: PropTypes.bool,
         lookups: PropTypes.bool,
+        widths: PropTypes.bool,
         // what the rows belong to, as the tables name it to assistive
         // technology: 'in this build', or 'on this day'.
         scope: PropTypes.string,
@@ -329,6 +356,7 @@ class GraphTables extends Component {
     static defaultProps = {
         terms: true,
         lookups: false,
+        widths: false,
         scope: 'in this build',
         weight: 'count',
         theme: 'light',
@@ -413,7 +441,8 @@ class GraphTables extends Component {
                 // the rows are -- see the notes at the top
                 columns: nodeColumns(
                     nodes.some((row) => row.uri),
-                    nodes.some((row) => typeof row.entities === 'number')
+                    nodes.some((row) => typeof row.entities === 'number'),
+                    nodes.some((row) => typeof row.features === 'number')
                 ),
             };
         }
@@ -458,6 +487,13 @@ class GraphTables extends Component {
             return (
                 <TableCell key='uri' className='graph-tables-uri'>
                     {wrapped(row.uri)}
+                </TableCell>
+            );
+        }
+        if (column.key === 'features') {
+            return (
+                <TableCell key='features' align='right' className='graph-tables-count'>
+                    {width(row.features)}
                 </TableCell>
             );
         }
@@ -566,13 +602,13 @@ class GraphTables extends Component {
      *       rather than the '0-0 of 0' a count of nothing would print: what
      *       it will say depends on the build, and nothing here invents a value.
      *
-     * Note: headed without the ontology term, and with a day's two measures,
-     *       where the page says the rows will be shaped so -- see `terms` and
-     *       `lookups` -- for the reason it is headed with the node columns at
-     *       all.
+     * Note: headed without the ontology term, with a day's two measures, and
+     *       with Features, where the page says the rows will be shaped so --
+     *       see `terms`, `lookups` and `widths` -- for the reason it is headed
+     *       with the node columns at all.
      */
     pending() {
-        const columns = nodeColumns(this.props.terms, this.props.lookups);
+        const columns = nodeColumns(this.props.terms, this.props.lookups, this.props.widths);
 
         return (
             <section className='graph-tables graph-tables-pending' aria-hidden='true'>
