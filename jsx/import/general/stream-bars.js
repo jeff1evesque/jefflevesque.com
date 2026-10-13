@@ -6,9 +6,15 @@
  * two places, the rows the report carried and the scraper's own schedule, and
  * nothing here knows what kind of data a stream holds:
  *
- *   - 'reported'  the interval carried rows. Its height is the records that
- *                 succeeded, and its health the share of them that did.
- *                 'failed' is what did not.
+ *   - 'reported'  the interval carried rows, and some of their records
+ *                 succeeded. Its height is the records that succeeded, and its
+ *                 health the share of them that did. 'failed' is what did not.
+ *   - 'failed'    the interval carried rows, and not one of their records
+ *                 succeeded: a run brought nothing (#239). The scraper writes a
+ *                 failed run's rows -- nothing succeeded, and what it was due to
+ *                 bring failed -- where it used to write none, which was a miss.
+ *                 Nothing arrived either way, so the Coverage figure counts it
+ *                 as one.
  *   - 'missed'    a run was due and the interval carried nothing, by the same
  *                 test the Coverage figure counts -- see 'missingIntervals'.
  *   - 'between'   a minute that holds no run of its own, because the run due in
@@ -98,6 +104,10 @@ export function streamBars(chart_data, stream, rate, field_datetime, stream_sour
     // already zeroed each missing interval, and a zeroed row would answer that
     // the interval arrived
     //
+    // Note: a run that brought nothing still reported: its failures. It is
+    //       drawn where it ran, as failed, so it is not called missed as well,
+    //       and the other minutes of its window stay between runs (#239)
+    //
     const rows = [...reported.values()].map((row) => ({ [field_datetime]: row.when }));
     const missing = new Set(
         missingIntervals(rows, stream, r, field_datetime, now, clock).map((when) => when.valueOf())
@@ -112,7 +122,7 @@ export function streamBars(chart_data, stream, rate, field_datetime, stream_sour
         const key = cursor.valueOf();
         const row = reported.get(key);
 
-        if (row) {
+        if (row && row.records > 0) {
             bars.push({
                 start: new Date(key),
                 kind: 'reported',
@@ -120,6 +130,8 @@ export function streamBars(chart_data, stream, rate, field_datetime, stream_sour
                 failed: Math.max(0, row.throughput - row.records),
                 health: Math.min(1, row.records / row.throughput),
             });
+        } else if (row) {
+            bars.push({ start: new Date(key), kind: 'failed', records: 0, failed: row.throughput, health: 0 });
         } else if (missing.has(key)) {
             bars.push({ start: new Date(key), kind: 'missed' });
         } else if (!intervalExpected(stream, r, cursor)) {
@@ -161,6 +173,14 @@ export function barSummary(bar) {
         return bar.failed
             ? `${records}, ${count(bar.failed)} failed (health ${Math.floor(bar.health * 1000) / 10}%)`
             : records;
+    }
+
+    //
+    // Note: it says it failed, and how many, so it is not taken for a miss --
+    //       the box it is drawn as is the same (#239)
+    //
+    if (bar.kind === 'failed') {
+        return `Failed: ${count(bar.failed)} failed, nothing succeeded`;
     }
 
     return {
