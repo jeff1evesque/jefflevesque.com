@@ -42,8 +42,9 @@ which draws them.
 
 Two kinds of interval are not misses, and are drawn apart from them:
 
-- an interval no run was due in -- a weekend on a weekday-only stream, an hour outside
-  its hours, a minute between its runs -- is a thin hatched strip;
+- an interval no run was due in -- a weekend on a weekday-only stream, a federal
+  holiday for the SEC filings, an hour outside its hours, a minute between its runs --
+  is a thin hatched strip;
 - an interval older than the first row the report returned, or the one still filling,
   is left empty: neither can be called a miss yet.
 
