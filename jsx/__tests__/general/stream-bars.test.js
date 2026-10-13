@@ -95,6 +95,28 @@ describe('the bars of a weekday stream, by the day', () => {
     });
 });
 
+describe('a federal holiday, by the day (#241)', () => {
+    //
+    // Columbus Day, Monday 2026-10-12: EDGAR took no filings, so the sec stream
+    // brought nothing that day. Tuesday the 13th, a workday, brought nothing too
+    //
+    const oct = (d) => new Date(2026, 9, d);
+    const rows = [
+        row('sec', oct(8), 120),
+        row('sec', oct(9), 110),
+        row('sec', oct(14), 130),
+    ];
+    const bars = streamBars(rows, 'sec', 'day', FIELD, ['sec'], new Date(2026, 9, 15, 12));
+
+    it('draws the holiday as not scheduled, not missed', () => {
+        expect(barAt(bars, oct(12)).kind).toBe('off');
+    });
+
+    it('still draws a workday that brought nothing as missed', () => {
+        expect(barAt(bars, oct(13)).kind).toBe('missed');
+    });
+});
+
 describe('the company facts, by the day (#211)', () => {
     //
     // the sec report's second series, one run a day at 23:15 eastern, Monday to
