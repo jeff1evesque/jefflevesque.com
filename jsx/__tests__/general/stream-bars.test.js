@@ -177,6 +177,95 @@ describe('a row that carried nothing', () => {
     });
 });
 
+describe('an interval where nothing succeeded (#239)', () => {
+    //
+    // the S&P 500 at 10:00 on Monday 2026-09-28: its token refresh failed and no
+    // quote was fetched, so both series' rows carry nothing that succeeded and
+    // everything the run was due to bring as failed. 10:20 brought it all, and
+    // 10:40 carried nothing
+    //
+    const MONDAY = (hour, minute = 0) => new Date(2026, 8, 28, hour, minute);
+    const DUE = { options: 518076, price: 503 };
+
+    //
+    // the two series in one row, as toggleChartScale leaves it: what succeeded
+    // of each, and what each was due to bring, `runs` times over
+    //
+    function quotes(date, options, price, runs = 1) {
+        return {
+            [FIELD]: date,
+            options: options,
+            price: price,
+            [`options${THROUGHPUT_KEY}`]: runs * DUE.options,
+            [`price${THROUGHPUT_KEY}`]: runs * DUE.price,
+        };
+    }
+
+    const SERIES = ['options', 'price'];
+    const rows = [quotes(MONDAY(10), 0, 0), quotes(MONDAY(10, 20), DUE.options, DUE.price)];
+    const bars = streamBars(rows, 'stock-market', 'minute', FIELD, SERIES, MONDAY(10, 59));
+
+    it('draws a run that brought nothing as failed, with what failed and no health', () => {
+        expect(barAt(bars, MONDAY(10))).toEqual({
+            start: MONDAY(10),
+            kind: 'failed',
+            records: 0,
+            failed: 518579,
+            health: 0,
+        });
+    });
+
+    it('keeps a run that brought something a report, with what it lost', () => {
+        const lost = streamBars(
+            [quotes(MONDAY(10, 20), DUE.options, 400)], 'stock-market', 'minute', FIELD, SERIES, MONDAY(10, 59)
+        );
+
+        expect(barAt(bars, MONDAY(10, 20))).toEqual({
+            start: MONDAY(10, 20),
+            kind: 'reported',
+            records: 518579,
+            failed: 0,
+            health: 1,
+        });
+        expect(barAt(lost, MONDAY(10, 20))).toMatchObject({ kind: 'reported', records: 518476, failed: 103 });
+    });
+
+    it('still draws a run that carried no rows as missed', () => {
+        expect(barAt(bars, MONDAY(10, 40)).kind).toBe('missed');
+    });
+
+    it('draws an hour whose every run failed as failed, and one with any good run as a report', () => {
+        const hours = streamBars(
+            [quotes(MONDAY(10), 0, 0, 3), quotes(MONDAY(11), 2 * DUE.options, 2 * DUE.price, 3)],
+            'stock-market', 'hour', FIELD, SERIES, MONDAY(15, 30)
+        );
+
+        expect(barAt(hours, MONDAY(10))).toMatchObject({ kind: 'failed', failed: 3 * 518579 });
+        expect(barAt(hours, MONDAY(11))).toMatchObject({ kind: 'reported', records: 2 * 518579, failed: 518579 });
+    });
+
+    it('draws a day whose every run failed as failed', () => {
+        const days = streamBars([row('sec', day(14), 120), row('sec', day(15), 0, 40)], 'sec', 'day', FIELD, ['sec'], NOW);
+
+        expect(barAt(days, day(15))).toMatchObject({ kind: 'failed', records: 0, failed: 40 });
+    });
+
+    it('draws a five minute stream\'s run that brought nothing where it ran, and its window\'s other minutes between runs', () => {
+        //
+        // weather's run lands at :02 past. The one in 11:10's window brought
+        // nothing: it is not a miss at 11:10 as well, while 11:15's, which never
+        // landed, is
+        //
+        const minutes = streamBars(
+            [row('weather', new Date(2026, 8, 30, 11, 7), 9), row('weather', new Date(2026, 8, 30, 11, 12), 0, 9)],
+            'us-national-weather', 'minute', FIELD, ['weather'], NOW
+        );
+        const at = (minute) => barAt(minutes, new Date(2026, 8, 30, 11, minute)).kind;
+
+        expect([at(10), at(12), at(15)]).toEqual(['between', 'failed', 'missed']);
+    });
+});
+
 describe('a stream with more than one series', () => {
     it('sums them into one bar', () => {
         const rows = [{
@@ -301,6 +390,11 @@ describe('what a bar says of itself', () => {
     it('says what failed, and the health that leaves', () => {
         expect(barSummary({ kind: 'reported', records: 90, failed: 10, health: 0.9 }))
             .toBe('90 records, 10 failed (health 90%)');
+    });
+
+    it('says a run that brought nothing failed, and how many, so it is not taken for a miss (#239)', () => {
+        expect(barSummary({ kind: 'failed', records: 0, failed: 518579, health: 0 }))
+            .toBe('Failed: 518,579 failed, nothing succeeded');
     });
 
     it.each([
