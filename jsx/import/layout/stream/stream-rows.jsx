@@ -25,7 +25,9 @@
  *       darkest by day and brightest by night for the tallest fifth of its
  *       row. It used to say the interval's health, and nearly every interval
  *       is fully healthy, so nearly every bar was the same blue. Failures are
- *       still marked, by the red dot over a bar, and counted in its popup.
+ *       still marked, by the red dot over a bar, and counted in its popup. An
+ *       interval where nothing succeeded is no bar, but the red crossed box a
+ *       miss is (#239).
  *
  * Note: the bars are not tab stops. A row of up to sixty of them, five rows
  *       deep, would put three hundred stops between a keyboard and the rest of
@@ -226,7 +228,17 @@ export function heightShade(records, peak) {
 // the row's own scale, and never shorter than a sliver, so a bar that brought
 // one record is still seen to have reported.
 //
+// Note: a run that brought nothing is drawn as a miss is, the red crossed box,
+//       with no sliver and no dot (#239): as a sliver with a dot it read as a
+//       run that brought a few records and lost some. It takes the miss's
+//       class rather than one of its own kind's, since '.stream-bar-failed' is
+//       that dot
+//
 function barLook(bar, peak) {
+    if (bar.kind === 'failed') {
+        return { className: 'stream-bar stream-bar-missed', style: null };
+    }
+
     if (bar.kind !== 'reported') {
         return { className: `stream-bar stream-bar-${bar.kind}`, style: null };
     }
@@ -535,7 +547,7 @@ export function StreamLegend() {
                 </span>
                 <span className='stream-rows-key'>
                     <span className='stream-rows-swatch stream-bar-missed' />
-                    Missed
+                    Missed, or nothing succeeded
                 </span>
                 <span className='stream-rows-key'>
                     <span className='stream-rows-swatch stream-rows-swatch-failed' />

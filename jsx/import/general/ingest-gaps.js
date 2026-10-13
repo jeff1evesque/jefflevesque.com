@@ -132,7 +132,7 @@ export function missingIntervals(chart_data, stream, rate, field_datetime, now =
     the zeroed row carries a key per series AND its throughput key, the same
     shape the aggregator emits, so the listing's totals keep summing rows of one
     kind. zero adds nothing to either side of the health ratio, and coverage
-    counts an interval only where throughput is positive, so neither figure
+    counts an interval only where a record succeeded, so neither figure
     moves -- the fill changes what the chart draws and nothing else
 
 */}

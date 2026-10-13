@@ -267,16 +267,54 @@ describe('the listing coverage figure', () => {
         expect(coverageOf(page, 'bls', 'day', rows)).toBe(ratio.toFixed(2));
     });
 
-    it('counts an interval the scraper ran and failed in as covered', () => {
+    it('does not count an interval where nothing succeeded, as it does not count a miss (#239)', () => {
         //
-        // coverage asks whether the scraper RAN; health asks how it did. An interval
-        // where every request failed carries throughput and no successes -- counting it
-        // as uncovered would state the same fault twice, once in each figure.
+        // a run was due and nothing arrived. The scraper writes a failed run's rows --
+        // its failures and no successes -- where it used to write none, and the row
+        // draws the interval as the miss's crossed box. Half the days here brought
+        // nothing, so the figure is arithmetic rather than a boundary.
         //
         const page = setup();
-        const rows = owed('bls', 'day').map(d => row('bls', d, 0, 7));
+        const expected = owed('bls', 'day');
+        const rows = expected.map((d, i) => row('bls', d, i % 2 === 0 ? 5 : 0, 7));
+        const ratio = 100 * expected.filter((v, i) => i % 2 === 0).length / expected.length;
+
+        expect(coverageOf(page, 'bls', 'day', rows)).toBe(ratio.toFixed(2));
+    });
+
+    it('counts an interval where some records succeeded and some failed as covered', () => {
+        //
+        // something arrived, so the run is not a miss. Health says how it did.
+        //
+        const page = setup();
+        const rows = owed('bls', 'day').map(d => row('bls', d, 3, 7));
 
         expect(coverageOf(page, 'bls', 'day', rows)).toBe('100.00');
+    });
+
+    it('reads every series of a run: the S&P 500\'s quotes failing leaves it covered while its prices arrived', () => {
+        //
+        // three runs owed in the hour. The first brought nothing in either series,
+        // as 2026-09-28 10:00 did; the second lost every quote, but its prices
+        // arrived; the third brought both.
+        //
+        // Note: built here rather than through 'row' above, which keys a row by the
+        //       one series its stream reports. This stream reports two.
+        //
+        at(MIDMORNING_WEDNESDAY, () => {
+            const page = setup();
+            const brought = [[0, 0], [0, 503], [518076, 503]];
+            const rows = owed('stock-market', 'minute').map((d, i) => ({
+                [FIELD]: d,
+                options: brought[i][0],
+                price: brought[i][1],
+                [`options${THROUGHPUT_KEY}`]: 518076,
+                [`price${THROUGHPUT_KEY}`]: 503,
+            }));
+
+            expect(rows).toHaveLength(3);
+            expect(coverageOf(page, 'stock-market', 'minute', rows)).toBe('66.67');
+        });
     });
 
     it('does not count an interval that reported nothing at all', () => {

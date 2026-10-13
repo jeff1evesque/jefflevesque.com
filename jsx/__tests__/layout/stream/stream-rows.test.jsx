@@ -268,10 +268,29 @@ describe('the bars', () => {
         expect(bars()[1].style.height).toBe('8%');
     });
 
-    it('stand at a sliver when nothing in the row brought a record', () => {
+    it('stand at a sliver on a row with no scale', () => {
+        //
+        // stream-bars.js calls an interval that brought no records failed (#239),
+        // so a reported bar with none is one the rows were handed some other way.
+        // It still stands
+        //
         setup([stream('SEC Filings', { bars: [{ start: at(28), kind: 'reported', records: 0, failed: 5, health: 0 }] })]);
 
         expect(bars()[0].style.height).toBe('8%');
+    });
+
+    it('draw a run that brought nothing as a miss is, the crossed box, with no sliver and no dot (#239)', () => {
+        setup([stream('SEC Filings', {
+            bars: [
+                { start: at(28), kind: 'reported', records: 200, failed: 0, health: 1 },
+                { start: at(29), kind: 'failed', records: 0, failed: 518579, health: 0 },
+            ],
+        })]);
+
+        expect(bars()[1].className).toBe('stream-bar stream-bar-missed');
+        expect(bars()[1].style.height).toBe('');
+        expect(rowOf('SEC Filings').querySelectorAll('[role="img"]')[1])
+            .toHaveAttribute('aria-label', 'SEC Filings, Tue, Sep 29: Failed: 518,579 failed, nothing succeeded');
     });
 
     it('are shaded by their height, and dotted where some failed (#167)', () => {
@@ -998,7 +1017,7 @@ describe('around the rows', () => {
 
         const legend = document.querySelector('.stream-rows-legend').textContent;
 
-        ['Height and shade', 'Fewer', 'More', 'Missed', 'Some failed', 'Not scheduled']
+        ['Height and shade', 'Fewer', 'More', 'Missed, or nothing succeeded', 'Some failed', 'Not scheduled']
             .forEach((key) => expect(legend).toContain(key));
     });
 

@@ -287,7 +287,7 @@ describe('fillMissingIntervals', () => {
     it('adds nothing to the totals the listing reads', () => {
         //
         // zero on both sides of the health ratio, and coverage counts an interval only
-        // where throughput is positive. The fill changes what the chart draws and
+        // where a record succeeded. The fill changes what the chart draws and
         // nothing else.
         //
         const rows = [row(day(2026, 3, 16), 4, 8), row(day(2026, 3, 18), 6, 12)];
