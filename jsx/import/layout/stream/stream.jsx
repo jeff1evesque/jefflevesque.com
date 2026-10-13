@@ -298,10 +298,12 @@ function streamCoverage(chart_data, stream, rate, field_datetime, stream_source,
 
     {/*
 
-        an interval counts as covered when SOMETHING was attempted in it,
-        succeeded or failed alike -- coverage asks whether the scraper ran, and
-        health asks how it did. counting a failed interval as uncovered would
-        state the same fault twice
+        an interval counts as covered when something ARRIVED in it: a record
+        that succeeded. one where every record failed is not, as a miss is not
+        (#239) -- a run was due and nothing arrived, and the row draws it as
+        the miss's crossed box, so every box the row draws is an interval this
+        figure counts against. one where some records succeeded and some failed
+        is covered, and health says how it did
 
     */}
     {/*
@@ -316,12 +318,11 @@ function streamCoverage(chart_data, stream, rate, field_datetime, stream_source,
 
     const carried = new Set();
     chart_data.forEach((item) => {
-        const throughput = stream_source.reduce((total, source) => {
-            const key = `${source}${THROUGHPUT_KEY}`;
-            return total + (checkValidObject(key, item) && !isNaN(item[key]) ? item[key] : 0);
+        const records = stream_source.reduce((total, source) => {
+            return total + (checkValidObject(source, item) && !isNaN(item[source]) ? item[source] : 0);
         }, 0);
 
-        if (throughput > 0 && item[field_datetime] instanceof Date) {
+        if (records > 0 && item[field_datetime] instanceof Date) {
             carried.add(coverageBucket(stream, rate, item[field_datetime]).valueOf());
         }
     });
