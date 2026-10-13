@@ -337,6 +337,52 @@ describe('the company facts (#211)', () => {
     });
 });
 
+describe('a federal holiday (#241)', () => {
+    //
+    // Columbus Day, Monday 2026-10-12: EDGAR took no filings, and the market
+    // traded. The fixtures are local times, which jest.config.js pins to New York
+    //
+    const at = (d, h = 0, m = 0) => new Date(2026, 9, d, h, m);
+
+    it('leaves the filings due on no rate below the month', () => {
+        expect(intervalExpected('sec', 'day', at(12))).toBe(false);
+        expect(intervalExpected('sec', 'hour', at(12, 10))).toBe(false);
+        expect(intervalExpected('sec', 'minute', at(12, 10, 5))).toBe(false);
+    });
+
+    it('leaves them due the day after', () => {
+        expect(intervalExpected('sec', 'day', at(13))).toBe(true);
+        expect(intervalExpected('sec', 'hour', at(13, 10))).toBe(true);
+        expect(intervalExpected('sec', 'minute', at(13, 10, 5))).toBe(true);
+    });
+
+    it('still expects the month that holds it', () => {
+        expect(intervalExpected('sec', 'month', new Date(2026, 9, 1))).toBe(true);
+    });
+
+    it('leaves the market and the company facts due', () => {
+        expect(intervalExpected('stock-market', 'day', at(12))).toBe(true);
+        expect(intervalExpected('stock-market', 'hour', at(12, 10))).toBe(true);
+        expect(intervalExpected('sec-companyfacts', 'day', at(12))).toBe(true);
+    });
+
+    it('reads the holiday on eastern time, not the viewer\'s', () => {
+        //
+        // 2026-10-13T02:00Z is already Tuesday in UTC, and still Monday 22:00 in
+        // New York
+        //
+        expect(intervalExpected('sec', 'hour', new Date('2026-10-13T02:00:00Z'))).toBe(false);
+    });
+
+    it('leaves it out of the filings\' daily window', () => {
+        const days = expectedIntervals('sec', 'day', at(14, 12));
+
+        expect(days).toContainEqual(at(9));
+        expect(days).not.toContainEqual(at(12));
+        expect(days).toContainEqual(at(13));
+    });
+});
+
 describe('coverageBucket', () => {
     //
     // what makes a run comparable to the interval it was owed against. 'rate(5
