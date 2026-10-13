@@ -38,6 +38,7 @@ import {
     US_NATIONAL_WEATHER,
     canonicalStream,
 } from './stream-id.js';
+import { federalHoliday } from './federal-holidays.js';
 
 
 {/*
@@ -60,6 +61,8 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
                    on neither every day nor monday to friday alone. optional
       - 'since'    the instant the schedule began, for a stream younger than
                    the longest window: nothing was due before it. optional
+      - 'holidays' 'federal' when nothing is due on a US federal holiday, as
+                   for 'sec': EDGAR takes no filings that day. optional
       - 'partition' how the report is fetched, 'day' or 'year'
       - 'every'    minutes between runs inside an expected hour, or null when
                    the stream has no regular minute spacing at all
@@ -134,6 +137,12 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
           reaches -- 'intervalExpected' answers true for a day or a month before
           it ever consults the hours
 
+    Note: 'sec' is due on no federal holiday (#241). EDGAR takes no filings that
+          day, so the stream brings nothing, and Columbus Day 2026 was drawn as
+          a miss. The market can be open that day, so the weekday gate cannot
+          say it -- see federal-holidays.js. The company facts keep running
+          Monday to Saturday, holiday or not
+
     Note: the company facts are the sec stream's second feed, and graded on
           their own schedule rather than the filings' (#211): once a day at
           23:15 eastern, monday to saturday. the performance api answers them as
@@ -146,7 +155,7 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
 */}
 export const INGEST_SCHEDULE = {
     [US_NATIONAL_WEATHER]: { hours: null, weekdays: false, every: 5, minutes_named: false, partition: 'day' },
-    [SEC]: { hours: [6, 22], weekdays: true, every: 5, minutes_named: false, partition: 'day' },
+    [SEC]: { hours: [6, 22], weekdays: true, holidays: 'federal', every: 5, minutes_named: false, partition: 'day' },
     [SEC_COMPANYFACTS]: {
         hours: [23],
         weekdays: false,
@@ -172,6 +181,9 @@ function easternParts(date) {
     const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: SCHEDULE_TIMEZONE,
         hour12: false,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
         weekday: 'short',
         hour: 'numeric',
         minute: 'numeric'
@@ -181,6 +193,7 @@ function easternParts(date) {
     }, {});
 
     return {
+        day: `${parts.year}-${parts.month}-${parts.day}`,
         weekday: parts.weekday,
         hour: parseInt(parts.hour, 10) % 24,
         minute: parseInt(parts.minute, 10)
@@ -283,7 +296,7 @@ export function intervalExpected(stream, rate, date) {
     }
 
     const r = String(rate).toLowerCase();
-    const { weekday, hour, minute } = easternParts(date);
+    const { day, weekday, hour, minute } = easternParts(date);
 
     {/*
 
@@ -311,6 +324,10 @@ export function intervalExpected(stream, rate, date) {
     }
 
     if (schedule.days && !schedule.days.includes(weekday)) {
+        return false;
+    }
+
+    if (schedule.holidays === 'federal' && federalHoliday(day)) {
         return false;
     }
 
