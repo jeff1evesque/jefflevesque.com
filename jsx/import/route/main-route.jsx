@@ -18,7 +18,7 @@ import DataLayoutState from '../redux/container/data/data.jsx';
 import StreamLayoutState from '../redux/container/stream/stream.jsx';
 import StreamTriggerLayoutState from '../redux/container/stream/trigger/trigger.jsx';
 import StreamAlarm from '../layout/stream/alarm.jsx';
-import ModelLayout from '../layout/model.jsx';
+import ModelLayoutState, { ModelPageState } from '../redux/container/model.jsx';
 import GraphLayout, { RetrievalGraph } from '../layout/graph/graph.jsx';
 import HomePageState from '../redux/container/home-page.jsx';
 import ForgotPasswordState from '../redux/container/forgot-password.jsx';
@@ -42,6 +42,10 @@ import StreamItem from './stream-item.jsx';
 //       as a build id. A build published as 'retrieval' would be shadowed by it,
 //       which no build can be: an id is '<dataset>.<YYYY-MM>.<run>.<variant>'.
 //
+// Note: '/model/:model' is one model's page (#243). '/:user' matches a single
+//       segment, so it never takes '/model/<name>', and '/model' itself is a
+//       static segment, which react-router ranks above '/:user'.
+//
 class MainRoute extends Component {
     render() {
         return (
@@ -64,7 +68,8 @@ class MainRoute extends Component {
                     path='/stream/:stream/alarm'
                     element={<CanonicalStream><StreamAlarm /></CanonicalStream>}
                 />
-                <Route path='/model' element={<ModelLayout />}/>
+                <Route path='/model' element={<ModelLayoutState />}/>
+                <Route path='/model/:model' element={<ModelPageState />}/>
                 <Route path='/graph' element={<GraphLayout />}/>
                 <Route path='/graph/retrieval' element={<RetrievalGraph />}/>
                 <Route path='/graph/retrieval/:day' element={<RetrievalGraph />}/>
