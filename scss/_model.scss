@@ -1,0 +1,712 @@
+//
+// _model.scss: /model and each model's own page (#243).
+//
+// /model is a column of filters beside the controls, the comparison and one
+// list per task. A row of a list is a grid across a wide screen, under the
+// list's headings, and a card on a phone, where each figure carries its own
+// name and the filters fold behind a button. A model's page is one column: its
+// name, the score picker, three figures, and two charts, each in a card.
+//
+// Note: a series' color is only ever a mark's. The words beside it -- a model's
+//       name in a legend, a score better or worse than the baseline -- are in
+//       the page's own grays, so no reader has to read colored text.
+//
+// Note: '//' comment(s), will not appear in the corresponding compiled css,
+//       whereas, '/* */' comment(s), will be preserved in the compiled output.
+//
+
+.model-layout {
+  padding-bottom: 3rem;
+  padding-top: 1.5rem;
+}
+
+.model-intro {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.model-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+
+  h4 {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.model-count {
+  color: $gray-6;
+  font-size: 1.15rem;
+}
+
+.model-lede {
+  color: $gray-7;
+}
+
+.model-status {
+  color: $gray-7;
+  margin: 1rem 0;
+}
+
+.model-status-empty {
+  color: $gray-6;
+}
+
+.model-note {
+  color: $gray-7;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.model-back {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+}
+
+.model-missing h4 {
+  margin: 0 0 0.25rem;
+}
+
+//
+// the filters beside everything else, and over it on a phone
+//
+.model-columns {
+  align-items: start;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 12rem minmax(0, 1fr);
+}
+
+.model-main {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.model-filters {
+  position: sticky;
+  top: 1rem;
+
+  fieldset {
+    margin: 0 0 1.25rem;
+  }
+
+  legend {
+    color: $gray-6;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+  }
+}
+
+.model-filters-toggle {
+  align-items: center;
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 999px;
+  color: $gray-8;
+  display: none;
+  font: inherit;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.9rem;
+}
+
+.model-filter {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.model-filter-name {
+  color: $gray-8;
+  flex: 1;
+}
+
+.model-filter-count {
+  color: $gray-6;
+  font-variant-numeric: tabular-nums;
+}
+
+//
+// the score picker and the sort: pills in /stream's rate buttons' look, and a
+// menu in place of the buttons on a phone
+//
+.model-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.model-control-label {
+  color: $gray-6;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.model-scores,
+.model-sort,
+.model-other {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.model-score-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.model-score {
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 999px;
+  color: $gray-7;
+  cursor: pointer;
+  font: inherit;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.9rem;
+
+  &[aria-pressed='true'] {
+    background-color: $gray-9;
+    border-color: $gray-9;
+    color: $white-1;
+  }
+
+  &:hover,
+  &:focus-visible {
+    border-color: $gray-7;
+  }
+}
+
+.model-score-menu {
+  display: none;
+  margin: 0;
+}
+
+.model-score-menu select,
+.model-sort select,
+.model-other select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: $white-1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23888' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  border: 1px solid $gray-3;
+  border-radius: 999px;
+  color: $gray-8;
+  font: inherit;
+  max-width: 100%;
+  min-height: 2.25rem;
+  padding: 0 2.25rem 0 0.9rem;
+}
+
+.model-hint {
+  color: $gray-6;
+  margin: 0;
+}
+
+//
+// a list per task
+//
+.model-group {
+  margin-top: 0.5rem;
+}
+
+.model-group-head {
+  align-items: baseline;
+  border-bottom: 1px solid $gray-2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  padding-bottom: 0.4rem;
+
+  h5 {
+    margin: 0;
+  }
+}
+
+.model-group-detail {
+  color: $gray-6;
+  flex: 1;
+}
+
+.model-group-count {
+  color: $gray-6;
+  font-variant-numeric: tabular-nums;
+}
+
+//
+// a row's columns, the same under the headings as in every row
+//
+.model-list-head,
+.model-row {
+  align-items: center;
+  column-gap: 1rem;
+  display: grid;
+  grid-template-columns: 4.5rem minmax(12rem, 2fr) minmax(9rem, 1fr) 140px 8rem 6rem;
+}
+
+.model-list-head {
+  color: $gray-6;
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
+}
+
+.model-row {
+  border-bottom: 1px solid $gray-2;
+  padding: 0.75rem 0;
+}
+
+.model-row-retired .model-name,
+.model-row-retired .model-score-value {
+  color: $gray-6;
+}
+
+.model-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.model-cell-label {
+  display: none;
+}
+
+.model-cell-compare {
+  align-items: center;
+  flex-direction: row;
+  gap: 0.5rem;
+}
+
+.model-compare-box input {
+  cursor: pointer;
+  height: 1.1rem;
+  width: 1.1rem;
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+}
+
+.model-swatch {
+  border-radius: 2px;
+  height: 0.25rem;
+  width: 1rem;
+}
+
+.model-name-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+}
+
+.model-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.model-address {
+  color: $gray-6;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.model-description {
+  color: $gray-7;
+  margin: 0.15rem 0 0;
+}
+
+.model-score-value {
+  color: $gray-9;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.model-gap {
+  color: $gray-7;
+  font-size: 0.85rem;
+}
+
+.model-gap-level {
+  color: $gray-6;
+}
+
+.model-figure {
+  color: $gray-8;
+  font-variant-numeric: tabular-nums;
+}
+
+.model-figure-detail {
+  color: $gray-6;
+  font-size: 0.85rem;
+}
+
+.model-trend,
+.model-trend-pending,
+.model-trend-none {
+  display: block;
+  height: 36px;
+  width: 132px;
+}
+
+.model-trend-pending {
+  background-color: $gray-1;
+  border-radius: 4px;
+}
+
+.model-trend-none {
+  color: $gray-6;
+  line-height: 36px;
+}
+
+//
+// a model's status: a pill with a dot, the dot green while it is live
+//
+.model-pill {
+  align-items: center;
+  border: 1px solid $gray-3;
+  border-radius: 999px;
+  color: $gray-8;
+  display: inline-flex;
+  font-size: 0.8rem;
+  gap: 0.35rem;
+  line-height: 1.4;
+  padding: 0 0.55rem;
+  white-space: nowrap;
+}
+
+.model-pill-dot {
+  background-color: $gray-5;
+  border-radius: 50%;
+  height: 0.45rem;
+  width: 0.45rem;
+}
+
+.model-pill-live .model-pill-dot {
+  background-color: $green-6;
+}
+
+.model-pill-new .model-pill-dot {
+  background-color: $gray-8;
+}
+
+.model-pill-retired {
+  color: $gray-6;
+}
+
+//
+// a chart, in a card: its title, the line under it, its legend, the chart and
+// the table of its numbers
+//
+.model-card {
+  background-color: $white-1;
+  border: 1px solid $gray-2;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  min-width: 0;
+  padding: 1rem 1rem 0.85rem;
+}
+
+.model-card-head {
+  display: grid;
+  gap: 0.3rem;
+
+  h5 {
+    margin: 0;
+  }
+}
+
+.model-card-title {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: space-between;
+}
+
+.model-card-sub {
+  color: $gray-7;
+  margin: 0;
+  max-width: 72ch;
+}
+
+.model-card-minor {
+  font-size: 1rem;
+  margin: 0.5rem 0 0;
+}
+
+.model-clear {
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 999px;
+  color: $gray-8;
+  font: inherit;
+  padding: 0.15rem 0.8rem;
+
+  &:hover,
+  &:focus-visible {
+    border-color: $gray-7;
+  }
+}
+
+.model-chart {
+  min-width: 0;
+}
+
+.model-legend {
+  color: $gray-7;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  gap: 0.3rem 1.1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    align-items: center;
+    display: inline-flex;
+    gap: 0.4rem;
+  }
+}
+
+.model-legend-name {
+  color: $gray-8;
+  font-weight: 600;
+}
+
+.model-mark {
+  flex: none;
+  overflow: visible;
+}
+
+//
+// a chart's tooltip, in the colors of every other tooltip on the site -- see
+// theme-mode.jsx -- with a white page behind each mark, so a mark drawn in
+// the page's color still shows
+//
+.model-tip {
+  background-color: $gray-9;
+  border-radius: 4px;
+  color: $white-1;
+  display: grid;
+  gap: 0.3rem;
+  max-width: 320px;
+  padding: 0.5rem 0.85rem;
+}
+
+.model-tip-title {
+  font-weight: 600;
+}
+
+.model-tip-row {
+  align-items: center;
+  column-gap: 0.5rem;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+
+  .model-mark {
+    background-color: $white-1;
+    border-radius: 2px;
+  }
+}
+
+.model-tip-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.model-tip-foot {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+//
+// a chart's numbers
+//
+.model-numbers {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.model-numbers-toggle {
+  background: none;
+  border: 1px solid $gray-3;
+  border-radius: 6px;
+  color: $gray-8;
+  font: inherit;
+  font-size: 0.9rem;
+  justify-self: start;
+  padding: 0.25rem 0.8rem;
+
+  &:hover,
+  &:focus-visible {
+    border-color: $gray-7;
+  }
+}
+
+.model-numbers-table {
+  border: 1px solid $gray-2;
+  border-radius: 6px;
+  max-height: 24rem;
+  overflow: auto;
+
+  table {
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+    width: 100%;
+  }
+
+  th,
+  td {
+    border-bottom: 1px solid $gray-2;
+    padding: 0.35rem 0.7rem;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  thead th {
+    background-color: $white-1;
+    color: $gray-7;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+
+  .model-numbers-text {
+    text-align: left;
+  }
+}
+
+//
+// a model's page: its three figures
+//
+.model-summary {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.model-stat {
+  border: 1px solid $gray-2;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0.75rem 1rem;
+}
+
+.model-stat-label,
+.model-stat-detail {
+  color: $gray-7;
+  font-size: 0.9rem;
+}
+
+.model-stat-value {
+  color: $gray-9;
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+//
+// a phone: the filters fold behind their button, the score's buttons become
+// a menu, a row becomes a card, and a model's figures stack
+//
+@media (max-width: 767.98px) {
+  .model-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .model-filters {
+    position: static;
+  }
+
+  .model-filters-toggle {
+    display: inline-flex;
+  }
+
+  .model-filter-sets {
+    display: none;
+    margin-top: 0.75rem;
+  }
+
+  .model-filters-open .model-filter-sets {
+    display: block;
+  }
+
+  .model-score-buttons {
+    display: none;
+  }
+
+  .model-score-menu {
+    display: flex;
+  }
+
+  .model-list-head {
+    display: none;
+  }
+
+  .model-group-detail {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .model-row {
+    border: 1px solid $gray-2;
+    border-radius: 8px;
+    gap: 0.6rem 1rem;
+    grid-template-areas:
+      'model model compare'
+      'score trend trend'
+      'live went went';
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    margin-top: 0.6rem;
+    padding: 0.75rem;
+  }
+
+  .model-cell-compare { grid-area: compare; align-self: start; }
+  .model-cell-model { grid-area: model; }
+  .model-cell-score { grid-area: score; }
+  .model-cell-trend { grid-area: trend; }
+  .model-cell-live { grid-area: live; }
+  .model-cell-went { grid-area: went; }
+
+  .model-cell-label {
+    color: $gray-6;
+    display: block;
+    font-size: 0.8rem;
+  }
+
+  .model-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .model-card {
+    padding: 0.85rem 0.75rem 0.75rem;
+  }
+}
