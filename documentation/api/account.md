@@ -12,7 +12,7 @@ A signed-in reader's own data, starting with the ingest alarms they subscribe to
 - Account Settings, `/:user/settings`, verifies the reader's email address, and lists
   every subscription with a way out.
 
-It is unlike the three public APIs in the ways that matter here:
+It is unlike the four public APIs in the ways that matter here:
 
 - It answers only a signed-in reader, and nothing in a request but the reader's sign-in
   token says who is asking.

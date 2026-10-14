@@ -1,6 +1,6 @@
 # jefflevesque.com
 
-> A React application for watching data-ingestion pipelines, and the three public APIs it is built on
+> A React application for watching data-ingestion pipelines, and the four public APIs it is built on
 
 --8<-- "README.md:overview"
 
@@ -19,7 +19,7 @@
 
     ---
 
-    The three public APIs every page draws from, and the account API that keeps a
+    The four public APIs every page draws from, and the account API that keeps a
     signed-in reader's alarm subscriptions: what each accepts and what it answers,
     with a Swagger UI to try each public one.
 
