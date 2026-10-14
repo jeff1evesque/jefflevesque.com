@@ -1,132 +1,463 @@
 /**
- * model.jsx: model article listing page
+ * model.jsx: /model, every model trained each night and how it scores (#243).
  *
- * Note: this script implements jsx (reactjs) syntax.
+ * One list per task -- what a model predicts -- under a column of filters, by
+ * task and by status, which a phone folds behind a button. Every row carries the
+ * model's latest 20-day score against the know-nothing baseline, and a trend
+ * line of it; see model/model-row.jsx. The score picker chooses which of the four
+ * scores the rows, their trend lines and the comparison show, and is shared with
+ * each model's own page -- see redux/container/model.jsx -- and a sort menu
+ * orders every list alike.
  *
+ * Ticking two or three models of one task draws their track records on one chart
+ * over the lists; see model/compare-chart.jsx. A model of another task cannot be
+ * ticked beside them, and neither can a fourth. The address carries what is
+ * ticked, '?compare=a,b', so a comparison can be linked, and the page reopens it.
+ *
+ * Note: the listing says everything a row prints but its trend line, so the
+ *       lists, the filters and the sort are drawn from it alone, and each row's
+ *       track record fills its trend line in as it arrives.
+ *
+ * Note: the model api is built after this page (#243). Until it answers, the
+ *       page says it has no models to show, rather than that something failed:
+ *       for a reader, there are none.
  */
 
 import React, { Component } from 'react';
-import ArticleListing from '../general/article-listing.jsx';
+import PropTypes from 'prop-types';
 import { ErrorBoundary } from 'react-error-boundary';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import ErrorFallback from '../formatter/boundary-error.jsx';
+import ModelRow from './model/model-row.jsx';
+import CompareChart from './model/compare-chart.jsx';
+import { ScorePicker } from './model/parts.jsx';
+import { loadListing, loadReport } from './model/source.js';
+import {
+    DEFAULT_SCORE,
+    SORTS,
+    STATUSES,
+    TREND_DAYS,
+    compareBlocked,
+    recentDays,
+    scoreOf,
+    sortModels,
+    statusOf,
+} from './model/scores.js';
+
+/**
+ * the comparison an address names -- '?compare=a,b' -- as the models it ticks,
+ * each with the color slot it is drawn in: the first named the first color. A
+ * name the listing does not hold is passed over, and so is one that could not be
+ * ticked beside those before it: another task's, or a fourth.
+ *
+ * Note: names are joined by commas, which no model's name holds.
+ */
+export function linkedCompare(search, models) {
+    const asked = (new URLSearchParams(search).get('compare') || '').split(',').map((name) => name.trim());
+    const ticked = [];
+
+    asked.forEach((name) => {
+        const model = models.find((each) => each.name === name);
+
+        if (model && !ticked.includes(model) && !compareBlocked(model, ticked)) {
+            ticked.push(model);
+        }
+    });
+
+    return ticked.map((model, slot) => ({ name: model.name, slot: slot }));
+}
+
+/**
+ * the address with the comparison in it: the names ticked, in the order of
+ * their colors, or no '?compare=' where none is. Put in place of the address
+ * rather than pushed, so the back button leaves the page rather than unticking
+ * one box at a time, as /stream's window is. Anything else the address carries
+ * is kept, and an address that already says it is left as it is.
+ *
+ * Note: the commas are written as commas. URLSearchParams escapes them, and
+ *       '?compare=a%2Cb' is the same address, harder to read.
+ */
+export function writeCompare(names) {
+    const params = new URLSearchParams(window.location.search);
+
+    if (names.length) {
+        params.set('compare', names.join(','));
+    } else {
+        params.delete('compare');
+    }
+
+    const search = params.toString().replace(/%2C/gi, ',');
+    const address = `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`;
+
+    if (address !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+        window.history.replaceState(window.history.state, '', address);
+    }
+}
 
 class ModelLayout extends Component {
-    constructor() {
-        super();
+    static propTypes = {
+        //
+        // the score shown, and the way to choose another: the store's, shared
+        // with each model's own page -- see redux/container/model.jsx
+        //
+        score: PropTypes.string,
+        onScore: PropTypes.func,
+    }
+
+    static defaultProps = {
+        score: DEFAULT_SCORE,
+        onScore: () => {},
+    }
+
+    constructor(props) {
+        super(props);
+
         this.state = {
-            display_filter_button: true,
-            display_apply_filter_button: false,
-            display_performance: true,
-            hide_all: false
-        }
+            // the listing: undefined while it is on its way, null where it
+            // could not be had, and { tasks, models } once it is in
+            listing: undefined,
+            // each model's track record by name, once it is in: its rows, or
+            // null where it could not be had. A name not here is on its way
+            records: {},
+            // the tasks and statuses unticked in the filters
+            hidden_tasks: [],
+            hidden_statuses: [],
+            sort: 'score',
+            // the models ticked to compare, each with its color slot, in the
+            // order of the slots
+            picked: [],
+            // whether a phone shows the filters
+            filters_open: false,
+        };
 
-        this.listing = this.listing.bind(this);
-        this.filterColumn = this.filterColumn.bind(this);
-        this.togglePerformance = this.togglePerformance.bind(this);
+        this.pick = this.pick.bind(this);
+        this.clear = this.clear.bind(this);
+        this.toggleFilter = this.toggleFilter.bind(this);
+        this.loadRecord = this.loadRecord.bind(this);
     }
 
-    filterColumn(style='default', btn=false) {
-        if (btn && this.state.display_filter_button) {
-            var button_filter = (
-                <div className='d-block d-md-none filter'>
-                    <button className='btn' type='button' onClick={() =>
-                        this.setState({
-                            display_filter_button: false,
-                            display_apply_filter_button: true,
-                            hide_all: true
-                        })
-                    }>Category</button>
-                </div>
-            );
-            var filter = null;
-            var apply_filter = null;
-        } else {
-            const class_parent = style === 'default'
-                ? 'col-md-3 d-none d-md-block checkbox-vertical checkbox-vertical-default'
-                : 'checkbox-vertical checkbox-vertical-expanded';
-            const class_date_label = 'col-lg-12 col-md-12 col-sm-4 col-xs-4';
+    componentDidMount() {
+        this.alive = true;
 
-            var filter = (
-                <div className={class_parent}>
-                    <div className='row'>
-                        <label className={class_date_label}>
-                            <input
-                                type='checkbox'
-                                checked={this.state.display_performance}
-                                onChange={() => this.togglePerformance()}
-                            />
-                            StockMarket
-                        </label>
-                    </div>
-                </div>
-            );
-
-            if (this.state.display_apply_filter_button) {
-                var button_filter = <h5>Edit Content Filter</h5>;
-                var apply_filter = (
-                    <div className='apply-filter'>
-                        <button className='btn' type='button' onClick={() =>
-                            this.setState({
-                                display_filter_button: true,
-                                display_apply_filter_button: false,
-                                hide_all: false
-                            })
-                        }>Apply Filter</button>
-                    </div>
-                );
-            } else {
-                var button_filter = null;
+        loadListing().then((listing) => {
+            if (!this.alive) {
+                return;
             }
-        }
 
-        return(
-            <>
-                {button_filter}
-                {filter}
-                {apply_filter}
-            </>
-        )
-    }
+            const picked = listing ? linkedCompare(window.location.search, listing.models) : [];
 
-    listing() {
-        return (
-            <div className='col listing'>
-                <ArticleListing
-                    title='Models'
-                    left_column={false}
-                    list_drop={[]}
-                    list_article={['']}
-                />
-            </div>
-        )
-    }
+            this.setState({ listing: listing, picked: picked }, () => {
+                if (!listing) {
+                    return;
+                }
 
-    togglePerformance() {
-        const display_performance  = ! this.state.display_performance;
-        this.setState({
-            display_performance: display_performance
+                writeCompare(picked.map((each) => each.name));
+                listing.models.forEach((model) => this.loadRecord(model.name));
+            });
         });
     }
 
-    render() {
-        const left_column = ! this.state.hide_all
-            ? this.filterColumn()
-            : null;
+    componentWillUnmount() {
+        this.alive = false;
+    }
 
-        const listing = ! this.state.hide_all
-            ? this.listing()
-            : null;
+    loadRecord(name) {
+        loadReport(name, 'track-record').then((rows) => {
+            if (this.alive) {
+                this.setState((state) => ({ records: { ...state.records, [name]: rows } }));
+            }
+        });
+    }
+
+    //
+    // the models ticked, as the listing holds them
+    //
+    chosen() {
+        const { listing, picked } = this.state;
+
+        return picked.map((each) => listing.models.find((model) => model.name === each.name));
+    }
+
+    /**
+     * a model ticked or unticked for the comparison.
+     *
+     * A model ticked takes the first color no other ticked model holds, and
+     * keeps it while it stays ticked, so unticking one leaves the others as they
+     * were drawn. One that cannot be ticked -- see compareBlocked -- is left as
+     * it is: its box is disabled, and says why.
+     */
+    pick(model) {
+        const { picked } = this.state;
+        let next;
+
+        if (picked.some((each) => each.name === model.name)) {
+            next = picked.filter((each) => each.name !== model.name);
+        } else {
+            if (compareBlocked(model, this.chosen())) {
+                return;
+            }
+
+            const used = picked.map((each) => each.slot);
+            let slot = 0;
+
+            while (used.includes(slot)) {
+                slot += 1;
+            }
+
+            next = picked.concat([{ name: model.name, slot: slot }]).sort((a, b) => a.slot - b.slot);
+        }
+
+        this.setState({ picked: next }, () => writeCompare(next.map((each) => each.name)));
+    }
+
+    clear() {
+        this.setState({ picked: [] }, () => writeCompare([]));
+    }
+
+    toggleFilter(list, value) {
+        this.setState((state) => ({
+            [list]: state[list].includes(value)
+                ? state[list].filter((each) => each !== value)
+                : state[list].concat([value]),
+        }));
+    }
+
+    //
+    // the filters: what a model predicts, and its status, each with how many
+    // models it holds
+    //
+    filters() {
+        const { listing, hidden_tasks, hidden_statuses, filters_open } = this.state;
+        const { models, tasks } = listing;
+
+        return (
+            <aside className={`model-filters${filters_open ? ' model-filters-open' : ''}`} aria-label='Filters'>
+                <button
+                    type='button'
+                    className='model-filters-toggle'
+                    aria-expanded={filters_open}
+                    onClick={() => this.setState({ filters_open: !filters_open })}
+                >
+                    <FilterListIcon fontSize='inherit' />
+                    Filters
+                </button>
+                <div className='model-filter-sets'>
+                    <fieldset>
+                        <legend>What it predicts</legend>
+                        {tasks.map((task) => (
+                            <label key={task.id} className='model-filter'>
+                                <input
+                                    type='checkbox'
+                                    checked={!hidden_tasks.includes(task.id)}
+                                    onChange={() => this.toggleFilter('hidden_tasks', task.id)}
+                                />
+                                <span className='model-filter-name'>{task.name}</span>
+                                <span className='model-filter-count'>
+                                    {models.filter((model) => model.task === task.id).length}
+                                </span>
+                            </label>
+                        ))}
+                    </fieldset>
+                    <fieldset>
+                        <legend>Status</legend>
+                        {STATUSES.map((status) => (
+                            <label key={status.key} className='model-filter'>
+                                <input
+                                    type='checkbox'
+                                    checked={!hidden_statuses.includes(status.key)}
+                                    onChange={() => this.toggleFilter('hidden_statuses', status.key)}
+                                />
+                                <span className='model-filter-name'>{status.label}</span>
+                                <span className='model-filter-count'>
+                                    {models.filter((model) => statusOf(model) === status.key).length}
+                                </span>
+                            </label>
+                        ))}
+                    </fieldset>
+                </div>
+            </aside>
+        );
+    }
+
+    //
+    // over the lists: the comparison, once two models are ticked, and until
+    // then, how to start one
+    //
+    comparison() {
+        const { listing, picked, records } = this.state;
+        const chosen = this.chosen();
+
+        if (chosen.length >= 2) {
+            return (
+                <CompareChart
+                    picks={chosen.map((model, at) => ({ model: model, slot: picked[at].slot }))}
+                    records={records}
+                    score={this.props.score}
+                    task={listing.tasks.find((task) => task.id === chosen[0].task)}
+                    onClear={this.clear}
+                />
+            );
+        }
+
+        const hint = chosen.length
+            ? `Tick one or two more ${listing.tasks.find((task) => task.id === chosen[0].task).name} models to compare them with ${chosen[0].name}.`
+            : 'Tick two or three models that predict the same thing to compare them.';
+
+        return <p className='model-hint'>{hint}</p>;
+    }
+
+    //
+    // one list per task the filters leave, each sorted, and none for a task
+    // they leave no model of
+    //
+    groups(shown) {
+        const { listing, records, picked } = this.state;
+        const { score } = this.props;
+        const chosen = this.chosen();
+
+        //
+        // the axis every row's trend line is drawn on: the last 60 days any of
+        // the track records in so far holds
+        //
+        const held = {};
+
+        Object.keys(records).forEach((name) => {
+            if (records[name]) {
+                held[name] = records[name];
+            }
+        });
+
+        const axis = recentDays(held);
+
+        return listing.tasks.map((task, index) => {
+            const models = shown.filter((model) => model.task === task.id);
+
+            if (!models.length) {
+                return null;
+            }
+
+            return (
+                <section key={task.id} className='model-group' aria-labelledby={`model-group-${index}`}>
+                    <div className='model-group-head'>
+                        <h5 id={`model-group-${index}`}>{task.name}</h5>
+                        {task.description ? <span className='model-group-detail'>{task.description}</span> : null}
+                        <span className='model-group-count'>{`${models.length} ${models.length === 1 ? 'model' : 'models'}`}</span>
+                    </div>
+                    <div className='model-list'>
+                        <div className='model-list-head' aria-hidden='true'>
+                            <span>Compare</span>
+                            <span>Model</span>
+                            <span>{`${scoreOf(score).label}, last 20 days`}</span>
+                            <span>{`Last ${TREND_DAYS} days`}</span>
+                            <span>Live version</span>
+                            <span>Went live</span>
+                        </div>
+                        <div role='list' aria-label={`${task.name} models`}>
+                            {sortModels(models, this.state.sort, score).map((model) => {
+                                const tick = picked.find((each) => each.name === model.name);
+
+                                return (
+                                    <ModelRow
+                                        key={model.name}
+                                        model={model}
+                                        score={score}
+                                        rows={records[model.name]}
+                                        axis={axis}
+                                        picked={tick ? tick.slot : null}
+                                        blocked={compareBlocked(model, chosen)}
+                                        onPick={this.pick}
+                                    />
+                                );
+                            })}
+                        </div>
+                    </div>
+                </section>
+            );
+        });
+    }
+
+    //
+    // the page under its title: a line saying why there is nothing to show, or
+    // the filters beside the controls, the comparison and the lists
+    //
+    body() {
+        const { listing, sort } = this.state;
+
+        if (listing === undefined) {
+            return <p className='model-status'>Loading the models&hellip;</p>;
+        }
+
+        if (listing === null) {
+            return <p className='model-status model-status-empty'>No models to show yet.</p>;
+        }
+
+        if (!listing.models.length) {
+            return <p className='model-status model-status-empty'>No models have been published yet.</p>;
+        }
+
+        const shown = this.shown();
+
+        return (
+            <div className='model-columns'>
+                {this.filters()}
+                <div className='model-main'>
+                    <div className='model-controls'>
+                        <ScorePicker score={this.props.score} onScore={this.props.onScore} />
+                        <label className='model-sort'>
+                            <span className='model-control-label' aria-hidden='true'>Sort</span>
+                            <select
+                                aria-label='Sort'
+                                value={sort}
+                                onChange={(event) => this.setState({ sort: event.target.value })}
+                            >
+                                {SORTS.map((each) => (
+                                    <option key={each.key} value={each.key}>{each.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+                    {this.comparison()}
+                    {this.groups(shown)}
+                    {shown.length ? null : <p className='model-status'>No model matches these filters.</p>}
+                </div>
+            </div>
+        );
+    }
+
+    //
+    // the models the filters leave
+    //
+    shown() {
+        const { listing, hidden_tasks, hidden_statuses } = this.state;
+
+        return listing.models.filter((model) => (
+            !hidden_tasks.includes(model.task) && !hidden_statuses.includes(statusOf(model))
+        ));
+    }
+
+    render() {
+        const { listing } = this.state;
+        let count = '';
+
+        if (listing === null || (listing && !listing.models.length)) {
+            count = '0';
+        } else if (listing) {
+            const shown = this.shown().length;
+
+            count = shown === listing.models.length ? String(shown) : `${shown} of ${listing.models.length}`;
+        }
 
         return (
             <ErrorBoundary FallbackComponent={ErrorFallback}>
-                <div className='container'>
-                    <div className='row listing-graphic'>
-                        graphics
+                <div className='container model-layout'>
+                    <div className='model-intro'>
+                        <div className='model-heading'>
+                            <h4>Models</h4>
+                            <span className='model-count'>{count}</span>
+                        </div>
+                        <span className='model-lede'>Every model trained each night, scored on its real predictions</span>
                     </div>
-                    <div className='row listing-general'>
-                        {left_column}
-                        {listing}
-                    </div>
+                    {this.body()}
                 </div>
             </ErrorBoundary>
         );
