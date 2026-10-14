@@ -233,9 +233,11 @@ export default [
         rules: correctnessRules,
     },
 
-    // Test files get the browser globals (they render components) plus jest's.
+    // Test files get the browser globals (they render components) plus jest's,
+    // and so do the helpers under test-support/ they import, which run inside
+    // the same test environment.
     {
-        files: ['**/__tests__/**/*.js', '**/__tests__/**/*.jsx', '**/*.test.js', '**/*.test.jsx'],
+        files: ['**/__tests__/**/*.js', '**/__tests__/**/*.jsx', '**/*.test.js', '**/*.test.jsx', 'test-support/**/*.js'],
         languageOptions: {
             ...languageOptions,
             globals: { ...browserGlobals, ...nodeGlobals, ...jestGlobals },

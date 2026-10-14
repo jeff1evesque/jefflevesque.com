@@ -1,0 +1,187 @@
+/**
+ * model-row.test.jsx: one model in /model's list (#243), and its trend line.
+ *
+ * Note: the trend line is a fixed-size recharts chart, not a responsive one,
+ *       so recharts draws it for real under jsdom without a size given to it.
+ */
+
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+
+import ModelRow, { TrendLine } from '../../../import/layout/model/model-row.jsx';
+import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
+import { COMPARE_COLORS, recentDays } from '../../../import/layout/model/scores.js';
+import { modelOf, trackOf } from '../../../test-support/model-fixtures.js';
+
+function draw(props = {}) {
+    const onPick = props.onPick || jest.fn();
+    const rows = 'rows' in props ? props.rows : trackOf(10);
+
+    const view = render(
+        <ThemeModeContext.Provider value={{ theme: 'light' }}>
+            <MemoryRouter>
+                <ModelRow
+                    model={modelOf()}
+                    score='loss'
+                    rows={rows}
+                    axis={recentDays({ a: trackOf(10) })}
+                    picked={null}
+                    blocked={null}
+                    {...props}
+                    onPick={onPick}
+                />
+            </MemoryRouter>
+        </ThemeModeContext.Provider>
+    );
+
+    return { ...view, onPick };
+}
+
+describe('a row', () => {
+    it('links the model\'s name to its page, and prints its address and description', () => {
+        draw();
+
+        expect(screen.getByRole('link', { name: 'pt-gnn' })).toHaveAttribute('href', '/model/pt-gnn');
+        expect(screen.getByText('/model/pt-gnn')).toHaveClass('model-address');
+        expect(screen.getByText('A graph model of the market')).toBeInTheDocument();
+    });
+
+    it('escapes a name the address would read otherwise', () => {
+        draw({ model: modelOf({ name: 'a b/c' }) });
+
+        expect(screen.getByRole('link', { name: 'a b/c' })).toHaveAttribute('href', '/model/a%20b%2Fc');
+    });
+
+    it('leaves the description out where there is none', () => {
+        const { container } = draw({ model: modelOf({ description: '' }) });
+
+        expect(container.querySelector('.model-description')).toBeNull();
+    });
+
+    it('prints the 20-day score, and how it stands against the baseline', () => {
+        const { container } = draw();
+
+        expect(container.querySelector('.model-score-value')).toHaveTextContent('1.600');
+        expect(container.querySelector('.model-gap')).toHaveTextContent('▲ 0.060 better than the baseline');
+        expect(container.querySelector('.model-gap')).toHaveClass('model-gap-better');
+    });
+
+    it('says when it is worse than the baseline, or level with it', () => {
+        const worse = draw({ model: modelOf({ score: { loss: 1.7 } }) }).container;
+
+        expect(worse.querySelector('.model-gap')).toHaveTextContent('▼ 0.040 worse than the baseline');
+
+        const level = draw({ model: modelOf({ score: { loss: 1.66 } }) }).container;
+
+        expect(level.querySelector('.model-gap')).toHaveTextContent('level with the baseline');
+    });
+
+    it('prints a dash and no comparison for a model with no score yet', () => {
+        const { container } = draw({ model: modelOf({ score: null, baseline: null }) });
+
+        expect(container.querySelector('.model-score-value')).toHaveTextContent('–');
+        expect(container.querySelector('.model-gap')).toHaveTextContent(/^$/);
+    });
+
+    it('names the score\'s figure for a phone\'s card, as its status reads it', () => {
+        const live = draw().container;
+        const fresh = draw({ model: modelOf({ scored_days: 3 }) }).container;
+        const one = draw({ model: modelOf({ scored_days: 1 }) }).container;
+        const retired = draw({ model: modelOf({ retired: '2026-10-01' }) }).container;
+
+        expect(live.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, last 20 days');
+        expect(fresh.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, 3 days so far');
+        expect(one.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, 1 day so far');
+        expect(retired.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, last 20 days before retiring');
+    });
+
+    it('says when the live version went live and how, and how many attempts did', () => {
+        const { container } = draw();
+
+        expect(container.querySelector('.model-cell-live')).toHaveTextContent('Oct 9nightly update');
+        expect(container.querySelector('.model-cell-went')).toHaveTextContent('4 of 30attempts');
+    });
+
+    it('says a retired model is no longer trained, and dims it', () => {
+        const { container } = draw({ model: modelOf({ retired: '2026-10-02' }) });
+
+        expect(container.querySelector('.model-row')).toHaveClass('model-row-retired');
+        expect(container.querySelector('.model-cell-live')).toHaveTextContent('Retired Oct 2no longer trained');
+    });
+
+    it('prints a dash for a live version with no day', () => {
+        const { container } = draw({ model: modelOf({ live: { since: null, kind: null } }) });
+
+        expect(container.querySelector('.model-cell-live .model-figure')).toHaveTextContent('–');
+    });
+});
+
+describe('the compare box', () => {
+    it('ticks the model for the comparison', async () => {
+        const { onPick } = draw();
+
+        await userEvent.click(screen.getByRole('checkbox', { name: 'Compare pt-gnn' }));
+
+        expect(onPick).toHaveBeenCalledWith(modelOf());
+    });
+
+    it('shows a swatch of its color while it is ticked', () => {
+        const { container } = draw({ picked: 2 });
+
+        expect(screen.getByRole('checkbox', { name: 'Compare pt-gnn' })).toBeChecked();
+        expect(container.querySelector('.model-swatch')).toHaveStyle({ backgroundColor: COMPARE_COLORS[2] });
+    });
+
+    it('shows no swatch while it is not', () => {
+        const { container } = draw();
+
+        expect(container.querySelector('.model-swatch')).toBeNull();
+    });
+
+    it('is disabled where it cannot be ticked, and says why', async () => {
+        draw({ blocked: 'Up to three at once' });
+
+        const box = screen.getByRole('checkbox', { name: 'Compare pt-gnn' });
+
+        expect(box).toBeDisabled();
+        await userEvent.hover(box.parentElement);
+        expect(await screen.findByRole('tooltip')).toHaveTextContent('Up to three at once');
+    });
+});
+
+describe('TrendLine', () => {
+    function trend(props) {
+        return render(
+            <ThemeModeContext.Provider value={{ theme: 'dark' }}>
+                <TrendLine name='pt-gnn' score='loss' axis={recentDays({ a: trackOf(10) })} rows={trackOf(10)} {...props} />
+            </ThemeModeContext.Provider>
+        );
+    }
+
+    it('draws the 20-day score and the baseline\'s on the shared axis', () => {
+        const { container } = trend();
+
+        expect(screen.getByRole('img', { name: 'pt-gnn\'s 20-day Loss, over the last 60 days' })).toBeInTheDocument();
+        expect(container.querySelectorAll('.recharts-line')).toHaveLength(2);
+    });
+
+    it('holds a place while the record is on its way', () => {
+        trend({ rows: undefined });
+
+        expect(screen.getByLabelText('Loading the trend')).toHaveClass('model-trend-pending');
+    });
+
+    it('prints a dash, and says why, for a record with nothing on the axis', () => {
+        const { container } = trend({ rows: trackOf(2, '2025-01-01') });
+
+        expect(container.querySelector('.model-trend-none')).toHaveAttribute('title', 'Not scored in the last 60 days');
+    });
+
+    it('prints a dash, and says why, for a record that could not be had', () => {
+        const { container } = trend({ rows: null });
+
+        expect(container.querySelector('.model-trend-none')).toHaveAttribute('title', 'Could not be loaded');
+    });
+});

@@ -21,8 +21,8 @@ the SEC's filings and its company facts, stock market pricing, stock splits, and
 National Weather alerts.
 
 The application is a static bundle with no server of its own. Everything it displays
-comes from three public APIs, called from the browser at runtime, and a signed-in
-reader's alarm subscriptions are kept by a fourth, the account API, which answers only
+comes from four public APIs, called from the browser at runtime, and a signed-in
+reader's alarm subscriptions are kept by a fifth, the account API, which answers only
 them.
 <!-- --8<-- [end:overview] -->
 
@@ -41,7 +41,8 @@ them.
 | `/graph/:graph` | the same page, opened on one build, so a build can be linked to | knowledge graph |
 | `/graph/retrieval` | the **Retrieval Graph**: the same layout, drawn from one published day of the query tables — the graph an LLM's retrieval step reads — with a picker of days, the run that published each and when it finished, the sources the day holds, the day's node types chosen by what can be found by name and named by the vocabularies its predicates file them under, and tables of their entities, facts and edges. Arranged apart from the Training Graph | knowledge graph tables |
 | `/graph/retrieval/:day` | the same page, opened on one day, so a day can be linked to | knowledge graph tables |
-| `/model` | model article listing, with filters and performance | |
+| `/model` | every model trained each night, one list per task -- what it predicts -- under filters by task and status, which a phone folds behind a button. A score picker chooses which of four scores the page shows: loss, up/down AUC, beat-the-average AUC or up/down accuracy. Each row has the model's status (Live, New with its days so far, or Retired), its latest 20-day score against the know-nothing baseline, a trend line of that score over the last 60 days, when its live version went live and how, and how many of its nightly attempts did, and a sort menu orders the lists. On a phone each row is a card. Ticking two or three models of one task draws their 20-day track records on one chart over the lists, each in a color it keeps while it stays ticked, and `?compare=` reopens a comparison | model |
+| `/model/:model` | one model: its 20-day score beside the baseline and the other models of its task, when its live version went live, and how many attempts did. Under them, each nightly attempt against the live version, as a dot filled where it went live and hollow where it was kept back, a diamond for a weekly retrain, with a bar per night for how far it beat or missed it; and its track record, each day a dot and its 20-day average a line, beside another model of its task picked from a menu. The score picker is the list's, every chart flips loss's axis so up is always better, and every chart has a table of its numbers. A name that is no model's says so | model |
 | `/login`, `/logout`, `/register`, `/login/reset` | Cognito-backed authentication | |
 | `/:user` | the reader's profile, a placeholder | |
 | `/:user/settings` | account settings: the reader's email address, which alarms go to, and a code to verify it with; the alarms the reader is subscribed to, each with a way to unsubscribe; and their ID token to copy, for calling the account API from a script | account |
@@ -67,6 +68,7 @@ explains why.
 | Performance | `https://api.jefflevesque.com/v1/public/performance` | `/stream` | [Performance](https://jeff1evesque.github.io/jefflevesque.com/api/performance/) |
 | Datalake | `https://api.jefflevesque.com/v1/public/datalake` | `/data` | [Datalake](https://jeff1evesque.github.io/jefflevesque.com/api/datalake/) |
 | Knowledge graph | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` | [Knowledge graph](https://jeff1evesque.github.io/jefflevesque.com/api/knowledge-graph/) |
+| Model | `https://api.jefflevesque.com/v1/public/model` | `/model`, `/model/:model` | [Model](https://jeff1evesque.github.io/jefflevesque.com/api/model/) |
 | Account | `https://api.jefflevesque.com/v1/private/account` | `/stream/:stream/alarm`, `/stream`, `/:user/settings` | [Account](https://jeff1evesque.github.io/jefflevesque.com/api/account/) |
 
 Each reference page describes the parameters the application sends and the response it

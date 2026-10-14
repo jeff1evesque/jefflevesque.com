@@ -23,6 +23,7 @@ import {
     datalakeUrl,
     knowledgeGraphUrl,
     knowledgeGraphTablesUrl,
+    modelUrl,
     alarmsUrl,
     subscriptionsUrl,
     subscriptionUrl,
@@ -34,6 +35,7 @@ import {
     DATASETS,
     PERFORMANCE_STREAMS,
     TABLES_VALUES,
+    MODEL_REPORTS,
     performanceStream,
 } from '../../import/general/api-url.js';
 import { STREAMS } from '../../import/general/stream-id.js';
@@ -459,6 +461,37 @@ describe('the account api', () => {
     });
 });
 
+describe('modelUrl (#243)', () => {
+    it('asks for the listing with no parameters', () => {
+        expect(String(modelUrl())).toBe('https://api.jefflevesque.com/v1/public/model');
+    });
+
+    it.each(MODEL_REPORTS)('asks for a model\'s %s by its name', (report) => {
+        expect(String(modelUrl('pt-gnn-5day', report)))
+            .toBe(`https://api.jefflevesque.com/v1/public/model?Model=pt-gnn-5day&Report=${report}`);
+    });
+
+    it('keeps the two reports the api keeps', () => {
+        expect(MODEL_REPORTS).toEqual(['history', 'track-record']);
+    });
+
+    it('escapes a name as the query string needs it', () => {
+        expect(String(modelUrl('a b&c', 'history'))).toBe(`${ENDPOINTS.model}?Model=a+b%26c&Report=history`);
+    });
+
+    it.each([
+        ['a model with no report', 'pt-gnn', null],
+        ['a report with no model', null, 'history'],
+        ['a report the api does not keep', 'pt-gnn', 'forecast'],
+    ])('refuses %s, which the api would answer with a 400', (label, model, report) => {
+        expect(() => modelUrl(model, report)).toThrow(/a Model needs a Report of history or track-record/);
+    });
+
+    it('can be asked of another base', () => {
+        expect(String(modelUrl('m', 'history', 'https://example.com/model'))).toBe('https://example.com/model?Model=m&Report=history');
+    });
+});
+
 describe('the endpoints and the documentation', () => {
     it('keeps every endpoint under the one public api', () => {
         Object.values(ENDPOINTS).forEach(endpoint => expect(endpoint.startsWith(`${API}/`)).toBe(true));
@@ -531,6 +564,23 @@ describe('what is sent is what is documented', () => {
         ]);
         expect(routeSent(document, report.origin + report.pathname)).toBe('/performance');
         expect(routeSent(document, performanceArchiveUrl())).toBe('/performance/archive');
+    });
+
+    it('model: the listing sends nothing, and a report exactly what the document declares (#243)', () => {
+        const document = documentOf('model');
+
+        expect(sent(modelUrl())).toEqual([]);
+        MODEL_REPORTS.forEach((report) => {
+            expect(sent(modelUrl('pt-gnn', report))).toEqual(declared(document));
+        });
+    });
+
+    it('model: asks for the one route its document templates, and a report its Report enumerates', () => {
+        const document = documentOf('model');
+
+        expect(Object.keys(document.paths)).toEqual(['/model']);
+        expect(routeSent(document, modelUrl())).toBe('/model');
+        expect(parameterOf(document, 'Report').schema.enum).toEqual(MODEL_REPORTS);
     });
 
     it('datalake: exactly the parameters its document declares', () => {

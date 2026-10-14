@@ -1,5 +1,6 @@
 /**
- * main-route.test.jsx: which graph page an address opens.
+ * main-route.test.jsx: which graph page an address opens, and which model page
+ * (#243).
  *
  * Two pages share the '/graph' prefix: the Training graph, which takes a build id
  * as '/graph/:graph', and the Retrieval graph at '/graph/retrieval'. The one thing
@@ -66,6 +67,20 @@ jest.mock('../../import/redux/container/stream/stream.jsx', () => {
     };
 });
 
+//
+// the model pages are drawn for real, against a model api replaced at source.js,
+// and recharts in a container given a size -- see test-support/model-fixtures.js
+//
+jest.mock('recharts', () => require('../../test-support/model-fixtures.js').sizedRecharts());
+jest.mock('../../import/layout/model/source.js', () => ({
+    loadListing: jest.fn(),
+    loadReport: jest.fn(),
+}));
+
+import { act } from '@testing-library/react';
+import { loadListing, loadReport } from '../../import/layout/model/source.js';
+import { historyOf, listingOf, trackOf } from '../../test-support/model-fixtures.js';
+import model from '../../import/redux/reducer/model.jsx';
 import user from '../../import/redux/reducer/login.jsx';
 import layout from '../../import/redux/reducer/layout.jsx';
 import page from '../../import/redux/reducer/page.jsx';
@@ -138,5 +153,79 @@ describe('a stream by its path, as the alarm emails link one (#214)', () => {
         ['/stream/nope', '/stream'],
     ])('sends %s to %s', (path, landed) => {
         expect(renderAt(path)).toEqual({ stream: landed });
+    });
+});
+
+describe('the model pages (#243)', () => {
+    //
+    // the page at `path`. The list reads what it compares off the window's
+    // address, as it does under the browser's router, so the window is put
+    // there too
+    //
+    async function openAt(path) {
+        const store = createStore(
+            combineReducers({ user, page, layout, article, hide, model }),
+            { user: { name: 'anonymous' }, page: { status: 'default' } }
+        );
+
+        window.history.replaceState(null, '', path);
+
+        await act(async () => {
+            render(
+                <Provider store={store}>
+                    <MemoryRouter initialEntries={[path]}>
+                        <MainRoute />
+                    </MemoryRouter>
+                </Provider>
+            );
+        });
+
+        return store;
+    }
+
+    beforeEach(() => {
+        loadListing.mockResolvedValue(listingOf());
+        loadReport.mockImplementation((name, kind) => Promise.resolve(kind === 'history' ? historyOf() : trackOf()));
+    });
+
+    afterEach(() => {
+        window.history.replaceState(null, '', '/');
+    });
+
+    it('opens the list at /model', async () => {
+        await openAt('/model');
+
+        expect(screen.getByRole('heading', { name: 'Models' })).toBeInTheDocument();
+        expect(screen.getByRole('region', { name: 'Next-day direction' })).toBeInTheDocument();
+    });
+
+    it('reopens a comparison from /model?compare=', async () => {
+        await openAt('/model?compare=pt-gnn,tables');
+
+        expect(screen.getByRole('heading', { name: 'Comparing pt-gnn and tables' })).toBeInTheDocument();
+    });
+
+    it('opens a model\'s own page at /model/<name>, rather than reading it as a user', async () => {
+        await openAt('/model/tables');
+
+        expect(screen.getByRole('heading', { name: 'tables' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Each attempt against the live version' })).toBeInTheDocument();
+        expect(loadReport).toHaveBeenCalledWith('tables', 'history');
+    });
+
+    it('says a name that is not a model is not found, on the model\'s page', async () => {
+        await openAt('/model/no-such-model');
+
+        expect(screen.getByRole('heading', { name: 'Model not found' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: '‹ All models' })).toHaveAttribute('href', '/model');
+    });
+
+    it('shares the score picked between the two', async () => {
+        const store = await openAt('/model/pt-gnn');
+
+        await act(async () => screen.getByRole('button', { name: 'Up/down AUC' }).click());
+
+        expect(store.getState().model.score).toBe('auc_up');
+        expect(screen.getByRole('button', { name: 'Up/down AUC' })).toHaveAttribute('aria-pressed', 'true');
     });
 });

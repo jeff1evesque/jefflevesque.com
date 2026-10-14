@@ -12,12 +12,14 @@ import { setStockSplitProp } from '../../import/redux/action/article.jsx';
 import { setHide } from '../../import/redux/action/hide.jsx';
 import { setLoginState } from '../../import/redux/action/login.jsx';
 import setLogoutState from '../../import/redux/action/logout.jsx';
+import { setModelScore } from '../../import/redux/action/model.jsx';
 import { setContentType, setLayout, setSpinner } from '../../import/redux/action/page.jsx';
 import { setParsedCsv } from '../../import/redux/action/parseCsv.jsx';
 
 import article from '../../import/redux/reducer/article.jsx';
 import hide from '../../import/redux/reducer/hide.jsx';
 import layout from '../../import/redux/reducer/layout.jsx';
+import model from '../../import/redux/reducer/model.jsx';
 import page from '../../import/redux/reducer/page.jsx';
 import user from '../../import/redux/reducer/login.jsx';
 
@@ -216,5 +218,15 @@ describe('setParsedCsv', () => {
         expect(page(state, action)).toBe(state);
         expect(layout(state, action)).toBe(state);
         expect(user(state, action)).toBe(state);
+    });
+});
+
+describe('setModelScore (#243)', () => {
+    it('carries the score it is handed', () => {
+        expect(setModelScore('auc_up')).toEqual({ type: 'SET-MODEL-SCORE', score: 'auc_up' });
+    });
+
+    it('is what the model reducer takes', () => {
+        expect(model(undefined, setModelScore('acc_up'))).toEqual({ score: 'acc_up' });
     });
 });

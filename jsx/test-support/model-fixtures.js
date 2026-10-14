@@ -1,0 +1,150 @@
+/**
+ * model-fixtures.js: what the model pages' tests draw (#243): a listing's tasks
+ * and models, and a model's history and track record, as the worker hands them
+ * to the pages -- see worker/model/report.js.
+ *
+ * Note: days are weekdays from 2026-09-01, as a model is scored on trading days
+ *       alone. Every builder is plain data, so a test can change one field of
+ *       what it is handed and leave the rest as they are.
+ */
+
+export const TASKS = [
+    { id: 'direction', name: 'Next-day direction', description: 'Up or down, scored the next day' },
+    { id: 'beats', name: 'Beat the average', description: 'Above or below the average stock' },
+];
+
+const LIVE_SCORE = { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 };
+const BASELINE = { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52 };
+
+/**
+ * a model as the listing holds it.
+ */
+export function modelOf(overrides = {}) {
+    return {
+        name: 'pt-gnn',
+        task: 'direction',
+        description: 'A graph model of the market',
+        started: '2026-09-01',
+        retired: null,
+        scored_days: 30,
+        live: { since: '2026-10-09', kind: 'nightly' },
+        attempts: { total: 30, went_live: 4 },
+        score: { ...LIVE_SCORE },
+        baseline: { ...BASELINE },
+        ...overrides,
+    };
+}
+
+/**
+ * the listing: three models of one task, and one of another.
+ */
+export function listingOf(models = null) {
+    return {
+        tasks: TASKS.map((task) => ({ ...task })),
+        models: models || [
+            modelOf(),
+            modelOf({ name: 'tables', description: 'A model of the tables', score: { loss: 1.62, auc_up: 0.54, auc_beats: 0.52, acc_up: 0.55 }, attempts: { total: 30, went_live: 9 }, live: { since: '2026-10-12', kind: 'weekly' } }),
+            modelOf({ name: 'fresh', description: '', started: '2026-10-05', scored_days: 6, score: { loss: 1.64, auc_up: 0.52, auc_beats: 0.51, acc_up: 0.53 }, attempts: { total: 6, went_live: 1 }, live: { since: '2026-10-05', kind: 'first' } }),
+            modelOf({ name: 'beater', task: 'beats', retired: '2026-10-02', score: { loss: 1.65, auc_up: 0.51, auc_beats: 0.55, acc_up: 0.5 }, attempts: { total: 20, went_live: 2 } }),
+        ],
+    };
+}
+
+/**
+ * `count` weekdays from `from`, oldest first.
+ */
+export function weekdays(count, from = '2026-09-01') {
+    const days = [];
+    const at = new Date(`${from}T12:00:00Z`);
+
+    while (days.length < count) {
+        if (at.getUTCDay() !== 0 && at.getUTCDay() !== 6) {
+            days.push(at.toISOString().slice(0, 10));
+        }
+
+        at.setUTCDate(at.getUTCDate() + 1);
+    }
+
+    return days;
+}
+
+function scoresAt(loss) {
+    return { loss: loss, auc_up: 2.16 - loss, auc_beats: 2.13 - loss, acc_up: 2.14 - loss };
+}
+
+/**
+ * a history: one night per day. `nights` overrides each night by its index.
+ */
+export function historyOf(count = 5, nights = {}) {
+    return weekdays(count, '2026-10-01').map((day, at) => ({
+        day: day,
+        kind: 'nightly',
+        went_live: false,
+        attempt: scoresAt(1.61 + at * 0.001),
+        live: scoresAt(1.6),
+        baseline: { ...BASELINE },
+        ...(nights[at] || {}),
+    }));
+}
+
+/**
+ * a track record, its averages worked out as the worker works them: each day
+ * over the rows so far, up to 20. `loss(at)` is each day's loss.
+ */
+export function trackOf(count = 5, from = '2026-09-01', loss = (at) => 1.6 + (at % 3) * 0.01) {
+    const rows = weekdays(count, from).map((day, at) => ({
+        day: day,
+        score: scoresAt(loss(at)),
+        baseline: { ...BASELINE },
+    }));
+
+    rows.forEach((row, at) => {
+        const recent = rows.slice(Math.max(0, at - 19), at + 1);
+        const mean = (field) => {
+            const average = {};
+
+            Object.keys(row[field]).forEach((key) => {
+                average[key] = recent.reduce((sum, each) => sum + each[field][key], 0) / recent.length;
+            });
+
+            return average;
+        };
+
+        row.days = recent.length;
+        row.average = mean('score');
+        row.baseline_average = mean('baseline');
+    });
+
+    return rows;
+}
+
+/**
+ * the recharts module with its ResponsiveContainer given a size, as
+ * line-chart.test.jsx does it: under jsdom every element measures 0x0, and
+ * recharts draws nothing into a container that size. For jest.mock('recharts').
+ */
+export function sizedRecharts() {
+    const actual = jest.requireActual('recharts');
+    const React = jest.requireActual('react');
+
+    return {
+        ...actual,
+        ResponsiveContainer: (props) => React.cloneElement(props.children, { width: 600, height: props.height || 300 }),
+    };
+}
+
+/**
+ * point at a recharts chart at `x`, as a reader's mouse does, so it draws its
+ * tooltip.
+ *
+ * Note: recharts places the pointer by the event's pageX and pageY, which jsdom
+ *       does not take from an event's init, so they are set on the event here.
+ */
+export function pointAt(wrapper, x, y = 60) {
+    const { createEvent, fireEvent } = jest.requireActual('@testing-library/react');
+    const event = createEvent.mouseMove(wrapper, { clientX: x, clientY: y });
+
+    Object.defineProperty(event, 'pageX', { value: x });
+    Object.defineProperty(event, 'pageY', { value: y });
+    fireEvent(wrapper, event);
+}

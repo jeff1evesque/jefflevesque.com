@@ -27,10 +27,14 @@
  * redux rejects it. That is pinned per container rather than once, because each
  * one names a different creator and each name is equally untrue.
  *
- * The second is that mapStateToProps is copy-pasted. data, model, page and
- * stream carry the same username-and-spinner block, and login/register carry a
- * second spelling of the username half. They are asserted to agree, so a fix
- * applied to one and not the others shows up here.
+ * The second is that mapStateToProps is copy-pasted. data, page and stream
+ * carry the same username-and-spinner block, and login/register carry a second
+ * spelling of the username half. They are asserted to agree, so a fix applied to
+ * one and not the others shows up here.
+ *
+ * The model container is the exception to both (#243). It maps the one thing
+ * the model pages share, the score they show, and binds its creator properly,
+ * so the score a page hands onScore is the action's score.
  */
 
 import React from 'react';
@@ -65,6 +69,7 @@ jest.mock('../../import/content/home-page.jsx', () => mockProbe('home-page'));
 jest.mock('../../import/navigation/menu-items/login.jsx', () => mockProbe('login-link'));
 jest.mock('../../import/content/login.jsx', () => mockProbe('login'));
 jest.mock('../../import/layout/model.jsx', () => mockProbe('model'));
+jest.mock('../../import/layout/model/model-page.jsx', () => mockProbe('model-page'));
 jest.mock('../../import/layout/page.jsx', () => mockProbe('page'));
 jest.mock('../../import/navigation/menu-items/register.jsx', () => mockProbe('register-link'));
 jest.mock('../../import/layout/register/content/webform.jsx', () => mockProbe('register'));
@@ -80,7 +85,7 @@ import HeaderMenuState from '../../import/redux/container/header-menu.jsx';
 import HomePageState from '../../import/redux/container/home-page.jsx';
 import LoginLinkState from '../../import/redux/container/login-link.jsx';
 import LoginState from '../../import/redux/container/login.jsx';
-import ModelLayoutState from '../../import/redux/container/model.jsx';
+import ModelLayoutState, { ModelPageState } from '../../import/redux/container/model.jsx';
 import PageLayoutState from '../../import/redux/container/page.jsx';
 import RegisterLinkState from '../../import/redux/container/register-link.jsx';
 import RegisterState from '../../import/redux/container/register.jsx';
@@ -97,6 +102,7 @@ import layout from '../../import/redux/reducer/layout.jsx';
 import page from '../../import/redux/reducer/page.jsx';
 import article from '../../import/redux/reducer/article.jsx';
 import hide from '../../import/redux/reducer/hide.jsx';
+import model from '../../import/redux/reducer/model.jsx';
 
 //
 // a store that keeps whatever state it is given and records what was dispatched
@@ -118,7 +124,7 @@ function inertStore(state) {
 //
 function realStore(preloaded) {
     return createStore(
-        combineReducers({ user, page, layout, article, hide }),
+        combineReducers({ user, page, layout, article, hide, model }),
         preloaded
     );
 }
@@ -149,7 +155,6 @@ beforeEach(() => {
 describe('the username normalization shared by six containers', () => {
     const containers = [
         ['data', DataLayoutState, 'data'],
-        ['model', ModelLayoutState, 'model'],
         ['page', PageLayoutState, 'page'],
         ['stream', StreamLayoutState, 'stream'],
         ['login-link', LoginLinkState, 'login-link'],
@@ -188,10 +193,9 @@ describe('the username normalization shared by six containers', () => {
     });
 });
 
-describe('the spinner flag shared by four containers', () => {
+describe('the spinner flag shared by three containers', () => {
     const containers = [
         ['data', DataLayoutState, 'data'],
-        ['model', ModelLayoutState, 'model'],
         ['page', PageLayoutState, 'page'],
         ['stream', StreamLayoutState, 'stream'],
     ];
@@ -226,18 +230,61 @@ describe('the spinner flag shared by four containers', () => {
     });
 });
 
-describe('model, page and stream are the same mapping three times', () => {
+describe('page and stream are the same mapping twice', () => {
     it.each([
         ['an anonymous cold store', {}],
         ['a signed-in user', { user: { name: 'jeff' } }],
         ['a running spinner', { user: { name: 'jeff' }, page: { effects: { spinner: true } } }],
     ])('they agree given %s', (label, state) => {
-        const model = mapped(propsOf(ModelLayoutState, state, 'model').props);
         const pageProps = mapped(propsOf(PageLayoutState, state, 'page').props);
         const stream = mapped(propsOf(StreamLayoutState, state, 'stream').props);
 
-        expect(pageProps).toEqual(model);
-        expect(stream).toEqual(model);
+        expect(stream).toEqual(pageProps);
+    });
+});
+
+describe.each([
+    ['/model', ModelLayoutState, 'model'],
+    ['/model/:model', ModelPageState, 'model-page'],
+])('the model container, for %s (#243)', (label, Container, probe) => {
+    it('hands the page the score the store holds', () => {
+        const { props } = propsOf(Container, { model: { score: 'auc_up' } }, probe);
+
+        expect(props.score).toBe('auc_up');
+    });
+
+    it('hands it loss on a store with no model slice', () => {
+        expect(propsOf(Container, {}, probe).props.score).toBe('loss');
+    });
+
+    it('hands it loss on a cold store, as the reducer starts', () => {
+        render(<Provider store={realStore()}><Container /></Provider>);
+
+        expect(mockSeen[probe].score).toBe('loss');
+    });
+
+    it('maps the score and the way to pick one, and nothing else', () => {
+        const { props } = propsOf(Container, { user: { name: 'jeff' } }, probe);
+
+        expect(Object.keys(props).sort()).toEqual(['onScore', 'score']);
+    });
+
+    it('dispatches the score onScore is handed', () => {
+        const { props, dispatched } = propsOf(Container, {}, probe);
+
+        act(() => props.onScore('acc_up'));
+
+        expect(dispatched[dispatched.length - 1]).toEqual({ type: 'SET-MODEL-SCORE', score: 'acc_up' });
+    });
+
+    it('so a score picked on one page is the score the store then holds', () => {
+        const store = realStore();
+
+        render(<Provider store={store}><Container /></Provider>);
+        act(() => mockSeen[probe].onScore('auc_beats'));
+
+        expect(store.getState().model).toEqual({ score: 'auc_beats' });
+        expect(mockSeen[probe].score).toBe('auc_beats');
     });
 });
 

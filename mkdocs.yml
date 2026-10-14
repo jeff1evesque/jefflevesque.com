@@ -1,6 +1,6 @@
 site_name: jefflevesque.com
 site_description: >-
-  A React application for watching data-ingestion pipelines, and the three public
+  A React application for watching data-ingestion pipelines, and the four public
   APIs it is built on
 site_url: https://jeff1evesque.github.io/jefflevesque.com/
 
@@ -143,6 +143,7 @@ nav:
       - Performance: api/performance.md
       - Datalake: api/datalake.md
       - Knowledge graph: api/knowledge-graph.md
+      - Model: api/model.md
       - Account: api/account.md
   - Application:
       - Routes: application/routes.md

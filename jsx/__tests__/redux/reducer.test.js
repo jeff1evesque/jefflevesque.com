@@ -15,6 +15,7 @@
 import article from '../../import/redux/reducer/article.jsx';
 import hide from '../../import/redux/reducer/hide.jsx';
 import layout from '../../import/redux/reducer/layout.jsx';
+import model from '../../import/redux/reducer/model.jsx';
 import page from '../../import/redux/reducer/page.jsx';
 import user from '../../import/redux/reducer/login.jsx';
 
@@ -286,5 +287,29 @@ describe('the string initial states', () => {
 
         expect(result[0]).toBe('d');
         expect(result.hide_all).toBe(true);
+    });
+});
+
+describe('model (#243)', () => {
+    it('starts on loss, the score that decides what goes live', () => {
+        expect(model(undefined, { type: '@@INIT' })).toEqual({ score: 'loss' });
+    });
+
+    it.each(['loss', 'auc_up', 'auc_beats', 'acc_up'])('takes %s', (score) => {
+        expect(model({ score: 'loss' }, { type: 'SET-MODEL-SCORE', score: score })).toEqual({ score: score });
+    });
+
+    it('turns down a score the pages have no button for', () => {
+        const state = { score: 'auc_up' };
+
+        expect(model(state, { type: 'SET-MODEL-SCORE', score: 'f1' })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-SCORE' })).toBe(state);
+    });
+
+    it('leaves another action alone', () => {
+        const state = { score: 'acc_up' };
+
+        expect(model(state, { type: 'SET-LAYOUT', score: 'loss' })).toBe(state);
+        expect(model(state, undefined)).toBe(state);
     });
 });

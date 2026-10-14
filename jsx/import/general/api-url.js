@@ -1,5 +1,5 @@
 /**
- * api-url.js: the requests this application makes to its three public apis and to
+ * api-url.js: the requests this application makes to its four public apis and to
  *             the account api, and where each api is documented.
  *
  *     performance       read by /stream                        Stream, Interval, Timezone
@@ -8,6 +8,7 @@
  *     knowledge-graph   read by /graph and /                   (the id, in the path)
  *                       its tables, read by /graph/retrieval   Day, Limit
  *                         and one path per question            Text, Uri, Symbol
+ *     model             read by /model and /model/:model       Model, Report
  *     alarms            read by /stream/:stream/alarm          stream
  *     account           read by /stream/:stream/alarm,         (the stream and the
  *                         /stream and /:user/settings            alarm, in the path)
@@ -17,10 +18,14 @@
  * is under '/v1/private' rather than beside the others in ENDPOINTS. The list of
  * alarms that can be subscribed to is the same for everyone, and is public.
  *
- * Three apis, and the knowledge graph has two shapes. It answers what a build IS on
- * two paths taking their id in the path, and what the published tables CONTAIN on
- * more, one per question, each taking only that question's values. Separate builders
- * for that reason.
+ * The knowledge graph has two shapes. It answers what a build IS on two paths
+ * taking their id in the path, and what the published tables CONTAIN on more, one
+ * per question, each taking only that question's values. Separate builders for that
+ * reason.
+ *
+ * The model api is the one built after the pages that read it (#243): its OpenAPI
+ * document is the contract it is built to, and until it answers, /model says it has
+ * no models to show.
  *
  * Every url a page fetches from these apis is built here, and so is the link that
  * shows a reader the request behind what the page draws. One builder for both is
@@ -52,6 +57,7 @@ const ENDPOINTS = {
     datalake: `${API}/datalake`,
     knowledgeGraph: `${API}/knowledge-graph`,
     knowledgeGraphTables: `${API}/knowledge-graph/tables`,
+    model: `${API}/model`,
     alarms: `${API}/alarms`,
 };
 
@@ -277,6 +283,36 @@ export function knowledgeGraphTablesUrl(operation, values = {}, base = ENDPOINTS
     ));
 }
 
+//
+// the two reports the model api keeps for each model: one row per nightly
+// training attempt, and one row per day it predicted (#243).
+//
+const MODEL_REPORTS = ['history', 'track-record'];
+
+/**
+ * the listing of models or, given a model from that listing and one of its
+ * reports, that report (#243).
+ *
+ * Note: `Model` and `Report` go together. The api answers one without the other
+ *       with a 400, so asking for either alone throws here rather than being
+ *       sent, as an operation's unwanted value does for the tables. So does a
+ *       report the api does not keep.
+ *
+ * Note: the name is sent as the listing gave it. Names are the api's, so this
+ *       does not get to assume what is in one.
+ */
+export function modelUrl(model = null, report = null, base = ENDPOINTS.model) {
+    if (!model && !report) {
+        return new URL(base);
+    }
+
+    if (!model || !MODEL_REPORTS.includes(report)) {
+        throw new Error(`modelUrl: a Model needs a Report of ${MODEL_REPORTS.join(' or ')}, given '${model}' and '${report}'`);
+    }
+
+    return withParams(base, { Model: model, Report: report });
+}
+
 /**
  * the alarms a stream has, which a signed-in reader may subscribe to: the same list
  * for everyone, so public, and the list the alarm page counts as well as offers.
@@ -307,4 +343,15 @@ export function subscriptionUrl(stream, alarm, base = ACCOUNT) {
     return new URL(`${base}/subscriptions/${encodeURIComponent(stream)}/${encodeURIComponent(alarm)}`);
 }
 
-export { API, ENDPOINTS, ACCOUNT, DOCUMENTATION, API_DOCS, TERMS, DATASETS, PERFORMANCE_STREAMS, TABLES_VALUES };
+export {
+    API,
+    ENDPOINTS,
+    ACCOUNT,
+    DOCUMENTATION,
+    API_DOCS,
+    TERMS,
+    DATASETS,
+    PERFORMANCE_STREAMS,
+    TABLES_VALUES,
+    MODEL_REPORTS,
+};

@@ -1,8 +1,8 @@
 # APIs
 
-Every page that shows data reads it from one of three public APIs, called from the
+Every page that shows data reads it from one of four public APIs, called from the
 reader's browser at runtime. A signed-in reader's alarm subscriptions are kept by a
-fourth, the account API, which answers only them. The application has no server of its
+fifth, the account API, which answers only them. The application has no server of its
 own between any of them.
 
 | API | Endpoint | Read by |
@@ -11,11 +11,12 @@ own between any of them.
 | [Datalake](datalake.md) | `https://api.jefflevesque.com/v1/public/datalake` | `/data` |
 | [Knowledge graph](knowledge-graph.md) | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` |
 | [Knowledge graph tables](knowledge-graph.md#response-the-tables) | `https://api.jefflevesque.com/v1/public/knowledge-graph/tables/<question>` | `/graph/retrieval` — see below |
+| [Model](model.md) | `https://api.jefflevesque.com/v1/public/model` | `/model`, `/model/:model` |
 | [Account](account.md) | `https://api.jefflevesque.com/v1/private/account` | `/stream/:stream/alarm`, `/stream`, `/:user/settings` |
 
 ## What they share
 
-The three public APIs share all of the below. The account API shares only the envelope
+The four public APIs share all of the below. The account API shares only the envelope
 and the errors inside it: it takes a CORS preflight, its requests carry a sign-in token,
 and it answers this site's origin alone. See [Account](account.md).
 
@@ -44,8 +45,8 @@ and it answers this site's origin alone. See [Account](account.md).
 
 Every URL the application fetches from these APIs is built in
 [`jsx/import/general/api-url.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/api-url.js),
-by `performanceUrl`, `datalakeUrl`, `knowledgeGraphUrl` and `knowledgeGraphTablesUrl`,
-and for the account API by `alarmsUrl`, `subscriptionsUrl` and `subscriptionUrl`.
+by `performanceUrl`, `datalakeUrl`, `knowledgeGraphUrl`, `knowledgeGraphTablesUrl` and
+`modelUrl`, and for the account API by `alarmsUrl`, `subscriptionsUrl` and `subscriptionUrl`.
 
 The charts on `/stream` and `/data`, and the graphs on `/graph` and `/graph/retrieval`,
 carry icons built from the same functions: a page, which opens that API's page here,
