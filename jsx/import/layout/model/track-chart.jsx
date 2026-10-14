@@ -5,7 +5,9 @@
  * Each day's score is a faint dot, and the 20-day average of them a line, beside
  * the know-nothing baseline's. A menu adds another model of the same task, as
  * its own 20-day line, so the two can be read against each other on the days
- * both were scored.
+ * both were scored. A short tick at the foot of the chart marks each night a
+ * new version went live, read from the model's history, so a step in the line
+ * can be laid beside the version that made it.
  *
  * Note: the baseline is averaged over the days on the chart -- see
  *       scores.js's baselineAverages -- so it is the same line /model's
@@ -18,6 +20,7 @@ import {
     CartesianGrid,
     ComposedChart,
     Line,
+    ReferenceLine,
     ResponsiveContainer,
     Scatter,
     Tooltip,
@@ -66,6 +69,38 @@ DayDot.propTypes = {
 };
 
 /**
+ * the tick for a night a new version went live: a short upright line standing
+ * on the foot of the plot, rather than the whole height a reference line runs.
+ */
+export function WentLiveTick({ x1, y1, y2, color }) {
+    if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(y2)) {
+        return null;
+    }
+
+    const foot = Math.max(y1, y2);
+
+    return (
+        <line
+            className='model-went-live'
+            x1={x1}
+            x2={x1}
+            y1={foot - 9}
+            y2={foot - 2}
+            stroke={color}
+            strokeWidth={2}
+            strokeLinecap='round'
+        />
+    );
+}
+
+WentLiveTick.propTypes = {
+    x1: PropTypes.number,
+    y1: PropTypes.number,
+    y2: PropTypes.number,
+    color: PropTypes.string.isRequired,
+};
+
+/**
  * each day as the chart draws it: the model's score that day and its 20-day
  * average, the baseline's average, and the other model's average where one is
  * added. A day only the other model was scored on has no dot and no line of
@@ -97,13 +132,18 @@ export function trackPoints(name, rows, other, otherRows, score) {
     });
 }
 
-function TrackChart({ name, rows, score, others, other, otherRows, onOther }) {
+function TrackChart({ name, rows, score, others, other, otherRows, onOther, wentLive = [] }) {
     const { theme } = useContext(ThemeModeContext);
     const colors = chartColors(theme);
     const lower = scoreOf(score).lower;
     const label = scoreOf(score).label;
     const shown = other && otherRows ? other : null;
     const points = trackPoints(name, rows, shown, otherRows, score);
+    //
+    // the nights a new version went live that are days on the chart: a night
+    // the record has no day for has nowhere to stand
+    //
+    const ticks = wentLive.filter((day) => points.some((point) => point.day === day));
 
     const tip = ({ active, label: day }) => {
         const point = points.find((each) => each.day === day);
@@ -138,7 +178,10 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther }) {
             <TipBox
                 title={longDay(point.day)}
                 rows={tipRows}
-                foot={point.single === null ? `${name} has no score this day` : null}
+                foot={[
+                    point.single === null ? `${name} has no score this day` : null,
+                    ticks.includes(point.day) ? 'A new version went live this night' : null,
+                ].filter(Boolean).join(' · ') || null}
             />
         );
     };
@@ -171,6 +214,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther }) {
                         { key: 'single', kind: 'faint', color: colors.ink, label: 'Single day' },
                         ...(shown ? [{ key: 'other', kind: 'line', color: OTHER_COLOR, label: <span className='model-legend-name'>{shown}</span> }] : []),
                         { key: 'baseline', kind: 'line', color: colors.muted, label: 'Know-nothing baseline' },
+                        ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.better, label: 'New version went live' }] : []),
                     ]}
                 />
             </div>
@@ -203,6 +247,13 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther }) {
                             ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
                             : null}
                         <Line dataKey='average' stroke={colors.ink} strokeWidth={2} dot={false} isAnimationActive={false} />
+                        {ticks.map((day) => (
+                            <ReferenceLine
+                                key={day}
+                                x={day}
+                                shape={(props) => <WentLiveTick {...props} color={colors.better} />}
+                            />
+                        ))}
                     </ComposedChart>
                 </ResponsiveContainer>
             </div>
@@ -214,6 +265,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther }) {
                     { key: 'average', label: '20 days' },
                     ...(shown ? [{ key: 'other', label: `${shown}, 20 days` }] : []),
                     { key: 'baseline', label: 'Baseline, 20 days' },
+                    ...(ticks.length ? [{ key: 'went', label: 'New version', text: true }] : []),
                 ]}
                 rows={points.slice().reverse().map((point) => ({
                     key: point.day,
@@ -222,6 +274,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther }) {
                     average: cell(point.average),
                     other: cell(point.other),
                     baseline: cell(point.baseline),
+                    went: ticks.includes(point.day) ? 'went live' : '',
                 }))}
             />
         </section>
@@ -246,6 +299,10 @@ TrackChart.propTypes = {
     other: PropTypes.string,
     otherRows: PropTypes.array,
     onOther: PropTypes.func.isRequired,
+    //
+    // the nights a new version went live, from the model's history
+    //
+    wentLive: PropTypes.arrayOf(PropTypes.string),
 };
 
 export default TrackChart;

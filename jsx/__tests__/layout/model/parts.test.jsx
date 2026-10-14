@@ -62,6 +62,7 @@ describe('Mark', () => {
         ['diamond', 'polygon'],
         ['faint', 'circle'],
         ['bar', 'rect'],
+        ['tick', 'line'],
     ])('draws a %s as a %s, hidden from a screen reader', (kind, shape) => {
         const { container } = render(<Mark kind={kind} color='#123456' />);
 

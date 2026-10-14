@@ -10,7 +10,8 @@
  *     attempts-chart.jsx   every nightly attempt against the live version, and
  *                          how far each beat or missed it
  *     track-chart.jsx      every day it predicted, with another model of its
- *                          task picked from a menu
+ *                          task picked from a menu, and a tick on each night
+ *                          a new version went live
  *
  * The listing says who the model is; its history and its track record are asked
  * for once the listing names it. A name the listing does not hold is a model
@@ -305,6 +306,7 @@ class ModelPage extends Component {
                             other={other}
                             otherRows={other_rows}
                             onOther={this.pickOther}
+                            wentLive={Array.isArray(history) ? history.filter((row) => row.went_live).map((row) => row.day) : []}
                         />
                     ) : <p className='model-status model-status-empty'>No days scored yet.</p>))}
             </>

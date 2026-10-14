@@ -12,7 +12,8 @@ import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import TrackChart, { DayDot, trackPoints } from '../../../import/layout/model/track-chart.jsx';
+import TrackChart, { DayDot, WentLiveTick, trackPoints } from '../../../import/layout/model/track-chart.jsx';
+import { chartColors } from '../../../import/layout/model/scores.js';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
 import { pointAt, trackOf } from '../../../test-support/model-fixtures.js';
@@ -233,5 +234,71 @@ describe('the numbers', () => {
 
         expect(rows[0]).toEqual(['Sep 2', '1.610', '1.605', '', '1.660']);
         expect(rows[1]).toEqual(['Sep 1', '1.600', '1.600', '1.600', '1.660']);
+    });
+});
+
+describe('the nights a new version went live', () => {
+    it('stand as a short tick on the foot of the plot, in the better color', () => {
+        const { container } = render(<svg><WentLiveTick x1={40} y1={10} y2={200} color='#1c5cab' /></svg>);
+        const tick = container.querySelector('line');
+
+        expect(tick).toHaveAttribute('y1', '191');
+        expect(tick).toHaveAttribute('y2', '198');
+        expect(tick).toHaveAttribute('x1', '40');
+        expect(tick).toHaveAttribute('stroke', '#1c5cab');
+    });
+
+    it('stand nowhere without a place to stand', () => {
+        const { container } = render(<svg><WentLiveTick x1={NaN} y1={10} y2={200} color='#000' /></svg>);
+
+        expect(container.querySelector('line')).toBeNull();
+    });
+
+    it('are drawn on each such night the chart has a day for, and named in the legend', () => {
+        const rows = trackOf(5);
+        const { container } = draw({ rows: rows, wentLive: [rows[1].day, rows[3].day, '2025-01-02'] });
+
+        expect(container.querySelectorAll('.model-went-live')).toHaveLength(2);
+        expect(container.querySelector('.model-went-live')).toHaveAttribute('stroke', chartColors('light').better);
+        expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('New version went live')).toBeInTheDocument();
+    });
+
+    it('leave the legend alone where there are none', () => {
+        const { container } = draw({ wentLive: ['2025-01-02'] });
+
+        expect(container.querySelector('.model-went-live')).toBeNull();
+        expect(screen.queryByText('New version went live')).toBeNull();
+    });
+
+    it('are named in the tooltip of their night', () => {
+        const rows = trackOf(1);
+        const { container } = draw({ rows: rows, wentLive: [rows[0].day] });
+
+        pointAt(container.querySelector('.recharts-wrapper'), 300);
+
+        expect(container.querySelector('.model-tip-foot')).toHaveTextContent('A new version went live this night');
+    });
+
+    it('share the tooltip\'s note with a day this model has no score', () => {
+        const mine = trackOf(1, '2026-09-02');
+        const { container } = draw({ rows: mine, other: 'tables', otherRows: trackOf(1, '2026-09-01'), wentLive: ['2026-09-01'] });
+
+        pointAt(container.querySelector('.recharts-wrapper'), 100);
+
+        expect(container.querySelector('.model-tip-foot'))
+            .toHaveTextContent('pt-gnn has no score this day · A new version went live this night');
+    });
+
+    it('get a column of the table', async () => {
+        const rows = trackOf(2);
+
+        draw({ rows: rows, wentLive: [rows[0].day] });
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        const table = screen.getByRole('table', { name: 'Loss, track record' });
+        const cells = within(table).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell').pop().textContent);
+
+        expect(within(table).getAllByRole('columnheader').pop()).toHaveTextContent('New version');
+        expect(cells).toEqual(['', 'went live']);
     });
 });

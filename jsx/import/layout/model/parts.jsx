@@ -79,6 +79,7 @@ StatusPill.propTypes = {
  *     diamond   a weekly retrain
  *     faint     a faint dot: a single day of a track record
  *     bar       better or worse than the live version
+ *     tick      a short upright line: a night a new version went live
  */
 export function Mark({ kind, color }) {
     const shapes = {
@@ -88,6 +89,7 @@ export function Mark({ kind, color }) {
         diamond: <polygon points='8,1 13,6 8,11 3,6' fill='none' stroke={color} strokeWidth='1.5' />,
         faint: <circle cx='8' cy='6' r='4' fill={color} fillOpacity='0.25' />,
         bar: <rect x='4' y='1' width='8' height='10' rx='2' fill={color} />,
+        tick: <line x1='8' y1='2' x2='8' y2='11' stroke={color} strokeWidth='2' strokeLinecap='round' />,
     };
 
     return (
@@ -98,7 +100,7 @@ export function Mark({ kind, color }) {
 }
 
 Mark.propTypes = {
-    kind: PropTypes.oneOf(['line', 'dot', 'ring', 'diamond', 'faint', 'bar']).isRequired,
+    kind: PropTypes.oneOf(['line', 'dot', 'ring', 'diamond', 'faint', 'bar', 'tick']).isRequired,
     color: PropTypes.string.isRequired,
 };
 

@@ -381,6 +381,27 @@ describe('another model beside the track record', () => {
     });
 });
 
+describe('the went-live ticks', () => {
+    it('mark the track record on each night the history says a version went live', async () => {
+        answer({
+            history: historyOf(3, { 0: { day: '2026-09-02', went_live: true }, 2: { day: '2026-09-04', went_live: true } }),
+            track: trackOf(5),
+        });
+
+        const { container } = await open();
+
+        expect(container.querySelectorAll('.model-track .model-went-live')).toHaveLength(2);
+    });
+
+    it('mark nothing while the history is not in', async () => {
+        answer({ history: null });
+
+        const { container } = await open();
+
+        expect(container.querySelector('.model-went-live')).toBeNull();
+    });
+});
+
 describe('the route', () => {
     it('reads the model\'s name from the address', async () => {
         answer();
