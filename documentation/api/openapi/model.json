@@ -1,0 +1,605 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Model",
+    "version": "v1",
+    "description": "The models trained every night, and how each one scores: every nightly attempt to better it, and every day it predicted. Read by /model and /model/<name>. Scores only: nothing here says how a model is built."
+  },
+  "servers": [
+    {
+      "url": "https://api.jefflevesque.com/v1/public"
+    }
+  ],
+  "paths": {
+    "/model": {
+      "get": {
+        "operationId": "getModel",
+        "summary": "The models, or one model's history or track record",
+        "description": "Three calls on one path. With no parameters, the listing, as JSON. With a Model from the listing and a Report, that model's report, as a CSV string with a header row: history, one row per nightly attempt, or track-record, one row per day it predicted. Model and Report go together: either alone is a 400.",
+        "parameters": [
+          {
+            "name": "Model",
+            "in": "query",
+            "required": false,
+            "description": "A model's name, from the listing. Asked with Report.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "pt-gnn-5day"
+          },
+          {
+            "name": "Report",
+            "in": "query",
+            "required": false,
+            "description": "Which of the model's reports: history, one row per nightly attempt, or track-record, one row per day it predicted. Asked with Model.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "history",
+                "track-record"
+              ]
+            },
+            "example": "track-record"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "With no parameters, the listing. With Model and Report, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row.\n\nThe scores are loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "description": "Asked with no parameters: every task, and every model with its latest scores.",
+                          "required": [
+                            "tasks",
+                            "models"
+                          ],
+                          "properties": {
+                            "tasks": {
+                              "type": "array",
+                              "description": "What the models predict, in the order /model lists them.",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "description"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "description": "What a model names its task by."
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "description": "One line: what is predicted, and when it is scored."
+                                  }
+                                }
+                              }
+                            },
+                            "models": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "name",
+                                  "task",
+                                  "description",
+                                  "started",
+                                  "retired",
+                                  "scored_days",
+                                  "live",
+                                  "attempts",
+                                  "score",
+                                  "baseline"
+                                ],
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "description": "The name Model takes, and the last part of the model's address on the site, /model/<name>."
+                                  },
+                                  "task": {
+                                    "type": "string",
+                                    "description": "The id of the task it predicts."
+                                  },
+                                  "description": {
+                                    "type": "string",
+                                    "description": "One line about the model."
+                                  },
+                                  "started": {
+                                    "type": "string",
+                                    "description": "The first day it predicted, as YYYY-MM-DD."
+                                  },
+                                  "retired": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "description": "The day it stopped being trained, as YYYY-MM-DD, or null while it still is."
+                                  },
+                                  "scored_days": {
+                                    "type": "integer",
+                                    "description": "The rows of its track record: the days it predicted that have been scored."
+                                  },
+                                  "live": {
+                                    "type": "object",
+                                    "description": "The version making its predictions, or the last one that did, for a retired model.",
+                                    "required": [
+                                      "since",
+                                      "kind"
+                                    ],
+                                    "properties": {
+                                      "since": {
+                                        "type": "string",
+                                        "description": "The night it went live, as YYYY-MM-DD."
+                                      },
+                                      "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                          "first",
+                                          "nightly",
+                                          "weekly"
+                                        ],
+                                        "description": "first, while the model's first version is still live; otherwise whether a nightly update or a weekly retrain made it."
+                                      }
+                                    }
+                                  },
+                                  "attempts": {
+                                    "type": "object",
+                                    "description": "The rows of its history.",
+                                    "required": [
+                                      "total",
+                                      "went_live"
+                                    ],
+                                    "properties": {
+                                      "total": {
+                                        "type": "integer",
+                                        "description": "Every nightly attempt."
+                                      },
+                                      "went_live": {
+                                        "type": "integer",
+                                        "description": "The attempts that replaced the live version."
+                                      }
+                                    }
+                                  },
+                                  "score": {
+                                    "type": [
+                                      "object",
+                                      "null"
+                                    ],
+                                    "description": "Each score averaged over the last 20 rows of its track record, or all of them while it has fewer. Null while it has none.",
+                                    "required": [
+                                      "loss",
+                                      "auc_up",
+                                      "auc_beats",
+                                      "acc_up"
+                                    ],
+                                    "properties": {
+                                      "loss": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "Lower is better."
+                                      },
+                                      "auc_up": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ]
+                                      },
+                                      "auc_beats": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ]
+                                      },
+                                      "acc_up": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "A share, 0 to 1."
+                                      }
+                                    }
+                                  },
+                                  "baseline": {
+                                    "type": [
+                                      "object",
+                                      "null"
+                                    ],
+                                    "description": "The know-nothing baseline's scores, averaged over the same days. Null while it has none.",
+                                    "required": [
+                                      "loss",
+                                      "auc_up",
+                                      "auc_beats",
+                                      "acc_up"
+                                    ],
+                                    "properties": {
+                                      "loss": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "Lower is better."
+                                      },
+                                      "auc_up": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ]
+                                      },
+                                      "auc_beats": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ]
+                                      },
+                                      "acc_up": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "A share, 0 to 1."
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "type": "string",
+                          "description": "Asked with Model and Report: the report, as a CSV string with a header row."
+                        }
+                      ]
+                    }
+                  }
+                },
+                "examples": {
+                  "list": {
+                    "summary": "The listing, asked with no parameters",
+                    "value": {
+                      "report": {
+                        "tasks": [
+                          {
+                            "id": "next-day",
+                            "name": "Next-day move",
+                            "description": "Whether each S&P 500 stock closes higher the next trading day, scored once that day's prices are in."
+                          },
+                          {
+                            "id": "next-week",
+                            "name": "Next-week move",
+                            "description": "Whether each S&P 500 stock closes higher five trading days on, scored once those prices are in."
+                          }
+                        ],
+                        "models": [
+                          {
+                            "name": "pt-gnn",
+                            "task": "next-day",
+                            "description": "Reads the day's Training Graph build.",
+                            "started": "2026-08-03",
+                            "retired": null,
+                            "scored_days": 50,
+                            "live": {
+                              "since": "2026-10-07",
+                              "kind": "nightly"
+                            },
+                            "attempts": {
+                              "total": 51,
+                              "went_live": 14
+                            },
+                            "score": {
+                              "loss": 1.6421,
+                              "auc_up": 0.5418,
+                              "auc_beats": 0.5287,
+                              "acc_up": 0.5561
+                            },
+                            "baseline": {
+                              "loss": 1.6631,
+                              "auc_up": 0.5,
+                              "auc_beats": 0.5,
+                              "acc_up": 0.5402
+                            }
+                          },
+                          {
+                            "name": "tables-gnn",
+                            "task": "next-day",
+                            "description": "Reads the day's query tables.",
+                            "started": "2026-08-03",
+                            "retired": null,
+                            "scored_days": 50,
+                            "live": {
+                              "since": "2026-10-09",
+                              "kind": "weekly"
+                            },
+                            "attempts": {
+                              "total": 51,
+                              "went_live": 11
+                            },
+                            "score": {
+                              "loss": 1.6478,
+                              "auc_up": 0.5366,
+                              "auc_beats": 0.5241,
+                              "acc_up": 0.5507
+                            },
+                            "baseline": {
+                              "loss": 1.6631,
+                              "auc_up": 0.5,
+                              "auc_beats": 0.5,
+                              "acc_up": 0.5402
+                            }
+                          },
+                          {
+                            "name": "pt-gnn-5day",
+                            "task": "next-day",
+                            "description": "Reads the last five days of Training Graph builds.",
+                            "started": "2026-10-06",
+                            "retired": null,
+                            "scored_days": 5,
+                            "live": {
+                              "since": "2026-10-12",
+                              "kind": "nightly"
+                            },
+                            "attempts": {
+                              "total": 6,
+                              "went_live": 2
+                            },
+                            "score": {
+                              "loss": 1.655,
+                              "auc_up": 0.526,
+                              "auc_beats": 0.51458,
+                              "acc_up": 0.54232
+                            },
+                            "baseline": {
+                              "loss": 1.6634,
+                              "auc_up": 0.5,
+                              "auc_beats": 0.5,
+                              "acc_up": 0.5344
+                            }
+                          },
+                          {
+                            "name": "tables-gnn-v0",
+                            "task": "next-day",
+                            "description": "The first version of tables-gnn.",
+                            "started": "2026-07-06",
+                            "retired": "2026-09-04",
+                            "scored_days": 44,
+                            "live": {
+                              "since": "2026-08-21",
+                              "kind": "nightly"
+                            },
+                            "attempts": {
+                              "total": 44,
+                              "went_live": 9
+                            },
+                            "score": {
+                              "loss": 1.6552,
+                              "auc_up": 0.5243,
+                              "auc_beats": 0.515,
+                              "acc_up": 0.5449
+                            },
+                            "baseline": {
+                              "loss": 1.664,
+                              "auc_up": 0.5,
+                              "auc_beats": 0.5,
+                              "acc_up": 0.5391
+                            }
+                          },
+                          {
+                            "name": "weekly-gnn",
+                            "task": "next-week",
+                            "description": "Reads the day's query tables, a week ahead.",
+                            "started": "2026-08-03",
+                            "retired": null,
+                            "scored_days": 46,
+                            "live": {
+                              "since": "2026-09-25",
+                              "kind": "weekly"
+                            },
+                            "attempts": {
+                              "total": 51,
+                              "went_live": 7
+                            },
+                            "score": {
+                              "loss": 1.6501,
+                              "auc_up": 0.5352,
+                              "auc_beats": 0.5266,
+                              "acc_up": 0.5588
+                            },
+                            "baseline": {
+                              "loss": 1.6668,
+                              "auc_up": 0.5,
+                              "auc_beats": 0.5,
+                              "acc_up": 0.5524
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "history": {
+                    "summary": "Model=pt-gnn-5day&Report=history: its six nightly attempts",
+                    "value": {
+                      "report": "day,kind,went_live,attempt_loss,attempt_auc_up,attempt_auc_beats,attempt_acc_up,live_loss,live_auc_up,live_auc_beats,live_acc_up,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up\n2026-10-06,nightly,false,1.6631,0.5120,0.5044,0.5302,1.6594,0.5188,0.5097,0.5371,1.6648,0.5,0.5,0.5356\n2026-10-07,nightly,true,1.6519,0.5302,0.5150,0.5411,1.6578,0.5203,0.5101,0.5390,1.6641,0.5,0.5,0.5302\n2026-10-08,nightly,false,1.6602,0.5187,0.5079,0.5354,1.6533,0.5288,0.5139,0.5401,1.6655,0.5,0.5,0.5419\n2026-10-09,weekly,false,1.6561,0.5251,0.5122,0.5377,1.6540,0.5279,0.5133,0.5395,1.6630,0.5,0.5,0.5287\n2026-10-12,nightly,true,1.6478,0.5342,0.5170,0.5426,1.6526,0.5297,0.5142,0.5408,1.6619,0.5,0.5,0.5333\n2026-10-13,nightly,false,1.6512,0.5318,0.5160,0.5419,1.6489,0.5336,0.5166,0.5423,1.6622,0.5,0.5,0.5359\n"
+                    }
+                  },
+                  "track-record": {
+                    "summary": "Model=pt-gnn-5day&Report=track-record: its five scored days",
+                    "value": {
+                      "report": "day,loss,auc_up,auc_beats,acc_up,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up\n2026-10-06,1.6582,0.5214,0.5103,0.5427,1.6650,0.5,0.5,0.5368\n2026-10-07,1.6497,0.5361,0.5188,0.5129,1.6611,0.5,0.5,0.4970\n2026-10-08,1.6710,0.4982,0.5031,0.5785,1.6693,0.5,0.5,0.5865\n2026-10-09,1.6423,0.5447,0.5262,0.4652,1.6589,0.5,0.5,0.4473\n2026-10-12,1.6538,0.5296,0.5145,0.6123,1.6627,0.5,0.5,0.6044\n"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Model without Report, Report without Model, or a Report that is not one of the two.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "Model and Report go together, and Report is history or track-record."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model names no model in the listing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "There is no model named nope."
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "The listing or the report could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "The track record of pt-gnn-5day could not be read."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "RateLimited": {
+        "description": "Too many requests from this address in a few minutes: today 100 in 5 minutes, and an answer from the cache counts too. Wait for `Retry-After` seconds, then ask again. The report says the limit and the window in force, which can change: read them rather than assume today's.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait before asking again: the window the limit is counted over.",
+            "schema": {
+              "type": "integer"
+            },
+            "example": 300
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "report"
+              ],
+              "properties": {
+                "report": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "limit",
+                    "window_seconds"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "description": "How many requests one address may make in the window."
+                    },
+                    "window_seconds": {
+                      "type": "integer",
+                      "description": "The window the requests are counted over, in seconds."
+                    }
+                  }
+                }
+              }
+            },
+            "example": {
+              "report": {
+                "error": "Too many requests from this address. Wait a few minutes, then try again.",
+                "limit": 100,
+                "window_seconds": 300
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
