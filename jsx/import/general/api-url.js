@@ -284,8 +284,9 @@ export function knowledgeGraphTablesUrl(operation, values = {}, base = ENDPOINTS
 }
 
 //
-// the two reports the model api keeps for each model: one row per nightly
-// training attempt, and one row per day it predicted (#243).
+// the two reports the model pages read of each model: one row per nightly
+// training attempt, and one row per day it predicted (#243). The api answers a
+// summary too, which no page asks for yet (#245).
 //
 const MODEL_REPORTS = ['history', 'track-record'];
 
