@@ -24,7 +24,7 @@ const Ajv2020 = require('ajv/dist/2020');
 
 const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', 'openapi');
 const SERVER = 'https://api.jefflevesque.com/v1/public';
-const DOCUMENTS = ['performance', 'datalake', 'knowledge-graph'];
+const DOCUMENTS = ['performance', 'datalake', 'knowledge-graph', 'model'];
 
 //
 // a document as it is written: a response every operation gives -- the 429 of a

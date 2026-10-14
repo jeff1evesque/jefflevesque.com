@@ -55,6 +55,6 @@ describe('the initial state', () => {
 
     it('holds a slice for every reducer', () => {
         expect(Object.keys(freshStore().getState()).sort())
-            .toEqual(['article', 'hide', 'layout', 'page', 'user']);
+            .toEqual(['article', 'hide', 'layout', 'model', 'page', 'user']);
     });
 });

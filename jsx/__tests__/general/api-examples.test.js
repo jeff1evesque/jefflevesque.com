@@ -27,6 +27,8 @@ import filterSchema from '../../import/animation/filter-schema.js';
 import { sourceNamespace } from '../../import/animation/encoding.js';
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
 import { performanceUrl, datalakeUrl } from '../../import/general/api-url.js';
+import modelReport from '../../import/worker/model/report.js';
+import { statusOf } from '../../import/layout/model/scores.js';
 
 const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', 'openapi');
 
@@ -451,6 +453,67 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
         Object.values(day.node_types).forEach((type) => {
             expect(typeof type.entities).toBe('number');
             expect(typeof type.facts).toBe('number');
+        });
+    });
+});
+
+describe('model, as /model and /model/:model read it (#243)', () => {
+    const media = successOf('model');
+
+    //
+    // what the model pages' worker makes of an answer, run in this process --
+    // see worker/model-report.test.js
+    //
+    function read(kind, body, name = null) {
+        const posted = [];
+        const realPostMessage = self.postMessage;
+
+        self.postMessage = (answer) => posted.push(answer);
+        modelReport();
+        self.onmessage({ data: { kind: kind, report: body.report, name: name } });
+        self.postMessage = realPostMessage;
+        self.onmessage = null;
+
+        return posted[0];
+    }
+
+    const listing = read('list', media.examples.list.value);
+    const fiveDay = () => listing.models.find((model) => model.name === 'pt-gnn-5day');
+
+    it('reads the listing: every model, each with a task the listing describes', () => {
+        expect(listing.models.length).toBeGreaterThan(1);
+        listing.models.forEach((model) => {
+            expect(listing.tasks.map((task) => task.id)).toContain(model.task);
+            expect(model.live.kind).not.toBeNull();
+            expect(model.score).not.toBeNull();
+        });
+    });
+
+    it('lists models of every status, so a reader sees each shape', () => {
+        expect([...new Set(listing.models.map(statusOf))].sort()).toEqual(['live', 'new', 'retired']);
+    });
+
+    it('reads the history: every night, and as many went live as the listing says', () => {
+        const rows = read('history', media.examples.history.value, 'pt-gnn-5day').rows;
+
+        expect(rows).toHaveLength(fiveDay().attempts.total);
+        expect(rows.filter((row) => row.went_live)).toHaveLength(fiveDay().attempts.went_live);
+        expect(rows.some((row) => row.kind === 'weekly')).toBe(true);
+        rows.forEach((row) => {
+            ['attempt', 'live', 'baseline'].forEach((field) => {
+                Object.values(row[field]).forEach((value) => expect(Number.isFinite(value)).toBe(true));
+            });
+        });
+    });
+
+    it('reads the track record: as many days as the listing scored, averaging to its score', () => {
+        const rows = read('track-record', media.examples['track-record'].value, 'pt-gnn-5day').rows;
+        const last = rows[rows.length - 1];
+
+        expect(rows).toHaveLength(fiveDay().scored_days);
+        Object.keys(fiveDay().score).forEach((score) => {
+            expect(last.average[score]).toBeCloseTo(fiveDay().score[score], 3);
+            expect(last.baseline_average[score]).toBeCloseTo(fiveDay().baseline[score], 3);
         });
     });
 });
