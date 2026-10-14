@@ -14,8 +14,8 @@
     "/model": {
       "get": {
         "operationId": "getModel",
-        "summary": "The models, or one model's history or track record",
-        "description": "Three calls on one path. With no parameters, the listing, as JSON. With a Model from the listing and a Report, that model's report, as a CSV string with a header row: history, one row per nightly attempt, or track-record, one row per day it predicted. Model and Report go together: either alone is a 400.",
+        "summary": "The models, or one model's summary, history or track record",
+        "description": "Four calls on one path. With no parameters, the listing, as JSON. With a Model from the listing and a Report, one of that model's reports: summary, its summary, as JSON; or history, one row per nightly attempt, or track-record, one row per day it predicted, each as a CSV string with a header row. Model and Report go together: either alone is a 400.",
         "parameters": [
           {
             "name": "Model",
@@ -31,10 +31,11 @@
             "name": "Report",
             "in": "query",
             "required": false,
-            "description": "Which of the model's reports: history, one row per nightly attempt, or track-record, one row per day it predicted. Asked with Model.",
+            "description": "Which of the model's reports: summary, its summary, as JSON; history, one row per nightly attempt; or track-record, one row per day it predicted. Asked with Model.",
             "schema": {
               "type": "string",
               "enum": [
+                "summary",
                 "history",
                 "track-record"
               ]
@@ -44,7 +45,7 @@
         ],
         "responses": {
           "200": {
-            "description": "With no parameters, the listing. With Model and Report, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row.\n\nThe scores are loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's.",
+            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history or track-record, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row.\n\nThe scores are loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's.",
             "content": {
               "application/json": {
                 "schema": {
@@ -54,7 +55,7 @@
                   ],
                   "properties": {
                     "report": {
-                      "oneOf": [
+                      "anyOf": [
                         {
                           "type": "object",
                           "description": "Asked with no parameters: every task, and every model with its latest scores.",
@@ -261,8 +262,12 @@
                           }
                         },
                         {
+                          "type": "object",
+                          "description": "Asked with Model and Report=summary: one model's summary. No page reads it yet, so its fields are not listed here."
+                        },
+                        {
                           "type": "string",
-                          "description": "Asked with Model and Report: the report, as a CSV string with a header row."
+                          "description": "Asked with Model and Report=history or track-record: the report, as a CSV string with a header row."
                         }
                       ]
                     }
@@ -447,7 +452,7 @@
             }
           },
           "400": {
-            "description": "Model without Report, Report without Model, or a Report that is not one of the two.",
+            "description": "Model without Report, Report without Model, or a Report that is not one of the three.",
             "content": {
               "application/json": {
                 "schema": {
@@ -471,7 +476,7 @@
                 },
                 "example": {
                   "report": {
-                    "error": "Model and Report go together, and Report is history or track-record."
+                    "error": "Model and Report go together, and Report is summary, history or track-record."
                   }
                 }
               }
@@ -512,7 +517,38 @@
             "$ref": "#/components/responses/RateLimited"
           },
           "500": {
-            "description": "The listing or the report could not be read.",
+            "description": "The API itself failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "Something unexpected went wrong."
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The listing or the report could not be read, or the report has not been published yet, even for a model the listing names.",
             "content": {
               "application/json": {
                 "schema": {
