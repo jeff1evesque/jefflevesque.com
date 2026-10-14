@@ -20,13 +20,14 @@ import layout from './reducer/layout.jsx';
 import page from './reducer/page.jsx';
 import article from './reducer/article.jsx';
 import hide from './reducer/hide.jsx';
+import model from './reducer/model.jsx';
 import amplifyCurrentUser from '../general/currentUser.js';
 
 // username from sessionStorage
 const username = !!amplifyCurrentUser ? sessionStorage.getItem('username') : 'anonymous';
 
 // create and initialize redux
-const store = createStore(combineReducers({user, page, layout, article, hide}), {
+const store = createStore(combineReducers({user, page, layout, article, hide, model}), {
     user: {name: username},
     page: {status: 'default'}
 });
