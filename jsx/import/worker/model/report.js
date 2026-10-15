@@ -2,8 +2,9 @@
  * report.js: web-worker for the model api's answers (#243): the listing of models,
  * and a model's two reports.
  *
- *     list            the listing, as the api's json: every task, and every model
- *                     with its latest scores
+ *     list            the listing, as the api's json: every task, every model
+ *                     with its latest scores, and which layout every model report
+ *                     follows (#248)
  *     history         a model's csv, one row per nightly training attempt: the
  *                     attempt's scores, the live version's and the know-nothing
  *                     baseline's, on the same held-out days, and from 2026-10-15
@@ -13,10 +14,10 @@
  *                     day's 20-day averages worked out here
  *
  * It is handed { kind, report, name } -- `report` as the api's envelope held it --
- * and answers the same kind and name with what the pages draw: `tasks` and
- * `models` for the listing, `rows` for a report. Each is null where the report is
- * not the shape the api documents, which the page shows as a report it could not
- * load. A report with no rows yet answers none, which is not a failure: a model
+ * and answers the same kind and name with what the pages draw: `tasks`, `models`
+ * and `format_version` for the listing, `rows` for a report. Each is null where
+ * the report is not the shape the api documents, which the page shows as a report
+ * it could not load. A report with no rows yet answers none, which is not a failure: a model
  * is listed before its first day is scored.
  *
  * The 20-day average is taken over a model's own scored DAYS, not the calendar. A
@@ -86,6 +87,16 @@ export default () => {
         const parsed = numberOf(value);
 
         return parsed !== null && parsed >= 0 && Math.round(parsed) === parsed ? parsed : 0;
+    }
+
+    //
+    // which layout every model report follows (#248): the whole number the
+    // listing gives, or 0, the reports as first published, for a listing that
+    // gives none or gives something else. Unlike a count, text is not read as a
+    // number: the api writes the version as one
+    //
+    function formatOf(value) {
+        return typeof value === 'number' && isFinite(value) && Math.round(value) === value && value >= 0 ? value : 0;
     }
 
     //
@@ -244,6 +255,7 @@ export default () => {
                 return models.some(function (model) { return model.task === task.id; });
             }),
             models: models,
+            format_version: formatOf(report.format_version),
         };
     }
 
@@ -312,6 +324,7 @@ export default () => {
 
             answer.tasks = read ? read.tasks : null;
             answer.models = read ? read.models : null;
+            answer.format_version = read ? read.format_version : null;
         } else if (asked.kind === 'history') {
             answer.rows = typeof csv === 'string' ? history(csv) : null;
         } else if (asked.kind === 'track-record') {

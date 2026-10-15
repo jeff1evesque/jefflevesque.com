@@ -169,14 +169,55 @@ describe('the listing', () => {
         expect(model.attempts).toEqual({ total: 0, went_live: 0 });
     });
 
-    it('answers no tasks and no models for a listing that is not one', () => {
-        [null, 'text', [], { models: 'none' }].forEach((report) => {
-            expect(run({ kind: 'list', report: report })).toEqual({ kind: 'list', name: null, tasks: null, models: null });
+    it('answers no tasks, no models and no format_version for a listing that is not one', () => {
+        [null, 'text', [], { models: 'none', format_version: 1 }].forEach((report) => {
+            expect(run({ kind: 'list', report: report })).toEqual({ kind: 'list', name: null, tasks: null, models: null, format_version: null });
         });
     });
 
     it('lists no models for an empty listing, which is not a failure', () => {
-        expect(run({ kind: 'list', report: { models: [] } })).toEqual({ kind: 'list', name: null, tasks: [], models: [] });
+        expect(run({ kind: 'list', report: { models: [] } })).toEqual({ kind: 'list', name: null, tasks: [], models: [], format_version: 0 });
+    });
+
+    describe('format_version, the layout every model report follows (#248)', () => {
+        const asBefore = run({ kind: 'list', report: listingOf([entry(), entry({ name: 'b', task: 'beats' })]) });
+
+        //
+        // a listing of the same tasks and models, giving `version` -- or not
+        // giving one at all where it is undefined
+        //
+        function giving(version) {
+            const report = listingOf([entry(), entry({ name: 'b', task: 'beats' })]);
+
+            if (version !== undefined) {
+                report.format_version = version;
+            }
+
+            return run({ kind: 'list', report: report });
+        }
+
+        it.each([0, 1, 2])('passes a listing\'s format_version %p on', (version) => {
+            expect(giving(version).format_version).toBe(version);
+        });
+
+        it.each([
+            ['given none', undefined],
+            ['given as text', '1'],
+            ['a fraction', 1.5],
+            ['below zero', -1],
+            ['null', null],
+            ['not a number at all', { version: 1 }],
+            ['infinite', Infinity],
+        ])('reads one %s as 0, the reports as first published', (name, version) => {
+            expect(giving(version).format_version).toBe(0);
+        });
+
+        it.each([undefined, 1, '1', 1.5, -1, null])('reads the tasks and models the same, given %p', (version) => {
+            const answer = giving(version);
+
+            expect(answer.tasks).toEqual(asBefore.tasks);
+            expect(answer.models).toEqual(asBefore.models);
+        });
     });
 });
 
@@ -470,6 +511,8 @@ describe('the worker as the bundle builds it', () => {
     it('answers as the imported function does', () => {
         const messages = [
             { kind: 'list', report: listingOf([entry(), entry({ name: 'b', task: 'beats' })]) },
+            { kind: 'list', report: { format_version: 1, tasks: [], models: [entry()] } },
+            { kind: 'list', report: { format_version: '1', models: [] } },
             { kind: 'history', name: 'pt-gnn', report: 'day,kind,went_live,attempt_loss\n2026-10-12,weekly,True,1.6' },
             {
                 kind: 'history',
