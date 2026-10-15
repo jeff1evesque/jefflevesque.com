@@ -452,7 +452,7 @@
             }
           },
           "400": {
-            "description": "Model without Report, Report without Model, or a Report that is not one of the three.",
+            "description": "Model without Report, or the other way round; a Report that is not one of the three; any other parameter, even a lowercase model; or either one given twice.",
             "content": {
               "application/json": {
                 "schema": {
@@ -474,9 +474,30 @@
                     }
                   }
                 },
-                "example": {
-                  "report": {
-                    "error": "Model and Report go together, and Report is summary, history or track-record."
+                "examples": {
+                  "together": {
+                    "summary": "Model without Report, or a Report that is not one of the three",
+                    "value": {
+                      "report": {
+                        "error": "Model and Report go together, and Report is summary, history or track-record."
+                      }
+                    }
+                  },
+                  "other": {
+                    "summary": "Any other parameter, even a lowercase model",
+                    "value": {
+                      "report": {
+                        "error": "Model and Report are the only parameters."
+                      }
+                    }
+                  },
+                  "twice": {
+                    "summary": "Model or Report given twice",
+                    "value": {
+                      "report": {
+                        "error": "Model and Report may each be given once."
+                      }
+                    }
                   }
                 }
               }
