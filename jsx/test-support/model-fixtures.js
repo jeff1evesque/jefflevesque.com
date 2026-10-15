@@ -72,19 +72,59 @@ function scoresAt(loss) {
     return { loss: loss, auc_up: 2.16 - loss, auc_beats: 2.13 - loss, acc_up: 2.14 - loss };
 }
 
+//
+// the first night the trainer kept its attempts' times (#247)
+//
+const TIMED_FROM = '2026-10-15';
+
+//
+// a night's times, as the worker hands them: none before TIMED_FROM, and from
+// it on, a start just before 4 AM Eastern the next morning. The first timed
+// night trains for 7 min 17 s and takes 8 min 52 s in all, and each `nth` one
+// after it a minute more
+//
+function timesAt(day, nth) {
+    if (day < TIMED_FROM) {
+        return { started: null, training_seconds: null, total_seconds: null };
+    }
+
+    const next = new Date(`${day}T12:00:00Z`);
+
+    next.setUTCDate(next.getUTCDate() + 1);
+
+    return {
+        started: `${next.toISOString().slice(0, 10)}T07:58:10+00:00`,
+        training_seconds: 437.2 + nth * 60,
+        total_seconds: 532.4 + nth * 60,
+    };
+}
+
 /**
- * a history: one night per day. `nights` overrides each night by its index.
+ * a history: one night per weekday from `from`. `nights` overrides each night
+ * by its index. A night from 2026-10-15 on has times, and one before has none.
  */
-export function historyOf(count = 5, nights = {}) {
-    return weekdays(count, '2026-10-01').map((day, at) => ({
+export function historyOf(count = 5, nights = {}, from = '2026-10-01') {
+    const days = weekdays(count, from);
+    const firstTimed = days.filter((day) => day < TIMED_FROM).length;
+
+    return days.map((day, at) => ({
         day: day,
         kind: 'nightly',
         went_live: false,
+        ...timesAt(day, at - firstTimed),
         attempt: scoresAt(1.61 + at * 0.001),
         live: scoresAt(1.6),
         baseline: { ...BASELINE },
         ...(nights[at] || {}),
     }));
+}
+
+/**
+ * a history across the night the trainer began keeping times: Oct 12 to 14
+ * without them, and Oct 15 and 16 with them.
+ */
+export function timedHistoryOf(nights = {}) {
+    return historyOf(5, nights, '2026-10-12');
 }
 
 /**

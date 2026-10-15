@@ -1,6 +1,6 @@
 /**
  * scores.js: what the model pages know about a score, a model's status and its
- * days (#243).
+ * days (#243), and how long a night's attempt took (#247).
  *
  * The api scores every model four ways, and the pages offer the four alike from
  * one picker:
@@ -262,6 +262,59 @@ export function longDay(day) {
         year: 'numeric',
         timeZone: 'UTC',
     });
+}
+
+/**
+ * a duration in seconds, to the whole second, as the pages print it: '52 s',
+ * '8 min 52 s', '1 h 0 min 5 s'. Nothing where there is none.
+ */
+export function formatDuration(seconds) {
+    if (!finite(seconds) || seconds < 0) {
+        return '';
+    }
+
+    const whole = Math.round(seconds);
+    const hours = Math.floor(whole / 3600);
+    const minutes = Math.floor((whole % 3600) / 60);
+    const rest = whole % 60;
+
+    if (hours) {
+        return `${hours} h ${minutes} min ${rest} s`;
+    }
+
+    return minutes ? `${minutes} min ${rest} s` : `${rest} s`;
+}
+
+//
+// an instant as the history writes one: a date and a time, with its offset
+//
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * when an attempt started, as the pages print it: its time of day in Eastern
+ * time, as the trading days are kept, '3:58 AM ET', in summer or winter.
+ * Nothing for text that is not an instant with its offset, which would be read
+ * in the reader's own zone.
+ *
+ * Note: put together from its parts, since a newer Intl writes a narrow space
+ *       before AM, which would print differently from one browser to the next.
+ */
+export function formatStarted(text) {
+    const at = typeof text === 'string' && INSTANT.test(text.trim()) ? new Date(text.trim()) : null;
+
+    if (!at || !finite(at.getTime())) {
+        return '';
+    }
+
+    const parts = {};
+
+    new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York' })
+        .formatToParts(at)
+        .forEach((part) => {
+            parts[part.type] = part.value;
+        });
+
+    return `${parts.hour}:${parts.minute} ${parts.dayPeriod} ET`;
 }
 
 /**

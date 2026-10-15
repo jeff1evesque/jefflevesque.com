@@ -10,10 +10,18 @@
  *     a hollow dot      one kept back
  *     a diamond         a weekly retrain, filled or hollow the same way
  *
- * with the know-nothing baseline as a line. The lower one draws, for the same
+ * with the know-nothing baseline as a line. The second draws, for the same
  * nights, how far each attempt beat or missed the live version: a bar up in the
- * site's blue where it was better, and down in its red where it was worse. The
- * two share their days, and pointing at either shows the night on both.
+ * site's blue where it was better, and down in its red where it was worse.
+ *
+ * The third draws how long each attempt took (#247): a bar of its training, with
+ * the scoring after it stacked on top. A weekly retrain's bar is in the gray of
+ * its diamond, so a long retrain does not read as a nightly update gone wrong.
+ * The trainer has kept these times since 2026-10-15, so an older night has no
+ * bar, and the chart is left out while no night has one.
+ *
+ * The charts share their days, and pointing at any of them shows the night on
+ * them all.
  *
  * Note: what goes live is decided by loss alone. On another score, an attempt
  *       kept back can still be better than the live version, and the chart
@@ -41,9 +49,11 @@ import { Legend, Mark, Numbers, TipBox, axisStyle } from './parts.jsx';
 import {
     betterBy,
     chartColors,
+    formatDuration,
     formatGap,
     formatScore,
     formatSignedTick,
+    formatStarted,
     formatTick,
     longDay,
     scoreOf,
@@ -52,16 +62,28 @@ import {
 } from './scores.js';
 
 //
-// the two charts' heights, in px: the attempts, and the bars under them
+// the charts' heights, in px: the attempts, the bars under them, and how long
+// each attempt took
 //
 const HEIGHT = 280;
 const GAP_HEIGHT = 140;
+const TOOK_HEIGHT = 140;
 
 //
-// what the two charts are tied by: pointing at a night on one points at it on
-// the other
+// what the charts are tied by: pointing at a night on one points at it on the
+// others
 //
 const SYNC = 'model-attempts';
+
+//
+// how much of its bar's color the scoring on top of the training takes
+//
+const SCORING_OPACITY = 0.4;
+
+//
+// past two hours, the axis of how long each attempt took is in hours
+//
+const HOURS_PAST = 2 * 60 * 60;
 
 /**
  * an attempt's mark, as the chart draws it at (cx, cy): a dot, or a diamond for
@@ -106,20 +128,52 @@ AttemptMark.propTypes = {
 };
 
 /**
- * each night as both charts draw it: its scores on `score`, and how much better
- * than the live version the attempt was -- positive where it was better,
- * whichever way the score runs.
+ * each night as the charts draw it: its scores on `score`, how much better than
+ * the live version the attempt was -- positive where it was better, whichever
+ * way the score runs -- and when it started, as the history wrote it.
+ *
+ * Where the night has times, `training` and `scoring` split how long it took,
+ * in seconds: the training, and the rest of the attempt after it. Both are null
+ * where it has none, or a total shorter than its training, which no attempt
+ * can take.
  */
 export function attemptPoints(rows, score) {
-    return rows.map((row) => ({
-        day: row.day,
-        kind: row.kind,
-        went_live: row.went_live,
-        attempt: row.attempt[score],
-        live: row.live[score],
-        baseline: row.baseline[score],
-        gap: betterBy(row.attempt[score], row.live[score], score),
-    }));
+    return rows.map((row) => {
+        const training = row.training_seconds;
+        const total = row.total_seconds;
+        const timed = Number.isFinite(training) && Number.isFinite(total) && training >= 0 && total >= training;
+
+        return {
+            day: row.day,
+            kind: row.kind,
+            went_live: row.went_live,
+            attempt: row.attempt[score],
+            live: row.live[score],
+            baseline: row.baseline[score],
+            gap: betterBy(row.attempt[score], row.live[score], score),
+            started: row.started || null,
+            training: timed ? training : null,
+            scoring: timed ? total - training : null,
+        };
+    });
+}
+
+//
+// how long a night's attempt took in all, in seconds, or null where it has no
+// times
+//
+function tookOf(point) {
+    return point.training === null ? null : point.training + point.scoring;
+}
+
+/**
+ * the unit of the axis of how long each attempt took: minutes, or hours once the
+ * longest night of `points` passes two of them.
+ */
+export function durationUnit(points) {
+    const longest = Math.max(0, ...points.map((point) => tookOf(point) || 0));
+
+    return longest > HOURS_PAST ? { seconds: 60 * 60, label: 'h' } : { seconds: 60, label: 'min' };
 }
 
 //
@@ -140,6 +194,15 @@ function AttemptsChart({ rows, score }) {
     const points = attemptPoints(rows, score);
     const went = rows.filter((row) => row.went_live).length;
     const reach = gapReach(points);
+    const timed = points.filter((point) => tookOf(point) !== null);
+    const unit = durationUnit(points);
+    const inUnit = (seconds) => (seconds === null ? null : seconds / unit.seconds);
+
+    //
+    // a night's bar in the ink of the page, or a weekly retrain's in its
+    // diamond's gray
+    //
+    const toneOf = (point) => (point.kind === 'weekly' ? colors.muted : colors.ink);
 
     const tip = ({ active, label: day }) => {
         const point = points.find((each) => each.day === day);
@@ -167,6 +230,31 @@ function AttemptsChart({ rows, score }) {
                 name: stands === 'level' ? 'Level with the live version' : (stands === 'better' ? 'Better by' : 'Worse by'),
                 value: stands === 'level' ? null : formatGap(point.gap, score),
             });
+        }
+
+        if (tookOf(point) !== null) {
+            const started = formatStarted(point.started);
+
+            //
+            // each half kept whole, so a narrow tooltip, or a night of hours,
+            // breaks the line between them rather than inside a duration
+            //
+            tipRows.push({
+                key: 'took',
+                mark: <Mark kind='bar' color={toneOf(point)} />,
+                name: (
+                    <>
+                        <span className='model-tip-whole'>{`Took ${formatDuration(tookOf(point))}`}</span>
+                        {' '}
+                        <span className='model-tip-whole'>{`(training ${formatDuration(point.training)})`}</span>
+                    </>
+                ),
+                value: null,
+            });
+
+            if (started) {
+                tipRows.push({ key: 'started', mark: null, name: `Started ${started}`, value: null });
+            }
         }
 
         const result = point.went_live ? 'Went live' : 'Kept back';
@@ -271,6 +359,58 @@ function AttemptsChart({ rows, score }) {
                     </BarChart>
                 </ResponsiveContainer>
             </div>
+            {timed.length
+                ? (
+                    <>
+                        <h6 className='model-card-minor'>How long each attempt took</h6>
+                        <p className='model-card-sub'>Times are kept from 2026-10-15 on.</p>
+                        <div
+                            className='model-chart model-chart-took'
+                            role='img'
+                            aria-label={`How long each attempt took, training and then scoring, on the ${timed.length} ${timed.length === 1 ? 'night' : 'nights'} with times. The longest took ${formatDuration(Math.max(...timed.map(tookOf)))}.`}
+                        >
+                            <ResponsiveContainer width='100%' height={TOOK_HEIGHT}>
+                                <BarChart data={points} syncId={SYNC} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
+                                    <CartesianGrid stroke={colors.grid} vertical={false} />
+                                    <XAxis dataKey='day' hide />
+                                    <YAxis
+                                        width={56}
+                                        allowDecimals={false}
+                                        interval={0}
+                                        tickFormatter={(value) => (value ? `${value} ${unit.label}` : '0')}
+                                        {...axisStyle(colors)}
+                                    />
+                                    <Tooltip content={tip} cursor={{ fill: colors.grid, fillOpacity: 0.4 }} />
+                                    <Bar dataKey={(point) => inUnit(point.training)} stackId='took' maxBarSize={24} isAnimationActive={false}>
+                                        {points.map((point) => (
+                                            <Cell
+                                                key={point.day}
+                                                className={`model-took-bar model-took-training model-took-${point.kind}`}
+                                                fill={toneOf(point)}
+                                            />
+                                        ))}
+                                    </Bar>
+                                    <Bar
+                                        dataKey={(point) => inUnit(point.scoring)}
+                                        stackId='took'
+                                        maxBarSize={24}
+                                        radius={[2, 2, 0, 0]}
+                                        isAnimationActive={false}
+                                    >
+                                        {points.map((point) => (
+                                            <Cell
+                                                key={point.day}
+                                                className={`model-took-bar model-took-scoring model-took-${point.kind}`}
+                                                fill={toneOf(point)}
+                                                fillOpacity={SCORING_OPACITY}
+                                            />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </>
+                ) : null}
             <Numbers
                 label={`${label}, each attempt against the live version`}
                 columns={[
@@ -281,6 +421,7 @@ function AttemptsChart({ rows, score }) {
                     { key: 'baseline', label: 'Baseline' },
                     { key: 'gap', label: 'Better or worse' },
                     { key: 'result', label: 'Result', text: true },
+                    { key: 'took', label: 'Took' },
                 ]}
                 rows={points.slice().reverse().map((point) => {
                     const stands = standing(point.gap, score);
@@ -294,6 +435,7 @@ function AttemptsChart({ rows, score }) {
                         baseline: formatScore(point.baseline, score),
                         gap: point.gap === null ? '' : (stands === 'level' ? 'level' : `${stands} by ${formatGap(point.gap, score)}`),
                         result: point.went_live ? 'Went live' : 'Kept back',
+                        took: formatDuration(tookOf(point)),
                     };
                 })}
             />
@@ -310,6 +452,9 @@ AttemptsChart.propTypes = {
         day: PropTypes.string.isRequired,
         kind: PropTypes.string.isRequired,
         went_live: PropTypes.bool.isRequired,
+        started: PropTypes.string,
+        training_seconds: PropTypes.number,
+        total_seconds: PropTypes.number,
         attempt: PropTypes.object.isRequired,
         live: PropTypes.object.isRequired,
         baseline: PropTypes.object.isRequired,

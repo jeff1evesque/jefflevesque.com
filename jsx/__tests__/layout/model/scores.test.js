@@ -18,9 +18,11 @@ import {
     betterBy,
     chartColors,
     compareBlocked,
+    formatDuration,
     formatGap,
     formatScore,
     formatSignedTick,
+    formatStarted,
     formatTick,
     liveKind,
     longDay,
@@ -81,6 +83,35 @@ describe('formatting', () => {
         expect(formatSignedTick(0.00001, 'loss')).toBe('0');
         expect(formatSignedTick(0, 'acc_up')).toBe('0');
         expect(formatSignedTick(null, 'loss')).toBe('');
+    });
+});
+
+describe('how long an attempt took, and when it started (#247)', () => {
+    it('prints a duration to the whole second, in hours and minutes as it needs them', () => {
+        expect([0.2, 52, 532, 600.4, 3605].map(formatDuration)).toEqual(['0 s', '52 s', '8 min 52 s', '10 min 0 s', '1 h 0 min 5 s']);
+    });
+
+    it('carries a second rounded up into the minute or hour, rather than printing 60 of it', () => {
+        expect(formatDuration(59.6)).toBe('1 min 0 s');
+        expect(formatDuration(3599.5)).toBe('1 h 0 min 0 s');
+        expect(formatDuration(20 * 3600 + 61)).toBe('20 h 1 min 1 s');
+    });
+
+    it('prints nothing for a duration that is none', () => {
+        [null, undefined, NaN, -1, '532'].forEach((value) => expect(formatDuration(value)).toBe(''));
+    });
+
+    it('prints when an attempt started in Eastern time, in summer and in winter', () => {
+        expect(formatStarted('2026-10-16T07:58:10+00:00')).toBe('3:58 AM ET');
+        expect(formatStarted('2026-12-16T08:58:10+00:00')).toBe('3:58 AM ET');
+        expect(formatStarted('2026-07-01T16:05:00Z')).toBe('12:05 PM ET');
+        expect(formatStarted('2026-10-16T03:58:10-04:00')).toBe('3:58 AM ET');
+    });
+
+    it('prints nothing for anything but an instant with its offset, which would be read in the reader\'s zone', () => {
+        [null, '', 'soon', '2026-10-16', '2026-10-16T07:58:10', '2026-13-45T07:58:10Z', 1792137490].forEach((value) => {
+            expect(formatStarted(value)).toBe('');
+        });
     });
 });
 
