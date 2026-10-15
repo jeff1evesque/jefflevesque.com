@@ -45,7 +45,7 @@
         ],
         "responses": {
           "200": {
-            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history or track-record, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row.\n\nThe scores are loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's.",
+            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history or track-record, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; started, when the attempt began, in UTC with its offset, e.g. 2026-10-16T07:58:10+00:00; training_seconds, the time spent training, reading the days included, to one decimal; total_seconds, from started until the attempt's scores are known, so its training and then scoring the held-out days for the attempt and for the live version, to one decimal; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>. started, training_seconds and total_seconds are empty for attempts made before 2026-10-15.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row.\n\nThe scores are loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's.",
             "content": {
               "application/json": {
                 "schema": {
@@ -353,26 +353,26 @@
                             "description": "Reads the last five days of Training Graph builds.",
                             "started": "2026-10-06",
                             "retired": null,
-                            "scored_days": 5,
+                            "scored_days": 8,
                             "live": {
                               "since": "2026-10-12",
                               "kind": "nightly"
                             },
                             "attempts": {
-                              "total": 6,
+                              "total": 9,
                               "went_live": 2
                             },
                             "score": {
-                              "loss": 1.655,
-                              "auc_up": 0.526,
-                              "auc_beats": 0.51458,
-                              "acc_up": 0.54232
+                              "loss": 1.6548,
+                              "auc_up": 0.52625,
+                              "auc_beats": 0.5142,
+                              "acc_up": 0.53628
                             },
                             "baseline": {
-                              "loss": 1.6634,
+                              "loss": 1.66325,
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
-                              "acc_up": 0.5344
+                              "acc_up": 0.52921
                             }
                           },
                           {
@@ -436,15 +436,15 @@
                     }
                   },
                   "history": {
-                    "summary": "Model=pt-gnn-5day&Report=history: its six nightly attempts",
+                    "summary": "Model=pt-gnn-5day&Report=history: its nine nightly attempts, the last two with times",
                     "value": {
-                      "report": "day,kind,went_live,attempt_loss,attempt_auc_up,attempt_auc_beats,attempt_acc_up,live_loss,live_auc_up,live_auc_beats,live_acc_up,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up\n2026-10-06,nightly,false,1.6631,0.5120,0.5044,0.5302,1.6594,0.5188,0.5097,0.5371,1.6648,0.5,0.5,0.5356\n2026-10-07,nightly,true,1.6519,0.5302,0.5150,0.5411,1.6578,0.5203,0.5101,0.5390,1.6641,0.5,0.5,0.5302\n2026-10-08,nightly,false,1.6602,0.5187,0.5079,0.5354,1.6533,0.5288,0.5139,0.5401,1.6655,0.5,0.5,0.5419\n2026-10-09,weekly,false,1.6561,0.5251,0.5122,0.5377,1.6540,0.5279,0.5133,0.5395,1.6630,0.5,0.5,0.5287\n2026-10-12,nightly,true,1.6478,0.5342,0.5170,0.5426,1.6526,0.5297,0.5142,0.5408,1.6619,0.5,0.5,0.5333\n2026-10-13,nightly,false,1.6512,0.5318,0.5160,0.5419,1.6489,0.5336,0.5166,0.5423,1.6622,0.5,0.5,0.5359\n"
+                      "report": "day,kind,went_live,started,training_seconds,total_seconds,attempt_loss,attempt_auc_up,attempt_auc_beats,attempt_acc_up,live_loss,live_auc_up,live_auc_beats,live_acc_up,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up\n2026-10-06,nightly,false,,,,1.6631,0.5120,0.5044,0.5302,1.6594,0.5188,0.5097,0.5371,1.6648,0.5,0.5,0.5356\n2026-10-07,nightly,true,,,,1.6519,0.5302,0.5150,0.5411,1.6578,0.5203,0.5101,0.5390,1.6641,0.5,0.5,0.5302\n2026-10-08,nightly,false,,,,1.6602,0.5187,0.5079,0.5354,1.6533,0.5288,0.5139,0.5401,1.6655,0.5,0.5,0.5419\n2026-10-09,weekly,false,,,,1.6561,0.5251,0.5122,0.5377,1.6540,0.5279,0.5133,0.5395,1.6630,0.5,0.5,0.5287\n2026-10-12,nightly,true,,,,1.6478,0.5342,0.5170,0.5426,1.6526,0.5297,0.5142,0.5408,1.6619,0.5,0.5,0.5333\n2026-10-13,nightly,false,,,,1.6512,0.5318,0.5160,0.5419,1.6489,0.5336,0.5166,0.5423,1.6622,0.5,0.5,0.5359\n2026-10-14,nightly,false,,,,1.6534,0.5296,0.5149,0.5402,1.6497,0.5329,0.5161,0.5417,1.6627,0.5,0.5,0.5341\n2026-10-15,nightly,false,2026-10-16T07:58:10+00:00,437.2,532.4,1.6503,0.5321,0.5163,0.5415,1.6481,0.5342,0.5170,0.5428,1.6618,0.5,0.5,0.5362\n2026-10-16,weekly,false,2026-10-17T07:56:03+00:00,2418.6,2517.9,1.6492,0.5335,0.5168,0.5421,1.6475,0.5349,0.5174,0.5431,1.6612,0.5,0.5,0.5355\n"
                     }
                   },
                   "track-record": {
-                    "summary": "Model=pt-gnn-5day&Report=track-record: its five scored days",
+                    "summary": "Model=pt-gnn-5day&Report=track-record: its eight scored days",
                     "value": {
-                      "report": "day,loss,auc_up,auc_beats,acc_up,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up\n2026-10-06,1.6582,0.5214,0.5103,0.5427,1.6650,0.5,0.5,0.5368\n2026-10-07,1.6497,0.5361,0.5188,0.5129,1.6611,0.5,0.5,0.4970\n2026-10-08,1.6710,0.4982,0.5031,0.5785,1.6693,0.5,0.5,0.5865\n2026-10-09,1.6423,0.5447,0.5262,0.4652,1.6589,0.5,0.5,0.4473\n2026-10-12,1.6538,0.5296,0.5145,0.6123,1.6627,0.5,0.5,0.6044\n"
+                      "report": "day,loss,auc_up,auc_beats,acc_up,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up\n2026-10-06,1.6582,0.5214,0.5103,0.5427,1.6650,0.5,0.5,0.5368\n2026-10-07,1.6497,0.5361,0.5188,0.5129,1.6611,0.5,0.5,0.4970\n2026-10-08,1.6710,0.4982,0.5031,0.5785,1.6693,0.5,0.5,0.5865\n2026-10-09,1.6423,0.5447,0.5262,0.4652,1.6589,0.5,0.5,0.4473\n2026-10-12,1.6538,0.5296,0.5145,0.6123,1.6627,0.5,0.5,0.6044\n2026-10-13,1.6561,0.5243,0.5121,0.5318,1.6633,0.5,0.5,0.5276\n2026-10-14,1.6472,0.5389,0.5197,0.5561,1.6602,0.5,0.5,0.5490\n2026-10-15,1.6601,0.5168,0.5089,0.4907,1.6655,0.5,0.5,0.4851\n"
                     }
                   }
                 }

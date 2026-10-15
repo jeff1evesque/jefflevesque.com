@@ -82,8 +82,18 @@ A CSV string with a header row, oldest night first. Each row is one nightly atte
 - `day`, the night it was trained;
 - `kind`, `nightly` for a nightly update or `weekly` for a weekly retrain;
 - `went_live`, `true` when it replaced the live version;
+- `started`, when the attempt began, in UTC with its offset, e.g.
+  `2026-10-16T07:58:10+00:00`;
+- `training_seconds`, the time spent training, reading the days included, to one
+  decimal;
+- `total_seconds`, from `started` until the attempt's scores are known, so its training
+  and then scoring the held-out days for the attempt and for the live version, to one
+  decimal;
 - each score of the attempt, of the live version and of the baseline, all on the same
   held-out days: `attempt_<score>`, `live_<score>` and `baseline_<score>`.
+
+`started`, `training_seconds` and `total_seconds` are empty for attempts made before
+2026-10-15.
 
 ## Response: a track record
 
