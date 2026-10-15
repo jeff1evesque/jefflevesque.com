@@ -15,9 +15,14 @@
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
 //
 
+//
+// the title as high as /stream's: a margin, as '.stream-rows-bar' has, rather
+// than padding, so on a phone it folds into the space under the header as
+// /stream's does
+//
 .model-layout {
+  margin-top: 1rem;
   padding-bottom: 3rem;
-  padding-top: 1.5rem;
 }
 
 .model-intro {
@@ -36,6 +41,14 @@
     margin: 0;
     overflow-wrap: anywhere;
   }
+}
+
+//
+// the list's count on its title's baseline, as /stream's is beside its own, so
+// the title sits as high as /stream's on a phone as well
+//
+.model-heading:has(> .model-count) {
+  align-items: baseline;
 }
 
 .model-count {
@@ -470,7 +483,11 @@
   }
 }
 
+//
+// a chart is the container its tooltip measures itself by -- see '.model-tip'
+//
 .model-chart {
+  container-type: inline-size;
   min-width: 0;
 }
 
@@ -504,7 +521,11 @@
 //
 // a chart's tooltip, in the colors of every other tooltip on the site -- see
 // theme-mode.jsx -- with a white page behind each mark, so a mark drawn in
-// the page's color still shows
+// the page's color still shows.
+//
+// No wider than the chart's plot -- the chart less its 56px axis and the 12px
+// margin after the plot -- so on a phone it is placed inside the chart rather
+// than running off the side of the screen
 //
 .model-tip {
   background-color: $gray-9;
@@ -513,6 +534,7 @@
   display: grid;
   gap: 0.3rem;
   max-width: 320px;
+  max-width: min(320px, calc(100cqi - 68px));
   padding: 0.5rem 0.85rem;
 }
 
@@ -526,6 +548,15 @@
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
 
+  //
+  // the name keeps its own column, so a row with no mark -- when an attempt
+  // started, or one level with the live version -- does not squeeze its words
+  // into the mark's
+  //
+  .model-tip-name {
+    grid-column: 2;
+  }
+
   .model-mark {
     background-color: $white-1;
     border-radius: 2px;
@@ -535,6 +566,10 @@
 .model-tip-value {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+.model-tip-whole {
+  white-space: nowrap;
 }
 
 .model-tip-foot {

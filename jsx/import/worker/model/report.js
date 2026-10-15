@@ -6,7 +6,8 @@
  *                     with its latest scores
  *     history         a model's csv, one row per nightly training attempt: the
  *                     attempt's scores, the live version's and the know-nothing
- *                     baseline's, on the same held-out days
+ *                     baseline's, on the same held-out days, and from 2026-10-15
+ *                     on, when the attempt started and how long it took
  *     track-record    a model's csv, one row per day it predicted, written once
  *                     that day is scored: its scores and the baseline's, with each
  *                     day's 20-day averages worked out here
@@ -32,8 +33,8 @@
  *       file as the bundle does and runs the function's text on its own.
  *
  * Note: the csvs are read here rather than through papaparse. They hold dates,
- *       two words and numbers -- nothing quoted, and no comma inside a cell -- and
- *       a worker cannot import the parser.
+ *       times, two words and numbers -- nothing quoted, and no comma inside a
+ *       cell -- and a worker cannot import the parser.
  */
 
 export default () => {
@@ -249,7 +250,12 @@ export default () => {
     //
     // the history: every nightly attempt, and whether it went live. A night is a
     // weekly retrain only where it says so, and went live only where it says so --
-    // in either spelling, since a trainer writing its csv from python writes True
+    // in either spelling, since a trainer writing its csv from python writes True.
+    //
+    // From 2026-10-15 on, a night also says when it started, kept as the text it
+    // is, and how long it took in seconds: training, and the whole attempt. An
+    // older night's cells are empty, and a history written before the columns has
+    // none: either way, each is null
     //
     function history(csv) {
         return byDay(rowsOf(csv), function (row, day) {
@@ -257,6 +263,9 @@ export default () => {
                 day: day,
                 kind: String(row.kind).toLowerCase() === 'weekly' ? 'weekly' : 'nightly',
                 went_live: /^(true|1)$/i.test(String(row.went_live)),
+                started: textOf(row.started) || null,
+                training_seconds: numberOf(row.training_seconds),
+                total_seconds: numberOf(row.total_seconds),
                 attempt: scoresOf(row, 'attempt_'),
                 live: scoresOf(row, 'live_'),
                 baseline: scoresOf(row, 'baseline_'),

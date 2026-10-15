@@ -204,6 +204,9 @@ describe('the history', () => {
                 day: '2026-10-12',
                 kind: 'weekly',
                 went_live: true,
+                started: null,
+                training_seconds: null,
+                total_seconds: null,
                 attempt: { loss: 1.6, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53 },
                 live: { loss: 1.62, auc_up: 0.54, auc_beats: 0.51, acc_up: 0.52 },
                 baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.51 },
@@ -252,6 +255,69 @@ describe('the history', () => {
 
         expect(rows[0].attempt).toEqual({ loss: null, auc_up: 0.5, auc_beats: null, acc_up: null });
         expect(rows[0].baseline.loss).toBeNull();
+    });
+
+    describe('as the trainer writes it from 2026-10-15 on (#247)', () => {
+        //
+        // today's history carries columns the pages do not read, a score they
+        // do not draw among them, and from 2026-10-15 on, the attempt's times
+        // right after training_days
+        //
+        const today = ['day', 'kind', 'went_live', 'attempt', 'held_out_days', 'training_days'];
+        const extra = ['attempt_acc_beats', 'live_acc_beats', 'baseline_acc_beats'];
+        const timed = [...today, 'started', 'training_seconds', 'total_seconds', ...header.slice(3), ...extra];
+
+        function timedNight(day, started, training, total) {
+            return [day, 'nightly', 'false', '1', '3', '250', started, training, total, ...night(day, 'nightly', 'false', 1.6).slice(3), 0.5, 0.5, 0.5];
+        }
+
+        it('reads when each night started, as text, and how long it trained and took, in seconds', () => {
+            const [row] = run({
+                kind: 'history',
+                report: csv(timed, [timedNight('2026-10-15', '2026-10-16T07:58:10+00:00', '437.2', '532.4')]),
+            }).rows;
+
+            expect(row).toMatchObject({
+                day: '2026-10-15',
+                started: '2026-10-16T07:58:10+00:00',
+                training_seconds: 437.2,
+                total_seconds: 532.4,
+                attempt: { loss: 1.6, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53 },
+            });
+        });
+
+        it('reads an older night\'s empty cells as no times, rather than zero or empty text', () => {
+            const rows = run({
+                kind: 'history',
+                report: csv(timed, [
+                    timedNight('2026-10-14', '', '', ''),
+                    timedNight('2026-10-15', '2026-10-16T07:58:10+00:00', '437.2', '532.4'),
+                ]),
+            }).rows;
+
+            expect(rows[0]).toMatchObject({ day: '2026-10-14', started: null, training_seconds: null, total_seconds: null });
+            expect(rows[1].total_seconds).toBe(532.4);
+        });
+
+        it('still reads today\'s history, without the columns, as it did, with no times', () => {
+            const before = [...today, ...header.slice(3), ...extra];
+            const [row] = run({
+                kind: 'history',
+                report: csv(before, [['2026-10-13', 'weekly', 'True', '1', '3', '250', ...night('2026-10-13', 'weekly', 'True', 1.6).slice(3), 0.5, 0.5, 0.5]]),
+            }).rows;
+
+            expect(row).toEqual({
+                day: '2026-10-13',
+                kind: 'weekly',
+                went_live: true,
+                started: null,
+                training_seconds: null,
+                total_seconds: null,
+                attempt: { loss: 1.6, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53 },
+                live: { loss: 1.62, auc_up: 0.54, auc_beats: 0.51, acc_up: 0.52 },
+                baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.51 },
+            });
+        });
     });
 });
 
@@ -405,6 +471,10 @@ describe('the worker as the bundle builds it', () => {
         const messages = [
             { kind: 'list', report: listingOf([entry(), entry({ name: 'b', task: 'beats' })]) },
             { kind: 'history', name: 'pt-gnn', report: 'day,kind,went_live,attempt_loss\n2026-10-12,weekly,True,1.6' },
+            {
+                kind: 'history',
+                report: 'day,kind,went_live,started,training_seconds,total_seconds,attempt_loss\n2026-10-14,nightly,false,,,,1.6\n2026-10-15,nightly,true,2026-10-16T07:58:10+00:00,437.2,532.4,1.59',
+            },
             { kind: 'track-record', report: csv(TRACK_HEADER, [trackRow('2026-10-12', 1.6), trackRow('2026-10-13', 1.8)]) },
             { kind: 'track-record', report: 4 },
         ];
