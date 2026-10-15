@@ -101,7 +101,7 @@ than read as zero.
 
 | Status | `report` |
 |---|---|
-| 400 | an object whose `error` says what was wrong with the request: `Model` without `Report`, or the other way round, or a `Report` the API does not keep |
+| 400 | an object whose `error` says what was wrong with the request: `Model` without `Report`, or the other way round; a `Report` the API does not keep; any other parameter, even a lowercase `model`; or either one given twice |
 | 404 | an object whose `error` says no model has that name |
 | 500 | an object whose `error` says the API itself failed |
 | 502 | an object whose `error` says what could not be read: the listing, or a model's report |
