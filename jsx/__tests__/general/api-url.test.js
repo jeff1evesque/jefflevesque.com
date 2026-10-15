@@ -471,7 +471,7 @@ describe('modelUrl (#243)', () => {
             .toBe(`https://api.jefflevesque.com/v1/public/model?Model=pt-gnn-5day&Report=${report}`);
     });
 
-    it('keeps the two reports the api keeps', () => {
+    it('keeps the two reports the pages read, not the summary (#245)', () => {
         expect(MODEL_REPORTS).toEqual(['history', 'track-record']);
     });
 
@@ -577,10 +577,16 @@ describe('what is sent is what is documented', () => {
 
     it('model: asks for the one route its document templates, and a report its Report enumerates', () => {
         const document = documentOf('model');
+        const documented = parameterOf(document, 'Report').schema.enum;
 
         expect(Object.keys(document.paths)).toEqual(['/model']);
         expect(routeSent(document, modelUrl())).toBe('/model');
-        expect(parameterOf(document, 'Report').schema.enum).toEqual(MODEL_REPORTS);
+        expect(documented).toEqual(expect.arrayContaining(MODEL_REPORTS));
+
+        //
+        // the api answers a summary too, which no page asks for yet (#245)
+        //
+        expect(documented.filter((report) => !MODEL_REPORTS.includes(report))).toEqual(['summary']);
     });
 
     it('datalake: exactly the parameters its document declares', () => {
