@@ -172,6 +172,11 @@ describe('the worker', () => {
         expect(read.models).toHaveLength(4);
     });
 
+    it('passes the listing\'s format_version on, and 0 for a listing that gives none (#248)', async () => {
+        expect((await readInWorker('list', listingOf(null, 1))).format_version).toBe(1);
+        expect((await readInWorker('list', listingOf())).format_version).toBe(0);
+    });
+
     it('resolves to null where it cannot run, and every load that leans on it does too', async () => {
         global.__model_worker_fails = true;
         answers({ report: listingOf() });

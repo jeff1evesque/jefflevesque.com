@@ -36,10 +36,13 @@ export function modelOf(overrides = {}) {
 }
 
 /**
- * the listing: three models of one task, and one of another.
+ * the listing: three models of one task, and one of another. With a `format`,
+ * it gives that format_version, as the trainer writes one from 2026-10-15 on
+ * (#248); without, it gives none, as a listing before then did.
  */
-export function listingOf(models = null) {
+export function listingOf(models = null, format = null) {
     return {
+        ...(format === null ? {} : { format_version: format }),
         tasks: TASKS.map((task) => ({ ...task })),
         models: models || [
             modelOf(),
