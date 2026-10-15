@@ -58,12 +58,17 @@
                       "anyOf": [
                         {
                           "type": "object",
-                          "description": "Asked with no parameters: every task, and every model with its latest scores.",
+                          "description": "Asked with no parameters: every task, every model with its latest scores, and from 2026-10-15 on, format_version.",
                           "required": [
                             "tasks",
                             "models"
                           ],
                           "properties": {
+                            "format_version": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
+                            },
                             "tasks": {
                               "type": "array",
                               "description": "What the models predict, in the order /model lists them.",
@@ -278,6 +283,7 @@
                     "summary": "The listing, asked with no parameters",
                     "value": {
                       "report": {
+                        "format_version": 1,
                         "tasks": [
                           {
                             "id": "next-day",

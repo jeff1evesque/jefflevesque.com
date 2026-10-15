@@ -493,6 +493,13 @@ describe('model, as /model and /model/:model read it (#243)', () => {
         expect([...new Set(listing.models.map(statusOf))].sort()).toEqual(['live', 'new', 'retired']);
     });
 
+    it('reads the listing\'s format_version, and the documented history has the columns it added (#248)', () => {
+        const header = media.examples.history.value.report.split('\n')[0].split(',');
+
+        expect(listing.format_version).toBe(1);
+        expect(header).toEqual(expect.arrayContaining(['started', 'training_seconds', 'total_seconds']));
+    });
+
     it('reads the history: every night, and as many went live as the listing says', () => {
         const rows = read('history', media.examples.history.value, 'pt-gnn-5day').rows;
 

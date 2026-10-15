@@ -49,7 +49,7 @@ that knows nothing about any stock would score.
 
 ## Response: the listing
 
-`report` is an object of `tasks` and `models`.
+`report` is an object of `tasks` and `models`, and from 2026-10-15 on, `format_version`.
 
 A **task** is what a model predicts, and `/model` draws one list per task, in the
 listing's order: `id`, the name a model gives it; `name`; and `description`, one line
@@ -69,6 +69,18 @@ A **model** has:
 | `attempts` | the rows of its history: `total`, and `went_live`, those that replaced the live version |
 | `score` | each score averaged over the last 20 rows of its track record, or all of them while it has fewer; `null` while it has none |
 | `baseline` | the baseline's scores averaged over the same days |
+
+**`format_version`** is a whole number: the layout every model report follows. A listing
+without it is format 0.
+
+| Version | What it added |
+|---|---|
+| 0 | the listing and the reports as first published |
+| 1 | a history's `started`, `training_seconds` and `total_seconds` |
+
+It goes up with any change to the reports' keys or columns, or to what a value means,
+added columns included. A listing is published after every model's reports, so its
+`format_version` holds for every report read after it.
 
 ## Response: a summary
 
