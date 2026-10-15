@@ -15,9 +15,14 @@
 //       whereas, '/* */' comment(s), will be preserved in the compiled output.
 //
 
+//
+// the title as high as /stream's: a margin, as '.stream-rows-bar' has, rather
+// than padding, so on a phone it folds into the space under the header as
+// /stream's does
+//
 .model-layout {
+  margin-top: 1rem;
   padding-bottom: 3rem;
-  padding-top: 1.5rem;
 }
 
 .model-intro {
@@ -36,6 +41,14 @@
     margin: 0;
     overflow-wrap: anywhere;
   }
+}
+
+//
+// the list's count on its title's baseline, as /stream's is beside its own, so
+// the title sits as high as /stream's on a phone as well
+//
+.model-heading:has(> .model-count) {
+  align-items: baseline;
 }
 
 .model-count {
