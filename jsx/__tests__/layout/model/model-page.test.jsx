@@ -170,7 +170,18 @@ describe('the model', () => {
 
         expect(screen.getByRole('heading', { name: 'pt-gnn' })).toBeInTheDocument();
         expect(screen.getByText('Live')).toHaveClass('model-pill');
-        expect(screen.getByText('Predicts next-day direction. A graph model of the market')).toBeInTheDocument();
+        expect(screen.getByText('Up or down, scored the next day. A graph model of the market')).toBeInTheDocument();
+    });
+
+    it('says what its task predicts in its task\'s own sentence, and falls back to the task\'s name without one (#251)', async () => {
+        const listing = listingOf();
+
+        listing.tasks[0].description = '';
+        answer({ listing: listing });
+
+        await open();
+
+        expect(document.querySelector('.model-lede')).toHaveTextContent(/^Predicts next-day direction\. A graph model of the market$/);
     });
 
     it('leaves out what is not there: a task the listing does not describe, or no description', async () => {
