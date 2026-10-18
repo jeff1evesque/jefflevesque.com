@@ -285,6 +285,62 @@ describe('the panel (#251)', () => {
     });
 });
 
+describe('folding the track record (#253)', () => {
+    // a fold is kept, as a reader's is: none is left for the cases after these
+    beforeEach(() => window.localStorage.clear());
+    afterEach(() => window.localStorage.clear());
+
+    const title = () => screen.getByRole('button', { name: 'Track record' });
+
+    it('is open on a first visit, its title saying so', () => {
+        const { container } = draw();
+
+        expect(title()).toHaveAttribute('aria-expanded', 'true');
+        expect(container.querySelector('.model-chart')).not.toBeNull();
+    });
+
+    it('folds down to its title: the line under it, its legend, the menu, the chart, its panel and its numbers', async () => {
+        const { container } = draw();
+
+        await userEvent.click(title());
+
+        expect(title()).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.getByRole('heading', { level: 5, name: 'Track record' })).toBeInTheDocument();
+        expect(container.querySelector('.model-card-sub')).toBeNull();
+        expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
+        expect(screen.queryByRole('combobox')).toBeNull();
+        expect(container.querySelector('.model-chart')).toBeNull();
+        expect(container.querySelector('.model-readout')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Show the numbers' })).toBeNull();
+
+        await userEvent.click(title());
+
+        expect(container.querySelector('.model-chart')).not.toBeNull();
+        expect(screen.getByRole('combobox')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Show the numbers' })).toBeInTheDocument();
+    });
+
+    it('says nothing of another model on its way while folded', async () => {
+        const { container } = draw({ other: 'tables', otherRows: undefined });
+
+        await userEvent.click(title());
+
+        expect(container.querySelector('.model-note')).toBeNull();
+    });
+
+    it('keeps the fold for the next visit', async () => {
+        const { unmount } = draw();
+
+        await userEvent.click(title());
+        unmount();
+
+        const { container } = draw();
+
+        expect(title()).toHaveAttribute('aria-expanded', 'false');
+        expect(container.querySelector('.model-chart')).toBeNull();
+    });
+});
+
 describe('the numbers', () => {
     it('lists every day, newest first, with the other model where one is drawn', async () => {
         draw({ rows: trackOf(2), other: 'tables', otherRows: trackOf(1) });
