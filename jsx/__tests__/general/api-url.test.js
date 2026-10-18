@@ -29,7 +29,7 @@ import {
     subscriptionUrl,
     API,
     ENDPOINTS,
-    ACCOUNT,
+    NOTIFICATIONS,
     DOCUMENTATION,
     API_DOCS,
     DATASETS,
@@ -429,8 +429,8 @@ describe('the account api', () => {
         // it answers only a signed-in reader. ENDPOINTS holds the public ones, which
         // answer anyone -- see 'keeps every endpoint under the one public api'.
         //
-        expect(ACCOUNT).toBe('https://api.jefflevesque.com/v1/private/account');
-        expect(Object.values(ENDPOINTS)).not.toContain(ACCOUNT);
+        expect(NOTIFICATIONS).toBe('https://api.jefflevesque.com/v1/private/notifications');
+        expect(Object.values(ENDPOINTS)).not.toContain(NOTIFICATIONS);
     });
 
     it('lists the reader\'s subscriptions, naming no one', () => {
@@ -439,25 +439,25 @@ describe('the account api', () => {
         // the url says it
         //
         expect(String(subscriptionsUrl()))
-            .toBe('https://api.jefflevesque.com/v1/private/account/subscriptions');
+            .toBe('https://api.jefflevesque.com/v1/private/notifications');
     });
 
     it('names one subscription by its stream and alarm, in the path', () => {
         expect(String(subscriptionUrl('us-national-weather', 'ingest')))
-            .toBe('https://api.jefflevesque.com/v1/private/account/subscriptions/us-national-weather/ingest');
+            .toBe('https://api.jefflevesque.com/v1/private/notifications/stream/us-national-weather/ingest');
     });
 
     it('encodes both ids, so neither can name another path', () => {
         const url = subscriptionUrl('a/b', 'c d');
 
-        expect(url.pathname).toBe('/v1/private/account/subscriptions/a%2Fb/c%20d');
+        expect(url.pathname).toBe('/v1/private/notifications/stream/a%2Fb/c%20d');
     });
 
     it('can be pointed elsewhere', () => {
-        expect(String(subscriptionsUrl('https://example.com/account')))
-            .toBe('https://example.com/account/subscriptions');
-        expect(String(subscriptionUrl('bls', 'ingest', 'https://example.com/account')))
-            .toBe('https://example.com/account/subscriptions/bls/ingest');
+        expect(String(subscriptionsUrl('https://example.com/notifications')))
+            .toBe('https://example.com/notifications');
+        expect(String(subscriptionUrl('bls', 'ingest', 'https://example.com/notifications')))
+            .toBe('https://example.com/notifications/stream/bls/ingest');
     });
 });
 
