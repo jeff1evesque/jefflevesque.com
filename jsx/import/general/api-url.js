@@ -62,10 +62,11 @@ const ENDPOINTS = {
 };
 
 //
-// the account api: a signed-in reader's own data, starting with the alarms they
-// subscribe to. Private, so apart from ENDPOINTS -- see the note above.
+// the account api: a signed-in reader's own data, each part under a path that names
+// it. Here, the alarms they subscribe to (#256). Private, so apart from ENDPOINTS --
+// see the note above.
 //
-const ACCOUNT = 'https://api.jefflevesque.com/v1/private/account';
+const NOTIFICATIONS = 'https://api.jefflevesque.com/v1/private/notifications';
 
 //
 // the documentation site, and each api's reference page on it. Moving the site is
@@ -329,8 +330,8 @@ export function alarmsUrl(stream, base = ENDPOINTS.alarms) {
  * the signed-in reader's subscriptions. Who they are is read from the token the
  * request carries, so nothing here names them.
  */
-export function subscriptionsUrl(base = ACCOUNT) {
-    return new URL(`${base}/subscriptions`);
+export function subscriptionsUrl(base = NOTIFICATIONS) {
+    return new URL(base);
 }
 
 /**
@@ -340,14 +341,14 @@ export function subscriptionsUrl(base = ACCOUNT) {
  *       holds is lower-case letters, digits and hyphens, but an id is not this
  *       module's to assume, and a '/' in one would name a different path.
  */
-export function subscriptionUrl(stream, alarm, base = ACCOUNT) {
-    return new URL(`${base}/subscriptions/${encodeURIComponent(stream)}/${encodeURIComponent(alarm)}`);
+export function subscriptionUrl(stream, alarm, base = NOTIFICATIONS) {
+    return new URL(`${base}/stream/${encodeURIComponent(stream)}/${encodeURIComponent(alarm)}`);
 }
 
 export {
     API,
     ENDPOINTS,
-    ACCOUNT,
+    NOTIFICATIONS,
     DOCUMENTATION,
     API_DOCS,
     TERMS,

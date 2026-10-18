@@ -190,7 +190,7 @@ describe('listSubscriptions', () => {
 
         const { url, options } = sent(fetcher);
 
-        expect(url).toBe('https://api.jefflevesque.com/v1/private/account/subscriptions');
+        expect(url).toBe('https://api.jefflevesque.com/v1/private/notifications');
         expect(options.method).toBe('GET');
         expect(options.body).toBeUndefined();
     });
@@ -210,7 +210,7 @@ describe('subscribe', () => {
 
         const { url, options } = sent(fetcher);
 
-        expect(url).toBe('https://api.jefflevesque.com/v1/private/account/subscriptions/bls/ingest');
+        expect(url).toBe('https://api.jefflevesque.com/v1/private/notifications/stream/bls/ingest');
         expect(options.method).toBe('PUT');
         expect(options.headers['Content-Type']).toBe('application/json');
         expect(JSON.parse(options.body)).toEqual({ terms: '2026-09' });
@@ -238,7 +238,7 @@ describe('unsubscribe', () => {
 
         const { url, options } = sent(fetcher);
 
-        expect(url).toBe('https://api.jefflevesque.com/v1/private/account/subscriptions/bls/ingest');
+        expect(url).toBe('https://api.jefflevesque.com/v1/private/notifications/stream/bls/ingest');
         expect(options.method).toBe('DELETE');
         expect(options.body).toBeUndefined();
     });
