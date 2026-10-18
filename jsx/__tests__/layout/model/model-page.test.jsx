@@ -19,7 +19,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-import ModelPageRoute, { ModelPage, liveFigure, ordinal, placeAmong } from '../../../import/layout/model/model-page.jsx';
+import ModelPageRoute, { ModelPage, liveFigure, ordinal, placeAmong, sentence } from '../../../import/layout/model/model-page.jsx';
 import { loadListing, loadReport } from '../../../import/layout/model/source.js';
 import { TASKS, historyOf, listingOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
 
@@ -55,6 +55,8 @@ async function open(name = 'pt-gnn', props = {}) {
 beforeEach(() => {
     loadListing.mockReset();
     loadReport.mockReset();
+    // the charts a case folds are kept, as a reader's are (#253)
+    window.localStorage.clear();
 });
 
 describe('ordinal', () => {
@@ -211,9 +213,27 @@ describe('the model', () => {
     });
 });
 
+describe('sentence', () => {
+    it('makes a figure\'s line a sentence of its note: capitalized, with a full stop (#253)', () => {
+        expect(sentence('went live after a weekly retrain')).toBe('Went live after a weekly retrain.');
+        expect(sentence('0.060 better than the baseline, 1.660')).toBe('0.060 better than the baseline, 1.660.');
+    });
+
+    it('says nothing for no line', () => {
+        expect(sentence('')).toBe('');
+        expect(sentence(null)).toBe('');
+    });
+});
+
 describe('the summary', () => {
+    //
+    // a wide screen's card. A phone's boxes say the same figures again, and the
+    // stylesheet shows one or the other -- see 'the summary, on a phone'
+    //
     function stat(label) {
-        return within(screen.getByRole('region', { name: 'Summary' })).getByText(label).closest('.model-stat');
+        const cards = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-cards');
+
+        return within(cards).getByText(label).closest('.model-stat');
     }
 
     it('says when the live version went live, and how many attempts did', async () => {
@@ -285,6 +305,103 @@ describe('the summary', () => {
 
         expect(stat('Loss, last 20 days').querySelector('.model-stat-value')).toHaveTextContent('–');
         expect(stat('Loss, last 20 days').querySelectorAll('.model-stat-detail')).toHaveLength(1);
+    });
+});
+
+describe('the summary, on a phone', () => {
+    const RETRAINS = { 1: { kind: 'weekly', went_live: true }, 3: { kind: 'weekly' } };
+    const WENT = 'Of every nightly attempt, how many scored a loss no higher than the live version’s and replaced it.';
+
+    //
+    // the row of boxes a phone shows in place of the cards (#253)
+    //
+    function boxes() {
+        const row = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-boxes');
+
+        return [...row.querySelectorAll('.stream-focus-figure')];
+    }
+
+    //
+    // a box's name as a phone shows it: its shorter one, where it has one
+    //
+    function named(box) {
+        const label = box.querySelector('.stream-focus-figure-label');
+
+        return (label.querySelector('.stream-focus-short') || label).textContent;
+    }
+
+    const values = () => boxes().map((box) => box.querySelector('.stream-focus-figure-value'));
+    const notes = () => boxes().map((box) => box.querySelector('.stream-focus-figure-label'));
+
+    it('draws the three figures as one row of boxes, a name over a value', async () => {
+        answer({ history: historyOf(4, RETRAINS) });
+
+        await open();
+
+        expect(boxes()).toHaveLength(3);
+        expect(boxes().map(named)).toEqual(['Live version', 'Went live', 'Loss']);
+        expect(values().map((value) => value.textContent)).toEqual(['Oct 9', '4 of 30', '1.600']);
+    });
+
+    it('keeps the cards\' names for the screens with room for them', async () => {
+        answer();
+
+        await open();
+
+        expect(boxes()[1].querySelector('.stream-focus-long')).toHaveTextContent('Attempts that went live');
+        expect(boxes()[2].querySelector('.stream-focus-long')).toHaveTextContent('Loss, last 20 days');
+    });
+
+    it('moves the line under each card\'s value into its box\'s note, as a sentence', async () => {
+        answer({ history: historyOf(4, RETRAINS) });
+
+        await open();
+
+        expect(notes()[0]).toHaveAccessibleDescription('Went live after a nightly update.');
+        expect(notes()[1]).toHaveAccessibleDescription(`${WENT} Weekly retrains: 1 of 2.`);
+        expect(notes()[2]).toHaveAccessibleDescription('0.060 better than the baseline, 1.660. 1st of 3 Next-day direction models.');
+    });
+
+    it('says only what going live is where there are no weekly retrains, or no history', async () => {
+        answer({ history: null });
+
+        await open();
+
+        expect(notes()[1]).toHaveAccessibleDescription(WENT);
+    });
+
+    it('says what the score is where there is nothing to say beside it', async () => {
+        answer({ listing: listingOf([modelOf({ score: null, baseline: null })]) });
+
+        await open();
+
+        expect(values()[2]).toHaveTextContent('–');
+        expect(notes()[2]).toHaveAccessibleDescription('The model’s loss.');
+    });
+
+    it('colors the attempts blue, and the score green where it beats the baseline', async () => {
+        answer();
+
+        await open();
+
+        expect(values()[0].className).toBe('stream-focus-figure-value');
+        expect(values()[1]).toHaveClass('stream-focus-figure-total');
+        expect(values()[2]).toHaveClass('stream-focus-figure-good');
+    });
+
+    it('colors the score red where the baseline beats it, and leaves it uncolored where the two are level', async () => {
+        answer({ listing: listingOf([modelOf({ baseline: { loss: 1.5, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.5 } })]) });
+
+        const { unmount } = await open();
+
+        expect(values()[2]).toHaveClass('stream-focus-figure-bad');
+
+        unmount();
+        answer({ listing: listingOf([modelOf({ baseline: { loss: 1.6001, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.5 } })]) });
+
+        await open();
+
+        expect(values()[2].className).toBe('stream-focus-figure-value');
     });
 });
 
