@@ -1,16 +1,17 @@
 /**
  * parts.jsx: what both model pages draw alike (#243): the score picker, a model's
- * status, the marks a legend and a tooltip share, the box a chart's tooltip is
- * drawn in, and the table every chart can be read as instead.
+ * status, the marks a legend and a panel share, the panel under a chart that
+ * holds a day's numbers (#251), and the table every chart can be read as
+ * instead.
  *
  * Note: a series' color is only ever a mark's -- a line, a dot, a bar or a swatch
  *       -- and the words beside it are the page's own text. A name written in its
  *       series' color is a name some readers cannot read.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { SCORES, statusOf, statusLabel } from './scores.js';
+import { BASELINE_DASH, SCORES, SCORING_OPACITY, statusOf, statusLabel } from './scores.js';
 
 /**
  * the four scores, as buttons where there is room for them and a menu on a
@@ -71,24 +72,40 @@ StatusPill.propTypes = {
 };
 
 /**
- * one mark, as a legend or a tooltip draws it beside its words:
+ * one mark, as a legend or a panel draws it beside its words -- the same shape,
+ * size and stroke as the chart draws it, so the two look alike:
  *
  *     line      a line, as a 20-day average or the live version is drawn
- *     dot       a filled dot: an attempt that went live
- *     ring      a hollow dot: an attempt kept back
- *     diamond   a weekly retrain
+ *     dashed    the know-nothing baseline's dashed line
+ *     dot       a filled dot: a nightly attempt that went live
+ *     ring      a hollow dot: a nightly attempt kept back
+ *     diamond   a filled diamond: a weekly retrain that went live
+ *     hollow    a hollow diamond: a weekly retrain kept back
  *     faint     a faint dot: a single day of a track record
- *     bar       better or worse than the live version
+ *     bar       better or worse than the live version, or an attempt's training
+ *     fade      the lighter top of an attempt's bar: its scoring
+ *     stack     a whole attempt's bar: its training, with its scoring as a
+ *               lighter top
  *     tick      a short upright line: a night a new version went live
  */
 export function Mark({ kind, color }) {
+    const diamond = (size) => `${8},${6 - size} ${8 + size},${6} ${8},${6 + size} ${8 - size},${6}`;
     const shapes = {
         line: <line x1='1' y1='6' x2='15' y2='6' stroke={color} strokeWidth='2' strokeLinecap='round' />,
+        dashed: <line x1='1' y1='6' x2='15' y2='6' stroke={color} strokeWidth='2' strokeDasharray={BASELINE_DASH} />,
         dot: <circle cx='8' cy='6' r='4.5' fill={color} />,
         ring: <circle cx='8' cy='6' r='3.5' fill='none' stroke={color} strokeWidth='2' />,
-        diamond: <polygon points='8,1 13,6 8,11 3,6' fill='none' stroke={color} strokeWidth='1.5' />,
+        diamond: <polygon points={diamond(6.5)} fill={color} />,
+        hollow: <polygon points={diamond(5.5)} fill='none' stroke={color} strokeWidth='2' />,
         faint: <circle cx='8' cy='6' r='4' fill={color} fillOpacity='0.25' />,
         bar: <rect x='4' y='1' width='8' height='10' rx='2' fill={color} />,
+        fade: <rect x='4' y='1' width='8' height='10' rx='2' fill={color} fillOpacity={SCORING_OPACITY} />,
+        stack: (
+            <g>
+                <rect x='4' y='0' width='8' height='12' rx='2' fill={color} fillOpacity={SCORING_OPACITY} />
+                <rect x='4' y='4' width='8' height='8' fill={color} />
+            </g>
+        ),
         tick: <line x1='8' y1='2' x2='8' y2='11' stroke={color} strokeWidth='2' strokeLinecap='round' />,
     };
 
@@ -100,7 +117,7 @@ export function Mark({ kind, color }) {
 }
 
 Mark.propTypes = {
-    kind: PropTypes.oneOf(['line', 'dot', 'ring', 'diamond', 'faint', 'bar', 'tick']).isRequired,
+    kind: PropTypes.oneOf(['line', 'dashed', 'dot', 'ring', 'diamond', 'hollow', 'faint', 'bar', 'fade', 'stack', 'tick']).isRequired,
     color: PropTypes.string.isRequired,
 };
 
@@ -130,10 +147,123 @@ Legend.propTypes = {
     label: PropTypes.string,
 };
 
+//
+// the width the model pages lay out for a phone at -- see '_model.scss'
+//
+const PHONE = '(max-width: 767.98px)';
+
 /**
- * the box a chart's tooltip is drawn in: the day, a line for each thing drawn on
- * it with its mark, and a note under them. In the colors of every other tooltip
- * on the site -- see theme-mode.jsx -- which mui draws and these charts do not.
+ * whether the page is laid out for a phone now. Guarded, as stream.jsx's and
+ * graph.jsx's readings of the width are: jsdom has no matchMedia, and reads as
+ * a wide screen.
+ */
+export function isPhone() {
+    return typeof window.matchMedia === 'function' && window.matchMedia(PHONE).matches;
+}
+
+/**
+ * whether the page is laid out for a phone, followed as the window turns or is
+ * resized past the width.
+ */
+export function usePhone() {
+    const [phone, setPhone] = useState(isPhone);
+
+    useEffect(() => {
+        if (typeof window.matchMedia !== 'function') {
+            return undefined;
+        }
+
+        const query = window.matchMedia(PHONE);
+        const change = (event) => setPhone(event.matches);
+
+        query.addEventListener('change', change);
+
+        return () => query.removeEventListener('change', change);
+    }, []);
+
+    return phone;
+}
+
+/**
+ * the day a chart's panel shows, and the chart's events that choose it (#251).
+ *
+ * On a wide screen, the day pointed at, and the latest day, `latest`, until the
+ * reader points at one. It is kept when the pointer leaves, so the panel stays
+ * where it is and nothing on the page moves under the pointer. On a phone, the
+ * day tapped, and none before a tap: a second tap on the same day closes it.
+ *
+ * Charts that share their days -- the attempts' three -- share one hook: on a
+ * wide screen they follow one day, pointed at on any of them, and on a phone
+ * only the chart tapped, named by `chart`, opens its panel.
+ *
+ *     events(chart)   the props a recharts chart takes: onMouseMove, or onClick
+ *     dayFor(chart)   the day its panel shows, or null for none
+ */
+export function usePanelDay(latest) {
+    const phone = usePhone();
+    const [pointed, setPointed] = useState(null);
+    const [tapped, setTapped] = useState(null);
+    const dayOf = (state) => (state && state.activeLabel) || null;
+
+    const events = (chart = null) => (phone
+        ? {
+            onClick: (state) => {
+                const day = dayOf(state);
+
+                if (day) {
+                    setTapped(tapped && tapped.chart === chart && tapped.day === day ? null : { chart: chart, day: day });
+                }
+            },
+        } : {
+            onMouseMove: (state) => {
+                const day = dayOf(state);
+
+                if (day && day !== pointed) {
+                    setPointed(day);
+                }
+            },
+        });
+
+    const dayFor = (chart = null) => {
+        if (phone) {
+            return tapped && tapped.chart === chart ? tapped.day : null;
+        }
+
+        return pointed || latest;
+    };
+
+    return { phone: phone, events: events, dayFor: dayFor };
+}
+
+/**
+ * a chart's tooltip, which draws no box -- the panel under the chart holds the
+ * numbers -- and leaves recharts to draw only the band or line that marks the
+ * day pointed at.
+ */
+export function NoBox() {
+    return null;
+}
+
+/**
+ * a night's numbers under its chart rather than in a box over it, where a box
+ * as wide as a phone's screen covered what it was about: a panel of rows on a
+ * phone, and on a wide screen, `line`, one slim line across the chart.
+ */
+export function Readout({ tip, line = false }) {
+    return tip
+        ? <div className={`model-readout${line ? ' model-readout-line' : ''}`}><TipBox {...tip} /></div>
+        : null;
+}
+
+Readout.propTypes = {
+    tip: PropTypes.object,
+    line: PropTypes.bool,
+};
+
+/**
+ * what a panel says of a day: its title, a row for each thing drawn on it with
+ * its mark, and a note under them. Laid out as rows on a phone and as one line
+ * on a wide screen -- see Readout, which places it under its chart.
  */
 export function TipBox({ title, rows, foot = null }) {
     return (
