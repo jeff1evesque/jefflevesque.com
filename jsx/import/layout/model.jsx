@@ -1,8 +1,11 @@
 /**
  * model.jsx: /model, every model trained each night and how it scores (#243).
  *
- * One list per task -- what a model predicts -- under a column of filters, by
- * task and by status, which a phone folds behind a button. Every row carries the
+ * Under its title, two sentences say what the models are for, what they read
+ * and what they predict, linking the knowledge graph and the data it is built
+ * from (#251). One list per task -- what a model predicts -- beside a column of
+ * filters, by task and by status, which folds to a rail as /graph's columns do
+ * and is a folded band on a phone (#251). Every row carries the
  * model's latest 20-day score against the know-nothing baseline, and a trend
  * line of it; see model/model-row.jsx. The score picker chooses which of the four
  * scores the rows, their trend lines and the comparison show, and is shared with
@@ -25,12 +28,13 @@
 
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
+import { Link } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
-import FilterListIcon from '@mui/icons-material/FilterList';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ErrorFallback from '../formatter/boundary-error.jsx';
 import ModelRow from './model/model-row.jsx';
 import CompareChart from './model/compare-chart.jsx';
-import { ScorePicker } from './model/parts.jsx';
+import { ScorePicker, isPhone } from './model/parts.jsx';
 import { loadListing, loadReport } from './model/source.js';
 import {
     DEFAULT_SCORE,
@@ -126,8 +130,9 @@ class ModelLayout extends Component {
             // the models ticked to compare, each with its color slot, in the
             // order of the slots
             picked: [],
-            // whether a phone shows the filters
-            filters_open: false,
+            // whether the filters' column is open: on a wide screen until it is
+            // folded, and on a phone once its band is tapped
+            filters_open: !isPhone(),
         };
 
         this.pick = this.pick.bind(this);
@@ -223,58 +228,79 @@ class ModelLayout extends Component {
     }
 
     //
-    // the filters: what a model predicts, and its status, each with how many
-    // models it holds
+    // the filters: what a model predicts, and its status, each a row that is
+    // pressed while its models are shown, with how many models it holds. In a
+    // column that folds to a rail as /graph's do, by its heading or the arrow
+    // on its edge, and a band over the lists on a phone
     //
     filters() {
         const { listing, hidden_tasks, hidden_statuses, filters_open } = this.state;
         const { models, tasks } = listing;
+        const shown = this.shown().length;
+        const toggle = () => this.setState({ filters_open: !filters_open });
+
+        const row = (key, name, count, on, flip) => (
+            <li key={key}>
+                <button type='button' className='model-filter' aria-pressed={on} onClick={flip}>
+                    <span className='model-filter-box' aria-hidden='true' />
+                    <span className='model-filter-name'>{name}</span>
+                    <span className='model-filter-count'>{count}</span>
+                </button>
+            </li>
+        );
 
         return (
-            <aside className={`model-filters${filters_open ? ' model-filters-open' : ''}`} aria-label='Filters'>
-                <button
-                    type='button'
-                    className='model-filters-toggle'
-                    aria-expanded={filters_open}
-                    onClick={() => this.setState({ filters_open: !filters_open })}
-                >
-                    <FilterListIcon fontSize='inherit' />
-                    Filters
-                </button>
-                <div className='model-filter-sets'>
-                    <fieldset>
-                        <legend>What it predicts</legend>
-                        {tasks.map((task) => (
-                            <label key={task.id} className='model-filter'>
-                                <input
-                                    type='checkbox'
-                                    checked={!hidden_tasks.includes(task.id)}
-                                    onChange={() => this.toggleFilter('hidden_tasks', task.id)}
-                                />
-                                <span className='model-filter-name'>{task.name}</span>
-                                <span className='model-filter-count'>
-                                    {models.filter((model) => model.task === task.id).length}
+            <aside className={`model-filters ${filters_open ? 'model-filters-open' : 'model-filters-closed'}`} aria-label='Filters'>
+                <h6 className='model-filters-heading'>
+                    <button
+                        type='button'
+                        className='model-filters-toggle'
+                        aria-expanded={filters_open}
+                        aria-controls='model-filter-sets'
+                        onClick={toggle}
+                    >
+                        <span className='model-filters-title'>Filters</span>
+                        {filters_open
+                            ? null
+                            : (
+                                <span className='model-filters-summary'>
+                                    {shown === models.length ? `${models.length} models` : `${shown} of ${models.length} models`}
                                 </span>
-                            </label>
-                        ))}
-                    </fieldset>
-                    <fieldset>
-                        <legend>Status</legend>
-                        {STATUSES.map((status) => (
-                            <label key={status.key} className='model-filter'>
-                                <input
-                                    type='checkbox'
-                                    checked={!hidden_statuses.includes(status.key)}
-                                    onChange={() => this.toggleFilter('hidden_statuses', status.key)}
-                                />
-                                <span className='model-filter-name'>{status.label}</span>
-                                <span className='model-filter-count'>
-                                    {models.filter((model) => statusOf(model) === status.key).length}
-                                </span>
-                            </label>
-                        ))}
-                    </fieldset>
+                            )}
+                    </button>
+                </h6>
+                <div className='model-filter-sets' id='model-filter-sets'>
+                    <section className='model-filter-set' aria-label='What it predicts'>
+                        <h6>What it predicts</h6>
+                        <ul>
+                            {tasks.map((task) => row(
+                                task.id,
+                                task.name,
+                                models.filter((model) => model.task === task.id).length,
+                                !hidden_tasks.includes(task.id),
+                                () => this.toggleFilter('hidden_tasks', task.id),
+                            ))}
+                        </ul>
+                    </section>
+                    <section className='model-filter-set' aria-label='Status'>
+                        <h6>Status</h6>
+                        <ul>
+                            {STATUSES.map((status) => row(
+                                status.key,
+                                status.label,
+                                models.filter((model) => statusOf(model) === status.key).length,
+                                !hidden_statuses.includes(status.key),
+                                () => this.toggleFilter('hidden_statuses', status.key),
+                            ))}
+                        </ul>
+                    </section>
                 </div>
+                {filters_open
+                    ? (
+                        <button type='button' className='model-filters-fold' aria-label='Collapse the filters' onClick={toggle}>
+                            <ChevronLeftIcon fontSize='inherit' />
+                        </button>
+                    ) : null}
             </aside>
         );
     }
@@ -455,7 +481,13 @@ class ModelLayout extends Component {
                             <h4>Models</h4>
                             <span className='model-count'>{count}</span>
                         </div>
-                        <span className='model-lede'>Every model trained each night, scored on its real predictions</span>
+                        <span className='model-lede'>
+                            {'Each night these models read the day’s '}
+                            <Link to='/graph'>knowledge graph</Link>
+                            {', built from the '}
+                            <Link to='/stream'>data this site collects</Link>
+                            {', and predict how each S&P 500 stock will move the next trading day. Once that day’s prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all.'}
+                        </span>
                     </div>
                     {this.body()}
                 </div>
