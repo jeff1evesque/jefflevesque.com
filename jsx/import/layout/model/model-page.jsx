@@ -284,9 +284,10 @@ class ModelPage extends Component {
                         <StatusPill model={model} />
                     </div>
                     <span className='model-lede'>
-                        {task ? `Predicts ${task.name.charAt(0).toLowerCase()}${task.name.slice(1)}` : ''}
-                        {task && model.description ? '. ' : ''}
-                        {model.description}
+                        {[
+                            task ? task.description || `Predicts ${task.name.charAt(0).toLowerCase()}${task.name.slice(1)}.` : '',
+                            model.description,
+                        ].filter(Boolean).join(' ')}
                     </span>
                 </div>
                 <div className='model-controls'>
