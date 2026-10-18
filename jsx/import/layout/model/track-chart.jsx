@@ -28,7 +28,7 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { Legend, Mark, NoBox, Numbers, Readout, axisStyle, usePanelDay } from './parts.jsx';
+import { FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisStyle, useFolds, usePanelDay } from './parts.jsx';
 import {
     BASELINE_DASH,
     COMPARE_COLORS,
@@ -152,6 +152,12 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
     //
     const panel = usePanelDay(points.length ? points[points.length - 1].day : null);
 
+    //
+    // folded down to its title by the reader, as the attempts' charts fold --
+    // see useFolds
+    //
+    const [folds, toggle] = useFolds('model-page');
+
     const tipOf = (day) => {
         const point = points.find((each) => each.day === day);
 
@@ -197,8 +203,14 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
         <section className='model-card model-track' aria-labelledby='model-track-title'>
             <div className='model-card-head'>
                 <div className='model-card-title'>
-                    <h5 id='model-track-title'>Track record</h5>
-                    {others.length
+                    <FoldTitle
+                        as='h5'
+                        id='model-track-title'
+                        title='Track record'
+                        folded={Boolean(folds.track)}
+                        onFold={() => toggle('track')}
+                    />
+                    {others.length && !folds.track
                         ? (
                             <label className='model-other'>
                                 <span className='model-control-label'>Compare with</span>
@@ -209,80 +221,88 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                             </label>
                         ) : null}
                 </div>
-                <p className='model-card-sub'>
-                    {'Each day’s real predictions, scored once that day’s prices are in. Dots are single days, and lines are averages of the last 20 days. Up is better'}
-                    {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
-                </p>
-                <Legend
-                    items={[
-                        { key: 'average', kind: 'line', color: colors.live, label: 'This model' },
-                        { key: 'single', kind: 'faint', color: colors.live, label: 'Single day' },
-                        ...(shown ? [{ key: 'other', kind: 'line', color: OTHER_COLOR, label: <span className='model-legend-name'>{shown}</span> }] : []),
-                        { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
-                        ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.better, label: 'New version went live' }] : []),
-                    ]}
-                />
-            </div>
-            {other && otherRows === undefined ? <p className='model-note'>{`Loading ${other}’s track record…`}</p> : null}
-            {other && otherRows === null ? <p className='model-note'>{`The track record of ${other} could not be loaded.`}</p> : null}
-            <div
-                className='model-chart'
-                role='img'
-                aria-label={`${label} of ${name}${shown ? ` and ${shown}` : ''} and the know-nothing baseline, as averages of the last 20 days, with single days as dots. The numbers are in the table below.`}
-            >
-                <ResponsiveContainer width='100%' height={HEIGHT}>
-                    <ComposedChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
-                        <CartesianGrid stroke={colors.grid} vertical={false} />
-                        <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={24} {...axisStyle(colors)} />
-                        <YAxis
-                            width={56}
-                            domain={['auto', 'auto']}
-                            reversed={lower}
-                            tickFormatter={(value) => formatTick(value, score)}
-                            {...axisStyle(colors)}
+                {folds.track ? null : (
+                    <>
+                        <p className='model-card-sub'>
+                            {'Each day’s real predictions, scored once that day’s prices are in. Dots are single days, and lines are averages of the last 20 days. Up is better'}
+                            {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
+                        </p>
+                        <Legend
+                            items={[
+                                { key: 'average', kind: 'line', color: colors.live, label: 'This model' },
+                                { key: 'single', kind: 'faint', color: colors.live, label: 'Single day' },
+                                ...(shown ? [{ key: 'other', kind: 'line', color: OTHER_COLOR, label: <span className='model-legend-name'>{shown}</span> }] : []),
+                                { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
+                                ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.better, label: 'New version went live' }] : []),
+                            ]}
                         />
-                        <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
-                        <Scatter
-                            dataKey='single'
-                            isAnimationActive={false}
-                            shape={(props) => <DayDot {...props} color={colors.live} />}
-                        />
-                        <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={BASELINE_DASH} dot={false} isAnimationActive={false} />
-                        {shown
-                            ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
-                            : null}
-                        <Line dataKey='average' stroke={colors.live} strokeWidth={2} dot={false} isAnimationActive={false} />
-                        {ticks.map((day) => (
-                            <ReferenceLine
-                                key={day}
-                                x={day}
-                                shape={(props) => <WentLiveTick {...props} color={colors.better} />}
-                            />
-                        ))}
-                    </ComposedChart>
-                </ResponsiveContainer>
+                    </>
+                )}
             </div>
-            <Readout tip={tipOf(panel.dayFor())} line={!panel.phone} />
-            <Numbers
-                label={`${label}, track record`}
-                columns={[
-                    { key: 'day', label: 'Day', text: true },
-                    { key: 'single', label: 'This day' },
-                    { key: 'average', label: '20 days' },
-                    ...(shown ? [{ key: 'other', label: `${shown}, 20 days` }] : []),
-                    { key: 'baseline', label: 'Baseline, 20 days' },
-                    ...(ticks.length ? [{ key: 'went', label: 'New version', text: true }] : []),
-                ]}
-                rows={points.slice().reverse().map((point) => ({
-                    key: point.day,
-                    day: shortDay(point.day),
-                    single: cell(point.single),
-                    average: cell(point.average),
-                    other: cell(point.other),
-                    baseline: cell(point.baseline),
-                    went: ticks.includes(point.day) ? 'went live' : '',
-                }))}
-            />
+            {folds.track ? null : (
+                <>
+                    {other && otherRows === undefined ? <p className='model-note'>{`Loading ${other}’s track record…`}</p> : null}
+                    {other && otherRows === null ? <p className='model-note'>{`The track record of ${other} could not be loaded.`}</p> : null}
+                    <div
+                        className='model-chart'
+                        role='img'
+                        aria-label={`${label} of ${name}${shown ? ` and ${shown}` : ''} and the know-nothing baseline, as averages of the last 20 days, with single days as dots. The numbers are in the table below.`}
+                    >
+                        <ResponsiveContainer width='100%' height={HEIGHT}>
+                            <ComposedChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
+                                <CartesianGrid stroke={colors.grid} vertical={false} />
+                                <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={24} {...axisStyle(colors)} />
+                                <YAxis
+                                    width={56}
+                                    domain={['auto', 'auto']}
+                                    reversed={lower}
+                                    tickFormatter={(value) => formatTick(value, score)}
+                                    {...axisStyle(colors)}
+                                />
+                                <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
+                                <Scatter
+                                    dataKey='single'
+                                    isAnimationActive={false}
+                                    shape={(props) => <DayDot {...props} color={colors.live} />}
+                                />
+                                <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={BASELINE_DASH} dot={false} isAnimationActive={false} />
+                                {shown
+                                    ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
+                                    : null}
+                                <Line dataKey='average' stroke={colors.live} strokeWidth={2} dot={false} isAnimationActive={false} />
+                                {ticks.map((day) => (
+                                    <ReferenceLine
+                                        key={day}
+                                        x={day}
+                                        shape={(props) => <WentLiveTick {...props} color={colors.better} />}
+                                    />
+                                ))}
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <Readout tip={tipOf(panel.dayFor())} line={!panel.phone} />
+                    <Numbers
+                        label={`${label}, track record`}
+                        columns={[
+                            { key: 'day', label: 'Day', text: true },
+                            { key: 'single', label: 'This day' },
+                            { key: 'average', label: '20 days' },
+                            ...(shown ? [{ key: 'other', label: `${shown}, 20 days` }] : []),
+                            { key: 'baseline', label: 'Baseline, 20 days' },
+                            ...(ticks.length ? [{ key: 'went', label: 'New version', text: true }] : []),
+                        ]}
+                        rows={points.slice().reverse().map((point) => ({
+                            key: point.day,
+                            day: shortDay(point.day),
+                            single: cell(point.single),
+                            average: cell(point.average),
+                            other: cell(point.other),
+                            baseline: cell(point.baseline),
+                            went: ticks.includes(point.day) ? 'went live' : '',
+                        }))}
+                    />
+                </>
+            )}
         </section>
     );
 }
