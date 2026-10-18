@@ -85,13 +85,14 @@
 }
 
 //
-// the filters beside everything else, and over it on a phone
+// the filters beside everything else, in a column that folds to a rail as
+// /graph's do, and a band over it on a phone
 //
 .model-columns {
   align-items: start;
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: 12rem minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .model-main {
@@ -101,52 +102,266 @@
 }
 
 .model-filters {
-  position: sticky;
-  top: 1rem;
+  position: relative;
+}
 
-  fieldset {
-    margin: 0 0 1.25rem;
-  }
-
-  legend {
-    color: $gray-6;
-    font-size: 0.85rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    margin-bottom: 0.4rem;
-    text-transform: uppercase;
-  }
+//
+// the column's heading is the button that folds it, in the small spaced
+// capitals of /graph's columns, with their chevron -- see '.graph-panel-toggle'
+//
+.model-filters-heading {
+  margin: 0;
 }
 
 .model-filters-toggle {
   align-items: center;
   background: none;
-  border: 1px solid $gray-3;
-  border-radius: 999px;
-  color: $gray-8;
-  display: none;
-  font: inherit;
-  gap: 0.4rem;
-  min-height: 2.25rem;
-  padding: 0.3rem 0.9rem;
+  border: 0;
+  color: $gray-6;
+  display: flex;
+  font-size: 0.75rem;
+  font-weight: 600;
+  gap: 0.5rem;
+  letter-spacing: 0.06em;
+  padding: 0.4rem 0.25rem;
+  text-align: left;
+  text-transform: uppercase;
+  width: 100%;
+
+  &::before {
+    border-bottom: 2px solid $gray-6;
+    border-right: 2px solid $gray-6;
+    content: '';
+    flex: none;
+    height: 0.45rem;
+    margin: 0 0.35rem 0 0.1rem;
+    transform: rotate(-45deg);
+    transition: transform 0.15s ease;
+    width: 0.45rem;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
 }
 
+.model-filters-open > .model-filters-heading > .model-filters-toggle::before {
+  transform: rotate(45deg);
+}
+
+.model-filters-title {
+  color: $gray-8;
+}
+
+.model-filters-summary {
+  color: $gray-6;
+  margin-left: auto;
+  text-transform: none;
+}
+
+.model-filter-sets {
+  display: none;
+}
+
+.model-filters-open > .model-filter-sets {
+  display: block;
+}
+
+.model-filter-set {
+  margin-bottom: 1.25rem;
+
+  h6 {
+    color: $graph-panel-label;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    margin: 0 0 0.35rem;
+    text-transform: uppercase;
+
+    @include dark {
+      color: $gray-6;
+    }
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+//
+// a row that shows or hides its models: a green box with a check while they
+// are shown, and an empty one with the row's words grayed while they are not
+//
 .model-filter {
   align-items: center;
-  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 0.25rem;
+  color: $gray-8;
   display: flex;
-  gap: 0.5rem;
-  padding: 0.2rem 0;
+  font: inherit;
+  gap: 0.6rem;
+  padding: 0.3rem 0.4rem;
+  text-align: left;
+  width: 100%;
+
+  &:hover {
+    background-color: $gray-2;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+}
+
+.model-filter-box {
+  border: 1.5px solid $gray-5;
+  border-radius: 0.2rem;
+  flex: none;
+  height: 1rem;
+  position: relative;
+  width: 1rem;
+}
+
+.model-filter[aria-pressed='true'] .model-filter-box {
+  background-color: $green-6;
+  border-color: $green-6;
+
+  &::after {
+    border-bottom: 2px solid $white-1;
+    border-right: 2px solid $white-1;
+    content: '';
+    height: 0.55rem;
+    left: 0.3rem;
+    position: absolute;
+    top: 0.08rem;
+    transform: rotate(45deg);
+    width: 0.28rem;
+  }
+}
+
+.model-filter[aria-pressed='false'] {
+  .model-filter-name,
+  .model-filter-count {
+    color: $gray-6;
+  }
 }
 
 .model-filter-name {
-  color: $gray-8;
   flex: 1;
 }
 
 .model-filter-count {
   color: $gray-6;
   font-variant-numeric: tabular-nums;
+}
+
+//
+// the arrow on the column's edge that folds it, shown only where there is an
+// edge to put it on
+//
+.model-filters-fold {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  //
+  // an open column, tinted a step off the page with a rule on the side facing
+  // the lists, as /graph's are, and its heading ruled off from what it names
+  //
+  .model-filters-open {
+    align-self: stretch;
+    background-color: $graph-panel;
+    border-right: 1px solid $gray-2;
+    padding: 0.75rem 1.25rem 0.75rem 1rem;
+    width: 14rem;
+
+    @include dark {
+      background-color: $dark-graph-panel;
+    }
+  }
+
+  .model-filters-open > .model-filters-heading {
+    border-bottom: 1px solid $gray-2;
+    margin-bottom: 0.85rem;
+  }
+
+  .model-filters-fold {
+    align-items: center;
+    background-color: $white-1;
+    border: 1px solid $gray-3;
+    border-radius: 50%;
+    color: $gray-7;
+    display: flex;
+    font-size: 1rem;
+    height: 1.5rem;
+    justify-content: center;
+    padding: 0;
+    position: absolute;
+    right: -0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.5rem;
+
+    &:hover {
+      border-color: $gray-7;
+      color: $gray-8;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $focus;
+    }
+  }
+
+  //
+  // a folded column: a green rail with its name on its side, as /graph's
+  //
+  .model-filters-closed {
+    align-self: stretch;
+    background-color: $green-bar;
+    border-radius: 0.25rem;
+    display: flex;
+
+    @include dark {
+      background-color: $dark-green-bar;
+    }
+
+    &:hover {
+      background-color: $green-bar-hover;
+
+      @include dark {
+        background-color: $dark-green-bar-hover;
+      }
+    }
+
+    .model-filters-heading {
+      display: flex;
+    }
+
+    .model-filters-toggle {
+      color: $green-6;
+      justify-content: center;
+      padding: 0.75rem 0.4rem;
+      width: auto;
+      writing-mode: vertical-rl;
+
+      &::before {
+        border-bottom-color: $green-6;
+        border-right-color: $green-6;
+        margin: 0;
+      }
+    }
+
+    .model-filters-title {
+      color: $green-6;
+    }
+
+    .model-filters-summary {
+      margin-left: 0;
+    }
+  }
 }
 
 //
@@ -308,13 +523,48 @@
   gap: 0.5rem;
 }
 
+//
+// the box that ticks a model for the comparison, drawn as the filters' rows
+// draw theirs: a green box with a check while it is ticked, an empty one while
+// it is not, and faded while it cannot be ticked. The check is the page's own
+// color on the green, so it is dark on the dark theme's lighter green
+//
 .model-compare-box input {
+  appearance: none;
+  background-color: $white-1;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 0.8rem;
+  border: 1.5px solid $gray-5;
+  border-radius: 0.2rem;
   cursor: pointer;
+  display: block;
   height: 1.1rem;
+  margin: 0;
   width: 1.1rem;
+
+  &:hover:not(:disabled) {
+    border-color: $gray-7;
+  }
+
+  &:checked {
+    background-color: $green-6;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.3l2.4 2.4 4.6-5.2' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    border-color: $green-6;
+
+    @include dark {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.3l2.4 2.4 4.6-5.2' fill='none' stroke='%231e1e1e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+  }
 
   &:disabled {
     cursor: not-allowed;
+    opacity: 0.4;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: 2px;
   }
 }
 
@@ -464,9 +714,15 @@
   max-width: 72ch;
 }
 
+//
+// each of the attempts' three charts a section of its own: a rule and room
+// above the second and the third, which ran into the line under the one before
+//
 .model-card-minor {
+  border-top: 1px solid $gray-2;
   font-size: 1rem;
-  margin: 0.5rem 0 0;
+  margin: 1rem 0 0;
+  padding-top: 1.25rem;
 }
 
 .model-clear {
@@ -483,11 +739,7 @@
   }
 }
 
-//
-// a chart is the container its tooltip measures itself by -- see '.model-tip'
-//
 .model-chart {
-  container-type: inline-size;
   min-width: 0;
 }
 
@@ -519,22 +771,17 @@
 }
 
 //
-// a chart's tooltip, in the colors of every other tooltip on the site -- see
-// theme-mode.jsx -- with a white page behind each mark, so a mark drawn in
-// the page's color still shows.
-//
-// No wider than the chart's plot -- the chart less its 56px axis and the 12px
-// margin after the plot -- so on a phone it is placed inside the chart rather
-// than running off the side of the screen
+// what a panel says of a day, under its chart rather than in a box over it --
+// see parts.jsx's TipBox and Readout (#251) -- on a tint a step off the page,
+// its marks in the chart's own colors: rows on a phone, and one slim line
+// across the chart on a wide screen, below
 //
 .model-tip {
-  background-color: $gray-9;
+  background-color: $gray-1;
   border-radius: 4px;
-  color: $white-1;
+  color: $gray-8;
   display: grid;
   gap: 0.3rem;
-  max-width: 320px;
-  max-width: min(320px, calc(100cqi - 68px));
   padding: 0.5rem 0.85rem;
 }
 
@@ -549,18 +796,14 @@
   grid-template-columns: 16px minmax(0, 1fr) auto;
 
   //
-  // the name keeps its own column, so a row with no mark -- when an attempt
-  // started, or one level with the live version -- does not squeeze its words
-  // into the mark's
+  // the name keeps its own column, so a row with no mark -- an attempt level
+  // with the live version, or one with no live version to compare with -- does
+  // not squeeze its words into the mark's
   //
   .model-tip-name {
     grid-column: 2;
   }
 
-  .model-mark {
-    background-color: $white-1;
-    border-radius: 2px;
-  }
 }
 
 .model-tip-value {
@@ -568,13 +811,32 @@
   font-weight: 600;
 }
 
-.model-tip-whole {
-  white-space: nowrap;
+.model-tip-foot {
+  color: $gray-7;
+  font-size: 0.9rem;
 }
 
-.model-tip-foot {
-  font-size: 0.9rem;
-  opacity: 0.85;
+//
+// on a wide screen, one slim line across the chart: the night, then each
+// number after its mark and name, side by side, and what became of the
+// attempt, wrapping only where the chart is too narrow for them
+//
+.model-readout-line .model-tip {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  padding: 0.4rem 0.85rem;
+}
+
+.model-readout-line .model-tip-row {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.model-readout-line .model-tip-foot {
+  font-size: inherit;
 }
 
 //
@@ -677,21 +939,21 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  //
+  // a band ruled above and below, as /graph's are on a phone, saying how many
+  // models it shows while it is folded
+  //
   .model-filters {
-    position: static;
+    border-bottom: 1px solid $gray-2;
+    border-top: 1px solid $gray-2;
   }
 
   .model-filters-toggle {
-    display: inline-flex;
+    padding: 0.7rem 0.25rem;
   }
 
-  .model-filter-sets {
-    display: none;
-    margin-top: 0.75rem;
-  }
-
-  .model-filters-open .model-filter-sets {
-    display: block;
+  .model-filters-open > .model-filter-sets {
+    padding-bottom: 0.25rem;
   }
 
   .model-score-buttons {
