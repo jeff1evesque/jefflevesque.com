@@ -10,13 +10,13 @@
 jest.mock('recharts', () => require('../../../test-support/model-fixtures.js').sizedRecharts());
 
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import AttemptsChart, { AttemptMark, attemptPoints, durationUnit } from '../../../import/layout/model/attempts-chart.jsx';
+import AttemptsChart, { AttemptMark, attemptKind, attemptPoints, durationUnit, outcome } from '../../../import/layout/model/attempts-chart.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { chartColors } from '../../../import/layout/model/scores.js';
-import { historyOf, pointAt as pointAtChart, timedHistoryOf } from '../../../test-support/model-fixtures.js';
+import { historyOf, phoneScreen, pointAt as pointAtChart, tapAt, timedHistoryOf, wideScreen } from '../../../test-support/model-fixtures.js';
 
 //
 // the attempts' chart, the bars of better or worse under it, and how long each
@@ -109,16 +109,38 @@ describe('durationUnit', () => {
     // the nights of a history whose one night took `seconds`
     //
     function took(seconds) {
-        return attemptPoints(historyOf(1, { 0: { training_seconds: seconds - 60, total_seconds: seconds } }), 'loss');
+        return attemptPoints(historyOf(1, { 0: { training_seconds: seconds * 0.8, total_seconds: seconds } }), 'loss');
     }
 
-    it('is minutes up to two hours, and hours once the longest night passes them', () => {
+    it('is seconds up to two minutes, minutes up to two hours, and hours once the longest night passes them (#251)', () => {
+        expect(durationUnit(took(2.6))).toEqual({ seconds: 1, label: 's' });
+        expect(durationUnit(took(120))).toEqual({ seconds: 1, label: 's' });
+        expect(durationUnit(took(120.1))).toEqual({ seconds: 60, label: 'min' });
         expect(durationUnit(took(7200))).toEqual({ seconds: 60, label: 'min' });
         expect(durationUnit(took(7200.1))).toEqual({ seconds: 3600, label: 'h' });
     });
 
-    it('is minutes for nights without times', () => {
-        expect(durationUnit(attemptPoints(historyOf(), 'loss'))).toEqual({ seconds: 60, label: 'min' });
+    it('is seconds for nights without times', () => {
+        expect(durationUnit(attemptPoints(historyOf(), 'loss'))).toEqual({ seconds: 1, label: 's' });
+    });
+});
+
+describe('outcome (#251)', () => {
+    it('says what came of an attempt, and why, by loss', () => {
+        expect(outcome({ went_live: true, live: 1.6 })).toBe('Went live: its loss was no higher than the live version’s');
+        expect(outcome({ went_live: false, live: 1.6 })).toBe('Kept back: its loss was higher than the live version’s');
+        expect(outcome({ went_live: true, live: null })).toBe('Went live: the model’s first version');
+    });
+});
+
+describe('attemptKind (#251)', () => {
+    it.each([
+        ['nightly', true, 'dot'],
+        ['nightly', false, 'ring'],
+        ['weekly', true, 'diamond'],
+        ['weekly', false, 'hollow'],
+    ])('draws a %s attempt that went live: %s, as a %s', (kind, went, mark) => {
+        expect(attemptKind({ kind: kind, went_live: went })).toBe(mark);
     });
 });
 
@@ -225,6 +247,52 @@ describe('the chart', () => {
         expect(container.querySelectorAll('.model-attempt circle')[1]).toHaveAttribute('fill', chartColors('dark').better);
     });
 
+    it('draws the live version in green, and the know-nothing baseline dashed in amber (#251)', () => {
+        const { container } = draw();
+        const colors = chartColors('light');
+        const [baseline, live] = container.querySelectorAll(`${ATTEMPTS} .recharts-line-curve`);
+
+        expect(baseline).toHaveAttribute('stroke', colors.baseline);
+        expect(baseline).toHaveAttribute('stroke-dasharray', '5 4');
+        expect(live).toHaveAttribute('stroke', colors.live);
+        expect(live).not.toHaveAttribute('stroke-dasharray');
+    });
+
+    it('names in its legend only the marks it draws, each drawn as the chart draws it (#251)', () => {
+        draw({ rows: historyOf(3, { 0: { went_live: true }, 2: { kind: 'weekly', went_live: true } }) });
+
+        const legend = screen.getByRole('list', { name: 'Legend' });
+        const items = within(legend).getAllByRole('listitem');
+
+        expect(items.map((item) => item.textContent)).toEqual([
+            'Live version',
+            'Know-nothing baseline',
+            'Attempt went live',
+            'Attempt kept back',
+            'Weekly retrain, went live',
+        ]);
+        expect(items[4].querySelector('polygon')).toHaveAttribute('fill', chartColors('light').better);
+        expect(items[1].querySelector('line')).toHaveAttribute('stroke-dasharray', '5 4');
+    });
+
+    it('names a weekly retrain kept back as a hollow diamond, and leaves out the marks of nights it has none of', () => {
+        draw({ rows: historyOf(2, { 0: { kind: 'weekly' }, 1: { kind: 'weekly' } }) });
+
+        const items = within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem');
+
+        expect(items.map((item) => item.textContent)).toEqual(['Live version', 'Know-nothing baseline', 'Weekly retrain, kept back']);
+        expect(items[2].querySelector('polygon')).toHaveAttribute('fill', 'none');
+        expect(items[2].querySelector('polygon')).toHaveAttribute('stroke', chartColors('light').worse);
+    });
+
+    it('leaves the live version out of the legend while no night has one', () => {
+        const none = { loss: null, auc_up: null, auc_beats: null, acc_up: null };
+
+        draw({ rows: historyOf(1, { 0: { went_live: true, live: none } }) });
+
+        expect(within(screen.getByRole('list', { name: 'Legend' })).queryByText('Live version')).toBeNull();
+    });
+
     it('describes itself to a screen reader, with how many went live', () => {
         draw({ rows: historyOf(3, { 0: { went_live: true } }) });
 
@@ -249,33 +317,35 @@ describe('how long each attempt took (#247)', () => {
         expect(top(training[1])).toBeLessThan(top(training[0]));
     });
 
-    it('draws a nightly update in the page\'s ink, and a weekly retrain in the gray of its diamond, the scoring fainter', () => {
+    it('draws every bar in teal, a weekly retrain\'s too, the scoring a lighter top (#251)', () => {
         const { container } = draw({ rows: timedHistoryOf({ 4: { kind: 'weekly' } }) });
-        const colors = chartColors('light');
+        const bars = [...container.querySelectorAll('.model-took-bar')];
 
-        expect(container.querySelector('.model-took-training.model-took-nightly')).toHaveAttribute('fill', colors.ink);
-        expect(container.querySelector('.model-took-scoring.model-took-nightly')).toHaveAttribute('fill', colors.ink);
-        expect(container.querySelector('.model-took-training.model-took-weekly')).toHaveAttribute('fill', colors.muted);
-        expect(container.querySelector('.model-took-scoring.model-took-weekly')).toHaveAttribute('fill', colors.muted);
+        expect(bars).toHaveLength(4);
+        bars.forEach((bar) => expect(bar).toHaveAttribute('fill', chartColors('light').took));
         expect(container.querySelector('.model-took-training.model-took-weekly')).not.toHaveAttribute('fill-opacity');
         expect(container.querySelector('.model-took-scoring.model-took-weekly')).toHaveAttribute('fill-opacity', '0.4');
     });
 
-    it('draws in the dark theme\'s colors on a dark page', () => {
-        const { container } = draw({ rows: timedHistoryOf({ 4: { kind: 'weekly' } }) }, 'dark');
+    it('draws in the dark theme\'s teal on a dark page', () => {
+        const { container } = draw({ rows: timedHistoryOf() }, 'dark');
 
-        expect(container.querySelector('.model-took-training.model-took-nightly')).toHaveAttribute('fill', chartColors('dark').ink);
-        expect(container.querySelector('.model-took-training.model-took-weekly')).toHaveAttribute('fill', chartColors('dark').muted);
+        expect(container.querySelector('.model-took-training')).toHaveAttribute('fill', chartColors('dark').took);
     });
 
-    it('sits under the bars of better or worse, and says under its title when times start', () => {
+    it('sits under the bars of better or worse, saying why a weekly retrain stands taller, over a key (#251)', () => {
         const { container } = draw({ rows: timedHistoryOf() });
         const titles = [...container.querySelectorAll('h6')].map((title) => title.textContent);
         const title = screen.getByRole('heading', { name: 'How long each attempt took' });
+        const key = screen.getByRole('list', { name: 'Legend, how long each attempt took' });
 
         expect(titles).toEqual(['Better or worse than the live version', 'How long each attempt took']);
-        expect(title.nextElementSibling).toHaveTextContent('Times are kept from 2026-10-15 on.');
-        expect(title.nextElementSibling.nextElementSibling).toHaveClass('model-chart-took');
+        expect(title.nextElementSibling).toHaveTextContent(
+            'A weekly retrain starts from scratch, so it takes longer than a nightly update. Times are kept from 2026-10-15 on.'
+        );
+        expect(title.nextElementSibling.nextElementSibling).toBe(key);
+        expect(within(key).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Training', 'Scoring, the lighter top']);
+        expect(key.nextElementSibling).toHaveClass('model-chart-took');
     });
 
     it('is left out while no night has times, as a history without them is drawn today', () => {
@@ -287,7 +357,12 @@ describe('how long each attempt took (#247)', () => {
         expect(container.querySelectorAll('.model-chart')).toHaveLength(2);
     });
 
-    it('reads its axis in minutes, and in hours once the longest night passes two', () => {
+    it('reads its axis in seconds, minutes or hours, by its longest night (#251)', () => {
+        const seconds = draw({ rows: timedHistoryOf({ 3: { training_seconds: 1.0, total_seconds: 1.3 }, 4: { training_seconds: 2.3, total_seconds: 2.6 } }) });
+        const inSeconds = tookTicks(seconds.container);
+
+        seconds.unmount();
+
         const minutes = draw({ rows: timedHistoryOf() });
         const inMinutes = tookTicks(minutes.container);
 
@@ -296,6 +371,8 @@ describe('how long each attempt took (#247)', () => {
         const hours = draw({ rows: timedHistoryOf({ 4: { kind: 'weekly', training_seconds: 6 * 3600, total_seconds: 6.5 * 3600 } }) });
         const inHours = tookTicks(hours.container);
 
+        expect(inSeconds.length).toBeGreaterThan(0);
+        inSeconds.forEach((tick) => expect(tick).toMatch(/^\d+ s$/));
         expect(inMinutes.length).toBeGreaterThan(0);
         inMinutes.forEach((tick) => expect(tick).toMatch(/^\d+ min$/));
         expect(inHours.length).toBeGreaterThan(0);
@@ -315,121 +392,179 @@ describe('how long each attempt took (#247)', () => {
     });
 });
 
-describe('the tooltip', () => {
-    it('names the night, its kind and what came of it, beside every score drawn on it', () => {
-        const { container } = draw({ rows: historyOf(1, { 0: { kind: 'weekly', went_live: true } }) });
+describe('the panels (#251)', () => {
+    afterEach(wideScreen);
 
-        pointAt(container, 300);
+    //
+    // the panel under a chart -- the attempts', the bars of better or worse, or
+    // how long each took -- or null where it has none
+    //
+    function panelUnder(container, which) {
+        const next = container.querySelector(which).nextElementSibling;
 
-        const tip = container.querySelector('.model-tip');
+        return next && next.classList.contains('model-readout') ? next : null;
+    }
 
-        expect(tip).toHaveTextContent('Thu, Oct 1, 2026 · weekly retrain');
-        expect(within(tip).getByText('Attempt')).toBeInTheDocument();
-        expect(within(tip).getByText('Live version')).toBeInTheDocument();
-        expect(within(tip).getByText('Baseline')).toBeInTheDocument();
-        expect(within(tip).getByText('Worse by')).toBeInTheDocument();
-        expect(tip).toHaveTextContent('Went live');
+    it('are not drawn for a history with no nights', () => {
+        const { container } = draw({ rows: [] });
+
+        expect(container.querySelector('.model-readout')).toBeNull();
     });
 
-    it('says, on another score, that what went live was decided by loss', () => {
-        const { container } = draw({ score: 'auc_up', rows: historyOf(1) });
-
-        pointAt(container, 300);
-
-        expect(container.querySelector('.model-tip')).toHaveTextContent('Kept back (decided by loss)');
-    });
-
-    it('says an attempt that beat the live version was better by how much', () => {
-        const { container } = draw({ rows: historyOf(1, { 0: { attempt: { loss: 1.55, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } } }) });
-
-        pointAt(container, 300, '.model-chart-gap');
-
-        expect(within(container.querySelector('.model-tip')).getByText('Better by')).toBeInTheDocument();
-        expect(container.querySelector('.model-tip')).toHaveTextContent('0.050');
-    });
-
-    it('calls an attempt level with the live version where the two print alike', () => {
-        const { container } = draw({ rows: historyOf(1, { 0: { attempt: { loss: 1.6001, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.5 } } }) });
-
-        pointAt(container, 300);
-
-        expect(container.querySelector('.model-tip')).toHaveTextContent('Level with the live version');
-    });
-
-    it('leaves the difference out on a night with no score', () => {
-        const { container } = draw({ rows: historyOf(1, { 0: { attempt: { loss: null, auc_up: null, auc_beats: null, acc_up: null } } }) });
-
-        pointAt(container, 300);
-
-        expect(container.querySelector('.model-tip')).not.toHaveTextContent(/Better by|Worse by|Level/);
-    });
-
-    it('says how long a night with times took, and when it started, in Eastern time (#247)', () => {
+    it('keep one slim line under each chart on a wide screen, on the latest night', () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
-        pointAt(container, 430, TOOK);
+        [ATTEMPTS, GAP, TOOK].forEach((which) => {
+            const panel = panelUnder(container, which);
 
-        const tip = container.querySelector('.model-tip');
-
-        expect(tip).toHaveTextContent('Thu, Oct 15, 2026 · nightly update');
-        expect(tip).toHaveTextContent('Took 8 min 52 s (training 7 min 17 s)');
-        expect(within(tip).getByText('Started 3:58 AM ET')).toBeInTheDocument();
-    });
-
-    it('keeps each half of how long it took whole, so a narrow tooltip breaks the line between them', () => {
-        const { container } = draw({ rows: timedHistoryOf() });
-
-        pointAt(container, 430, TOOK);
-
-        const tip = container.querySelector('.model-tip');
-
-        expect(within(tip).getByText('Took 8 min 52 s')).toHaveClass('model-tip-whole');
-        expect(within(tip).getByText('(training 7 min 17 s)')).toHaveClass('model-tip-whole');
-    });
-
-    it('marks how long it took in its bar\'s color: a weekly retrain\'s in the gray of its diamond', () => {
-        const { container } = draw({ rows: timedHistoryOf({ 3: { kind: 'weekly' } }) });
-
-        pointAt(container, 430, TOOK);
-
-        const took = within(container.querySelector('.model-tip')).getByText(/^Took/).closest('.model-tip-row');
-
-        expect(took.querySelector('.model-mark rect')).toHaveAttribute('fill', chartColors('light').muted);
-    });
-
-    it('says nothing of times on a night without them', () => {
-        const { container } = draw({ rows: timedHistoryOf() });
-
-        pointAt(container, 110, TOOK);
-
-        const tip = container.querySelector('.model-tip');
-
-        expect(tip).toHaveTextContent('Mon, Oct 12, 2026');
-        expect(tip).not.toHaveTextContent(/Took|Started/);
-    });
-
-    it('leaves out when a night started where the history does not say', () => {
-        const { container } = draw({ rows: timedHistoryOf({ 3: { started: null } }) });
-
-        pointAt(container, 430, TOOK);
-
-        expect(container.querySelector('.model-tip')).toHaveTextContent('Took 8 min 52 s');
-        expect(container.querySelector('.model-tip')).not.toHaveTextContent('Started');
+            expect(panel).toHaveClass('model-readout-line');
+            expect(panel).toHaveTextContent('Fri, Oct 16, 2026 · nightly update');
+        });
     });
 
     it.each([
         ['the attempts', ATTEMPTS],
         ['the bars of better or worse', GAP],
         ['how long each took', TOOK],
-    ])('shows the night on all three charts, pointed at on %s', (name, which) => {
+    ])('all move to the night pointed at on %s, and stay on it when the pointer leaves', (name, which) => {
         const { container } = draw({ rows: timedHistoryOf() });
 
         pointAt(container, 430, which);
 
+        [ATTEMPTS, GAP, TOOK].forEach((each) => expect(panelUnder(container, each)).toHaveTextContent('Thu, Oct 15, 2026'));
+
+        fireEvent.mouseLeave(container.querySelector(`${which} .recharts-wrapper`));
+
+        expect(panelUnder(container, ATTEMPTS)).toHaveTextContent('Thu, Oct 15, 2026');
+    });
+
+    it('draw no box over a chart: the panels hold the numbers', () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        pointAt(container, 430);
+
         const tips = [...container.querySelectorAll('.model-tip')];
 
         expect(tips).toHaveLength(3);
-        tips.forEach((tip) => expect(tip).toHaveTextContent('Thu, Oct 15, 2026'));
+        tips.forEach((tip) => expect(tip.closest('.model-readout')).not.toBeNull());
+        expect(container.querySelector('.recharts-tooltip-wrapper .model-tip')).toBeNull();
+    });
+
+    it('name under the attempts every score drawn on the night, each beside its mark as the chart draws it, and what came of it', () => {
+        const { container } = draw({ rows: historyOf(1, { 0: { kind: 'weekly', went_live: true } }) });
+        const panel = panelUnder(container, ATTEMPTS);
+        const rows = [...panel.querySelectorAll('.model-tip-row')];
+        const colors = chartColors('light');
+
+        expect(panel).toHaveTextContent('Thu, Oct 1, 2026 · weekly retrain');
+        expect(rows.map((row) => row.querySelector('.model-tip-name').textContent)).toEqual(['This attempt', 'Live version', 'Know-nothing baseline']);
+        expect(rows.map((row) => row.querySelector('.model-tip-value').textContent)).toEqual(['1.610', '1.600', '1.660']);
+        expect(rows[0].querySelector('polygon')).toHaveAttribute('fill', colors.better);
+        expect(rows[1].querySelector('line')).toHaveAttribute('stroke', colors.live);
+        expect(rows[2].querySelector('line')).toHaveAttribute('stroke', colors.baseline);
+        expect(rows[2].querySelector('line')).toHaveAttribute('stroke-dasharray', '5 4');
+        expect(panel.querySelector('.model-tip-foot')).toHaveTextContent('Went live: its loss was no higher than the live version’s');
+    });
+
+    it('say what came of an attempt by loss, whichever score is on screen', () => {
+        const { container } = draw({ score: 'auc_up', rows: historyOf(1) });
+
+        expect(panelUnder(container, ATTEMPTS).querySelector('.model-tip-foot'))
+            .toHaveTextContent('Kept back: its loss was higher than the live version’s');
+    });
+
+    it('call a first version so, with no live version to compare it with', () => {
+        const none = { loss: null, auc_up: null, auc_beats: null, acc_up: null };
+        const { container } = draw({ rows: historyOf(1, { 0: { went_live: true, live: none } }) });
+
+        expect(panelUnder(container, ATTEMPTS)).toHaveTextContent('Went live: the model’s first version');
+        expect(panelUnder(container, ATTEMPTS)).not.toHaveTextContent('Live version');
+        expect(panelUnder(container, GAP)).toHaveTextContent('No live version to compare with');
+    });
+
+    it.each([
+        ['beat', { loss: 1.55, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 }, '0.050 better than the live version'],
+        ['missed', { loss: 1.61, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.5 }, '0.010 worse than the live version'],
+        ['matched', { loss: 1.6001, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.5 }, 'Level with the live version'],
+    ])('say under the bars how far an attempt that %s the live version stood from it', (label, attempt, said) => {
+        const { container } = draw({ rows: historyOf(1, { 0: { attempt: attempt } }) });
+
+        expect(panelUnder(container, GAP)).toHaveTextContent(said);
+    });
+
+    it('say under the time chart how long the night took: its training, its scoring, and when it started in Eastern time', () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        pointAt(container, 430, TOOK);
+
+        const panel = panelUnder(container, TOOK);
+
+        expect(panel).toHaveTextContent('Thu, Oct 15, 2026 · nightly update');
+        expect([...panel.querySelectorAll('.model-tip-row')].map((row) => row.textContent)).toEqual(['Training7 min 17 s', 'Scoring1 min 35 s']);
+        expect(panel.querySelector('.model-tip-foot')).toHaveTextContent('8 min 52 s in all, started 3:58 AM ET');
+        panel.querySelectorAll('.model-mark rect').forEach((rect) => expect(rect).toHaveAttribute('fill', chartColors('light').took));
+    });
+
+    it('leave out when a night started where the history does not say', () => {
+        const { container } = draw({ rows: timedHistoryOf({ 3: { started: null } }) });
+
+        pointAt(container, 430, TOOK);
+
+        expect(panelUnder(container, TOOK).querySelector('.model-tip-foot')).toHaveTextContent(/^8 min 52 s in all$/);
+    });
+
+    //
+    // Note: one point per case. recharts throttles a chart's mouse moves to one
+    //       a frame, so a second in the same tick is held back past the
+    //       assertion after it.
+    //
+    it('say a night from before the times were kept has none', () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        pointAt(container, 110, TOOK);
+
+        expect(panelUnder(container, TOOK).querySelector('.model-tip-row')).toBeNull();
+        expect(panelUnder(container, TOOK).querySelector('.model-tip-foot')).toHaveTextContent('No times: they are kept from Oct 15, 2026 on');
+    });
+
+    it('print a night under ten seconds to a tenth', () => {
+        const { container } = draw({ rows: timedHistoryOf({ 4: { training_seconds: 2.3, total_seconds: 2.6 } }) });
+
+        expect([...panelUnder(container, TOOK).querySelectorAll('.model-tip-row')].map((row) => row.textContent))
+            .toEqual(['Training2.3 s', 'Scoring0.3 s']);
+        expect(panelUnder(container, TOOK).querySelector('.model-tip-foot')).toHaveTextContent('2.6 s in all');
+    });
+
+    it('open on a phone only under the chart tapped, for the night tapped, as rows, and close on a second tap', () => {
+        phoneScreen();
+
+        const { container } = draw({ rows: timedHistoryOf() });
+        const took = container.querySelector(`${TOOK} .recharts-wrapper`);
+
+        expect(container.querySelector('.model-readout')).toBeNull();
+
+        tapAt(took, 430);
+
+        expect(panelUnder(container, TOOK)).not.toHaveClass('model-readout-line');
+        expect(panelUnder(container, TOOK)).toHaveTextContent('Thu, Oct 15, 2026');
+        expect(panelUnder(container, ATTEMPTS)).toBeNull();
+        expect(panelUnder(container, GAP)).toBeNull();
+
+        tapAt(took, 430);
+
+        expect(container.querySelector('.model-readout')).toBeNull();
+    });
+
+    it('move on a phone to the chart tapped next', () => {
+        phoneScreen();
+
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        tapAt(container.querySelector(`${TOOK} .recharts-wrapper`), 430);
+        tapAt(container.querySelector(`${ATTEMPTS} .recharts-wrapper`), 110);
+
+        expect(panelUnder(container, TOOK)).toBeNull();
+        expect(panelUnder(container, ATTEMPTS)).toHaveTextContent('Mon, Oct 12, 2026');
     });
 });
 
