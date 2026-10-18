@@ -568,6 +568,107 @@ describe('the panels (#251)', () => {
     });
 });
 
+describe('folding each chart (#253)', () => {
+    // a fold is kept, as a reader's is: none is left for the cases after these
+    beforeEach(() => window.localStorage.clear());
+    afterEach(() => window.localStorage.clear());
+
+    const ATTEMPTS_TITLE = 'Each attempt against the live version';
+    const GAP_TITLE = 'Better or worse than the live version';
+    const TOOK_TITLE = 'How long each attempt took';
+
+    const title = (name) => screen.getByRole('button', { name: name });
+
+    it('opens every chart on a first visit, each title saying so', () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        [ATTEMPTS_TITLE, GAP_TITLE, TOOK_TITLE].forEach((name) => expect(title(name)).toHaveAttribute('aria-expanded', 'true'));
+        expect(container.querySelectorAll('.model-chart')).toHaveLength(3);
+        expect(container.querySelectorAll('.model-readout')).toHaveLength(3);
+    });
+
+    it('folds the attempts down to their title, and opens them again', async () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        await userEvent.click(title(ATTEMPTS_TITLE));
+
+        expect(title(ATTEMPTS_TITLE)).toHaveAttribute('aria-expanded', 'false');
+        expect(container.querySelector(ATTEMPTS)).toBeNull();
+        expect(container.querySelector('.model-card-head .model-card-sub')).toBeNull();
+        expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
+        expect(screen.queryByText('Know-nothing baseline')).toBeNull();
+        expect(container.querySelector(GAP)).not.toBeNull();
+        expect(container.querySelector(TOOK)).not.toBeNull();
+        expect(container.querySelectorAll('.model-readout')).toHaveLength(2);
+
+        await userEvent.click(title(ATTEMPTS_TITLE));
+
+        expect(title(ATTEMPTS_TITLE)).toHaveAttribute('aria-expanded', 'true');
+        expect(container.querySelector(ATTEMPTS)).not.toBeNull();
+        expect(screen.getByRole('list', { name: 'Legend' })).toBeInTheDocument();
+        expect(container.querySelectorAll('.model-readout')).toHaveLength(3);
+    });
+
+    it('folds the bars of better or worse on their own: their legend, the line under it, the bars and their panel', async () => {
+        const { container } = draw({ rows: timedHistoryOf(), score: 'auc_up' });
+
+        await userEvent.click(title(GAP_TITLE));
+
+        expect(container.querySelector(GAP)).toBeNull();
+        expect(screen.queryByRole('list', { name: 'Legend, better or worse' })).toBeNull();
+        expect(screen.queryByText(/an attempt kept back can still show as better/)).toBeNull();
+        expect(container.querySelector(ATTEMPTS)).not.toBeNull();
+        expect(container.querySelector(TOOK)).not.toBeNull();
+        expect(container.querySelectorAll('.model-readout')).toHaveLength(2);
+    });
+
+    it('folds the time chart on its own: the line under it, its key, its bars and its panel', async () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        await userEvent.click(title(TOOK_TITLE));
+
+        expect(container.querySelector(TOOK)).toBeNull();
+        expect(screen.queryByRole('list', { name: 'Legend, how long each attempt took' })).toBeNull();
+        expect(screen.queryByText(/A weekly retrain starts from scratch/)).toBeNull();
+        expect(container.querySelector(GAP)).not.toBeNull();
+        expect(title(TOOK_TITLE)).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('folds by the keyboard too', async () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        title(GAP_TITLE).focus();
+        await userEvent.keyboard('{Enter}');
+
+        expect(container.querySelector(GAP)).toBeNull();
+    });
+
+    it('keeps a fold for the next visit', async () => {
+        const { unmount } = draw({ rows: timedHistoryOf() });
+
+        await userEvent.click(title(TOOK_TITLE));
+        unmount();
+
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        expect(title(TOOK_TITLE)).toHaveAttribute('aria-expanded', 'false');
+        expect(container.querySelector(TOOK)).toBeNull();
+        expect(container.querySelector(ATTEMPTS)).not.toBeNull();
+    });
+
+    it('keeps "Show the numbers" with all three folded, since it covers all three', async () => {
+        draw({ rows: timedHistoryOf() });
+
+        for (const name of [ATTEMPTS_TITLE, GAP_TITLE, TOOK_TITLE]) {
+            await userEvent.click(title(name));
+        }
+
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        expect(screen.getByRole('table', { name: 'Loss, each attempt against the live version' })).toBeInTheDocument();
+    });
+});
+
 describe('the numbers', () => {
     it('lists every night, newest first, with how it stood and what came of it', async () => {
         draw({
