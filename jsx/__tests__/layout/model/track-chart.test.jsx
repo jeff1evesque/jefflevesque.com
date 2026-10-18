@@ -16,7 +16,7 @@ import TrackChart, { DayDot, WentLiveTick, trackPoints } from '../../../import/l
 import { chartColors } from '../../../import/layout/model/scores.js';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
-import { pointAt, trackOf } from '../../../test-support/model-fixtures.js';
+import { phoneScreen, pointAt, tapAt, trackOf, wideScreen } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
     const onOther = props.onOther || jest.fn();
@@ -108,6 +108,22 @@ describe('the chart', () => {
         expect(container.querySelectorAll('.recharts-line')).toHaveLength(2);
     });
 
+    it('draws this model in the live version\'s green, and the baseline dashed in amber (#251)', () => {
+        const { container } = draw({ rows: trackOf(6) });
+        const colors = chartColors('light');
+        const [baseline, average] = container.querySelectorAll('.recharts-line-curve');
+
+        expect(average).toHaveAttribute('stroke', colors.live);
+        expect(baseline).toHaveAttribute('stroke', colors.baseline);
+        expect(baseline).toHaveAttribute('stroke-dasharray', '5 4');
+        expect(container.querySelector('.model-day-dot')).toHaveAttribute('fill', colors.live);
+
+        const legend = within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem');
+
+        expect(legend[0].querySelector('line')).toHaveAttribute('stroke', colors.live);
+        expect(legend[2].querySelector('line')).toHaveAttribute('stroke-dasharray', '5 4');
+    });
+
     it('flips the loss axis, and says so', () => {
         const { container } = draw();
         const ticks = yTicks(container);
@@ -184,7 +200,9 @@ describe('another model of the task', () => {
     });
 });
 
-describe('the tooltip', () => {
+describe('the panel (#251)', () => {
+    afterEach(wideScreen);
+
     it('names the day and every value drawn on it', () => {
         const { container } = draw({ rows: trackOf(1), other: 'tables', otherRows: trackOf(1) });
 
@@ -196,7 +214,55 @@ describe('the tooltip', () => {
         expect(within(tip).getByText('This model, this day')).toBeInTheDocument();
         expect(within(tip).getByText('This model, 1 days')).toBeInTheDocument();
         expect(within(tip).getByText('tables, 20 days')).toBeInTheDocument();
-        expect(within(tip).getByText('Baseline, 20 days')).toBeInTheDocument();
+        expect(within(tip).getByText('Know-nothing baseline, 20 days')).toBeInTheDocument();
+    });
+
+    it('is one slim line under the chart on a wide screen, on the latest day, and draws no box over the chart', () => {
+        const { container } = draw({ rows: trackOf(5) });
+        const panel = container.querySelector('.model-chart').nextElementSibling;
+
+        expect(panel).toHaveClass('model-readout', 'model-readout-line');
+        expect(panel).toHaveTextContent('Mon, Sep 7, 2026');
+        expect(container.querySelector('.recharts-tooltip-wrapper .model-tip')).toBeNull();
+    });
+
+    it('marks this model\'s values in its green, and the baseline\'s dashed in amber', () => {
+        const { container } = draw({ rows: trackOf(1) });
+        const colors = chartColors('light');
+        const rows = [...container.querySelectorAll('.model-tip-row')];
+
+        expect(rows[0].querySelector('circle')).toHaveAttribute('fill', colors.live);
+        expect(rows[1].querySelector('line')).toHaveAttribute('stroke', colors.live);
+        expect(rows[2].querySelector('line')).toHaveAttribute('stroke', colors.baseline);
+    });
+
+    it('leaves the baseline out on a day it has none, and is not drawn for a record with no days', () => {
+        const rows = trackOf(1).map((row) => ({ ...row, baseline: { ...row.baseline, loss: null } }));
+        const { container, unmount } = draw({ rows: rows });
+
+        expect(container.querySelector('.model-readout')).not.toHaveTextContent('Know-nothing baseline');
+
+        unmount();
+
+        expect(draw({ rows: [] }).container.querySelector('.model-readout')).toBeNull();
+    });
+
+    it('opens on a phone only for the day tapped, as rows, and closes on a second tap', () => {
+        phoneScreen();
+
+        const { container } = draw({ rows: trackOf(1) });
+        const chart = container.querySelector('.recharts-wrapper');
+
+        expect(container.querySelector('.model-readout')).toBeNull();
+
+        tapAt(chart, 300);
+
+        expect(container.querySelector('.model-readout')).not.toHaveClass('model-readout-line');
+        expect(container.querySelector('.model-readout')).toHaveTextContent('Tue, Sep 1, 2026');
+
+        tapAt(chart, 300);
+
+        expect(container.querySelector('.model-readout')).toBeNull();
     });
 
     it('names a full window as 20 days', () => {
@@ -270,7 +336,7 @@ describe('the nights a new version went live', () => {
         expect(screen.queryByText('New version went live')).toBeNull();
     });
 
-    it('are named in the tooltip of their night', () => {
+    it('are named in the panel of their night', () => {
         const rows = trackOf(1);
         const { container } = draw({ rows: rows, wentLive: [rows[0].day] });
 
@@ -279,7 +345,7 @@ describe('the nights a new version went live', () => {
         expect(container.querySelector('.model-tip-foot')).toHaveTextContent('A new version went live this night');
     });
 
-    it('share the tooltip\'s note with a day this model has no score', () => {
+    it('share the panel\'s note with a day this model has no score', () => {
         const mine = trackOf(1, '2026-09-02');
         const { container } = draw({ rows: mine, other: 'tables', otherRows: trackOf(1, '2026-09-01'), wentLive: ['2026-09-01'] });
 
