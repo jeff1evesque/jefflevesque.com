@@ -259,9 +259,10 @@
 }
 
 //
-// the arrow on the column's edge that folds it, shown only where there is an
-// edge to put it on
+// the strip on the column's edge it is dragged wider or narrower by, and the
+// arrow on it that folds it, shown only where there is an edge to put them on
 //
+.model-filters-grip,
 .model-filters-fold {
   display: none;
 }
@@ -269,14 +270,16 @@
 @media (min-width: 768px) {
   //
   // an open column, tinted a step off the page with a rule on the side facing
-  // the lists, as /graph's are, and its heading ruled off from what it names
+  // the lists, as /graph's are, and its heading ruled off from what it names.
+  // As wide as it was dragged, which model.jsx hands over as
+  // '--model-filters-width' (#253), and 14rem until it is
   //
   .model-filters-open {
     align-self: stretch;
     background-color: $graph-panel;
     border-right: 1px solid $gray-2;
     padding: 0.75rem 1.25rem 0.75rem 1rem;
-    width: 14rem;
+    width: var(--model-filters-width, 14rem);
 
     @include dark {
       background-color: $dark-graph-panel;
@@ -286,6 +289,21 @@
   .model-filters-open > .model-filters-heading {
     border-bottom: 1px solid $gray-2;
     margin-bottom: 0.85rem;
+  }
+
+  //
+  // the strip a drag takes the column's edge by: centered on its rule, and
+  // wide enough to catch a pointer not aimed at a 1px line, as /graph's is
+  //
+  .model-filters-grip {
+    bottom: 0;
+    cursor: col-resize;
+    display: block;
+    position: absolute;
+    right: -0.4375rem;
+    top: 0;
+    width: 0.875rem;
+    z-index: 1;
   }
 
   .model-filters-fold {
@@ -304,6 +322,7 @@
     top: 50%;
     transform: translateY(-50%);
     width: 1.5rem;
+    z-index: 2;
 
     &:hover {
       border-color: $gray-7;
@@ -715,6 +734,54 @@
 }
 
 //
+// a chart's title, which folds the chart away and opens it again (#253): the
+// heading's own words and size, as a button, with /graph's chevron before
+// them -- pointing down while the chart is open, and right while it is folded
+// -- see '.graph-panel-toggle'
+//
+.model-fold-title {
+  margin: 0;
+}
+
+.model-fold {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 0.6rem;
+  padding: 0;
+  text-align: left;
+
+  &::before {
+    border-bottom: 2px solid $gray-6;
+    border-right: 2px solid $gray-6;
+    content: '';
+    flex: none;
+    height: 0.45rem;
+    margin: 0 0.15rem 0.2rem;
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+    width: 0.45rem;
+  }
+
+  &[aria-expanded='false']::before {
+    margin-bottom: 0;
+    transform: rotate(-45deg);
+  }
+
+  &:hover::before {
+    border-color: $green-6;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+  }
+}
+
+//
 // each of the attempts' three charts a section of its own: a rule and room
 // above the second and the third, which ran into the line under the one before
 //
@@ -901,13 +968,30 @@
 // a model's page: its three figures
 //
 .model-summary {
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 1rem;
 }
 
+//
+// a card each on a wide screen, and on a phone one row of /stream's tinted
+// boxes -- see model-page.jsx's summary -- since three cards stacked took up a
+// phone's first screen (#253)
+//
+.model-summary-cards {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.model-summary-boxes {
+  display: none;
+}
+
+//
+// a card, in the fill /stream's boxes have on a phone, so the figures look
+// alike at either width (#253)
+//
 .model-stat {
+  background-color: $white-2;
   border: 1px solid $gray-2;
   border-radius: 8px;
   display: grid;
@@ -932,7 +1016,7 @@
 
 //
 // a phone: the filters fold behind their button, the score's buttons become
-// a menu, a row becomes a card, and a model's figures stack
+// a menu, a row becomes a card, and a model's figures become a row of boxes
 //
 @media (max-width: 767.98px) {
   .model-columns {
@@ -999,11 +1083,15 @@
     font-size: 0.8rem;
   }
 
-  .model-summary {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .model-card {
     padding: 0.85rem 0.75rem 0.75rem;
+  }
+
+  .model-summary-cards {
+    display: none;
+  }
+
+  .model-summary-boxes {
+    display: block;
   }
 }
