@@ -26,7 +26,7 @@ import { MemoryRouter } from 'react-router-dom';
 import ModelLayout, { linkedCompare, writeCompare } from '../../import/layout/model.jsx';
 import { loadListing, loadReport } from '../../import/layout/model/source.js';
 import { COMPARE_COLORS } from '../../import/layout/model/scores.js';
-import { listingOf, modelOf, trackOf } from '../../test-support/model-fixtures.js';
+import { listingOf, modelOf, phoneScreen, trackOf, wideScreen } from '../../test-support/model-fixtures.js';
 
 function deferred() {
     let resolve;
@@ -206,7 +206,7 @@ describe('the lists', () => {
         expect(document.querySelector('.model-count')).toHaveTextContent('4');
         expect(within(group('Next-day direction')).getByText('3 models')).toBeInTheDocument();
         expect(within(group('Beat the average')).getByText('1 model')).toBeInTheDocument();
-        expect(within(group('Next-day direction')).getByText('Up or down, scored the next day')).toBeInTheDocument();
+        expect(within(group('Next-day direction')).getByText('Up or down, scored the next day.')).toBeInTheDocument();
     });
 
     it('leaves out a task\'s line under its name where the listing has none', async () => {
@@ -279,38 +279,70 @@ describe('the lists', () => {
     });
 });
 
-describe('the filters', () => {
-    it('offer every task and every status, each with how many models it holds', async () => {
+describe('the title', () => {
+    it('says what the models are for, what they read and what they predict, linking the graph and the data (#251)', async () => {
         answer();
         await open();
 
-        const filters = screen.getByRole('complementary', { name: 'Filters' });
-        const labels = within(filters).getAllByRole('checkbox').map((input) => input.closest('label').textContent);
+        const lede = document.querySelector('.model-lede');
 
-        expect(labels).toEqual(['Next-day direction3', 'Beat the average1', 'Live2', 'New1', 'Retired1']);
-        expect(within(filters).getAllByRole('checkbox').every((input) => input.checked)).toBe(true);
+        expect(lede).toHaveTextContent(
+            'Each night these models read the day’s knowledge graph, built from the data this site collects, and predict '
+            + 'how each S&P 500 stock will move the next trading day. Once that day’s prices are in, every prediction is '
+            + 'graded against a guess that knows nothing, to show whether the data can predict the market at all.'
+        );
+        expect(within(lede).getByRole('link', { name: 'knowledge graph' })).toHaveAttribute('href', '/graph');
+        expect(within(lede).getByRole('link', { name: 'data this site collects' })).toHaveAttribute('href', '/stream');
+    });
+});
+
+describe('the filters', () => {
+    afterEach(wideScreen);
+
+    //
+    // the filters' column, and the button that is its heading, named as it is
+    // while the column is open
+    //
+    function filters() {
+        return screen.getByRole('complementary', { name: 'Filters' });
+    }
+
+    it('offer every task and every status as a row, pressed while its models are shown, with how many it holds', async () => {
+        answer();
+        await open();
+
+        const rows = within(filters()).getAllByRole('button', { pressed: true });
+
+        expect(rows.map((row) => row.textContent)).toEqual(['Next-day direction3', 'Beat the average1', 'Live2', 'New1', 'Retired1']);
+        expect(within(filters()).queryByRole('checkbox')).toBeNull();
+        expect(within(filters()).getByRole('region', { name: 'What it predicts' })).toBeInTheDocument();
+        expect(within(filters()).getByRole('region', { name: 'Status' })).toBeInTheDocument();
     });
 
-    it('hide a task\'s list when it is unticked, and show it again when it is ticked', async () => {
+    it('hide a task\'s list when its row is pressed, and show it again when it is pressed again (#251)', async () => {
         answer();
         await open();
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Beat the average 1' }));
+        const row = screen.getByRole('button', { name: 'Beat the average 1' });
 
+        await userEvent.click(row);
+
+        expect(row).toHaveAttribute('aria-pressed', 'false');
         expect(screen.queryByRole('region', { name: 'Beat the average' })).toBeNull();
         expect(document.querySelector('.model-count')).toHaveTextContent('3 of 4');
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Beat the average 1' }));
+        await userEvent.click(row);
 
+        expect(row).toHaveAttribute('aria-pressed', 'true');
         expect(group('Beat the average')).toBeInTheDocument();
         expect(document.querySelector('.model-count')).toHaveTextContent('4');
     });
 
-    it('hide the models of a status when it is unticked', async () => {
+    it('hide the models of a status when its row is pressed', async () => {
         answer();
         await open();
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'New 1' }));
+        await userEvent.click(screen.getByRole('button', { name: 'New 1' }));
 
         expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables']);
     });
@@ -319,25 +351,70 @@ describe('the filters', () => {
         answer();
         await open();
 
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Next-day direction 3' }));
-        await userEvent.click(screen.getByRole('checkbox', { name: 'Beat the average 1' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Next-day direction 3' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Beat the average 1' }));
 
         expect(screen.getByText('No model matches these filters.')).toBeInTheDocument();
         expect(document.querySelector('.model-count')).toHaveTextContent('0 of 4');
     });
 
-    it('fold behind a button on a phone, which says whether they are open', async () => {
+    it('open on a wide screen, and fold to a rail by the arrow on its edge or by its heading (#251)', async () => {
         answer();
         await open();
 
-        const toggle = screen.getByRole('button', { name: 'Filters' });
+        const heading = within(filters()).getByRole('button', { name: 'Filters' });
 
-        expect(toggle).toHaveAttribute('aria-expanded', 'false');
-        await userEvent.click(toggle);
-        expect(toggle).toHaveAttribute('aria-expanded', 'true');
-        expect(screen.getByRole('complementary', { name: 'Filters' })).toHaveClass('model-filters-open');
-        await userEvent.click(toggle);
-        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        expect(filters()).toHaveClass('model-filters-open');
+        expect(heading).toHaveAttribute('aria-expanded', 'true');
+
+        await userEvent.click(within(filters()).getByRole('button', { name: 'Collapse the filters' }));
+
+        expect(filters()).toHaveClass('model-filters-closed');
+        expect(heading).toHaveAttribute('aria-expanded', 'false');
+        expect(within(filters()).queryByRole('button', { name: 'Collapse the filters' })).toBeNull();
+
+        await userEvent.click(heading);
+
+        expect(filters()).toHaveClass('model-filters-open');
+        expect(heading).toHaveAttribute('aria-expanded', 'true');
+
+        await userEvent.click(heading);
+
+        expect(filters()).toHaveClass('model-filters-closed');
+    });
+
+    it('say while folded how many models they show, and how many of them where some are hidden', async () => {
+        answer();
+        await open();
+
+        const heading = within(filters()).getByRole('button', { name: 'Filters' });
+
+        expect(heading.querySelector('.model-filters-summary')).toBeNull();
+
+        await userEvent.click(heading);
+
+        expect(heading.querySelector('.model-filters-summary')).toHaveTextContent(/^4 models$/);
+
+        await userEvent.click(heading);
+        await userEvent.click(screen.getByRole('button', { name: 'New 1' }));
+        await userEvent.click(heading);
+
+        expect(heading.querySelector('.model-filters-summary')).toHaveTextContent(/^3 of 4 models$/);
+    });
+
+    it('start folded on a phone, as a band that opens when it is tapped', async () => {
+        phoneScreen();
+        answer();
+        await open();
+
+        const heading = within(filters()).getByRole('button', { name: 'Filters 4 models' });
+
+        expect(filters()).toHaveClass('model-filters-closed');
+        expect(heading).toHaveAttribute('aria-expanded', 'false');
+
+        await userEvent.click(heading);
+
+        expect(filters()).toHaveClass('model-filters-open');
     });
 });
 
