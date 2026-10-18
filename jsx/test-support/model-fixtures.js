@@ -9,8 +9,8 @@
  */
 
 export const TASKS = [
-    { id: 'direction', name: 'Next-day direction', description: 'Up or down, scored the next day' },
-    { id: 'beats', name: 'Beat the average', description: 'Above or below the average stock' },
+    { id: 'direction', name: 'Next-day direction', description: 'Up or down, scored the next day.' },
+    { id: 'beats', name: 'Beat the average', description: 'Above or below the average stock.' },
 ];
 
 const LIVE_SCORE = { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 };
@@ -190,4 +190,43 @@ export function pointAt(wrapper, x, y = 60) {
     Object.defineProperty(event, 'pageX', { value: x });
     Object.defineProperty(event, 'pageY', { value: y });
     fireEvent(wrapper, event);
+}
+
+/**
+ * tap a recharts chart at `x`, as a finger on a phone does: recharts hands the
+ * chart's onClick the day under it (#251). Placed as pointAt places the pointer.
+ */
+export function tapAt(wrapper, x, y = 60) {
+    const { createEvent, fireEvent } = jest.requireActual('@testing-library/react');
+    const event = createEvent.click(wrapper, { clientX: x, clientY: y });
+
+    Object.defineProperty(event, 'pageX', { value: x });
+    Object.defineProperty(event, 'pageY', { value: y });
+    fireEvent(wrapper, event);
+}
+
+/**
+ * lay the model pages out for a phone, as the stylesheet does under 768px
+ * (#251). jsdom has no matchMedia, so a page under test is a wide screen until
+ * this gives it one that matches. `turn(matches)` turns the window across the
+ * width, as a reader would. Undone by wideScreen.
+ */
+export function phoneScreen(matches = true) {
+    const listeners = [];
+
+    window.matchMedia = jest.fn((query) => ({
+        matches: matches,
+        media: query,
+        addEventListener: (type, listener) => listeners.push(listener),
+        removeEventListener: (type, listener) => listeners.splice(listeners.indexOf(listener), 1),
+    }));
+
+    return {
+        listeners: listeners,
+        turn: (next) => listeners.slice().forEach((listener) => listener({ matches: next })),
+    };
+}
+
+export function wideScreen() {
+    delete window.matchMedia;
 }
