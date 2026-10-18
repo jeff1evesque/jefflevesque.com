@@ -50,7 +50,7 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { Legend, Mark, NoBox, Numbers, Readout, axisStyle, usePanelDay } from './parts.jsx';
+import { FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisStyle, useFolds, usePanelDay } from './parts.jsx';
 import {
     BASELINE_DASH,
     SCORING_OPACITY,
@@ -243,6 +243,12 @@ function AttemptsChart({ rows, score }) {
     const panel = usePanelDay(points.length ? points[points.length - 1].day : null);
 
     //
+    // the charts the reader has folded down to their titles, kept between
+    // visits on every model's page -- see useFolds
+    //
+    const [folds, toggle] = useFolds('model-page');
+
+    //
     // what a chart's panel says of a night: the night, what that chart draws of
     // it, in words, and what became of the attempt
     //
@@ -314,154 +320,186 @@ function AttemptsChart({ rows, score }) {
     return (
         <section className='model-card model-attempts' aria-labelledby='model-attempts-title'>
             <div className='model-card-head'>
-                <h5 id='model-attempts-title'>Each attempt against the live version</h5>
-                <p className='model-card-sub'>
-                    {'Every night a new version is trained, then it and the live version are scored on the same held-out days, so an easy or hard stretch moves both. Up is better'}
-                    {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
-                </p>
-                <Legend
-                    items={[
-                        ...(points.some((point) => point.live !== null)
-                            ? [{ key: 'live', kind: 'line', color: colors.live, label: 'Live version' }]
-                            : []),
-                        { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
-                        ...attemptItems,
-                    ]}
+                <FoldTitle
+                    as='h5'
+                    id='model-attempts-title'
+                    title='Each attempt against the live version'
+                    folded={Boolean(folds.attempts)}
+                    onFold={() => toggle('attempts')}
                 />
-            </div>
-            <div
-                className='model-chart'
-                role='img'
-                aria-label={`${label} of ${rows.length} nightly attempts and the live version. ${went} went live. The numbers are in the table below.`}
-            >
-                <ResponsiveContainer width='100%' height={HEIGHT}>
-                    <ComposedChart data={points} syncId={SYNC} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events('attempts')}>
-                        <CartesianGrid stroke={colors.grid} vertical={false} />
-                        <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={24} {...axisStyle(colors)} />
-                        <YAxis
-                            width={56}
-                            domain={['auto', 'auto']}
-                            reversed={lower}
-                            tickFormatter={(value) => formatTick(value, score)}
-                            {...axisStyle(colors)}
+                {folds.attempts ? null : (
+                    <>
+                        <p className='model-card-sub'>
+                            {'Every night a new version is trained, then it and the live version are scored on the same held-out days, so an easy or hard stretch moves both. Up is better'}
+                            {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
+                        </p>
+                        <Legend
+                            items={[
+                                ...(points.some((point) => point.live !== null)
+                                    ? [{ key: 'live', kind: 'line', color: colors.live, label: 'Live version' }]
+                                    : []),
+                                { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
+                                ...attemptItems,
+                            ]}
                         />
-                        <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
-                        <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={BASELINE_DASH} dot={false} isAnimationActive={false} />
-                        <Line dataKey='live' stroke={colors.live} strokeWidth={2} dot={false} isAnimationActive={false} />
-                        <Scatter
-                            dataKey='attempt'
-                            isAnimationActive={false}
-                            shape={(props) => <AttemptMark {...props} colors={colors} />}
-                        />
-                    </ComposedChart>
-                </ResponsiveContainer>
-            </div>
-            {readout('attempts')}
-            <h6 className='model-card-minor'>Better or worse than the live version</h6>
-            <Legend
-                label='Legend, better or worse'
-                items={[
-                    { key: 'better', kind: 'bar', color: colors.better, label: 'Better on this score' },
-                    { key: 'worse', kind: 'bar', color: colors.worse, label: 'Worse on this score' },
-                ]}
-            />
-            {score === 'loss'
-                ? null
-                : (
-                    <p className='model-card-sub'>
-                        Going live is decided by loss, so on this score an attempt kept back can still show as better.
-                    </p>
+                    </>
                 )}
-            <div
-                className='model-chart model-chart-gap'
-                role='img'
-                aria-label={`How much better or worse each attempt scored than the live version on ${label}. ${points.filter((point) => standing(point.gap, score) === 'better').length} of ${rows.length} were better.`}
-            >
-                <ResponsiveContainer width='100%' height={GAP_HEIGHT}>
-                    <BarChart data={points} syncId={SYNC} margin={{ top: 8, right: 12, bottom: 4, left: 0 }} {...panel.events('gap')}>
-                        <CartesianGrid stroke={colors.grid} vertical={false} />
-                        <XAxis dataKey='day' hide />
-                        <YAxis
-                            width={56}
-                            domain={[-reach, reach]}
-                            ticks={[-reach, 0, reach]}
-                            interval={0}
-                            tickFormatter={(value) => formatSignedTick(value, score)}
-                            {...axisStyle(colors)}
-                        />
-                        <Tooltip content={NoBox} cursor={{ fill: colors.grid, fillOpacity: 0.4 }} />
-                        <ReferenceLine y={0} stroke={colors.muted} />
-                        <Bar dataKey='gap' maxBarSize={24} radius={2} isAnimationActive={false}>
-                            {points.map((point) => (
-                                <Cell
-                                    key={point.day}
-                                    className={`model-gap-bar model-gap-bar-${standing(point.gap, score)}`}
-                                    fill={point.gap !== null && point.gap < 0 ? colors.worse : colors.better}
-                                />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
             </div>
-            {readout('gap')}
+            {folds.attempts ? null : (
+                <>
+                    <div
+                        className='model-chart'
+                        role='img'
+                        aria-label={`${label} of ${rows.length} nightly attempts and the live version. ${went} went live. The numbers are in the table below.`}
+                    >
+                        <ResponsiveContainer width='100%' height={HEIGHT}>
+                            <ComposedChart data={points} syncId={SYNC} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events('attempts')}>
+                                <CartesianGrid stroke={colors.grid} vertical={false} />
+                                <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={24} {...axisStyle(colors)} />
+                                <YAxis
+                                    width={56}
+                                    domain={['auto', 'auto']}
+                                    reversed={lower}
+                                    tickFormatter={(value) => formatTick(value, score)}
+                                    {...axisStyle(colors)}
+                                />
+                                <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
+                                <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={BASELINE_DASH} dot={false} isAnimationActive={false} />
+                                <Line dataKey='live' stroke={colors.live} strokeWidth={2} dot={false} isAnimationActive={false} />
+                                <Scatter
+                                    dataKey='attempt'
+                                    isAnimationActive={false}
+                                    shape={(props) => <AttemptMark {...props} colors={colors} />}
+                                />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
+                    {readout('attempts')}
+                </>
+            )}
+            <FoldTitle
+                className='model-card-minor'
+                title='Better or worse than the live version'
+                folded={Boolean(folds.gap)}
+                onFold={() => toggle('gap')}
+            />
+            {folds.gap ? null : (
+                <>
+                    <Legend
+                        label='Legend, better or worse'
+                        items={[
+                            { key: 'better', kind: 'bar', color: colors.better, label: 'Better on this score' },
+                            { key: 'worse', kind: 'bar', color: colors.worse, label: 'Worse on this score' },
+                        ]}
+                    />
+                    {score === 'loss'
+                        ? null
+                        : (
+                            <p className='model-card-sub'>
+                                Going live is decided by loss, so on this score an attempt kept back can still show as better.
+                            </p>
+                        )}
+                    <div
+                        className='model-chart model-chart-gap'
+                        role='img'
+                        aria-label={`How much better or worse each attempt scored than the live version on ${label}. ${points.filter((point) => standing(point.gap, score) === 'better').length} of ${rows.length} were better.`}
+                    >
+                        <ResponsiveContainer width='100%' height={GAP_HEIGHT}>
+                            <BarChart data={points} syncId={SYNC} margin={{ top: 8, right: 12, bottom: 4, left: 0 }} {...panel.events('gap')}>
+                                <CartesianGrid stroke={colors.grid} vertical={false} />
+                                <XAxis dataKey='day' hide />
+                                <YAxis
+                                    width={56}
+                                    domain={[-reach, reach]}
+                                    ticks={[-reach, 0, reach]}
+                                    interval={0}
+                                    tickFormatter={(value) => formatSignedTick(value, score)}
+                                    {...axisStyle(colors)}
+                                />
+                                <Tooltip content={NoBox} cursor={{ fill: colors.grid, fillOpacity: 0.4 }} />
+                                <ReferenceLine y={0} stroke={colors.muted} />
+                                <Bar dataKey='gap' maxBarSize={24} radius={2} isAnimationActive={false}>
+                                    {points.map((point) => (
+                                        <Cell
+                                            key={point.day}
+                                            className={`model-gap-bar model-gap-bar-${standing(point.gap, score)}`}
+                                            fill={point.gap !== null && point.gap < 0 ? colors.worse : colors.better}
+                                        />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                    {readout('gap')}
+                </>
+            )}
             {timed.length
                 ? (
                     <>
-                        <h6 className='model-card-minor'>How long each attempt took</h6>
-                        <p className='model-card-sub'>A weekly retrain starts from scratch, so it takes longer than a nightly update. Times are kept from 2026-10-15 on.</p>
-                        <Legend
-                            label='Legend, how long each attempt took'
-                            items={[
-                                { key: 'training', kind: 'bar', color: colors.took, label: 'Training' },
-                                { key: 'scoring', kind: 'fade', color: colors.took, label: 'Scoring, the lighter top' },
-                            ]}
+                        <FoldTitle
+                            className='model-card-minor'
+                            title='How long each attempt took'
+                            folded={Boolean(folds.took)}
+                            onFold={() => toggle('took')}
                         />
-                        <div
-                            className='model-chart model-chart-took'
-                            role='img'
-                            aria-label={`How long each attempt took, training and then scoring, on the ${timed.length} ${timed.length === 1 ? 'night' : 'nights'} with times. The longest took ${formatDuration(Math.max(...timed.map(tookOf)))}.`}
-                        >
-                            <ResponsiveContainer width='100%' height={TOOK_HEIGHT}>
-                                <BarChart data={points} syncId={SYNC} margin={{ top: 8, right: 12, bottom: 4, left: 0 }} {...panel.events('took')}>
-                                    <CartesianGrid stroke={colors.grid} vertical={false} />
-                                    <XAxis dataKey='day' hide />
-                                    <YAxis
-                                        width={56}
-                                        allowDecimals={false}
-                                        interval={0}
-                                        tickFormatter={(value) => (value ? `${value} ${unit.label}` : '0')}
-                                        {...axisStyle(colors)}
-                                    />
-                                    <Tooltip content={NoBox} cursor={{ fill: colors.grid, fillOpacity: 0.4 }} />
-                                    <Bar dataKey={(point) => inUnit(point.training)} stackId='took' maxBarSize={24} isAnimationActive={false}>
-                                        {points.map((point) => (
-                                            <Cell
-                                                key={point.day}
-                                                className={`model-took-bar model-took-training model-took-${point.kind}`}
-                                                fill={colors.took}
+                        {folds.took ? null : (
+                            <>
+                                <p className='model-card-sub'>A weekly retrain starts from scratch, so it takes longer than a nightly update. Times are kept from 2026-10-15 on.</p>
+                                <Legend
+                                    label='Legend, how long each attempt took'
+                                    items={[
+                                        { key: 'training', kind: 'bar', color: colors.took, label: 'Training' },
+                                        { key: 'scoring', kind: 'fade', color: colors.took, label: 'Scoring, the lighter top' },
+                                    ]}
+                                />
+                                <div
+                                    className='model-chart model-chart-took'
+                                    role='img'
+                                    aria-label={`How long each attempt took, training and then scoring, on the ${timed.length} ${timed.length === 1 ? 'night' : 'nights'} with times. The longest took ${formatDuration(Math.max(...timed.map(tookOf)))}.`}
+                                >
+                                    <ResponsiveContainer width='100%' height={TOOK_HEIGHT}>
+                                        <BarChart data={points} syncId={SYNC} margin={{ top: 8, right: 12, bottom: 4, left: 0 }} {...panel.events('took')}>
+                                            <CartesianGrid stroke={colors.grid} vertical={false} />
+                                            <XAxis dataKey='day' hide />
+                                            <YAxis
+                                                width={56}
+                                                allowDecimals={false}
+                                                interval={0}
+                                                tickFormatter={(value) => (value ? `${value} ${unit.label}` : '0')}
+                                                {...axisStyle(colors)}
                                             />
-                                        ))}
-                                    </Bar>
-                                    <Bar
-                                        dataKey={(point) => inUnit(point.scoring)}
-                                        stackId='took'
-                                        maxBarSize={24}
-                                        radius={[2, 2, 0, 0]}
-                                        isAnimationActive={false}
-                                    >
-                                        {points.map((point) => (
-                                            <Cell
-                                                key={point.day}
-                                                className={`model-took-bar model-took-scoring model-took-${point.kind}`}
-                                                fill={colors.took}
-                                                fillOpacity={SCORING_OPACITY}
-                                            />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                        {readout('took')}
+                                            <Tooltip content={NoBox} cursor={{ fill: colors.grid, fillOpacity: 0.4 }} />
+                                            <Bar dataKey={(point) => inUnit(point.training)} stackId='took' maxBarSize={24} isAnimationActive={false}>
+                                                {points.map((point) => (
+                                                    <Cell
+                                                        key={point.day}
+                                                        className={`model-took-bar model-took-training model-took-${point.kind}`}
+                                                        fill={colors.took}
+                                                    />
+                                                ))}
+                                            </Bar>
+                                            <Bar
+                                                dataKey={(point) => inUnit(point.scoring)}
+                                                stackId='took'
+                                                maxBarSize={24}
+                                                radius={[2, 2, 0, 0]}
+                                                isAnimationActive={false}
+                                            >
+                                                {points.map((point) => (
+                                                    <Cell
+                                                        key={point.day}
+                                                        className={`model-took-bar model-took-scoring model-took-${point.kind}`}
+                                                        fill={colors.took}
+                                                        fillOpacity={SCORING_OPACITY}
+                                                    />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                {readout('took')}
+                            </>
+                        )}
                     </>
                 ) : null}
             <Numbers
