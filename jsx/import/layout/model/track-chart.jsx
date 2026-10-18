@@ -28,8 +28,9 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { Legend, Mark, Numbers, TipBox, axisStyle } from './parts.jsx';
+import { Legend, Mark, NoBox, Numbers, Readout, axisStyle, usePanelDay } from './parts.jsx';
 import {
+    BASELINE_DASH,
     COMPARE_COLORS,
     WINDOW,
     alignDays,
@@ -145,10 +146,16 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
     //
     const ticks = wentLive.filter((day) => points.some((point) => point.day === day));
 
-    const tip = ({ active, label: day }) => {
+    //
+    // the day its panel shows, as the attempts' panels do: the day pointed at,
+    // the latest until then, or on a phone the day tapped -- see usePanelDay
+    //
+    const panel = usePanelDay(points.length ? points[points.length - 1].day : null);
+
+    const tipOf = (day) => {
         const point = points.find((each) => each.day === day);
 
-        if (!active || !point) {
+        if (!point) {
             return null;
         }
 
@@ -156,10 +163,10 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
 
         if (point.single !== null) {
             tipRows.push(
-                { key: 'single', mark: <Mark kind='faint' color={colors.ink} />, name: 'This model, this day', value: formatScore(point.single, score) },
+                { key: 'single', mark: <Mark kind='faint' color={colors.live} />, name: 'This model, this day', value: formatScore(point.single, score) },
                 {
                     key: 'average',
-                    mark: <Mark kind='line' color={colors.ink} />,
+                    mark: <Mark kind='line' color={colors.live} />,
                     name: point.days < WINDOW ? `This model, ${point.days} days` : 'This model, 20 days',
                     value: formatScore(point.average, score),
                 },
@@ -171,19 +178,17 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
         }
 
         if (point.baseline !== null) {
-            tipRows.push({ key: 'baseline', mark: <Mark kind='line' color={colors.muted} />, name: 'Baseline, 20 days', value: formatScore(point.baseline, score) });
+            tipRows.push({ key: 'baseline', mark: <Mark kind='dashed' color={colors.baseline} />, name: 'Know-nothing baseline, 20 days', value: formatScore(point.baseline, score) });
         }
 
-        return (
-            <TipBox
-                title={longDay(point.day)}
-                rows={tipRows}
-                foot={[
-                    point.single === null ? `${name} has no score this day` : null,
-                    ticks.includes(point.day) ? 'A new version went live this night' : null,
-                ].filter(Boolean).join(' · ') || null}
-            />
-        );
+        return {
+            title: longDay(point.day),
+            rows: tipRows,
+            foot: [
+                point.single === null ? `${name} has no score this day` : null,
+                ticks.includes(point.day) ? 'A new version went live this night' : null,
+            ].filter(Boolean).join(' · ') || null,
+        };
     };
 
     const cell = (value) => (value === null ? '' : formatScore(value, score));
@@ -210,10 +215,10 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                 </p>
                 <Legend
                     items={[
-                        { key: 'average', kind: 'line', color: colors.ink, label: 'This model' },
-                        { key: 'single', kind: 'faint', color: colors.ink, label: 'Single day' },
+                        { key: 'average', kind: 'line', color: colors.live, label: 'This model' },
+                        { key: 'single', kind: 'faint', color: colors.live, label: 'Single day' },
                         ...(shown ? [{ key: 'other', kind: 'line', color: OTHER_COLOR, label: <span className='model-legend-name'>{shown}</span> }] : []),
-                        { key: 'baseline', kind: 'line', color: colors.muted, label: 'Know-nothing baseline' },
+                        { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
                         ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.better, label: 'New version went live' }] : []),
                     ]}
                 />
@@ -226,7 +231,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                 aria-label={`${label} of ${name}${shown ? ` and ${shown}` : ''} and the know-nothing baseline, as averages of the last 20 days, with single days as dots. The numbers are in the table below.`}
             >
                 <ResponsiveContainer width='100%' height={HEIGHT}>
-                    <ComposedChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
+                    <ComposedChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
                         <CartesianGrid stroke={colors.grid} vertical={false} />
                         <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={24} {...axisStyle(colors)} />
                         <YAxis
@@ -236,17 +241,17 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                             tickFormatter={(value) => formatTick(value, score)}
                             {...axisStyle(colors)}
                         />
-                        <Tooltip content={tip} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
+                        <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
                         <Scatter
                             dataKey='single'
                             isAnimationActive={false}
-                            shape={(props) => <DayDot {...props} color={colors.ink} />}
+                            shape={(props) => <DayDot {...props} color={colors.live} />}
                         />
-                        <Line dataKey='baseline' stroke={colors.muted} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                        <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={BASELINE_DASH} dot={false} isAnimationActive={false} />
                         {shown
                             ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
                             : null}
-                        <Line dataKey='average' stroke={colors.ink} strokeWidth={2} dot={false} isAnimationActive={false} />
+                        <Line dataKey='average' stroke={colors.live} strokeWidth={2} dot={false} isAnimationActive={false} />
                         {ticks.map((day) => (
                             <ReferenceLine
                                 key={day}
@@ -257,6 +262,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                     </ComposedChart>
                 </ResponsiveContainer>
             </div>
+            <Readout tip={tipOf(panel.dayFor())} line={!panel.phone} />
             <Numbers
                 label={`${label}, track record`}
                 columns={[

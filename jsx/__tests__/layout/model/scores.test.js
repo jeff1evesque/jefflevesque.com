@@ -9,10 +9,12 @@
  */
 
 import {
+    BASELINE_DASH,
     COMPARE_COLORS,
     COMPARE_MAX,
     DEFAULT_SCORE,
     SCORES,
+    SCORING_OPACITY,
     alignDays,
     baselineAverages,
     betterBy,
@@ -88,7 +90,11 @@ describe('formatting', () => {
 
 describe('how long an attempt took, and when it started (#247)', () => {
     it('prints a duration to the whole second, in hours and minutes as it needs them', () => {
-        expect([0.2, 52, 532, 600.4, 3605].map(formatDuration)).toEqual(['0 s', '52 s', '8 min 52 s', '10 min 0 s', '1 h 0 min 5 s']);
+        expect([52, 532, 600.4, 3605].map(formatDuration)).toEqual(['52 s', '8 min 52 s', '10 min 0 s', '1 h 0 min 5 s']);
+    });
+
+    it('prints a duration under ten seconds to a tenth, as the history keeps it (#251)', () => {
+        expect([0.2, 1.3, 9.9, 9.94, 9.95, 10].map(formatDuration)).toEqual(['0.2 s', '1.3 s', '9.9 s', '9.9 s', '10 s', '10 s']);
     });
 
     it('carries a second rounded up into the minute or hour, rather than printing 60 of it', () => {
@@ -170,6 +176,16 @@ describe('chartColors', () => {
         expect(dark.better).toBe('#86b6ef');
         expect(light.worse).toBe('#d03b3b');
         expect(dark.worse).toBe('#e66767');
+    });
+
+    it('draws the live version green, the baseline amber and how long an attempt took teal, in either theme (#251)', () => {
+        expect(chartColors('light')).toMatchObject({ live: '#237616', baseline: '#c98500', took: '#1baf7a' });
+        expect(chartColors('dark')).toMatchObject({ live: '#4a993e', baseline: '#eda100', took: '#199e70' });
+    });
+
+    it('dashes the baseline, and lightens an attempt\'s scoring to the same share in both themes', () => {
+        expect(BASELINE_DASH).toBe('5 4');
+        expect(SCORING_OPACITY).toBe(0.4);
     });
 
     it('compares in three fixed colors, the same in either theme', () => {

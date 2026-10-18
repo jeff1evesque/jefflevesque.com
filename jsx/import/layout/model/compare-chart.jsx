@@ -25,8 +25,9 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { Legend, Mark, Numbers, TipBox, axisStyle } from './parts.jsx';
+import { Legend, Mark, NoBox, Numbers, Readout, axisStyle, usePanelDay } from './parts.jsx';
 import {
+    BASELINE_DASH,
     COMPARE_COLORS,
     WINDOW,
     alignDays,
@@ -96,10 +97,17 @@ function CompareChart({ picks, records, score, task, onClear }) {
         return point;
     });
 
-    const tip = ({ active, label }) => {
+    //
+    // the day its panel shows, as the model page's panels do: the day pointed
+    // at, the latest until then, or on a phone the day tapped -- see
+    // usePanelDay
+    //
+    const panel = usePanelDay(aligned.length ? aligned[aligned.length - 1].day : null);
+
+    const tipOf = (label) => {
         const entry = aligned.find((each) => each.day === label);
 
-        if (!active || !entry) {
+        if (!entry) {
             return null;
         }
 
@@ -126,8 +134,8 @@ function CompareChart({ picks, records, score, task, onClear }) {
         if (baseline[at] !== null) {
             rows.push({
                 key: 'baseline',
-                mark: <Mark kind='line' color={colors.muted} />,
-                name: 'Baseline',
+                mark: <Mark kind='dashed' color={colors.muted} />,
+                name: 'Know-nothing baseline',
                 value: formatScore(baseline[at], score),
             });
         }
@@ -136,7 +144,7 @@ function CompareChart({ picks, records, score, task, onClear }) {
             .filter((pick) => !entry[pick.model.name])
             .map((pick) => `${pick.model.name}: ${absence(pick.model, entry.day)}`);
 
-        return <TipBox title={longDay(entry.day)} rows={rows} foot={absent.length ? absent.join(' · ') : null} />;
+        return { title: longDay(entry.day), rows: rows, foot: absent.length ? absent.join(' · ') : null };
     };
 
     //
@@ -163,7 +171,7 @@ function CompareChart({ picks, records, score, task, onClear }) {
                             color: COMPARE_COLORS[pick.slot],
                             label: <span className='model-legend-name'>{pick.model.name}</span>,
                         })),
-                        { key: 'baseline', kind: 'line', color: colors.muted, label: 'Know-nothing baseline' },
+                        { key: 'baseline', kind: 'dashed', color: colors.muted, label: 'Know-nothing baseline' },
                     ]}
                 />
             </div>
@@ -178,7 +186,7 @@ function CompareChart({ picks, records, score, task, onClear }) {
                 : (
                     <div className='model-chart' role='img' aria-label={`${scoreOf(score).label}, 20-day averages of ${together(names)} and the know-nothing baseline. The numbers are in the table below.`}>
                         <ResponsiveContainer width='100%' height={HEIGHT}>
-                            <ComposedChart data={data} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
+                            <ComposedChart data={data} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
                                 <CartesianGrid stroke={colors.grid} vertical={false} />
                                 <XAxis
                                     dataKey='day'
@@ -193,11 +201,12 @@ function CompareChart({ picks, records, score, task, onClear }) {
                                     tickFormatter={(value) => formatTick(value, score)}
                                     {...axisStyle(colors)}
                                 />
-                                <Tooltip content={tip} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
+                                <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
                                 <Line
                                     dataKey='baseline'
                                     stroke={colors.muted}
                                     strokeWidth={1.5}
+                                    strokeDasharray={BASELINE_DASH}
                                     dot={false}
                                     isAnimationActive={false}
                                 />
@@ -216,6 +225,7 @@ function CompareChart({ picks, records, score, task, onClear }) {
                         </ResponsiveContainer>
                     </div>
                 )}
+            {waiting.length ? null : <Readout tip={tipOf(panel.dayFor())} line={!panel.phone} />}
             <Numbers
                 label={`${scoreOf(score).label}, 20-day averages`}
                 columns={[

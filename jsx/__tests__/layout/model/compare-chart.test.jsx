@@ -14,8 +14,8 @@ import userEvent from '@testing-library/user-event';
 
 import CompareChart from '../../../import/layout/model/compare-chart.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
-import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
-import { TASKS, listingOf, pointAt, trackOf } from '../../../test-support/model-fixtures.js';
+import { COMPARE_COLORS, chartColors } from '../../../import/layout/model/scores.js';
+import { TASKS, listingOf, phoneScreen, pointAt, tapAt, trackOf, wideScreen } from '../../../test-support/model-fixtures.js';
 
 const [ptGnn, tables, fresh] = listingOf().models;
 
@@ -72,6 +72,17 @@ describe('the comparison', () => {
         expect(strokes).not.toContain(COMPARE_COLORS[1]);
     });
 
+    it('dashes the baseline, and leaves it gray beside the models\' colors (#251)', () => {
+        const { container } = draw();
+        const [baseline, ...models] = container.querySelectorAll('.recharts-line-curve');
+
+        expect(baseline).toHaveAttribute('stroke-dasharray', '5 4');
+        expect(baseline).toHaveAttribute('stroke', chartColors('light').muted);
+        models.forEach((line) => expect(line).not.toHaveAttribute('stroke-dasharray'));
+        expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('Know-nothing baseline').closest('li').querySelector('line'))
+            .toHaveAttribute('stroke-dasharray', '5 4');
+    });
+
     it('names each model in its legend in the page\'s text, beside a swatch of its line', () => {
         draw();
 
@@ -123,7 +134,52 @@ describe('a record that is not in', () => {
     });
 });
 
-describe('the tooltip', () => {
+describe('the panel (#251)', () => {
+    afterEach(wideScreen);
+
+    it('is one slim line under the chart on a wide screen, on the latest day, and draws no box over the chart', () => {
+        const { container } = draw();
+        const panel = container.querySelector('.model-chart').nextElementSibling;
+
+        expect(panel).toHaveClass('model-readout', 'model-readout-line');
+        expect(panel).toHaveTextContent('Thu, Sep 3, 2026');
+        expect(container.querySelector('.recharts-tooltip-wrapper .model-tip')).toBeNull();
+    });
+
+    it('marks each model in its color, and the baseline dashed in gray', () => {
+        const { container } = draw();
+        const rows = [...container.querySelectorAll('.model-tip-row')];
+        const baseline = rows.find((row) => row.textContent.startsWith('Know-nothing baseline'));
+
+        expect(rows.map((row) => row.querySelector('line').getAttribute('stroke')).slice(0, 2).sort())
+            .toEqual([COMPARE_COLORS[0], COMPARE_COLORS[2]].sort());
+        expect(baseline.querySelector('line')).toHaveAttribute('stroke-dasharray', '5 4');
+    });
+
+    it('is not drawn while a record is on its way', () => {
+        const { container } = draw({ records: { 'pt-gnn': trackOf(3), tables: undefined } });
+
+        expect(container.querySelector('.model-readout')).toBeNull();
+    });
+
+    it('opens on a phone only for the day tapped, and closes on a second tap', () => {
+        phoneScreen();
+
+        const { container } = draw();
+        const chart = container.querySelector('.recharts-wrapper');
+
+        expect(container.querySelector('.model-readout')).toBeNull();
+
+        tapAt(chart, 300);
+
+        expect(container.querySelector('.model-readout')).not.toHaveClass('model-readout-line');
+        expect(container.querySelector('.model-readout')).toHaveTextContent('Wed, Sep 2, 2026');
+
+        tapAt(chart, 300);
+
+        expect(container.querySelector('.model-readout')).toBeNull();
+    });
+
     it('lists the models best first, with the baseline under them', () => {
         const { container } = draw({
             records: { 'pt-gnn': trackOf(1, '2026-09-01', () => 1.7), tables: trackOf(1, '2026-09-01', () => 1.5) },
@@ -133,7 +189,7 @@ describe('the tooltip', () => {
 
         const names = [...container.querySelectorAll('.model-tip-name')].map((name) => name.textContent);
 
-        expect(names).toEqual(['tables (1 days)', 'pt-gnn (1 days)', 'Baseline']);
+        expect(names).toEqual(['tables (1 days)', 'pt-gnn (1 days)', 'Know-nothing baseline']);
         expect(container.querySelector('.model-tip-title')).toHaveTextContent('Tue, Sep 1, 2026');
     });
 
@@ -177,7 +233,7 @@ describe('the tooltip', () => {
 
         pointAt(container.querySelector('.recharts-wrapper'), 300);
 
-        expect([...container.querySelectorAll('.model-tip-name')].map((name) => name.textContent)).not.toContain('Baseline');
+        expect([...container.querySelectorAll('.model-tip-name')].map((name) => name.textContent)).not.toContain('Know-nothing baseline');
     });
 });
 

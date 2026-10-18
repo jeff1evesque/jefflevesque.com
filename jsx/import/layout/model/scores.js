@@ -66,6 +66,25 @@ export const COMPARE_COLORS = colors_categorical.slice(0, COMPARE_MAX);
 const BETTER = { light: '#1c5cab', dark: '#86b6ef' };
 const WORSE = { light: '#d03b3b', dark: '#e66767' };
 
+//
+// the live version, in the green of a Live model's pill -- '$green-6', and a
+// darker green on a dark page, where the pill's would sit too near the red --
+// and the know-nothing baseline in amber, dashed. Checked as a set with better
+// and worse, since any two of the four may meet on the attempts chart: apart
+// under each kind of colorblindness and to a full-color eye. By day the
+// baseline's amber is under 3:1 on the page, and is read beside its legend and
+// the table of numbers rather than alone
+//
+const LIVE = { light: '#237616', dark: '#4a993e' };
+const BASELINE = { light: '#c98500', dark: '#eda100' };
+
+//
+// how long each attempt took, in the charts' teal, which no other part of the
+// page draws: a color already meaning better, worse, live or the baseline
+// would say so of a bar too
+//
+const TOOK = { light: '#1baf7a', dark: '#199e70' };
+
 export const STATUSES = [
     { key: 'live', label: 'Live' },
     { key: 'new', label: 'New' },
@@ -210,9 +229,21 @@ export function liveKind(kind) {
     return LIVE_KINDS[kind] || '';
 }
 
+//
+// the know-nothing baseline's dashes, on every chart and in every legend and
+// panel: drawn solid, it read as a second model beside the live version
+//
+export const BASELINE_DASH = '5 4';
+
+//
+// how much of its bar's color the scoring on top of an attempt's training takes
+//
+export const SCORING_OPACITY = 0.4;
+
 /**
  * the colors every chart draws in, for `theme`: its text and muted gray, its
- * grid and its page, and better and worse.
+ * grid and its page, better and worse, the live version and the baseline, and
+ * how long an attempt took.
  */
 export function chartColors(theme) {
     const shade = themeColors(theme);
@@ -225,6 +256,9 @@ export function chartColors(theme) {
         page: shade['white-1'],
         better: dark ? BETTER.dark : BETTER.light,
         worse: dark ? WORSE.dark : WORSE.light,
+        live: dark ? LIVE.dark : LIVE.light,
+        baseline: dark ? BASELINE.dark : BASELINE.light,
+        took: dark ? TOOK.dark : TOOK.light,
     };
 }
 
@@ -265,12 +299,17 @@ export function longDay(day) {
 }
 
 /**
- * a duration in seconds, to the whole second, as the pages print it: '52 s',
+ * a duration in seconds, as the pages print it: '1.3 s' to a tenth under ten
+ * seconds, as the history keeps it, and to the whole second past them, '52 s',
  * '8 min 52 s', '1 h 0 min 5 s'. Nothing where there is none.
  */
 export function formatDuration(seconds) {
     if (!finite(seconds) || seconds < 0) {
         return '';
+    }
+
+    if (seconds < 9.95) {
+        return `${seconds.toFixed(1)} s`;
     }
 
     const whole = Math.round(seconds);
