@@ -12,7 +12,7 @@ own between any of them.
 | [Knowledge graph](knowledge-graph.md) | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` |
 | [Knowledge graph tables](knowledge-graph.md#response-the-tables) | `https://api.jefflevesque.com/v1/public/knowledge-graph/tables/<question>` | `/graph/retrieval` — see below |
 | [Model](model.md) | `https://api.jefflevesque.com/v1/public/model` | `/model`, `/model/:model` |
-| [Account](account.md) | `https://api.jefflevesque.com/v1/private/account` | `/stream/:stream/alarm`, `/stream`, `/:user/settings` |
+| [Account](account.md) | `https://api.jefflevesque.com/v1/private/notifications` | `/stream/:stream/alarm`, `/stream`, `/:user/settings` |
 
 ## What they share
 
