@@ -19,13 +19,14 @@ jest.mock('../../import/layout/model/source.js', () => ({
 }));
 
 import React from 'react';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
 import ModelLayout, { linkedCompare, writeCompare } from '../../import/layout/model.jsx';
 import { loadListing, loadReport } from '../../import/layout/model/source.js';
 import { COMPARE_COLORS } from '../../import/layout/model/scores.js';
+import { readLayout, writeLayout } from '../../import/general/layout-preference.js';
 import { listingOf, modelOf, phoneScreen, trackOf, wideScreen } from '../../test-support/model-fixtures.js';
 
 function deferred() {
@@ -80,6 +81,8 @@ beforeEach(() => {
     loadListing.mockReset();
     loadReport.mockReset();
     at('/model');
+    // the filters' fold and width are kept, as a reader's are (#253)
+    window.localStorage.clear();
 });
 
 describe('linkedCompare', () => {
@@ -413,6 +416,175 @@ describe('the filters', () => {
         expect(heading).toHaveAttribute('aria-expanded', 'false');
 
         await userEvent.click(heading);
+
+        expect(filters()).toHaveClass('model-filters-open');
+    });
+});
+
+describe('the filters, dragged and kept (#253)', () => {
+    afterEach(wideScreen);
+
+    function filters() {
+        return screen.getByRole('complementary', { name: 'Filters' });
+    }
+
+    const grip = () => filters().querySelector('.model-filters-grip');
+    const width = () => filters().style.getPropertyValue('--model-filters-width');
+
+    //
+    // jsdom implements no PointerEvent, so testing-library cannot carry clientX
+    // on one. A MouseEvent of the same type can -- see graph.test.jsx
+    //
+    function pointer(type, target, init = {}) {
+        fireEvent(target, new MouseEvent(type, { bubbles: true, cancelable: true, ...init }));
+    }
+
+    //
+    // the column at its own 14rem, as a wide screen lays it out and jsdom does
+    // not
+    //
+    function sized(px = 196) {
+        Object.defineProperty(filters(), 'offsetWidth', { value: px, configurable: true });
+    }
+
+    async function dragFrom(x) {
+        answer();
+        const view = await open();
+
+        sized();
+        pointer('pointerdown', grip(), { clientX: x, button: 0 });
+
+        return view;
+    }
+
+    it('draw a strip on the open column\'s edge to drag it by, and none while it is folded', async () => {
+        answer();
+        await open();
+
+        expect(grip()).toHaveAttribute('aria-hidden', 'true');
+
+        await userEvent.click(within(filters()).getByRole('button', { name: 'Collapse the filters' }));
+
+        expect(grip()).toBeNull();
+    });
+
+    it('follow a drag wider or narrower, and keep the width once the pointer comes up', async () => {
+        await dragFrom(300);
+
+        pointer('pointermove', window, { clientX: 384 });
+
+        expect(width()).toBe('280px');
+        expect(readLayout('model', 'wide').size).toEqual({});
+
+        pointer('pointerup', window);
+
+        expect(readLayout('model', 'wide')).toEqual({ fold: { filters: false }, size: { filters: 280 } });
+    });
+
+    it('stop at 10rem and at 22rem', async () => {
+        await dragFrom(300);
+
+        pointer('pointermove', window, { clientX: 600 });
+        expect(width()).toBe('308px');
+
+        pointer('pointermove', window, { clientX: 250 });
+        expect(width()).toBe('146px');
+
+        pointer('pointermove', window, { clientX: 196 });
+        expect(width()).toBe('140px');
+        expect(filters()).toHaveClass('model-filters-open');
+
+        pointer('pointerup', window);
+
+        expect(readLayout('model', 'wide').size).toEqual({ filters: 140 });
+    });
+
+    it('fold into the rail once dragged more than 48px past 10rem, keep the fold, and follow the pointer no further', async () => {
+        await dragFrom(300);
+
+        pointer('pointermove', window, { clientX: 195 });
+
+        expect(filters()).toHaveClass('model-filters-closed');
+        expect(readLayout('model', 'wide')).toEqual({ fold: { filters: true }, size: {} });
+
+        pointer('pointermove', window, { clientX: 600 });
+
+        expect(filters()).toHaveClass('model-filters-closed');
+    });
+
+    it('start no drag from a button other than the main one', async () => {
+        await dragFrom(300);
+        pointer('pointerup', window);
+
+        pointer('pointerdown', grip(), { clientX: 300, button: 2 });
+        pointer('pointermove', window, { clientX: 384 });
+
+        expect(width()).toBe('');
+    });
+
+    it('stop following the pointer when the page goes mid-drag', async () => {
+        const removed = jest.spyOn(window, 'removeEventListener');
+        const { unmount } = await dragFrom(300);
+
+        unmount();
+
+        expect(removed).toHaveBeenCalledWith('pointermove', expect.any(Function));
+        expect(removed).toHaveBeenCalledWith('pointerup', expect.any(Function));
+
+        removed.mockRestore();
+    });
+
+    it('open at the width this browser kept, and at their own where it kept one outside 10rem to 22rem', async () => {
+        writeLayout('model', 'wide', { fold: {}, size: { filters: 280 } });
+        answer();
+
+        const { unmount } = await open();
+
+        expect(width()).toBe('280px');
+
+        unmount();
+        writeLayout('model', 'wide', { fold: {}, size: { filters: 400 } });
+        answer();
+        await open();
+
+        expect(width()).toBe('');
+        expect(filters()).toHaveClass('model-filters-open');
+    });
+
+    it('keep a fold by the arrow or the heading, and open folded on the next visit', async () => {
+        answer();
+
+        const { unmount } = await open();
+
+        await userEvent.click(within(filters()).getByRole('button', { name: 'Collapse the filters' }));
+
+        expect(readLayout('model', 'wide').fold).toEqual({ filters: true });
+
+        unmount();
+        answer();
+        await open();
+
+        expect(filters()).toHaveClass('model-filters-closed');
+
+        await userEvent.click(within(filters()).getByRole('button', { name: /^Filters/ }));
+
+        expect(readLayout('model', 'wide').fold).toEqual({ filters: false });
+    });
+
+    it('keep a phone\'s band opened or folded, apart from a wide screen\'s column', async () => {
+        phoneScreen();
+        answer();
+
+        const { unmount } = await open();
+
+        await userEvent.click(within(filters()).getByRole('button', { name: 'Filters 4 models' }));
+
+        expect(readLayout('model', 'narrow').fold).toEqual({ filters: false });
+        expect(readLayout('model', 'wide').fold).toEqual({});
+
+        unmount();
+        answer();
+        await open();
 
         expect(filters()).toHaveClass('model-filters-open');
     });

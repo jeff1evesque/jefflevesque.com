@@ -1,7 +1,7 @@
 /**
  * parts.test.jsx: what both model pages draw alike (#243): the score picker, a
- * model's status, a legend's marks, a panel's day and how it is chosen, and a
- * chart's table.
+ * model's status, a legend's marks, a panel's day and how it is chosen, a
+ * chart's table, and a chart's title that folds it, with the folds it keeps.
  */
 
 import React from 'react';
@@ -9,6 +9,7 @@ import { act, render, renderHook, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 
 import {
+    FoldTitle,
     Legend,
     Mark,
     NoBox,
@@ -19,9 +20,11 @@ import {
     TipBox,
     axisStyle,
     isPhone,
+    useFolds,
     usePanelDay,
     usePhone,
 } from '../../../import/layout/model/parts.jsx';
+import { readLayout, writeLayout } from '../../../import/general/layout-preference.js';
 import { modelOf, phoneScreen, wideScreen } from '../../../test-support/model-fixtures.js';
 
 describe('ScorePicker', () => {
@@ -337,6 +340,85 @@ describe('Numbers', () => {
         expect(headers[1]).not.toHaveClass('model-numbers-text');
         expect(cells.map((cell) => cell.textContent)).toEqual(['Oct 2', '1.6', 'Oct 1', '1.7']);
         expect(cells[0]).toHaveClass('model-numbers-text');
+    });
+});
+
+describe('FoldTitle (#253)', () => {
+    it('is a heading holding a button in the heading\'s words, which says the chart is open', () => {
+        render(<FoldTitle as='h5' id='model-track-title' title='Track record' folded={false} onFold={() => {}} />);
+
+        const heading = screen.getByRole('heading', { level: 5, name: 'Track record' });
+
+        expect(heading).toHaveAttribute('id', 'model-track-title');
+        expect(heading).toHaveClass('model-fold-title');
+        expect(within(heading).getByRole('button', { name: 'Track record' })).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('is a small heading by default, wearing the class it is given, and says when the chart is folded', () => {
+        render(<FoldTitle className='model-card-minor' title='How long each attempt took' folded onFold={() => {}} />);
+
+        const heading = screen.getByRole('heading', { level: 6 });
+
+        expect(heading.className).toBe('model-fold-title model-card-minor');
+        expect(within(heading).getByRole('button')).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('hands up a click, and a key on it', async () => {
+        const onFold = jest.fn();
+
+        render(<FoldTitle title='Track record' folded={false} onFold={onFold} />);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Track record' }));
+        await userEvent.keyboard('{Enter}');
+
+        expect(onFold).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('useFolds (#253)', () => {
+    beforeEach(() => window.localStorage.clear());
+    afterEach(wideScreen);
+
+    const fold = (hook, name) => act(() => hook.result.current[1](name));
+
+    it('folds nothing on a first visit', () => {
+        expect(renderHook(() => useFolds('model-page')).result.current[0]).toEqual({});
+    });
+
+    it('folds a chart and opens it again, keeping each for the next visit', () => {
+        const hook = renderHook(() => useFolds('model-page'));
+
+        fold(hook, 'took');
+
+        expect(hook.result.current[0]).toEqual({ took: true });
+        expect(readLayout('model-page', 'wide').fold).toEqual({ took: true });
+        expect(renderHook(() => useFolds('model-page')).result.current[0]).toEqual({ took: true });
+
+        fold(hook, 'took');
+
+        expect(hook.result.current[0]).toEqual({ took: false });
+        expect(readLayout('model-page', 'wide').fold).toEqual({ took: false });
+    });
+
+    it('keeps a phone\'s folds apart from a wide screen\'s', () => {
+        phoneScreen();
+
+        fold(renderHook(() => useFolds('model-page')), 'gap');
+
+        expect(readLayout('model-page', 'narrow').fold).toEqual({ gap: true });
+        expect(readLayout('model-page', 'wide').fold).toEqual({});
+    });
+
+    it('leaves the folds another card keeps under the same name, and the sizes beside them, as they were', () => {
+        writeLayout('model-page', 'wide', { fold: {}, size: { notes: 200 } });
+
+        const attempts = renderHook(() => useFolds('model-page'));
+        const track = renderHook(() => useFolds('model-page'));
+
+        fold(attempts, 'attempts');
+        fold(track, 'track');
+
+        expect(readLayout('model-page', 'wide')).toEqual({ fold: { attempts: true, track: true }, size: { notes: 200 } });
     });
 });
 

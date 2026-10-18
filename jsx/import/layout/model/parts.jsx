@@ -12,6 +12,7 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { BASELINE_DASH, SCORES, SCORING_OPACITY, statusOf, statusLabel } from './scores.js';
+import { readLayout, writeLayout } from '../../general/layout-preference.js';
 
 /**
  * the four scores, as buttons where there is room for them and a menu on a
@@ -234,6 +235,57 @@ export function usePanelDay(latest) {
 
     return { phone: phone, events: events, dayFor: dayFor };
 }
+
+/**
+ * which of a page's sections the reader has folded, kept between visits as
+ * every other page keeps how it was arranged -- see layout-preference.js -- and
+ * apart on a phone and a wide screen, as /graph keeps its columns.
+ *
+ * `toggle(name)` folds or opens one. It reads what is stored before it writes,
+ * so two parts of a page keeping folds under one `surface` -- the model page's
+ * two cards -- do not write over each other's.
+ */
+export function useFolds(surface) {
+    const variant = isPhone() ? 'narrow' : 'wide';
+    const [folds, setFolds] = useState(() => readLayout(surface, variant).fold);
+
+    const toggle = (name) => {
+        const stored = readLayout(surface, variant);
+        const next = { ...stored.fold, [name]: !folds[name] };
+
+        writeLayout(surface, variant, { fold: next, size: stored.size });
+        setFolds({ ...folds, [name]: next[name] });
+    };
+
+    return [folds, toggle];
+}
+
+/**
+ * a section's title, which folds the section away and opens it again: a
+ * chevron before the words, pointing down while it is open and right while it
+ * is folded, as /graph's columns' headings do.
+ *
+ * The button is inside the heading rather than in place of it, so a folded
+ * section is still in the page's outline -- see graph.jsx's panel.
+ */
+export function FoldTitle({ as: Heading = 'h6', id = undefined, className = '', title, folded, onFold }) {
+    return (
+        <Heading id={id} className={`model-fold-title${className ? ` ${className}` : ''}`}>
+            <button type='button' className='model-fold' aria-expanded={!folded} onClick={onFold}>
+                {title}
+            </button>
+        </Heading>
+    );
+}
+
+FoldTitle.propTypes = {
+    as: PropTypes.string,
+    id: PropTypes.string,
+    className: PropTypes.string,
+    title: PropTypes.node.isRequired,
+    folded: PropTypes.bool.isRequired,
+    onFold: PropTypes.func.isRequired,
+};
 
 /**
  * a chart's tooltip, which draws no box -- the panel under the chart holds the

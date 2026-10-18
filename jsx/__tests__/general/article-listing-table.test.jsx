@@ -212,6 +212,39 @@ describe('the table', () => {
     });
 });
 
+describe('a row still loading', () => {
+    //
+    // the name cell of the row named `name`
+    //
+    function nameCell(name) {
+        return [...document.querySelectorAll('.listing-table tbody th')].find((th) => th.textContent === name);
+    }
+
+    it('draws its name and its loading dot as one run of text, the name cell\'s only child (#253)', () => {
+        setup({
+            list_article: [
+                { ...ROWS[0], loader: <span className='dot' /> },
+                ROWS[1],
+            ],
+        });
+
+        const cell = nameCell('S&P 500');
+
+        expect(cell.children).toHaveLength(1);
+        expect(cell.firstElementChild).toHaveClass('listing-table-name-text');
+        expect(cell.firstElementChild.firstChild.textContent).toBe('S&P 500');
+        expect(cell.firstElementChild.lastElementChild).toHaveClass('listing-table-loader');
+        expect(cell.querySelector('.listing-table-loader .dot')).not.toBeNull();
+    });
+
+    it('draws no dot for a row that is not loading', () => {
+        setup({ list_article: [{ ...ROWS[0], loader: null }, ROWS[1]] });
+
+        expect(document.querySelector('.listing-table-loader')).toBeNull();
+        expect(nameCell('Stock Splits').firstElementChild).toHaveClass('listing-table-name-text');
+    });
+});
+
 describe('the title row', () => {
     //
     // a page can put a control of its own at the end of the row -- the Filter,

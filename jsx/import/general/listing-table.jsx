@@ -452,8 +452,18 @@ class ListingTable extends Component {
                     </td>
                 ) : null}
                 <th scope='row' className='listing-table-name'>
-                    {name}
-                    {row.loader ? <span className='listing-table-loader'>{row.loader}</span> : null}
+                    {/*
+
+                        the name and its loading dot as one run of text (#253):
+                        a phone's name cell is a flex box, which made the dot a
+                        box of its own, centered on the name, so it hung from
+                        the name's middle rather than its top
+
+                    */}
+                    <span className='listing-table-name-text'>
+                        {name}
+                        {row.loader ? <span className='listing-table-loader'>{row.loader}</span> : null}
+                    </span>
                 </th>
                 {columns.map((column) => {
                     const value = row.detail[column.key];
