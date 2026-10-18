@@ -10,18 +10,23 @@
  *     a hollow dot      one kept back
  *     a diamond         a weekly retrain, filled or hollow the same way
  *
- * with the know-nothing baseline as a line. The second draws, for the same
- * nights, how far each attempt beat or missed the live version: a bar up in the
- * site's blue where it was better, and down in its red where it was worse.
+ * with the live version's line in green and the know-nothing baseline's dashed
+ * in amber (#251). The second draws, for the same nights, how far each attempt
+ * beat or missed the live version: a bar up in the site's blue where it was
+ * better, and down in its red where it was worse.
  *
  * The third draws how long each attempt took (#247): a bar of its training, with
- * the scoring after it stacked on top. A weekly retrain's bar is in the gray of
- * its diamond, so a long retrain does not read as a nightly update gone wrong.
- * The trainer has kept these times since 2026-10-15, so an older night has no
- * bar, and the chart is left out while no night has one.
+ * the scoring after it stacked on top as a lighter teal. Its axis is in seconds,
+ * minutes or hours, by its longest night (#251), and the line under its title
+ * says why a weekly retrain's bar stands taller. The trainer has kept these
+ * times since 2026-10-15, so an older night has no bar, and the chart is left
+ * out while no night has one.
  *
- * The charts share their days, and pointing at any of them shows the night on
- * them all.
+ * A night's numbers are in a panel under each chart rather than a box over it
+ * (#251): on a wide screen a slim line across the chart, on the latest night
+ * until the reader points at another, and on a phone a panel of rows that opens
+ * for the night tapped. The charts share their nights, so pointing at any of
+ * them marks the night on all three, and moves all three panels to it.
  *
  * Note: what goes live is decided by loss alone. On another score, an attempt
  *       kept back can still be better than the live version, and the chart
@@ -45,8 +50,10 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { Legend, Mark, Numbers, TipBox, axisStyle } from './parts.jsx';
+import { Legend, Mark, NoBox, Numbers, Readout, axisStyle, usePanelDay } from './parts.jsx';
 import {
+    BASELINE_DASH,
+    SCORING_OPACITY,
     betterBy,
     chartColors,
     formatDuration,
@@ -76,13 +83,10 @@ const TOOK_HEIGHT = 140;
 const SYNC = 'model-attempts';
 
 //
-// how much of its bar's color the scoring on top of the training takes
+// the axis of how long each attempt took is in seconds until its longest night
+// passes two minutes, and in hours once it passes two hours
 //
-const SCORING_OPACITY = 0.4;
-
-//
-// past two hours, the axis of how long each attempt took is in hours
-//
+const MINUTES_PAST = 2 * 60;
 const HOURS_PAST = 2 * 60 * 60;
 
 /**
@@ -167,13 +171,46 @@ function tookOf(point) {
 }
 
 /**
- * the unit of the axis of how long each attempt took: minutes, or hours once the
- * longest night of `points` passes two of them.
+ * the unit of the axis of how long each attempt took: seconds, minutes once the
+ * longest night of `points` passes two of them, or hours once it passes two
+ * hours. A model whose attempts take seconds would draw bars no taller than a
+ * line on an axis of whole minutes.
  */
 export function durationUnit(points) {
     const longest = Math.max(0, ...points.map((point) => tookOf(point) || 0));
 
-    return longest > HOURS_PAST ? { seconds: 60 * 60, label: 'h' } : { seconds: 60, label: 'min' };
+    if (longest > HOURS_PAST) {
+        return { seconds: 60 * 60, label: 'h' };
+    }
+
+    return longest > MINUTES_PAST ? { seconds: 60, label: 'min' } : { seconds: 1, label: 's' };
+}
+
+/**
+ * what became of a night's attempt, in words: whether it went live, and why --
+ * by loss, whichever score is on screen.
+ */
+export function outcome(point) {
+    if (point.went_live) {
+        return point.live === null
+            ? 'Went live: the model’s first version'
+            : 'Went live: its loss was no higher than the live version’s';
+    }
+
+    return 'Kept back: its loss was higher than the live version’s';
+}
+
+/**
+ * the mark a night's attempt is drawn with, as the legend and a panel draw it
+ * too: a dot for a nightly update and a diamond for a weekly retrain, filled
+ * where it went live and hollow where it was kept back.
+ */
+export function attemptKind(point) {
+    if (point.kind === 'weekly') {
+        return point.went_live ? 'diamond' : 'hollow';
+    }
+
+    return point.went_live ? 'dot' : 'ring';
 }
 
 //
@@ -199,74 +236,80 @@ function AttemptsChart({ rows, score }) {
     const inUnit = (seconds) => (seconds === null ? null : seconds / unit.seconds);
 
     //
-    // a night's bar in the ink of the page, or a weekly retrain's in its
-    // diamond's gray
+    // the night each chart's panel shows: one night for all three on a wide
+    // screen, the latest until the reader points at another, and on a phone the
+    // night tapped on one of them -- see usePanelDay
     //
-    const toneOf = (point) => (point.kind === 'weekly' ? colors.muted : colors.ink);
+    const panel = usePanelDay(points.length ? points[points.length - 1].day : null);
 
-    const tip = ({ active, label: day }) => {
+    //
+    // what a chart's panel says of a night: the night, what that chart draws of
+    // it, in words, and what became of the attempt
+    //
+    const tipOf = (chart, day) => {
         const point = points.find((each) => each.day === day);
 
-        if (!active || !point) {
+        if (!point) {
             return null;
         }
 
-        const stands = standing(point.gap, score);
-        const tipRows = [
-            {
-                key: 'attempt',
-                mark: <Mark kind={point.kind === 'weekly' ? 'diamond' : (point.went_live ? 'dot' : 'ring')} color={point.went_live ? colors.better : colors.worse} />,
-                name: 'Attempt',
-                value: formatScore(point.attempt, score),
-            },
-            { key: 'live', mark: <Mark kind='line' color={colors.ink} />, name: 'Live version', value: formatScore(point.live, score) },
-            { key: 'baseline', mark: <Mark kind='line' color={colors.muted} />, name: 'Baseline', value: formatScore(point.baseline, score) },
-        ];
+        const title = `${longDay(point.day)} · ${point.kind === 'weekly' ? 'weekly retrain' : 'nightly update'}`;
+        let tipRows;
+        let foot = outcome(point);
 
-        if (point.gap !== null) {
-            tipRows.push({
+        if (chart === 'attempts') {
+            tipRows = [
+                {
+                    key: 'attempt',
+                    mark: <Mark kind={attemptKind(point)} color={point.went_live ? colors.better : colors.worse} />,
+                    name: 'This attempt',
+                    value: formatScore(point.attempt, score),
+                },
+                ...(point.live === null ? [] : [
+                    { key: 'live', mark: <Mark kind='line' color={colors.live} />, name: 'Live version', value: formatScore(point.live, score) },
+                ]),
+                { key: 'baseline', mark: <Mark kind='dashed' color={colors.baseline} />, name: 'Know-nothing baseline', value: formatScore(point.baseline, score) },
+            ];
+        } else if (chart === 'gap') {
+            const stands = standing(point.gap, score);
+
+            tipRows = [{
                 key: 'gap',
-                mark: stands === 'level' ? null : <Mark kind='bar' color={stands === 'better' ? colors.better : colors.worse} />,
-                name: stands === 'level' ? 'Level with the live version' : (stands === 'better' ? 'Better by' : 'Worse by'),
-                value: stands === 'level' ? null : formatGap(point.gap, score),
-            });
-        }
-
-        if (tookOf(point) !== null) {
+                mark: point.gap === null || stands === 'level' ? null : <Mark kind='bar' color={stands === 'better' ? colors.better : colors.worse} />,
+                name: point.gap === null
+                    ? 'No live version to compare with'
+                    : (stands === 'level' ? 'Level with the live version' : `${formatGap(point.gap, score)} ${stands} than the live version`),
+                value: null,
+            }];
+        } else if (tookOf(point) === null) {
+            tipRows = [];
+            foot = 'No times: they are kept from Oct 15, 2026 on';
+        } else {
             const started = formatStarted(point.started);
 
-            //
-            // each half kept whole, so a narrow tooltip, or a night of hours,
-            // breaks the line between them rather than inside a duration
-            //
-            tipRows.push({
-                key: 'took',
-                mark: <Mark kind='bar' color={toneOf(point)} />,
-                name: (
-                    <>
-                        <span className='model-tip-whole'>{`Took ${formatDuration(tookOf(point))}`}</span>
-                        {' '}
-                        <span className='model-tip-whole'>{`(training ${formatDuration(point.training)})`}</span>
-                    </>
-                ),
-                value: null,
-            });
-
-            if (started) {
-                tipRows.push({ key: 'started', mark: null, name: `Started ${started}`, value: null });
-            }
+            tipRows = [
+                { key: 'training', mark: <Mark kind='bar' color={colors.took} />, name: 'Training', value: formatDuration(point.training) },
+                { key: 'scoring', mark: <Mark kind='fade' color={colors.took} />, name: 'Scoring', value: formatDuration(point.scoring) },
+            ];
+            foot = `${formatDuration(tookOf(point))} in all${started ? `, started ${started}` : ''}`;
         }
 
-        const result = point.went_live ? 'Went live' : 'Kept back';
-
-        return (
-            <TipBox
-                title={`${longDay(point.day)} · ${point.kind === 'weekly' ? 'weekly retrain' : 'nightly update'}`}
-                rows={tipRows}
-                foot={score === 'loss' ? result : `${result} (decided by loss)`}
-            />
-        );
+        return { title: title, rows: tipRows, foot: foot };
     };
+
+    const readout = (chart) => <Readout tip={tipOf(chart, panel.dayFor(chart))} line={!panel.phone} />;
+
+    //
+    // the legend's marks: each one the chart draws, as it draws it, and only
+    // those it draws
+    //
+    const drawn = (kind) => points.some((point) => point.attempt !== null && attemptKind(point) === kind);
+    const attemptItems = [
+        { key: 'went', kind: 'dot', color: colors.better, label: 'Attempt went live' },
+        { key: 'kept', kind: 'ring', color: colors.worse, label: 'Attempt kept back' },
+        { key: 'weekly-went', kind: 'diamond', color: colors.better, label: 'Weekly retrain, went live' },
+        { key: 'weekly-kept', kind: 'hollow', color: colors.worse, label: 'Weekly retrain, kept back' },
+    ].filter((item) => drawn(item.kind));
 
     return (
         <section className='model-card model-attempts' aria-labelledby='model-attempts-title'>
@@ -278,11 +321,11 @@ function AttemptsChart({ rows, score }) {
                 </p>
                 <Legend
                     items={[
-                        { key: 'live', kind: 'line', color: colors.ink, label: 'Live version' },
-                        { key: 'went', kind: 'dot', color: colors.better, label: 'Attempt went live' },
-                        { key: 'kept', kind: 'ring', color: colors.worse, label: 'Attempt kept back' },
-                        { key: 'weekly', kind: 'diamond', color: colors.muted, label: 'Weekly retrain' },
-                        { key: 'baseline', kind: 'line', color: colors.muted, label: 'Know-nothing baseline' },
+                        ...(points.some((point) => point.live !== null)
+                            ? [{ key: 'live', kind: 'line', color: colors.live, label: 'Live version' }]
+                            : []),
+                        { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
+                        ...attemptItems,
                     ]}
                 />
             </div>
@@ -292,7 +335,7 @@ function AttemptsChart({ rows, score }) {
                 aria-label={`${label} of ${rows.length} nightly attempts and the live version. ${went} went live. The numbers are in the table below.`}
             >
                 <ResponsiveContainer width='100%' height={HEIGHT}>
-                    <ComposedChart data={points} syncId={SYNC} margin={{ top: 12, right: 12, bottom: 4, left: 0 }}>
+                    <ComposedChart data={points} syncId={SYNC} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events('attempts')}>
                         <CartesianGrid stroke={colors.grid} vertical={false} />
                         <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={24} {...axisStyle(colors)} />
                         <YAxis
@@ -302,9 +345,9 @@ function AttemptsChart({ rows, score }) {
                             tickFormatter={(value) => formatTick(value, score)}
                             {...axisStyle(colors)}
                         />
-                        <Tooltip content={tip} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
-                        <Line dataKey='baseline' stroke={colors.muted} strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                        <Line dataKey='live' stroke={colors.ink} strokeWidth={2} dot={false} isAnimationActive={false} />
+                        <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
+                        <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={BASELINE_DASH} dot={false} isAnimationActive={false} />
+                        <Line dataKey='live' stroke={colors.live} strokeWidth={2} dot={false} isAnimationActive={false} />
                         <Scatter
                             dataKey='attempt'
                             isAnimationActive={false}
@@ -313,6 +356,7 @@ function AttemptsChart({ rows, score }) {
                     </ComposedChart>
                 </ResponsiveContainer>
             </div>
+            {readout('attempts')}
             <h6 className='model-card-minor'>Better or worse than the live version</h6>
             <Legend
                 label='Legend, better or worse'
@@ -334,7 +378,7 @@ function AttemptsChart({ rows, score }) {
                 aria-label={`How much better or worse each attempt scored than the live version on ${label}. ${points.filter((point) => standing(point.gap, score) === 'better').length} of ${rows.length} were better.`}
             >
                 <ResponsiveContainer width='100%' height={GAP_HEIGHT}>
-                    <BarChart data={points} syncId={SYNC} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
+                    <BarChart data={points} syncId={SYNC} margin={{ top: 8, right: 12, bottom: 4, left: 0 }} {...panel.events('gap')}>
                         <CartesianGrid stroke={colors.grid} vertical={false} />
                         <XAxis dataKey='day' hide />
                         <YAxis
@@ -345,7 +389,7 @@ function AttemptsChart({ rows, score }) {
                             tickFormatter={(value) => formatSignedTick(value, score)}
                             {...axisStyle(colors)}
                         />
-                        <Tooltip content={tip} cursor={{ fill: colors.grid, fillOpacity: 0.4 }} />
+                        <Tooltip content={NoBox} cursor={{ fill: colors.grid, fillOpacity: 0.4 }} />
                         <ReferenceLine y={0} stroke={colors.muted} />
                         <Bar dataKey='gap' maxBarSize={24} radius={2} isAnimationActive={false}>
                             {points.map((point) => (
@@ -359,18 +403,26 @@ function AttemptsChart({ rows, score }) {
                     </BarChart>
                 </ResponsiveContainer>
             </div>
+            {readout('gap')}
             {timed.length
                 ? (
                     <>
                         <h6 className='model-card-minor'>How long each attempt took</h6>
-                        <p className='model-card-sub'>Times are kept from 2026-10-15 on.</p>
+                        <p className='model-card-sub'>A weekly retrain starts from scratch, so it takes longer than a nightly update. Times are kept from 2026-10-15 on.</p>
+                        <Legend
+                            label='Legend, how long each attempt took'
+                            items={[
+                                { key: 'training', kind: 'bar', color: colors.took, label: 'Training' },
+                                { key: 'scoring', kind: 'fade', color: colors.took, label: 'Scoring, the lighter top' },
+                            ]}
+                        />
                         <div
                             className='model-chart model-chart-took'
                             role='img'
                             aria-label={`How long each attempt took, training and then scoring, on the ${timed.length} ${timed.length === 1 ? 'night' : 'nights'} with times. The longest took ${formatDuration(Math.max(...timed.map(tookOf)))}.`}
                         >
                             <ResponsiveContainer width='100%' height={TOOK_HEIGHT}>
-                                <BarChart data={points} syncId={SYNC} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
+                                <BarChart data={points} syncId={SYNC} margin={{ top: 8, right: 12, bottom: 4, left: 0 }} {...panel.events('took')}>
                                     <CartesianGrid stroke={colors.grid} vertical={false} />
                                     <XAxis dataKey='day' hide />
                                     <YAxis
@@ -380,13 +432,13 @@ function AttemptsChart({ rows, score }) {
                                         tickFormatter={(value) => (value ? `${value} ${unit.label}` : '0')}
                                         {...axisStyle(colors)}
                                     />
-                                    <Tooltip content={tip} cursor={{ fill: colors.grid, fillOpacity: 0.4 }} />
+                                    <Tooltip content={NoBox} cursor={{ fill: colors.grid, fillOpacity: 0.4 }} />
                                     <Bar dataKey={(point) => inUnit(point.training)} stackId='took' maxBarSize={24} isAnimationActive={false}>
                                         {points.map((point) => (
                                             <Cell
                                                 key={point.day}
                                                 className={`model-took-bar model-took-training model-took-${point.kind}`}
-                                                fill={toneOf(point)}
+                                                fill={colors.took}
                                             />
                                         ))}
                                     </Bar>
@@ -401,7 +453,7 @@ function AttemptsChart({ rows, score }) {
                                             <Cell
                                                 key={point.day}
                                                 className={`model-took-bar model-took-scoring model-took-${point.kind}`}
-                                                fill={toneOf(point)}
+                                                fill={colors.took}
                                                 fillOpacity={SCORING_OPACITY}
                                             />
                                         ))}
@@ -409,6 +461,7 @@ function AttemptsChart({ rows, score }) {
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
+                        {readout('took')}
                     </>
                 ) : null}
             <Numbers
