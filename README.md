@@ -69,7 +69,7 @@ explains why.
 | Datalake | `https://api.jefflevesque.com/v1/public/datalake` | `/data` | [Datalake](https://jeff1evesque.github.io/jefflevesque.com/api/datalake/) |
 | Knowledge graph | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` | [Knowledge graph](https://jeff1evesque.github.io/jefflevesque.com/api/knowledge-graph/) |
 | Model | `https://api.jefflevesque.com/v1/public/model` | `/model`, `/model/:model` | [Model](https://jeff1evesque.github.io/jefflevesque.com/api/model/) |
-| Account | `https://api.jefflevesque.com/v1/private/account` | `/stream/:stream/alarm`, `/stream`, `/:user/settings` | [Account](https://jeff1evesque.github.io/jefflevesque.com/api/account/) |
+| Account | `https://api.jefflevesque.com/v1/private/notifications` | `/stream/:stream/alarm`, `/stream`, `/:user/settings` | [Account](https://jeff1evesque.github.io/jefflevesque.com/api/account/) |
 
 Each reference page describes the parameters the application sends and the response it
 reads. A public API's has a Swagger UI whose Try it out sends a live request; the account
