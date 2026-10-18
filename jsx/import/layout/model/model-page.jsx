@@ -26,6 +26,7 @@ import PropTypes from 'prop-types';
 import { Link, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
+import FigureBoxes from '../../general/figure-boxes.jsx';
 import AttemptsChart from './attempts-chart.jsx';
 import TrackChart from './track-chart.jsx';
 import { ScorePicker, StatusPill } from './parts.jsx';
@@ -95,6 +96,15 @@ export function liveFigure(model) {
         value: shortDay(model.live.since) || '–',
         detail: `went live after a ${liveKind(model.live.kind)}`,
     };
+}
+
+//
+// a figure's line as a sentence of its note, where a phone has no room for the
+// line under the figure: 'went live after a weekly retrain' as 'Went live after
+// a weekly retrain.', and nothing for no line
+//
+export function sentence(line) {
+    return line ? `${line.charAt(0).toUpperCase()}${line.slice(1)}.` : '';
 }
 
 class ModelPage extends Component {
@@ -193,6 +203,8 @@ class ModelPage extends Component {
         const gap = betterBy(value, baseline, score);
         const stands = standing(gap, score);
         const weekly = Array.isArray(history) ? history.filter((row) => row.kind === 'weekly') : [];
+        const retrains = weekly.length ? `weekly retrains: ${weekly.filter((row) => row.went_live).length} of ${weekly.length}` : '';
+        const went = `${model.attempts.went_live} of ${model.attempts.total}`;
         const place = placeAmong(model, listing.models, task, score);
         const scoreName = statusOf(model) === 'new'
             ? `${scoreOf(score).label}, ${model.scored_days} ${model.scored_days === 1 ? 'day' : 'days'} so far`
@@ -206,27 +218,62 @@ class ModelPage extends Component {
                 : `${formatGap(gap, score)} ${stands} than the baseline, ${formatScore(baseline, score)}`;
         }
 
+        //
+        // the three figures: a card each on a wide screen, and on a phone one
+        // row of /stream's tinted boxes, a name over a value, with the line under
+        // each card's value moved into its box's note -- three cards stacked
+        // took a phone's whole first screen (#253)
+        //
         return (
             <section className='model-summary' aria-label='Summary'>
-                <div className='model-stat'>
-                    <span className='model-stat-label'>Live version</span>
-                    <span className='model-stat-value'>{live.value}</span>
-                    <span className='model-stat-detail'>{live.detail}</span>
+                <div className='model-summary-cards'>
+                    <div className='model-stat'>
+                        <span className='model-stat-label'>Live version</span>
+                        <span className='model-stat-value'>{live.value}</span>
+                        <span className='model-stat-detail'>{live.detail}</span>
+                    </div>
+                    <div className='model-stat'>
+                        <span className='model-stat-label'>Attempts that went live</span>
+                        <span className='model-stat-value'>{went}</span>
+                        <span className='model-stat-detail'>{retrains || 'nightly attempts'}</span>
+                    </div>
+                    <div className='model-stat'>
+                        <span className='model-stat-label'>{scoreName}</span>
+                        <span className='model-stat-value'>{formatScore(value, score)}</span>
+                        <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
+                        {place ? <span className='model-stat-detail'>{place}</span> : null}
+                    </div>
                 </div>
-                <div className='model-stat'>
-                    <span className='model-stat-label'>Attempts that went live</span>
-                    <span className='model-stat-value'>{`${model.attempts.went_live} of ${model.attempts.total}`}</span>
-                    <span className='model-stat-detail'>
-                        {weekly.length
-                            ? `weekly retrains: ${weekly.filter((row) => row.went_live).length} of ${weekly.length}`
-                            : 'nightly attempts'}
-                    </span>
-                </div>
-                <div className='model-stat'>
-                    <span className='model-stat-label'>{scoreName}</span>
-                    <span className='model-stat-value'>{formatScore(value, score)}</span>
-                    <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
-                    {place ? <span className='model-stat-detail'>{place}</span> : null}
+                <div className='model-summary-boxes'>
+                    <FigureBoxes
+                        figures={[
+                            {
+                                key: 'live',
+                                label: 'Live version',
+                                note: sentence(live.detail),
+                                value: live.value,
+                            },
+                            {
+                                key: 'went',
+                                label: 'Attempts that went live',
+                                short: 'Went live',
+                                note: [
+                                    'Of every nightly attempt, how many scored a loss no higher than the live version’s and replaced it.',
+                                    sentence(retrains),
+                                ].filter(Boolean).join(' '),
+                                value: went,
+                                tone: 'total',
+                            },
+                            {
+                                key: 'score',
+                                label: scoreName,
+                                short: scoreOf(score).label,
+                                note: [sentence(against), sentence(place)].filter(Boolean).join(' ') || `The model’s ${scoreOf(score).label.toLowerCase()}.`,
+                                value: formatScore(value, score),
+                                tone: { better: 'good', worse: 'bad' }[stands],
+                            },
+                        ]}
+                    />
                 </div>
             </section>
         );
