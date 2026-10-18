@@ -1,6 +1,6 @@
 # Account
 
-`https://api.jefflevesque.com/v1/private/account`
+`https://api.jefflevesque.com/v1/private/notifications`
 
 A signed-in reader's own data, starting with the ingest alarms they subscribe to:
 
@@ -23,9 +23,9 @@ It is unlike the four public APIs in the ways that matter here:
 
 | Method | Path | What it does |
 |---|---|---|
-| GET | `/v1/private/account/subscriptions` | the reader's subscriptions |
-| PUT | `/v1/private/account/subscriptions/{stream}/{alarm}` | subscribe, with `{"terms": "<version>"}` |
-| DELETE | `/v1/private/account/subscriptions/{stream}/{alarm}` | unsubscribe |
+| GET | `/v1/private/notifications` | the reader's subscriptions |
+| PUT | `/v1/private/notifications/stream/{stream}/{alarm}` | subscribe, with `{"terms": "<version>"}` |
+| DELETE | `/v1/private/notifications/stream/{stream}/{alarm}` | unsubscribe |
 | GET | `/v1/public/alarms?stream={stream}` | a stream's alarms, for anyone |
 
 A subscription is:
@@ -109,17 +109,17 @@ AS_ME = {'Authorization': f'Bearer {TOKEN}'}
 requests.get(f'{API}/v1/public/alarms', params={'stream': 'bls'}).json()
 
 # your subscriptions
-requests.get(f'{API}/v1/private/account/subscriptions', headers=AS_ME).json()
+requests.get(f'{API}/v1/private/notifications', headers=AS_ME).json()
 
 # subscribe to an alarm, accepting the terms by their version
 requests.put(
-    f'{API}/v1/private/account/subscriptions/bls/ingest',
+    f'{API}/v1/private/notifications/stream/bls/ingest',
     headers=AS_ME,
     json={'terms': '2026-09'},
 ).json()
 
 # unsubscribe
-requests.delete(f'{API}/v1/private/account/subscriptions/bls/ingest', headers=AS_ME).json()
+requests.delete(f'{API}/v1/private/notifications/stream/bls/ingest', headers=AS_ME).json()
 ```
 
 Each answers with a `report`: the stream's alarms, your subscriptions, the subscription,
