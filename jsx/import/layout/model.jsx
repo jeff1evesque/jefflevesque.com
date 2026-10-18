@@ -35,6 +35,7 @@ import ErrorFallback from '../formatter/boundary-error.jsx';
 import ModelRow from './model/model-row.jsx';
 import CompareChart from './model/compare-chart.jsx';
 import { ScorePicker, isPhone } from './model/parts.jsx';
+import { readLayout, writeLayout } from '../general/layout-preference.js';
 import { loadListing, loadReport } from './model/source.js';
 import {
     DEFAULT_SCORE,
@@ -98,6 +99,22 @@ export function writeCompare(names) {
     }
 }
 
+//
+// how the filters' column is kept between visits -- see layout-preference.js --
+// apart on a phone and a wide screen, as /graph keeps its columns
+//
+const LAYOUT = 'model';
+
+//
+// how wide the filters' column may be dragged, in px against the site's 14px
+// rem: from 10rem to 22rem, room for a longer task's name than this page has
+// yet, against the 14rem it opens at. A drag that goes FILTERS_FOLD past the
+// narrowest folds the column into its rail, as /graph's columns fold
+//
+const FILTERS_MIN = 140;
+const FILTERS_MAX = 308;
+const FILTERS_FOLD = 48;
+
 class ModelLayout extends Component {
     static propTypes = {
         //
@@ -116,6 +133,9 @@ class ModelLayout extends Component {
     constructor(props) {
         super(props);
 
+        const phone = isPhone();
+        const kept = readLayout(LAYOUT, phone ? 'narrow' : 'wide');
+
         this.state = {
             // the listing: undefined while it is on its way, null where it
             // could not be had, and { tasks, models } once it is in
@@ -130,13 +150,19 @@ class ModelLayout extends Component {
             // the models ticked to compare, each with its color slot, in the
             // order of the slots
             picked: [],
-            // whether the filters' column is open: on a wide screen until it is
-            // folded, and on a phone once its band is tapped
-            filters_open: !isPhone(),
+            // whether the filters' column is open, and how wide it was dragged:
+            // as this browser kept them, and otherwise open on a wide screen at
+            // its own width, and folded on a phone until its band is tapped
+            filters_open: phone ? kept.fold.filters === false : kept.fold.filters !== true,
+            filters_width: kept.size.filters >= FILTERS_MIN && kept.size.filters <= FILTERS_MAX ? kept.size.filters : null,
         };
 
         this.pick = this.pick.bind(this);
         this.clear = this.clear.bind(this);
+        this.toggleFilters = this.toggleFilters.bind(this);
+        this.startDrag = this.startDrag.bind(this);
+        this.onDrag = this.onDrag.bind(this);
+        this.releaseDrag = this.releaseDrag.bind(this);
         this.toggleFilter = this.toggleFilter.bind(this);
         this.loadRecord = this.loadRecord.bind(this);
     }
@@ -164,6 +190,65 @@ class ModelLayout extends Component {
 
     componentWillUnmount() {
         this.alive = false;
+        this.endDrag();
+    }
+
+    //
+    // how the filters' column is arranged, kept for the next visit: folded or
+    // open, and the width it was dragged to
+    //
+    saveLayout() {
+        const { filters_open, filters_width } = this.state;
+
+        writeLayout(LAYOUT, isPhone() ? 'narrow' : 'wide', {
+            fold: { filters: !filters_open },
+            size: filters_width ? { filters: filters_width } : {},
+        });
+    }
+
+    toggleFilters() {
+        this.setState((state) => ({ filters_open: !state.filters_open }), () => this.saveLayout());
+    }
+
+    //
+    // the strip on the column's edge dragged: the column follows the pointer
+    // between its narrowest and widest, and folds into its rail once dragged
+    // well past the narrowest. Kept when the pointer comes up, rather than on
+    // each of the hundred moves before it -- see graph.jsx's releaseDrag
+    //
+    startDrag(event) {
+        if (event.button !== 0) {
+            return;
+        }
+
+        this.drag = { from: event.clientX, start: event.currentTarget.parentNode.offsetWidth };
+        window.addEventListener('pointermove', this.onDrag);
+        window.addEventListener('pointerup', this.releaseDrag);
+        event.preventDefault();
+    }
+
+    onDrag(event) {
+        const wanted = this.drag.start + (event.clientX - this.drag.from);
+
+        if (wanted < FILTERS_MIN - FILTERS_FOLD) {
+            this.endDrag();
+            this.setState({ filters_open: false, filters_width: null }, () => this.saveLayout());
+
+            return;
+        }
+
+        this.setState({ filters_width: Math.min(Math.max(wanted, FILTERS_MIN), FILTERS_MAX) });
+    }
+
+    endDrag() {
+        window.removeEventListener('pointermove', this.onDrag);
+        window.removeEventListener('pointerup', this.releaseDrag);
+        this.drag = null;
+    }
+
+    releaseDrag() {
+        this.endDrag();
+        this.saveLayout();
     }
 
     loadRecord(name) {
@@ -234,10 +319,10 @@ class ModelLayout extends Component {
     // on its edge, and a band over the lists on a phone
     //
     filters() {
-        const { listing, hidden_tasks, hidden_statuses, filters_open } = this.state;
+        const { listing, hidden_tasks, hidden_statuses, filters_open, filters_width } = this.state;
         const { models, tasks } = listing;
         const shown = this.shown().length;
-        const toggle = () => this.setState({ filters_open: !filters_open });
+        const toggle = this.toggleFilters;
 
         const row = (key, name, count, on, flip) => (
             <li key={key}>
@@ -250,7 +335,11 @@ class ModelLayout extends Component {
         );
 
         return (
-            <aside className={`model-filters ${filters_open ? 'model-filters-open' : 'model-filters-closed'}`} aria-label='Filters'>
+            <aside
+                className={`model-filters ${filters_open ? 'model-filters-open' : 'model-filters-closed'}`}
+                style={filters_open && filters_width ? { '--model-filters-width': `${filters_width}px` } : undefined}
+                aria-label='Filters'
+            >
                 <h6 className='model-filters-heading'>
                     <button
                         type='button'
@@ -297,9 +386,12 @@ class ModelLayout extends Component {
                 </div>
                 {filters_open
                     ? (
-                        <button type='button' className='model-filters-fold' aria-label='Collapse the filters' onClick={toggle}>
-                            <ChevronLeftIcon fontSize='inherit' />
-                        </button>
+                        <>
+                            <div className='model-filters-grip' aria-hidden='true' onPointerDown={this.startDrag} />
+                            <button type='button' className='model-filters-fold' aria-label='Collapse the filters' onClick={toggle}>
+                                <ChevronLeftIcon fontSize='inherit' />
+                            </button>
+                        </>
                     ) : null}
             </aside>
         );
