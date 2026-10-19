@@ -12,7 +12,7 @@ own between any of them.
 | [Knowledge graph](knowledge-graph.md) | `https://api.jefflevesque.com/v1/public/knowledge-graph` | `/graph`, `/` |
 | [Knowledge graph tables](knowledge-graph.md#response-the-tables) | `https://api.jefflevesque.com/v1/public/knowledge-graph/tables/<question>` | `/graph/retrieval` — see below |
 | [Model](model.md) | `https://api.jefflevesque.com/v1/public/model` | `/model`, `/model/:model` |
-| [Account](account.md) | `https://api.jefflevesque.com/v1/private/notifications` | `/stream/:stream/alarm`, `/stream`, `/:user/settings` |
+| [Account](account.md) | `https://api.jefflevesque.com/v1/private/notifications` | `/stream/:stream/alarm`, `/stream`, `/model/:model/alarm`, `/model`, `/model/:model`, `/:user/settings` |
 
 ## What they share
 
@@ -46,7 +46,8 @@ and it answers this site's origin alone. See [Account](account.md).
 Every URL the application fetches from these APIs is built in
 [`jsx/import/general/api-url.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/api-url.js),
 by `performanceUrl`, `datalakeUrl`, `knowledgeGraphUrl`, `knowledgeGraphTablesUrl` and
-`modelUrl`, and for the account API by `alarmsUrl`, `subscriptionsUrl` and `subscriptionUrl`.
+`modelUrl`, and for the account API by `alarmsUrl`, `modelAlarmsUrl`, `subscriptionsUrl`,
+`subscriptionUrl` and `modelSubscriptionUrl`.
 
 The charts on `/stream` and `/data`, and the graphs on `/graph` and `/graph/retrieval`,
 carry icons built from the same functions: a page, which opens that API's page here,
