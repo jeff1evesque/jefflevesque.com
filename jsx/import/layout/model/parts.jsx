@@ -1,8 +1,8 @@
 /**
  * parts.jsx: what both model pages draw alike (#243): the score picker, a model's
- * status, the marks a legend and a panel share, the panel under a chart that
- * holds a day's numbers (#251), and the table every chart can be read as
- * instead.
+ * status, its bell (#255), the marks a legend and a panel share, the panel under a
+ * chart that holds a day's numbers (#251), and the table every chart can be read
+ * as instead.
  *
  * Note: a series' color is only ever a mark's -- a line, a dot, a bar or a swatch
  *       -- and the words beside it are the page's own text. A name written in its
@@ -11,6 +11,10 @@
 
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
+import { Link } from 'react-router-dom';
+import Tooltip from '@mui/material/Tooltip';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import { BASELINE_DASH, SCORES, SCORING_OPACITY, statusOf, statusLabel } from './scores.js';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 
@@ -70,6 +74,59 @@ StatusPill.propTypes = {
         retired: PropTypes.string,
         scored_days: PropTypes.number.isRequired,
     }).isRequired,
+};
+
+/**
+ * the names of the models whose alarms the reader holds (#255), from their
+ * subscriptions as listSubscriptions answers them: none for null, which is a
+ * reader signed out. A stream's subscription names no model, and is passed over.
+ */
+export function modelsHeld(subscriptions) {
+    return Array.isArray(subscriptions)
+        ? subscriptions.filter((held) => held && typeof held.model === 'string').map((held) => held.model)
+        : [];
+}
+
+/**
+ * a model's bell (#255), as /stream draws a stream's: a link to its alarm page,
+ * ringing and green for a reader who holds its alarm, with "Subscribed" under the
+ * pointer, and plain for anyone else. A retired model has none: it is no longer
+ * trained, and can't go live again.
+ *
+ * Note: drawn with the stream bell's classes, so its grays and greens are that
+ *       bell's -- see '.control-tray' in '_article.scss' -- and '_model.scss'
+ *       draws only the round button about it.
+ */
+export function AlarmBell({ model, held }) {
+    if (statusOf(model) === 'retired') {
+        return null;
+    }
+
+    return (
+        <div className='control-tray model-bell'>
+            <Link
+                className='border-circle-radius control-button'
+                to={`/model/${encodeURIComponent(model.name)}/alarm`}
+                aria-label={held ? `Alarm for ${model.name}: subscribed` : `Alarm for ${model.name}`}
+            >
+                {held
+                    ? (
+                        <Tooltip title='Subscribed'>
+                            <NotificationsActiveIcon className='control-icon notification subscribed' />
+                        </Tooltip>
+                    ) : <NotificationsIcon className='control-icon notification' />}
+            </Link>
+        </div>
+    );
+}
+
+AlarmBell.propTypes = {
+    model: PropTypes.shape({
+        name: PropTypes.string.isRequired,
+        retired: PropTypes.string,
+        scored_days: PropTypes.number.isRequired,
+    }).isRequired,
+    held: PropTypes.bool,
 };
 
 /**
