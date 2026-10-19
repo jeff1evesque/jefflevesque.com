@@ -495,11 +495,11 @@ class ModelLayout extends Component {
                         <div className='model-list-head' aria-hidden='true'>
                             <span>Compare</span>
                             <span>Model</span>
+                            <span />
                             <span>{`${scoreOf(score).label}, last 20 days`}</span>
                             <span>{`Last ${TREND_DAYS} days`}</span>
                             <span>Live version</span>
                             <span>Went live</span>
-                            <span />
                         </div>
                         <div role='list' aria-label={`${task.name} models`}>
                             {sortModels(models, this.state.sort, score).map((model) => {
