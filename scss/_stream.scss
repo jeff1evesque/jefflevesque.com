@@ -1738,7 +1738,14 @@ $stream-held: rgba($green-2, 0.32);
     display: flex;
   }
 
-  #bootstrap-override .stream-layout .control-tray .control-button {
+  //
+  // a finger's width on a phone. With ':link' and ':visited', as the button's own
+  // rule has them: the bell is a link, and this rule without them lost to that one,
+  // which left every bell at a wide screen's 2.5rem (#255)
+  //
+  #bootstrap-override .stream-layout .control-tray .control-button,
+  #bootstrap-override .stream-layout .control-tray .control-button:link,
+  #bootstrap-override .stream-layout .control-tray .control-button:visited {
     height: 2.75rem;
     width: 2.75rem;
   }
