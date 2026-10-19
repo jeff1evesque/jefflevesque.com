@@ -85,6 +85,33 @@
 }
 
 //
+// a model's alarm page (#255): under the terms and the switches, what sets the
+// alarm off, and for a retired model, each alarm the reader still holds with the
+// way out beside it
+//
+.model-alarm-about {
+  margin-top: 1.5rem;
+  max-width: 48rem;
+
+  h5 {
+    margin: 0 0 0.5rem;
+  }
+
+  p {
+    color: $gray-7;
+    margin: 0 0 0.5rem;
+  }
+}
+
+.model-alarm-held {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.75rem;
+}
+
+//
 // the filters beside everything else, in a column that folds to a rail as
 // /graph's do, and a band over it on a phone
 //
@@ -500,14 +527,15 @@
 }
 
 //
-// a row's columns, the same under the headings as in every row
+// a row's columns, the same under the headings as in every row. The last is the
+// bell's (#255), as wide as its button, and empty for a retired model
 //
 .model-list-head,
 .model-row {
   align-items: center;
   column-gap: 1rem;
   display: grid;
-  grid-template-columns: 4.5rem minmax(12rem, 2fr) minmax(9rem, 1fr) 140px 8rem 6rem;
+  grid-template-columns: 4.5rem minmax(12rem, 2fr) minmax(9rem, 1fr) 140px 8rem 6rem 2.5rem;
 }
 
 .model-list-head {
@@ -658,6 +686,59 @@
 .model-trend-none {
   color: $gray-6;
   line-height: 36px;
+}
+
+//
+// a model's bell (#255): a round button at the end of its row, at the top of its
+// card on a phone, and beside its name on its own page, as /stream draws a
+// stream's. The glyph's grays, its green under the pointer and its green while
+// the reader holds the alarm are the stream bell's -- see '.control-tray' in
+// '_article.scss' -- and only the button about it is drawn here
+//
+// Note: under '#bootstrap-override', which colors every link, as /stream's is.
+//
+#bootstrap-override .model-layout {
+  .control-tray {
+    align-items: center;
+    display: inline-flex;
+    float: none;
+    margin: 0;
+  }
+
+  .control-tray .control-icon {
+    font-size: 1.45rem;
+    margin: 0;
+  }
+
+  .control-tray .control-button,
+  .control-tray .control-button:link,
+  .control-tray .control-button:visited {
+    align-items: center;
+    background: none;
+    border: 0;
+    border-radius: 50%;
+    color: inherit;
+    display: inline-flex;
+    height: 2.5rem;
+    justify-content: center;
+    padding: 0;
+    text-decoration: none;
+    width: 2.5rem;
+  }
+
+  .control-tray .control-button:hover,
+  .control-tray .control-button:focus-visible {
+    background-color: rgba(var(--ink-rgb), 0.06);
+  }
+
+  .control-tray .control-button:before,
+  .control-tray .control-button:hover:before {
+    display: none;
+  }
+}
+
+.model-cell-alarm {
+  align-items: center;
 }
 
 //
@@ -1057,20 +1138,30 @@
     order: 3;
   }
 
+  //
+  // the bell at the card's top right, after the box that ticks it, as a row
+  // ends with it (#255)
+  //
   .model-row {
     border: 1px solid $gray-2;
     border-radius: 8px;
     gap: 0.6rem 1rem;
     grid-template-areas:
-      'model model compare'
-      'score trend trend'
-      'live went went';
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+      'model model compare alarm'
+      'score trend trend trend'
+      'live went went went';
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
     margin-top: 0.6rem;
     padding: 0.75rem;
   }
 
   .model-cell-compare { grid-area: compare; align-self: start; }
+
+  //
+  // raised so its glyph sits on the name's line rather than under it: the
+  // button is a finger tall, and its glyph is at its middle
+  //
+  .model-cell-alarm { grid-area: alarm; align-self: start; margin-top: -0.625rem; }
   .model-cell-model { grid-area: model; }
   .model-cell-score { grid-area: score; }
   .model-cell-trend { grid-area: trend; }
@@ -1093,5 +1184,16 @@
 
   .model-summary-boxes {
     display: block;
+  }
+
+  //
+  // a finger's width on a phone. With ':link' and ':visited', as the button's own
+  // rule has them: the bell is a link, and a rule without them loses to that one
+  //
+  #bootstrap-override .model-layout .control-tray .control-button,
+  #bootstrap-override .model-layout .control-tray .control-button:link,
+  #bootstrap-override .model-layout .control-tray .control-button:visited {
+    height: 2.75rem;
+    width: 2.75rem;
   }
 }
