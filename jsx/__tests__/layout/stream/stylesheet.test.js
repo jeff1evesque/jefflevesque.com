@@ -315,3 +315,37 @@ describe('a phone\'s rows, a table of their own (#218)', () => {
     });
 });
 
+
+describe('a phone\'s bells, a finger\'s width (#255)', () => {
+    //
+    // a bell is a link, so the button's own rule sizes it through ':link' and
+    // ':visited' too, and outweighs a rule naming neither. The phone's named
+    // neither, and left every bell at a wide screen's 2.5rem
+    //
+    const BUTTON = '#bootstrap-override .stream-layout .control-tray .control-button';
+    const phone = blocks(source, '@media (max-width: 767.98px)').join('\n');
+    const rules = phone.match(/[^{};]*\{[^{}]*\}/g) || [];
+    const sized = rules.find((rule) => rule.split('{')[0].includes(BUTTON) && /height\s*:\s*2\.75rem/.test(rule)) || '';
+
+    it('sizes the button 2.75rem on a phone, as a link and as one visited too', () => {
+        expect(sized.split('{')[0].split(',').map((selector) => selector.trim()))
+            .toEqual([BUTTON, `${BUTTON}:link`, `${BUTTON}:visited`]);
+        expect(sized).toMatch(/width\s*:\s*2\.75rem\s*;/);
+    });
+
+    it('names the same states as the button\'s own rule, which it has to outweigh', () => {
+        //
+        // the button's own rule, nested in the layout's block: 2.5rem, as a link
+        // and as one visited
+        //
+        const base = (first('#bootstrap-override .stream-layout').match(/[^{};]*\{[^{}]*\}/g) || [])
+            .find((rule) => rule.split('{')[0].includes('.control-tray .control-button:visited')) || '';
+
+        expect(base.split('{')[0].split(',').map((selector) => selector.trim())).toEqual([
+            '.control-tray .control-button',
+            '.control-tray .control-button:link',
+            '.control-tray .control-button:visited',
+        ]);
+        expect(base).toMatch(/height\s*:\s*2\.5rem\s*;/);
+    });
+});
