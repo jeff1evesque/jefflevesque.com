@@ -2,15 +2,18 @@
 
 `https://api.jefflevesque.com/v1/private/notifications`
 
-A signed-in reader's own data, starting with the ingest alarms they subscribe to:
+A signed-in reader's own data, starting with the alarms they subscribe to: each stream's
+ingest alarm, and each model's alarm.
 
 - The alarm page for each stream, `/stream/:stream/alarm`, lists the stream's alarms with
   a switch for each.
 - The bell beside each stream on `/stream` shows whether the reader holds any of that
   stream's alarms: on its row, and beside its title once it is open on its own -- which
   is where a phone shows it.
+- The alarm page for each model, `/model/:model/alarm`, does the same for the model's
+  alarms. Its bell is on its row of `/model`, and beside its name on `/model/:model`.
 - Account Settings, `/:user/settings`, verifies the reader's email address, and lists
-  every subscription with a way out.
+  every subscription, a stream's or a model's, with a way out.
 
 It is unlike the four public APIs in the ways that matter here:
 
@@ -23,21 +26,26 @@ It is unlike the four public APIs in the ways that matter here:
 
 | Method | Path | What it does |
 |---|---|---|
-| GET | `/v1/private/notifications` | the reader's subscriptions |
-| PUT | `/v1/private/notifications/stream/{stream}/{alarm}` | subscribe, with `{"terms": "<version>"}` |
-| DELETE | `/v1/private/notifications/stream/{stream}/{alarm}` | unsubscribe |
+| GET | `/v1/private/notifications` | the reader's subscriptions, a stream's and a model's |
+| PUT | `/v1/private/notifications/stream/{stream}/{alarm}` | subscribe to a stream's alarm, with `{"terms": "<version>"}` |
+| DELETE | `/v1/private/notifications/stream/{stream}/{alarm}` | unsubscribe from it |
+| PUT | `/v1/private/notifications/model/{model}/{alarm}` | subscribe to a model's alarm, with `{"terms": "<version>"}` |
+| DELETE | `/v1/private/notifications/model/{model}/{alarm}` | unsubscribe from it |
 | GET | `/v1/public/alarms?stream={stream}` | a stream's alarms, for anyone |
+| GET | `/v1/public/alarms?model={model}` | a model's alarms, for anyone: none for a retired model |
 
-A subscription is:
+A subscription is a stream's or a model's, named by which it is:
 
 ```json
 {"stream": "bls", "alarm": "ingest", "since": "2026-09-26T12:00:00Z", "terms": "2026-09"}
+{"model": "pt-gnn", "alarm": "live", "since": "2026-10-18T12:00:00Z", "terms": "2026-10"}
 ```
 
-and a stream's alarms are a list of these:
+and the alarms are a list of these, a stream's and a model's:
 
 ```json
 {"id": "ingest", "name": "Bureau of Labor Statistics ingest"}
+{"id": "live", "name": "pt-gnn goes live ahead of the baseline"}
 ```
 
 - **One alarm per stream, for now: its ingest alarm.** A stream goes into alarm when it
@@ -45,8 +53,14 @@ and a stream's alarms are a list of these:
   again. The usual gap is a couple of hours for the weather feed, about a business day
   for the market and filings feeds, about a day and a half for the SEC's company facts,
   every day counted, and longer for the feeds that publish weekly or monthly.
+- **One alarm per model: `live`.** It goes off when a new version goes live and, on the
+  days it was tested on, its loss is lower than both the version it replaced and the
+  know-nothing baseline's. Not every go-live does: a night's attempt goes live whenever
+  its loss is no higher than the live version's, and a first version always does, and
+  never sets the alarm off. A model has the alarm only while the model API lists it and
+  it has not retired.
 - **The ids are the site's own.** A stream is named by the id the rest of the site uses,
-  such as `stock-market`.
+  such as `stock-market`, and a model by its name on `/model`, such as `pt-gnn`.
 - **Repeating a request changes nothing.** Subscribing to an alarm already held, or
   unsubscribing from one not held, succeeds and leaves things as they were.
 - **`terms` is the version of the terms the reader accepted.** The alarm page shows the
@@ -80,11 +94,14 @@ answer. Most requests without a valid token never reach it: see 401.
 |---|---|---|
 | 200 | a list, an unsubscribe, a subscription already held | the list, `null`, the subscription |
 | 201 | a new subscription | the subscription |
-| 400 | a subscribe with no accepted terms; the alarms asked for with no `stream` | `{"error": ...}` |
+| 400 | a subscribe with no accepted terms; the alarms asked for with neither a `stream` nor a `model`, or with both | `{"error": ...}` |
 | 401 | a private request without a valid ID token: none, a malformed one, or one past its hour | none, for most: the request is refused before it reaches the API, and the body is `{"message": "Unauthorized", ...}`. One the API itself refuses carries `{"error": "sign in required"}` |
 | 403 | a subscribe from a reader whose email address is not verified | `{"error": ...}` |
-| 404 | an unknown stream or alarm | `{"error": ...}` |
-| 503 | the service busy, with `Retry-After` | `{"error": ...}` |
+| 404 | an unknown stream or alarm; a model the model API's listing doesn't name, and a retired model's alarm | `{"error": ...}` |
+| 503 | the service busy, or the models couldn't be checked, with `Retry-After` | `{"error": ...}` |
+
+- **A model's subscription can always be removed,** whether the model has retired, is no
+  longer listed, or can't be checked right now.
 
 - **Caching:** every private answer carries `Cache-Control: no-store`. The alarm list is
   the same for everyone, and may be kept for an hour.
@@ -108,48 +125,73 @@ AS_ME = {'Authorization': f'Bearer {TOKEN}'}
 # a stream's alarms: public, no token needed
 requests.get(f'{API}/v1/public/alarms', params={'stream': 'bls'}).json()
 
-# your subscriptions
+# your subscriptions, a stream's and a model's
 requests.get(f'{API}/v1/private/notifications', headers=AS_ME).json()
 
-# subscribe to an alarm, accepting the terms by their version
+# subscribe to a stream's alarm, accepting the terms by their version
 requests.put(
     f'{API}/v1/private/notifications/stream/bls/ingest',
     headers=AS_ME,
-    json={'terms': '2026-09'},
+    json={'terms': '2026-10'},
 ).json()
 
 # unsubscribe
 requests.delete(f'{API}/v1/private/notifications/stream/bls/ingest', headers=AS_ME).json()
+
+# a model's alarms: public too
+requests.get(f'{API}/v1/public/alarms', params={'model': 'pt-gnn'}).json()
+
+# subscribe to a model's alarm, the same way
+requests.put(
+    f'{API}/v1/private/notifications/model/pt-gnn/live',
+    headers=AS_ME,
+    json={'terms': '2026-10'},
+).json()
+
+# unsubscribe from it
+requests.delete(f'{API}/v1/private/notifications/model/pt-gnn/live', headers=AS_ME).json()
 ```
 
-Each answers with a `report`: the stream's alarms, your subscriptions, the subscription,
-and `null`. When one is refused, the status says why:
+Each answers with a `report`: the alarms, your subscriptions, the subscription, and
+`null`. When one is refused, the status says why:
 
 - **401:** the token has expired. An ID token lasts an hour, so copy a fresh one from
   Account Settings.
 - **403:** your email address isn't verified yet, and alarms go to it. Verify it in
   Account Settings, under Email address, then copy a fresh token.
-- **404:** an unknown stream or alarm. `/v1/public/alarms?stream=` lists a stream's
-  alarms.
+- **404:** an unknown stream, model or alarm, or a model that has retired.
+  `/v1/public/alarms?stream=` lists a stream's alarms, and `?model=` a model's.
 - **429:** too many requests in a short time. Wait a moment, then repeat.
-- **503:** busy. Wait the `Retry-After` seconds, then repeat. Every request is safe to
-  repeat.
-- **`terms`:** the version of the terms you accept by subscribing, `2026-09` today
-  (`TERMS_VERSION`). Each stream's alarm page shows them, and so does
-  [Terms](../terms.md).
+- **503:** busy, or the models couldn't be checked. Wait the `Retry-After` seconds, then
+  repeat. Every request is safe to repeat.
+- **`terms`:** the version of the terms you accept by subscribing, `2026-10` today
+  (`TERMS_VERSION`). Each alarm page shows them, a stream's and a model's, and so does
+  [Terms](../terms.md). A subscription made under an earlier version keeps it.
 
 ## In the application
 
-- **URLs:** built by `alarmsUrl`, `subscriptionsUrl` and `subscriptionUrl`, in
+- **URLs:** built by `alarmsUrl`, `subscriptionsUrl` and `subscriptionUrl` for a stream,
+  and `modelAlarmsUrl` and `modelSubscriptionUrl` for a model, in
   [`jsx/import/general/api-url.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/api-url.js).
 - **Calls:** made through
-  [`jsx/import/general/account-api.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/account-api.js).
-  - Signed out, it makes no request at all.
+  [`jsx/import/general/account-api.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/account-api.js):
+  `listSubscriptions`, `subscribe`, `unsubscribe` and `streamAlarms` for a stream, and
+  `subscribeModel`, `unsubscribeModel` and `modelAlarms` for a model.
+  - Signed out, it makes no request at all. A model's alarm page asks nothing of the API
+    for a reader signed out, not even the model's public list of alarms.
   - A 401 is read as the session having ended, and a page then shows its signed-out view
     rather than an error.
-  - A subscribe's 403 is an email address to verify. The alarm page says so, and links to
-    the Email address section of Account Settings.
+  - A subscribe's 403 is an email address to verify. Both alarm pages say so, and link to
+    the Email address section of Account Settings, through
+    [`jsx/import/general/settings-path.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/settings-path.js).
   - Any other refusal carries the API's own message, which the page shows as it is.
+- **A model's alarm page:**
+  [`jsx/import/layout/model/model-alarm.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/model/model-alarm.jsx).
+  Who the model is, and whether it has retired, it reads from the model API's listing, as
+  the model's own page does.
+- **The bells:** `/stream` lights a stream's bell for that stream's subscriptions alone,
+  and `/model` and `/model/:model` a model's for that model's. Each page asks for the
+  reader's subscriptions once.
 - **The token:** read from the sign-in session by
   [`jsx/import/general/currentUser.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/currentUser.js).
 - **The token, to copy:** Account Settings shows the reader their own, under API access,
@@ -163,7 +205,7 @@ and `null`. When one is refused, the status says why:
   and in again.
 - **The terms version:** a subscribe sends `TERMS_VERSION`, from
   [`jsx/import/general/notice-terms.jsx`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/notice-terms.jsx),
-  which holds the terms text the version names.
+  which holds the terms text the version names, `TERMS`. Both alarm pages show it.
 
 There is no Try it out on this page, as there is on the public APIs' pages. A private
 request needs a signed-in reader's token, and the API answers a browser only from
