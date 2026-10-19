@@ -363,6 +363,17 @@ describe('the lists', () => {
         expect(namesIn('Next-day direction')).toEqual(['tables', 'pt-gnn', 'fresh']);
     });
 
+    it('heads every column in a row\'s order, the bell\'s third with no name, after Model (#259)', async () => {
+        answer();
+
+        await open();
+
+        const headings = [...group('Next-day direction').querySelector('.model-list-head').children]
+            .map((heading) => heading.textContent);
+
+        expect(headings).toEqual(['Compare', 'Model', '', 'Loss, last 20 days', 'Last 60 days', 'Live version', 'Went live']);
+    });
+
     it('hands the score picked up, for both pages to show', async () => {
         const onScore = jest.fn();
 
