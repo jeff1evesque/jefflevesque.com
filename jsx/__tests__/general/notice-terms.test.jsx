@@ -1,10 +1,11 @@
 /**
  * notice-terms.test.jsx: the "you need to log in" notice.
  *
- * Shared by five callers -- the stream alarm and the four trigger content pages -- so
- * every default here is what a signed-out visitor reads on all five. The component is
- * pure presentation, and all of its behavior is in the constructor's defaults and the
- * componentDidUpdate that keeps them current.
+ * Shared by six callers -- the two alarm pages, a stream's and a model's (#255), and the
+ * four trigger content pages. Every default here is what a signed-out visitor reads on
+ * the trigger pages; the alarm pages pass TERMS in place of the default terms. The
+ * component is pure presentation, and all of its behavior is in the constructor's
+ * defaults and the componentDidUpdate that keeps them current.
  *
  * That update method carried two copy-paste defects, both fixed and both pinned below:
  * the terms branch wrote the heading, and the icon_color branch compared the terms
@@ -17,7 +18,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import NoticeTerms, { TERMS_VERSION } from '../../import/general/notice-terms.jsx';
+import NoticeTerms, { TERMS, TERMS_VERSION } from '../../import/general/notice-terms.jsx';
 
 const fs = require('fs');
 const path = require('path');
@@ -183,6 +184,33 @@ describe('the version of the terms', () => {
         // is refused 400
         //
         expect(TERMS_VERSION).toMatch(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/);
+    });
+
+    it('is 2026-10, which added the models\' alarms to the streams\' (#255)', () => {
+        expect(TERMS_VERSION).toBe('2026-10');
+    });
+});
+
+describe('TERMS, the text both alarm pages show (#255)', () => {
+    //
+    // one text for one version. The notice's own default is built from its
+    // subject, and named the ingest alarms alone; the alarm pages pass this in its
+    // place, so a stream's page and a model's show the same words
+    //
+    it('names both kinds of alarm, and says a model\'s is not investment advice', () => {
+        expect(TERMS).toContain('its alarms, on the streams\' ingest and on the models, are offered as is');
+        expect(TERMS).toContain('It is not investment advice');
+        expect(TERMS).toContain('nothing on this site is a recommendation to buy or sell anything');
+    });
+
+    it('is shown as it is, whatever the subject', () => {
+        setup({ subject: 'model alarms', terms: TERMS, signed_in: true });
+
+        expect(terms()).toBe(TERMS);
+    });
+
+    it('is one line of prose, with no run of spaces left from how it is written', () => {
+        expect(TERMS).toBe(TERMS.replace(/\s+/g, ' ').trim());
     });
 });
 
@@ -350,22 +378,48 @@ describe('keeping up with changed props', () => {
 
 //
 // the terms as the documentation's Terms page holds them (#202), which every
-// page's footer links. The alarm page shows the notice's own text, with the
-// subject 'ingest alarms', and a subscribe sends TERMS_VERSION as the terms
-// accepted -- so the page has to say the same words under the same version, and
-// a change to either alone fails here
+// page's footer links. Both alarm pages show TERMS, and a subscribe sends
+// TERMS_VERSION as the terms accepted -- so the page has to say the same words
+// under the same version, and a change to either alone fails here.
+//
+// Every earlier version stays on the page too, under "Earlier versions" (#255): a
+// subscription keeps the version it was made under, and its reader should be able
+// to read what that was.
 //
 describe('the Terms page', () => {
     const page = fs.readFileSync(path.join(__dirname, '../../../documentation/terms.md'), 'utf8');
-    const folded = page.replace(/^> ?/gm, '').replace(/\s+/g, ' ');
+    const fold = (text) => text.replace(/^> ?/gm, '').replace(/\s+/g, ' ');
+    const [current, earlier = ''] = page.split('## Earlier versions');
 
-    it('holds the alarm page\'s terms word for word', () => {
-        setup({ subject: 'ingest alarms' });
+    //
+    // the text of 2026-09, as the stream alarm page showed it: built from the
+    // subject 'ingest alarms'. History, so written out rather than built
+    //
+    const TERMS_2026_09 = 'By accessing our system, you acknowledge that the provided ingest alarms is offered as is. '
+        + 'Though we strive for excellence, ingest alarms are provided at best effort. '
+        + 'Lastly, you agree to have fun and build something amazing.';
 
-        expect(folded).toContain(terms());
+    it('holds TERMS word for word, under the version a subscribe sends', () => {
+        const at = current.indexOf(`**Version ${TERMS_VERSION}**`);
+
+        expect(at).toBeGreaterThan(-1);
+        expect(fold(current.slice(at))).toContain(TERMS);
     });
 
-    it('names the version a subscribe sends', () => {
-        expect(page).toContain(`**Version ${TERMS_VERSION}**`);
+    it('holds what the alarm pages show, word for word', () => {
+        setup({ subject: 'ingest alarms', terms: TERMS });
+
+        expect(fold(current)).toContain(terms());
+    });
+
+    it('still holds the text of 2026-09, under Earlier versions', () => {
+        const at = earlier.indexOf('**Version 2026-09**');
+
+        expect(at).toBeGreaterThan(-1);
+        expect(fold(earlier.slice(at))).toContain(TERMS_2026_09);
+    });
+
+    it('holds each version once, the current one first', () => {
+        expect(page.match(/\*\*Version [^*]+\*\*/g)).toEqual([`**Version ${TERMS_VERSION}**`, '**Version 2026-09**']);
     });
 });

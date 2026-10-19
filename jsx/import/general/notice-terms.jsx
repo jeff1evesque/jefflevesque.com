@@ -18,17 +18,33 @@ import { isMobile } from 'react-device-detect';
 import checkValidString from '../validator/valid-string.js';
 
 //
-// the version of the terms this notice shows. A subscribe sends it as the terms the
-// reader accepted, and the account api keeps it with the subscription -- so it has
-// to change whenever the terms text below does. See account-api.js.
+// the version of the terms the alarm pages show, and their text. A subscribe sends
+// the version as the terms the reader accepted, and the account api keeps it with
+// the subscription -- so the two change together, and one version names one text.
+// See account-api.js.
 //
-export const TERMS_VERSION = '2026-09';
+// Note: 2026-10 covers the models' alarms as well as the streams' (#255). The text
+//       of 2026-09 was built from the alarm page's subject, 'ingest alarms', and
+//       could name no other kind. Both alarm pages show TERMS instead, and
+//       documentation/terms.md holds it, with each earlier version's text below
+//       it: a subscription keeps the version it was made under.
+//
+export const TERMS_VERSION = '2026-10';
+
+export const TERMS = [
+    'By accessing our system, you acknowledge that its alarms, on the streams\' ingest',
+    'and on the models, are offered as is. Though we strive for excellence, alarms are',
+    'provided at best effort, and one may arrive late or not at all. A model\'s alarm',
+    'says how one version scored on the days it was tested on. It is not investment',
+    'advice, and nothing on this site is a recommendation to buy or sell anything.',
+    'Lastly, you agree to have fun and build something amazing.',
+].join(' ');
 
 /**
  * the terms a reader accepts before subscribing, and what they do about it.
  *
  * Signed out, the way to sign in or sign up. Signed in -- `signed_in`, which only the
- * alarm page passes -- a checkbox accepting the terms in its place, held by the page
+ * alarm pages pass -- a checkbox accepting the terms in its place, held by the page
  * as `accepted` and reported through `onAccept`, since what the page lets a reader
  * turn on depends on it.
  */

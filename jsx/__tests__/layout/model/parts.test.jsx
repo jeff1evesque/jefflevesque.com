@@ -1,14 +1,17 @@
 /**
  * parts.test.jsx: what both model pages draw alike (#243): the score picker, a
- * model's status, a legend's marks, a panel's day and how it is chosen, a
- * chart's table, and a chart's title that folds it, with the folds it keeps.
+ * model's status and its bell (#255), a legend's marks, a panel's day and how it
+ * is chosen, a chart's table, and a chart's title that folds it, with the folds it
+ * keeps.
  */
 
 import React from 'react';
 import { act, render, renderHook, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 
 import {
+    AlarmBell,
     FoldTitle,
     Legend,
     Mark,
@@ -20,6 +23,7 @@ import {
     TipBox,
     axisStyle,
     isPhone,
+    modelsHeld,
     useFolds,
     usePanelDay,
     usePhone,
@@ -68,6 +72,89 @@ describe('StatusPill', () => {
         render(<StatusPill model={model} />);
 
         expect(screen.getByText(said)).toHaveClass('model-pill', kind);
+    });
+});
+
+describe('modelsHeld (#255)', () => {
+    const SINCE = { since: '2026-10-18T12:00:00Z', terms: '2026-10' };
+
+    it('names each model whose alarm the reader holds', () => {
+        expect(modelsHeld([
+            { model: 'pt-gnn', alarm: 'live', ...SINCE },
+            { model: 'tables-gnn', alarm: 'live', ...SINCE },
+        ])).toEqual(['pt-gnn', 'tables-gnn']);
+    });
+
+    it('passes over a stream\'s subscription, even one sharing a model\'s name', () => {
+        expect(modelsHeld([
+            { stream: 'pt-gnn', alarm: 'ingest', ...SINCE },
+            { model: 'tables-gnn', alarm: 'live', ...SINCE },
+        ])).toEqual(['tables-gnn']);
+    });
+
+    it('names none signed out, or for an answer that is no list', () => {
+        expect(modelsHeld(null)).toEqual([]);
+        expect(modelsHeld(undefined)).toEqual([]);
+        expect(modelsHeld([null])).toEqual([]);
+    });
+});
+
+describe('AlarmBell (#255)', () => {
+    function bell(props) {
+        return render(
+            <MemoryRouter>
+                <AlarmBell model={modelOf()} {...props} />
+            </MemoryRouter>
+        );
+    }
+
+    it('leads to the model\'s alarm page, as a plain bell for a reader who holds nothing', () => {
+        const { container } = bell();
+        const link = screen.getByRole('link', { name: 'Alarm for pt-gnn' });
+
+        expect(link).toHaveAttribute('href', '/model/pt-gnn/alarm');
+        expect(link).toHaveClass('control-button');
+        expect(container.querySelector('svg')).toHaveAttribute('data-testid', 'NotificationsIcon');
+        expect(container.querySelector('svg')).not.toHaveClass('subscribed');
+    });
+
+    it('rings in green for a reader who holds the alarm, saying so under the pointer', async () => {
+        const { container } = bell({ held: true });
+        const icon = container.querySelector('svg');
+
+        expect(screen.getByRole('link', { name: 'Alarm for pt-gnn: subscribed' })).toHaveAttribute('href', '/model/pt-gnn/alarm');
+        expect(icon).toHaveAttribute('data-testid', 'NotificationsActiveIcon');
+        expect(icon).toHaveClass('control-icon', 'notification', 'subscribed');
+
+        await userEvent.hover(icon);
+
+        expect(await screen.findByRole('tooltip')).toHaveTextContent('Subscribed');
+    });
+
+    it('is drawn with the stream bell\'s classes, so it takes their grays and greens', () => {
+        const { container } = bell();
+
+        expect(container.querySelector('.control-tray .border-circle-radius.control-button .control-icon.notification'))
+            .not.toBeNull();
+    });
+
+    it('is not drawn for a retired model, which can\'t go live again', () => {
+        const { container } = bell({ model: modelOf({ retired: '2026-10-02' }), held: true });
+
+        expect(container).toBeEmptyDOMElement();
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+
+    it('is drawn for a new model, which can still go live', () => {
+        bell({ model: modelOf({ scored_days: 4 }) });
+
+        expect(screen.getByRole('link', { name: 'Alarm for pt-gnn' })).toBeInTheDocument();
+    });
+
+    it('escapes a name the address would read otherwise', () => {
+        bell({ model: modelOf({ name: 'a b/c' }) });
+
+        expect(screen.getByRole('link', { name: 'Alarm for a b/c' })).toHaveAttribute('href', '/model/a%20b%2Fc/alarm');
     });
 });
 

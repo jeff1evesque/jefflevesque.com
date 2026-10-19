@@ -25,6 +25,7 @@ jest.mock('../../../import/general/account-api.js', () => ({
     readerToken: jest.fn(),
     listSubscriptions: jest.fn(),
     unsubscribe: jest.fn(),
+    unsubscribeModel: jest.fn(),
 }));
 
 //
@@ -46,13 +47,24 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 
 import Auth from '@aws-amplify/auth';
-import { signedIn, readerToken, listSubscriptions, unsubscribe } from '../../../import/general/account-api.js';
+import {
+    signedIn,
+    readerToken,
+    listSubscriptions,
+    unsubscribe,
+    unsubscribeModel,
+} from '../../../import/general/account-api.js';
 import AccountLayout from '../../../import/layout/user/account.jsx';
-import SettingsLayout, { expiryOf } from '../../../import/layout/user/settings.jsx';
+import SettingsLayout, { expiryOf, keyOf, kindOf } from '../../../import/layout/user/settings.jsx';
 
 const pending = () => new Promise(() => {});
 
 const HELD = { stream: 'bls', alarm: 'ingest', since: '2026-09-26T12:00:00Z', terms: '2026-09' };
+
+//
+// a model's subscription, as the api answers one (#255)
+//
+const MODEL_HELD = { model: 'pt-gnn', alarm: 'live', since: '2026-10-18T12:00:00Z', terms: '2026-10' };
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -60,6 +72,7 @@ beforeEach(() => {
     readerToken.mockImplementation(pending);
     listSubscriptions.mockImplementation(pending);
     unsubscribe.mockImplementation(pending);
+    unsubscribeModel.mockImplementation(pending);
     Auth.currentAuthenticatedUser.mockImplementation(pending);
     Auth.currentSession.mockImplementation(pending);
     Auth.verifyCurrentUserAttribute.mockImplementation(pending);
@@ -175,13 +188,100 @@ describe('the alarm subscriptions', () => {
         expect(screen.getByRole('button', { name: 'Unsubscribe' })).toBeEnabled();
     });
 
-    it('points to the streams when there are none', async () => {
+    it('points to both kinds of bell when there are none: the streams\' and the models\'', async () => {
         listSubscriptions.mockResolvedValue([]);
 
         renderSettings();
 
         expect(await screen.findByRole('link', { name: 'Stream' })).toHaveAttribute('href', '/stream');
+        expect(screen.getByRole('link', { name: 'Model' })).toHaveAttribute('href', '/model');
         expect(section()).toHaveTextContent('You are not subscribed to any alarms.');
+        expect(section()).toHaveTextContent('and so does each model on the Model page.');
+    });
+
+    describe('a model\'s (#255)', () => {
+        it('is listed by the model\'s name, linking to its alarm page, then its alarm and when it started', async () => {
+            listSubscriptions.mockResolvedValue([MODEL_HELD]);
+
+            renderSettings();
+
+            const model = await screen.findByRole('link', { name: 'pt-gnn' });
+
+            expect(model).toHaveAttribute('href', '/model/pt-gnn/alarm');
+            expect(section()).toHaveTextContent('pt-gnn live alarm');
+            expect(section()).toHaveTextContent('since 2026-10-18');
+            expect(section()).not.toHaveTextContent('undefined');
+        });
+
+        it('is listed with the streams\', in the order the api answers them', async () => {
+            listSubscriptions.mockResolvedValue([HELD, MODEL_HELD]);
+
+            renderSettings();
+
+            await screen.findByRole('link', { name: 'pt-gnn' });
+
+            expect(within(section()).getAllByRole('link').map((link) => link.getAttribute('href')))
+                .toEqual(['/stream/bls/alarm', '/model/pt-gnn/alarm']);
+        });
+
+        it('is removed through the model\'s own call, and its row taken away', async () => {
+            listSubscriptions.mockResolvedValue([HELD, MODEL_HELD]);
+            unsubscribeModel.mockResolvedValue(true);
+
+            renderSettings();
+
+            await screen.findByRole('link', { name: 'pt-gnn' });
+
+            const [, second] = screen.getAllByRole('button', { name: 'Unsubscribe' });
+
+            fireEvent.click(second);
+
+            await waitFor(() => expect(screen.queryByRole('link', { name: 'pt-gnn' })).toBeNull());
+            expect(unsubscribeModel).toHaveBeenCalledWith('pt-gnn', 'live');
+            expect(unsubscribe).not.toHaveBeenCalled();
+            expect(screen.getByRole('link', { name: 'Bureau of Labor Statistics' })).toBeInTheDocument();
+        });
+
+        it('escapes a name the address would read otherwise', async () => {
+            listSubscriptions.mockResolvedValue([{ ...MODEL_HELD, model: 'a b/c' }]);
+
+            renderSettings();
+
+            expect(await screen.findByRole('link', { name: 'a b/c' })).toHaveAttribute('href', '/model/a%20b%2Fc/alarm');
+        });
+    });
+
+    it('keeps a stream and a model of the same name as two rows, each removed by its own call', async () => {
+        //
+        // a stream's key and a model's carry their kind, so the two never share
+        // one -- a shared key drew one row, and took both away with one Unsubscribe
+        //
+        const stream = { ...HELD, stream: 'bls', alarm: 'live' };
+        const model = { ...MODEL_HELD, model: 'bls' };
+
+        listSubscriptions.mockResolvedValue([stream, model]);
+        unsubscribe.mockResolvedValue(true);
+
+        renderSettings();
+
+        await screen.findAllByRole('button', { name: 'Unsubscribe' });
+
+        expect(screen.getAllByRole('button', { name: 'Unsubscribe' })).toHaveLength(2);
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Unsubscribe' })[0]);
+
+        await waitFor(() => expect(screen.getAllByRole('button', { name: 'Unsubscribe' })).toHaveLength(1));
+        expect(unsubscribe).toHaveBeenCalledWith('bls', 'live');
+        expect(screen.getByRole('link', { name: 'bls' })).toHaveAttribute('href', '/model/bls/alarm');
+    });
+
+    it('leaves out a subscription that names neither a stream nor a model', async () => {
+        listSubscriptions.mockResolvedValue([{ alarm: 'live', since: '2026-10-18T12:00:00Z', terms: '2026-10' }]);
+
+        renderSettings();
+
+        expect(await screen.findByText(/You are not subscribed to any alarms/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Unsubscribe' })).toBeNull();
     });
 
     it('asks the reader to sign in when there is no one signed in', async () => {
@@ -697,6 +797,21 @@ describe('API access', () => {
 
         await screen.findByRole('link', { name: 'Sign in' });
         await waitFor(() => expect(heading()).toBeNull());
+    });
+});
+
+describe('kindOf and keyOf (#255)', () => {
+    it('tell a model\'s subscription from a stream\'s by the name each carries', () => {
+        expect(kindOf(HELD)).toBe('stream');
+        expect(kindOf(MODEL_HELD)).toBe('model');
+        expect(kindOf({ alarm: 'live' })).toBeNull();
+        expect(kindOf(null)).toBeNull();
+    });
+
+    it('key each by its kind, so a stream and a model of one name never share a key', () => {
+        expect(keyOf(HELD)).toBe('stream/bls/ingest');
+        expect(keyOf(MODEL_HELD)).toBe('model/pt-gnn/live');
+        expect(keyOf({ ...HELD, alarm: 'live' })).not.toBe(keyOf({ ...MODEL_HELD, model: 'bls' }));
     });
 });
 

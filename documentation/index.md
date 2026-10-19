@@ -10,8 +10,9 @@
 
     ---
 
-    For readers: subscribing to a stream's alarm, seeing and removing your
-    subscriptions, and what arrives when a stream goes quiet.
+    For readers: subscribing to a stream's or a model's alarm, seeing and removing
+    your subscriptions, and what arrives when a stream goes quiet or a model goes live
+    ahead of the baseline.
 
     [:octicons-arrow-right-24: Alarms](guide/alarms.md)
 

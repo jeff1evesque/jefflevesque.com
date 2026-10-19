@@ -36,7 +36,7 @@ import {
     unsubscribe,
     streamAlarms,
 } from '../../../import/general/account-api.js';
-import { TERMS_VERSION } from '../../../import/general/notice-terms.jsx';
+import { TERMS, TERMS_VERSION } from '../../../import/general/notice-terms.jsx';
 import StreamAlarm from '../../../import/layout/stream/alarm.jsx';
 import CanonicalStream from '../../../import/route/canonical-stream.jsx';
 import { STREAMS } from '../../../import/general/stream-id.js';
@@ -462,6 +462,12 @@ describe('signed out', () => {
 
         await waitFor(() => expect(signedIn).toHaveBeenCalled());
         expect(listSubscriptions).not.toHaveBeenCalled();
+    });
+
+    it('reads the terms a model\'s alarm page shows too, not ones built from its subject (#255)', () => {
+        renderAlarm('bls');
+
+        expect(document.querySelector('.agreement .border-bottom').textContent).toBe(TERMS);
     });
 });
 

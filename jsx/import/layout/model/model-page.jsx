@@ -17,6 +17,9 @@
  * for once the listing names it. A name the listing does not hold is a model
  * that does not exist, and the page says so rather than drawing nothing.
  *
+ * Beside the name, its bell leads to its alarm page, and rings for a reader who
+ * holds the alarm (#255); a retired model has none. See parts.jsx's AlarmBell.
+ *
  * Note: the model api is built after this page (#243). Until it answers, the
  *       page says it has no models to show, as /model does.
  */
@@ -29,8 +32,9 @@ import ErrorFallback from '../../formatter/boundary-error.jsx';
 import FigureBoxes from '../../general/figure-boxes.jsx';
 import AttemptsChart from './attempts-chart.jsx';
 import TrackChart from './track-chart.jsx';
-import { ScorePicker, StatusPill } from './parts.jsx';
+import { AlarmBell, ScorePicker, StatusPill, modelsHeld } from './parts.jsx';
 import { loadListing, loadReport } from './source.js';
+import { listSubscriptions } from '../../general/account-api.js';
 import {
     DEFAULT_SCORE,
     WINDOW,
@@ -137,6 +141,9 @@ class ModelPage extends Component {
             // record, as the others are
             other: null,
             other_rows: undefined,
+            // whether the reader holds the model's alarm, which rings its bell:
+            // not until their subscriptions arrive, and never signed out
+            held: false,
         };
 
         this.pickOther = this.pickOther.bind(this);
@@ -162,6 +169,20 @@ class ModelPage extends Component {
                 });
             }
         });
+
+        //
+        // whether the reader holds the model's alarm, for its bell: asked once, as
+        // /model asks. Signed out, or where the list could not be had, it is plain
+        //
+        listSubscriptions()
+            .then((subscriptions) => {
+                if (this.alive) {
+                    this.setState({ held: modelsHeld(subscriptions).includes(this.props.name) });
+                }
+            })
+            .catch((error) => {
+                console.log(`Error (account api): the subscriptions could not be listed, ${error.message}`);
+            });
     }
 
     componentWillUnmount() {
@@ -329,6 +350,7 @@ class ModelPage extends Component {
                     <div className='model-heading'>
                         <h4>{model.name}</h4>
                         <StatusPill model={model} />
+                        <AlarmBell model={model} held={this.state.held} />
                     </div>
                     <span className='model-lede'>
                         {[

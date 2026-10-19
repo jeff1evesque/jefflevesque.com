@@ -10,8 +10,10 @@
  *                         and one path per question            Text, Uri, Symbol
  *     model             read by /model and /model/:model       Model, Report
  *     alarms            read by /stream/:stream/alarm          stream
- *     account           read by /stream/:stream/alarm,         (the stream and the
- *                         /stream and /:user/settings            alarm, in the path)
+ *                         and /model/:model/alarm              model
+ *     account           read by both alarm pages, /stream,     (the stream or the
+ *                         /model, /model/:model and              model, and the alarm,
+ *                         /:user/settings                        in the path)
  *
  * The account api is the one that is not public. It answers only a signed-in
  * reader, whose ID token each request carries -- see account-api.js -- so its base
@@ -327,15 +329,27 @@ export function alarmsUrl(stream, base = ENDPOINTS.alarms) {
 }
 
 /**
- * the signed-in reader's subscriptions. Who they are is read from the token the
- * request carries, so nothing here names them.
+ * the alarms a model has (#255): the same list for everyone, so public, as a
+ * stream's are. None for a retired model, which is no longer trained.
+ *
+ * Note: 'model', where a stream's are asked for by 'stream'. The account api
+ *       answers one or the other, and refuses a request naming both.
+ */
+export function modelAlarmsUrl(model, base = ENDPOINTS.alarms) {
+    return withParams(base, { model: model });
+}
+
+/**
+ * the signed-in reader's subscriptions, a stream's and a model's alike. Who they
+ * are is read from the token the request carries, so nothing here names them.
  */
 export function subscriptionsUrl(base = NOTIFICATIONS) {
     return new URL(base);
 }
 
 /**
- * one subscription of the signed-in reader's: PUT subscribes, DELETE unsubscribes.
+ * one subscription of the signed-in reader's to a stream's alarm: PUT subscribes,
+ * DELETE unsubscribes.
  *
  * Note: both ids are path segments, and encoded. Every stream and alarm id the api
  *       holds is lower-case letters, digits and hyphens, but an id is not this
@@ -343,6 +357,18 @@ export function subscriptionsUrl(base = NOTIFICATIONS) {
  */
 export function subscriptionUrl(stream, alarm, base = NOTIFICATIONS) {
     return new URL(`${base}/stream/${encodeURIComponent(stream)}/${encodeURIComponent(alarm)}`);
+}
+
+/**
+ * one subscription of the signed-in reader's to a model's alarm (#255), as a
+ * stream's is. Under 'model' rather than 'stream', so a stream and a model of
+ * the same name are never the same subscription.
+ *
+ * Note: the name and the alarm are encoded, as a stream's ids are, and for the
+ *       same reason.
+ */
+export function modelSubscriptionUrl(model, alarm, base = NOTIFICATIONS) {
+    return new URL(`${base}/model/${encodeURIComponent(model)}/${encodeURIComponent(alarm)}`);
 }
 
 export {

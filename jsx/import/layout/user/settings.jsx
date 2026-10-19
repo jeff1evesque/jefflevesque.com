@@ -1,8 +1,8 @@
 /**
  * settings.jsx: a signed-in reader's account settings: their email address, which
- *               alarms go to and which they verify here; the ingest alarms they
- *               subscribe to; and their ID token, for calling the account api from
- *               a script.
+ *               alarms go to and which they verify here; the alarms they subscribe
+ *               to, each stream's and each model's (#255); and their ID token, for
+ *               calling the account api from a script.
  *
  * Who the reader is comes from their session's token, through the account api --
  * never from the '/:user' in the url, which is only the name the page was reached by.
@@ -25,16 +25,34 @@ import {
     readerToken,
     listSubscriptions,
     unsubscribe,
+    unsubscribeModel,
 } from '../../general/account-api.js';
 import { emailAddress, sendEmailCode, verifyEmail } from '../../general/email-address.js';
 import { API_DOCS } from '../../general/api-url.js';
 import streamName from '../../general/stream-name.js';
 
 //
-// a subscription's key among the reader's: one stream's one alarm
+// what a subscription is to: a stream's alarm, or a model's (#255), each answered
+// under its own name -- see listSubscriptions in account-api.js. Null for one that
+// names neither, which the list leaves out rather than drawing as a stream named
+// nothing.
 //
-function keyOf(subscription) {
-    return `${subscription.stream}/${subscription.alarm}`;
+export function kindOf(subscription) {
+    if (subscription && typeof subscription.model === 'string') {
+        return 'model';
+    }
+
+    return subscription && typeof subscription.stream === 'string' ? 'stream' : null;
+}
+
+//
+// a subscription's key among the reader's: its kind, and that stream's or model's
+// one alarm, so a stream and a model of the same name are never one row
+//
+export function keyOf(subscription) {
+    const kind = kindOf(subscription);
+
+    return `${kind}/${subscription[kind]}/${subscription.alarm}`;
 }
 
 //
@@ -431,7 +449,9 @@ class SettingsLayout extends Component {
 
         this.setState((state) => ({ busy: { ...state.busy, [key]: true }, problem: null }));
 
-        unsubscribe(subscription.stream, subscription.alarm)
+        (kindOf(subscription) === 'model'
+            ? unsubscribeModel(subscription.model, subscription.alarm)
+            : unsubscribe(subscription.stream, subscription.alarm))
             .then((done) => {
                 if (done === null) {
                     this.setState({ subscriptions: null, busy: {} });
@@ -453,8 +473,28 @@ class SettingsLayout extends Component {
             });
     }
 
+    //
+    // what a row says it is: the stream's name or the model's, linking to its
+    // alarm page, then the alarm's
+    //
+    subscriptionName(held) {
+        const what = kindOf(held) === 'model'
+            ? <Link to={`/model/${encodeURIComponent(held.model)}/alarm`}>{held.model}</Link>
+            : <Link to={`/stream/${held.stream}/alarm`}>{streamName(held.stream)}</Link>;
+
+        return (
+            <span className='account-subscription-what'>
+                {what}
+                {` ${held.alarm} alarm`}
+            </span>
+        );
+    }
+
     subscriptions() {
-        const { subscriptions, busy, problem } = this.state;
+        const { busy, problem } = this.state;
+        const subscriptions = Array.isArray(this.state.subscriptions)
+            ? this.state.subscriptions.filter((held) => kindOf(held) !== null)
+            : this.state.subscriptions;
 
         if (subscriptions === 'pending') {
             return <p className='account-status'>Checking your subscriptions&hellip;</p>;
@@ -476,7 +516,8 @@ class SettingsLayout extends Component {
             return (
                 <p className='account-status'>
                     You are not subscribed to any alarms. Each stream on
-                    the <Link to='/stream'>Stream</Link> page has a bell that leads to its own.
+                    the <Link to='/stream'>Stream</Link> page has a bell that leads to its own,
+                    and so does each model on the <Link to='/model'>Model</Link> page.
                 </p>
             );
         }
@@ -489,10 +530,7 @@ class SettingsLayout extends Component {
 
                         return (
                             <li key={key} className='account-subscription'>
-                                <span className='account-subscription-what'>
-                                    <Link to={`/stream/${held.stream}/alarm`}>{streamName(held.stream)}</Link>
-                                    {` ${held.alarm} alarm`}
-                                </span>
+                                {this.subscriptionName(held)}
                                 <span className='account-subscription-since'>
                                     {`since ${String(held.since).slice(0, 10)}`}
                                 </span>

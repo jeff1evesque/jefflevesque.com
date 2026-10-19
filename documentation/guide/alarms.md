@@ -1,10 +1,15 @@
 # Alarms
 
-An alarm tells you when one of the site's streams has gone quiet: when the data it
-collects has stopped arriving. You choose which streams to hear about, and each alarm
-comes to you by email.
+An alarm tells you, by email, about something on the site you asked to hear about:
 
-## What an alarm is
+- **A stream's alarm:** when one of the site's streams has gone quiet, because the data
+  it collects has stopped arriving.
+- **A model's alarm:** when one of the models has a new version that goes live ahead of
+  the baseline.
+
+You choose which streams and models to hear about.
+
+## What a stream's alarm is
 
 Each stream has one alarm, its ingest alarm.
 
@@ -18,6 +23,26 @@ Each stream has one alarm, its ingest alarm.
     they run Monday to Saturday;
   - longer for the feeds that publish weekly or monthly.
 
+## What a model's alarm is
+
+Each model on [Model](https://www.jefflevesque.com/model) has one alarm, its live alarm,
+until it retires.
+
+- **What sets it off:** a new version goes live, and on the days it was tested on, which
+  it was not trained on, its loss is lower than both the version it replaced and the
+  know-nothing baseline's. Lower is better.
+- **How often:** far less often than a model goes live. A night's attempt goes live
+  whenever its loss is no higher than the live version's, so most nights one does, but
+  few of those beat the baseline too. From 2026-10-09 to 2026-10-16, two models went
+  live 7 times between them, and once ahead of the baseline.
+- **Never for a first version:** it has no live version to beat, and a model is only
+  listed, and so can only be subscribed to, once its first version is live.
+- **A retired model** is no longer trained, so it can't go live again, and has no alarm
+  to subscribe to.
+
+A model's alarm says how one version scored on the days it was tested on. It is not
+investment advice, and nothing on this site is a recommendation to buy or sell anything.
+
 ## Subscribing
 
 1. **Sign in.** If you have no account, sign up from the header.
@@ -26,28 +51,35 @@ Each stream has one alarm, its ingest alarm.
    is verified. If it isn't, choose "Send a code", then enter the code from the email
    and choose "Verify". Alarms go by email, so an address that isn't verified can't
    subscribe, and an account made without one can't add it afterwards.
-3. **Open a stream from [Stream](https://www.jefflevesque.com/stream),** and follow its
-   bell to the stream's alarm page.
+3. **Follow a bell to an alarm page:**
+   - a stream's, from its row on [Stream](https://www.jefflevesque.com/stream);
+   - a model's, from its row on [Model](https://www.jefflevesque.com/model), or from
+     beside its name on the model's own page.
 4. **Read the terms and conditions** (also on [Terms](../terms.md)), and tick "I accept the terms and conditions".
 5. **Turn the alarm's switch on.**
 
-Back on the Stream page, the bell of a stream you subscribe to rings, in green.
+A bell of an alarm you subscribe to rings, in green: a stream's on the Stream page, and a
+model's on the Model page and on the model's own page.
 
 ## Seeing and removing your subscriptions
 
-- **Account Settings** lists every subscription: its stream, its alarm, and when it
-  started, each with an Unsubscribe button. Once you are signed in, it is in the menu
+- **Account Settings** lists every subscription: its stream or model, its alarm, and when
+  it started, each with an Unsubscribe button. Once you are signed in, it is in the menu
   behind the person icon in the header.
-- **The switch on a stream's alarm page** turns its alarm off too.
+- **The switch on an alarm page** turns its alarm off too. A retired model's alarm page
+  has no switch, and offers an Unsubscribe instead, while you still hold its alarm.
 
 ## What arrives
 
-- One email when a stream goes into alarm, and one when it recovers.
-- Each email carries a link that unsubscribes you from that alarm. Most mail apps also
-  show an unsubscribe button beside the email, which works in one click.
-
-Alarm emails are not being sent yet. A subscription made now is kept, and its emails
-start when sending does.
+- **A stream's alarm:** one email when the stream goes into alarm, and one when it
+  recovers.
+- **A model's alarm:** one email each time a new version goes live ahead of the
+  baseline. It says what kind of version it was, a nightly update or a weekly retrain,
+  and the night it went live, with its loss on the days it was tested on beside the
+  loss of the version it replaced and the baseline's. It links the model's page and its
+  alarm page, and says it is not investment advice.
+- **Either way,** each email carries a link that unsubscribes you from that alarm. Most
+  mail apps also show an unsubscribe button beside the email, which works in one click.
 
 ## From a script
 

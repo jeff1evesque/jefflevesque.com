@@ -14,6 +14,16 @@ jest.mock('../../../import/layout/model/source.js', () => ({
     loadReport: jest.fn(),
 }));
 
+//
+// the reader's subscriptions, for the bell beside the name (#255). Signed out
+// unless a case says otherwise -- and the api's session reader imports Amplify,
+// which jest cannot load unmocked
+//
+jest.mock('../../../import/general/account-api.js', () => ({
+    __esModule: true,
+    listSubscriptions: jest.fn(),
+}));
+
 import React from 'react';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -21,6 +31,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import ModelPageRoute, { ModelPage, liveFigure, ordinal, placeAmong, sentence } from '../../../import/layout/model/model-page.jsx';
 import { loadListing, loadReport } from '../../../import/layout/model/source.js';
+import { listSubscriptions } from '../../../import/general/account-api.js';
 import { TASKS, historyOf, listingOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
 
 //
@@ -55,8 +66,88 @@ async function open(name = 'pt-gnn', props = {}) {
 beforeEach(() => {
     loadListing.mockReset();
     loadReport.mockReset();
+    listSubscriptions.mockReset();
+    listSubscriptions.mockResolvedValue(null);
     // the charts a case folds are kept, as a reader's are (#253)
     window.localStorage.clear();
+});
+
+describe('the bell beside the name (#255)', () => {
+    const LIVE = { alarm: 'live', since: '2026-10-18T12:00:00Z', terms: '2026-10' };
+    const bell = () => document.querySelector('.model-heading a[href$="/alarm"]');
+
+    it('is plain for a reader signed out, and leads to the model\'s alarm page', async () => {
+        answer();
+        await open('pt-gnn');
+
+        expect(bell()).toHaveAttribute('href', '/model/pt-gnn/alarm');
+        expect(bell()).toHaveAccessibleName('Alarm for pt-gnn');
+        expect(bell().querySelector('svg')).toHaveAttribute('data-testid', 'NotificationsIcon');
+    });
+
+    it('rings in green for a reader who holds the model\'s alarm', async () => {
+        listSubscriptions.mockResolvedValue([{ model: 'pt-gnn', ...LIVE }]);
+        answer();
+        await open('pt-gnn');
+
+        expect(bell()).toHaveAccessibleName('Alarm for pt-gnn: subscribed');
+        expect(bell().querySelector('svg')).toHaveClass('subscribed');
+    });
+
+    it('stays plain for a reader who holds another model\'s alarm, or a stream\'s of its name', async () => {
+        listSubscriptions.mockResolvedValue([
+            { model: 'tables', ...LIVE },
+            { stream: 'pt-gnn', alarm: 'ingest', since: '2026-09-26T12:00:00Z', terms: '2026-09' },
+        ]);
+        answer();
+        await open('pt-gnn');
+
+        expect(bell().querySelector('svg')).toHaveAttribute('data-testid', 'NotificationsIcon');
+    });
+
+    it('is not drawn for a retired model', async () => {
+        listSubscriptions.mockResolvedValue([{ model: 'beater', ...LIVE }]);
+        answer();
+        await open('beater');
+
+        expect(screen.getByRole('heading', { name: 'beater' })).toBeInTheDocument();
+        expect(bell()).toBeNull();
+    });
+
+    it('asks for the subscriptions once', async () => {
+        answer();
+        await open('pt-gnn');
+
+        expect(listSubscriptions).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays plain when the subscriptions could not be listed', async () => {
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+        listSubscriptions.mockRejectedValue(new Error('busy, try again'));
+        answer();
+        await open('pt-gnn');
+
+        expect(quiet).toHaveBeenCalledWith(expect.stringContaining('busy, try again'));
+        expect(bell().querySelector('svg')).toHaveAttribute('data-testid', 'NotificationsIcon');
+
+        quiet.mockRestore();
+    });
+
+    it('lets the subscriptions go when they land after the page has', async () => {
+        const late = deferred();
+
+        listSubscriptions.mockReturnValue(late.promise);
+        answer();
+
+        const { unmount } = await open('pt-gnn');
+
+        unmount();
+
+        await act(async () => late.resolve([{ model: 'pt-gnn', ...LIVE }]));
+
+        expect(bell()).toBeNull();
+    });
 });
 
 describe('ordinal', () => {

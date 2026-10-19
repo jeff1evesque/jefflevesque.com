@@ -9,6 +9,8 @@
  *   - a 401 is a session that has ended, and resolves to null rather than failing
  *   - a subscribe sends the version of the terms the reader accepted
  *   - any other refusal rejects with the api's own message, which a page shows
+ *   - a model's alarms are asked for and subscribed to as a stream's are, on paths
+ *     of their own (#255)
  *
  * Note: the session is mocked rather than Amplify, since what the module does with a
  *       token is the question here -- currentUser.js has its own suite -- and fetch
@@ -29,12 +31,21 @@ import {
     listSubscriptions,
     subscribe,
     unsubscribe,
+    subscribeModel,
+    unsubscribeModel,
     streamAlarms,
+    modelAlarms,
 } from '../../import/general/account-api.js';
 
 const TOKEN = 'header.payload.signature';
 
 const SUBSCRIPTION = { stream: 'bls', alarm: 'ingest', since: '2026-09-26T12:00:00Z', terms: '2026-09' };
+
+//
+// a model's subscription, as the api answers one (#255): its 'model' where a
+// stream's has its 'stream'
+//
+const MODEL_SUBSCRIPTION = { model: 'pt-gnn', alarm: 'live', since: '2026-10-18T12:00:00Z', terms: '2026-10' };
 
 let original;
 
@@ -111,6 +122,8 @@ describe('every private call', () => {
         ['listSubscriptions', () => listSubscriptions()],
         ['subscribe', () => subscribe('bls', 'ingest', '2026-09')],
         ['unsubscribe', () => unsubscribe('bls', 'ingest')],
+        ['subscribeModel', () => subscribeModel('pt-gnn', 'live', '2026-10')],
+        ['unsubscribeModel', () => unsubscribeModel('pt-gnn', 'live')],
     ];
 
     it.each(CALLS)('%s carries the ID token as a bearer token', async (name, call) => {
@@ -147,7 +160,7 @@ describe('every private call', () => {
         const { url, options } = sent(fetcher);
 
         expect(Object.keys(options.headers).sort())
-            .toEqual(name === 'subscribe' ? ['Authorization', 'Content-Type'] : ['Authorization']);
+            .toEqual(name.startsWith('subscribe') ? ['Authorization', 'Content-Type'] : ['Authorization']);
         expect(url).not.toMatch(/user|email/i);
     });
 
@@ -200,6 +213,12 @@ describe('listSubscriptions', () => {
 
         await expect(listSubscriptions()).resolves.toEqual([]);
     });
+
+    it('hands back a model\'s subscription beside a stream\'s, each as the api answered it (#255)', async () => {
+        answering(200, [SUBSCRIPTION, MODEL_SUBSCRIPTION]);
+
+        await expect(listSubscriptions()).resolves.toEqual([SUBSCRIPTION, MODEL_SUBSCRIPTION]);
+    });
 });
 
 describe('subscribe', () => {
@@ -241,6 +260,90 @@ describe('unsubscribe', () => {
         expect(url).toBe('https://api.jefflevesque.com/v1/private/notifications/stream/bls/ingest');
         expect(options.method).toBe('DELETE');
         expect(options.body).toBeUndefined();
+    });
+});
+
+describe('subscribeModel (#255)', () => {
+    it('puts the model\'s subscription, sending the version of the terms accepted', async () => {
+        const fetcher = answering(201, MODEL_SUBSCRIPTION);
+
+        await expect(subscribeModel('pt-gnn', 'live', '2026-10')).resolves.toEqual(MODEL_SUBSCRIPTION);
+
+        const { url, options } = sent(fetcher);
+
+        expect(url).toBe('https://api.jefflevesque.com/v1/private/notifications/model/pt-gnn/live');
+        expect(options.method).toBe('PUT');
+        expect(options.headers['Content-Type']).toBe('application/json');
+        expect(JSON.parse(options.body)).toEqual({ terms: '2026-10' });
+    });
+
+    it('asks the model\'s path, never the stream\'s of the same name', async () => {
+        const fetcher = answering(201, MODEL_SUBSCRIPTION);
+
+        await subscribeModel('bls', 'live', '2026-10');
+
+        expect(sent(fetcher).url).toBe('https://api.jefflevesque.com/v1/private/notifications/model/bls/live');
+    });
+
+    it('rejects with the api\'s message for an email address not yet verified', async () => {
+        answering(403, { error: 'verify your email address to subscribe' });
+
+        await expect(subscribeModel('pt-gnn', 'live', '2026-10'))
+            .rejects.toMatchObject({ status: 403, message: 'verify your email address to subscribe' });
+    });
+
+    it('rejects with the api\'s message for a model the listing does not name', async () => {
+        answering(404, { error: 'no such model' });
+
+        await expect(subscribeModel('nope', 'live', '2026-10'))
+            .rejects.toMatchObject({ status: 404, message: 'no such model' });
+    });
+});
+
+describe('unsubscribeModel (#255)', () => {
+    it('deletes the model\'s subscription, with no body, and resolves to true', async () => {
+        const fetcher = answering(200, null);
+
+        await expect(unsubscribeModel('pt-gnn', 'live')).resolves.toBe(true);
+
+        const { url, options } = sent(fetcher);
+
+        expect(url).toBe('https://api.jefflevesque.com/v1/private/notifications/model/pt-gnn/live');
+        expect(options.method).toBe('DELETE');
+        expect(options.body).toBeUndefined();
+    });
+});
+
+describe('modelAlarms (#255)', () => {
+    it('asks the public list for the model, with no token at all', async () => {
+        const alarms = [{ id: 'live', name: 'pt-gnn goes live ahead of the baseline' }];
+        const fetcher = answering(200, alarms);
+
+        await expect(modelAlarms('pt-gnn')).resolves.toEqual(alarms);
+
+        const { url, options } = sent(fetcher);
+
+        expect(url).toBe('https://api.jefflevesque.com/v1/public/alarms?model=pt-gnn');
+        expect(options).toBeUndefined();
+        expect(amplifyCurrentUser).not.toHaveBeenCalled();
+    });
+
+    it('resolves to no alarms for a retired model, as the api answers one', async () => {
+        answering(200, []);
+
+        await expect(modelAlarms('retired-gnn')).resolves.toEqual([]);
+    });
+
+    it('rejects with the api\'s message for a name that is no model\'s', async () => {
+        answering(404, { error: 'no such model' });
+
+        await expect(modelAlarms('nope')).rejects.toMatchObject({ status: 404, message: 'no such model' });
+    });
+
+    it('resolves to an empty list for an answer that holds no list', async () => {
+        answering(200, { unexpected: true });
+
+        await expect(modelAlarms('pt-gnn')).resolves.toEqual([]);
     });
 });
 

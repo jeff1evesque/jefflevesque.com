@@ -151,6 +151,51 @@ describe('the compare box', () => {
     });
 });
 
+describe('the bell (#255)', () => {
+    //
+    // at the end of the row, and at the top of a phone's card -- see '_model.scss'
+    // -- leading to the model's alarm page
+    //
+    const bellIn = (container) => container.querySelector('.model-cell-alarm svg');
+
+    it('is plain for a reader who holds nothing, and leads to the model\'s alarm page', () => {
+        const { container } = draw();
+
+        expect(screen.getByRole('link', { name: 'Alarm for pt-gnn' })).toHaveAttribute('href', '/model/pt-gnn/alarm');
+        expect(bellIn(container)).toHaveAttribute('data-testid', 'NotificationsIcon');
+    });
+
+    it('rings in green for a reader who holds the model\'s alarm', () => {
+        const { container } = draw({ held: true });
+
+        expect(screen.getByRole('link', { name: 'Alarm for pt-gnn: subscribed' })).toHaveAttribute('href', '/model/pt-gnn/alarm');
+        expect(bellIn(container)).toHaveAttribute('data-testid', 'NotificationsActiveIcon');
+        expect(bellIn(container)).toHaveClass('subscribed');
+    });
+
+    it('is left off a retired model, whose cell stays, so the columns still line up', () => {
+        const { container } = draw({ model: modelOf({ retired: '2026-10-02' }), held: true });
+
+        expect(container.querySelector('.model-cell-alarm')).toBeEmptyDOMElement();
+        expect(screen.queryByRole('link', { name: /^Alarm for/ })).toBeNull();
+    });
+
+    it('comes last in the row, after how many attempts went live', () => {
+        const { container } = draw();
+        const cells = [...container.querySelectorAll('.model-row > .model-cell')];
+
+        expect(cells.map((cell) => cell.classList[1])).toEqual([
+            'model-cell-compare',
+            'model-cell-model',
+            'model-cell-score',
+            'model-cell-trend',
+            'model-cell-live',
+            'model-cell-went',
+            'model-cell-alarm',
+        ]);
+    });
+});
+
 describe('TrendLine', () => {
     function trend(props) {
         return render(

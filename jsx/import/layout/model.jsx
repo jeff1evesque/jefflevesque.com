@@ -17,6 +17,11 @@
  * ticked beside them, and neither can a fourth. The address carries what is
  * ticked, '?compare=a,b', so a comparison can be linked, and the page reopens it.
  *
+ * Each row's bell leads to its model's alarm page, and rings for a reader who holds
+ * the alarm (#255). The reader's subscriptions are asked for once, for every row, as
+ * /stream asks for its own; signed out, or where they could not be had, every bell
+ * is plain.
+ *
  * Note: the listing says everything a row prints but its trend line, so the
  *       lists, the filters and the sort are drawn from it alone, and each row's
  *       track record fills its trend line in as it arrives.
@@ -34,8 +39,9 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ErrorFallback from '../formatter/boundary-error.jsx';
 import ModelRow from './model/model-row.jsx';
 import CompareChart from './model/compare-chart.jsx';
-import { ScorePicker, isPhone } from './model/parts.jsx';
+import { ScorePicker, isPhone, modelsHeld } from './model/parts.jsx';
 import { readLayout, writeLayout } from '../general/layout-preference.js';
+import { listSubscriptions } from '../general/account-api.js';
 import { loadListing, loadReport } from './model/source.js';
 import {
     DEFAULT_SCORE,
@@ -150,6 +156,10 @@ class ModelLayout extends Component {
             // the models ticked to compare, each with its color slot, in the
             // order of the slots
             picked: [],
+            // the names of the models whose alarms the reader holds, which ring
+            // their bells: none until the subscriptions arrive, and none signed
+            // out -- see loadSubscriptions
+            subscribed: [],
             // whether the filters' column is open, and how wide it was dragged:
             // as this browser kept them, and otherwise open on a wide screen at
             // its own width, and folded on a phone until its band is tapped
@@ -165,6 +175,7 @@ class ModelLayout extends Component {
         this.releaseDrag = this.releaseDrag.bind(this);
         this.toggleFilter = this.toggleFilter.bind(this);
         this.loadRecord = this.loadRecord.bind(this);
+        this.loadSubscriptions = this.loadSubscriptions.bind(this);
     }
 
     componentDidMount() {
@@ -186,6 +197,25 @@ class ModelLayout extends Component {
                 listing.models.forEach((model) => this.loadRecord(model.name));
             });
         });
+
+        this.loadSubscriptions();
+    }
+
+    //
+    // which models' alarms the reader holds, for the bells, asked once for every
+    // row. Signed out, or asking a service that could not answer, every bell stays
+    // plain: a bell that cannot say anything says nothing, as on /stream
+    //
+    loadSubscriptions() {
+        listSubscriptions()
+            .then((subscriptions) => {
+                if (this.alive) {
+                    this.setState({ subscribed: modelsHeld(subscriptions) });
+                }
+            })
+            .catch((error) => {
+                console.log(`Error (account api): the subscriptions could not be listed, ${error.message}`);
+            });
     }
 
     componentWillUnmount() {
@@ -429,7 +459,7 @@ class ModelLayout extends Component {
     // they leave no model of
     //
     groups(shown) {
-        const { listing, records, picked } = this.state;
+        const { listing, records, picked, subscribed } = this.state;
         const { score } = this.props;
         const chosen = this.chosen();
 
@@ -469,6 +499,7 @@ class ModelLayout extends Component {
                             <span>{`Last ${TREND_DAYS} days`}</span>
                             <span>Live version</span>
                             <span>Went live</span>
+                            <span />
                         </div>
                         <div role='list' aria-label={`${task.name} models`}>
                             {sortModels(models, this.state.sort, score).map((model) => {
@@ -484,6 +515,7 @@ class ModelLayout extends Component {
                                         picked={tick ? tick.slot : null}
                                         blocked={compareBlocked(model, chosen)}
                                         onPick={this.pick}
+                                        held={subscribed.includes(model.name)}
                                     />
                                 );
                             })}

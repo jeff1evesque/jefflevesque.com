@@ -220,6 +220,26 @@ describe('the model pages (#243)', () => {
         expect(screen.getByRole('link', { name: '‹ All models' })).toHaveAttribute('href', '/model');
     });
 
+    it('draws a model\'s alarm page at /model/<name>/alarm (#255)', async () => {
+        //
+        // the sign-in is replaced to answer no one, so the page is a signed-out
+        // reader's: the terms with the way to sign in, and no switch
+        //
+        await openAt('/model/tables/alarm');
+
+        expect(screen.getByRole('heading', { name: 'Model Alarms' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: '‹ tables' })).toHaveAttribute('href', '/model/tables');
+        expect(screen.getByText(/You need to login to subscribe to model alarms/)).toBeInTheDocument();
+        expect(screen.queryByRole('checkbox')).toBeNull();
+    });
+
+    it('says a name that is not a model is not found, on its alarm page', async () => {
+        await openAt('/model/no-such-model/alarm');
+
+        expect(screen.getByRole('heading', { name: 'Model not found' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: '‹ All models' })).toHaveAttribute('href', '/model');
+    });
+
     it('shares the score picked between the two', async () => {
         const store = await openAt('/model/pt-gnn');
 

@@ -25,8 +25,10 @@ import {
     knowledgeGraphTablesUrl,
     modelUrl,
     alarmsUrl,
+    modelAlarmsUrl,
     subscriptionsUrl,
     subscriptionUrl,
+    modelSubscriptionUrl,
     API,
     ENDPOINTS,
     NOTIFICATIONS,
@@ -423,6 +425,29 @@ describe('alarmsUrl', () => {
     });
 });
 
+describe('modelAlarmsUrl (#255)', () => {
+    it('asks for one model\'s alarms, on the same public path as a stream\'s', () => {
+        expect(String(modelAlarmsUrl('pt-gnn')))
+            .toBe('https://api.jefflevesque.com/v1/public/alarms?model=pt-gnn');
+    });
+
+    it('names the model alone, never a stream beside it, which the api refuses', () => {
+        expect([...modelAlarmsUrl('tables-gnn').searchParams.keys()]).toEqual(['model']);
+    });
+
+    it('encodes a name rather than interpolating it', () => {
+        const url = modelAlarmsUrl('a&b c');
+
+        expect(url.searchParams.get('model')).toBe('a&b c');
+        expect(url.search).toBe('?model=a%26b+c');
+    });
+
+    it('can be pointed elsewhere', () => {
+        expect(String(modelAlarmsUrl('pt-gnn', 'https://example.com/alarms')))
+            .toBe('https://example.com/alarms?model=pt-gnn');
+    });
+});
+
 describe('the account api', () => {
     it('lives under the private tier, apart from the public endpoints', () => {
         //
@@ -458,6 +483,25 @@ describe('the account api', () => {
             .toBe('https://example.com/notifications');
         expect(String(subscriptionUrl('bls', 'ingest', 'https://example.com/notifications')))
             .toBe('https://example.com/notifications/stream/bls/ingest');
+        expect(String(modelSubscriptionUrl('pt-gnn', 'live', 'https://example.com/notifications')))
+            .toBe('https://example.com/notifications/model/pt-gnn/live');
+    });
+
+    it('names one of a model\'s subscriptions by its name and alarm, under model (#255)', () => {
+        expect(String(modelSubscriptionUrl('tables-gnn', 'live')))
+            .toBe('https://api.jefflevesque.com/v1/private/notifications/model/tables-gnn/live');
+    });
+
+    it('encodes a model\'s name and alarm, so neither can name another path', () => {
+        expect(modelSubscriptionUrl('a/b', 'c d').pathname).toBe('/v1/private/notifications/model/a%2Fb/c%20d');
+    });
+
+    it('never names a stream\'s subscription for a model of the same name', () => {
+        //
+        // a stream and a model may share a name. Each kind has its own segment,
+        // so subscribing to one is never subscribing to the other
+        //
+        expect(modelSubscriptionUrl('bls', 'ingest').pathname).not.toBe(subscriptionUrl('bls', 'ingest').pathname);
     });
 });
 
