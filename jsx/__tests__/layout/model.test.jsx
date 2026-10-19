@@ -18,6 +18,16 @@ jest.mock('../../import/layout/model/source.js', () => ({
     loadReport: jest.fn(),
 }));
 
+//
+// the reader's subscriptions, for the bells (#255). Signed out unless a case says
+// otherwise -- and the api's session reader imports Amplify, which jest cannot load
+// unmocked
+//
+jest.mock('../../import/general/account-api.js', () => ({
+    __esModule: true,
+    listSubscriptions: jest.fn(),
+}));
+
 import React from 'react';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -25,6 +35,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 import ModelLayout, { linkedCompare, writeCompare } from '../../import/layout/model.jsx';
 import { loadListing, loadReport } from '../../import/layout/model/source.js';
+import { listSubscriptions } from '../../import/general/account-api.js';
 import { COMPARE_COLORS } from '../../import/layout/model/scores.js';
 import { readLayout, writeLayout } from '../../import/general/layout-preference.js';
 import { listingOf, modelOf, phoneScreen, trackOf, wideScreen } from '../../test-support/model-fixtures.js';
@@ -67,9 +78,14 @@ function group(name) {
     return screen.getByRole('region', { name: name });
 }
 
+//
+// the models a list names, in its order: the links of their names, and not the
+// bells beside them (#255)
+//
 function namesIn(name) {
     return within(screen.getByRole('list', { name: `${name} models` }))
         .getAllByRole('link')
+        .filter((link) => link.classList.contains('model-name'))
         .map((link) => link.textContent);
 }
 
@@ -80,9 +96,86 @@ function box(name) {
 beforeEach(() => {
     loadListing.mockReset();
     loadReport.mockReset();
+    listSubscriptions.mockReset();
+    listSubscriptions.mockResolvedValue(null);
     at('/model');
     // the filters' fold and width are kept, as a reader's are (#253)
     window.localStorage.clear();
+});
+
+describe('the bells (#255)', () => {
+    //
+    // one on every row whose model can still go live, leading to its alarm page,
+    // and ringing for a reader who holds its alarm -- from one ask of the reader's
+    // subscriptions, for every row, as /stream asks
+    //
+    const LIVE = { alarm: 'live', since: '2026-10-18T12:00:00Z', terms: '2026-10' };
+    const bellOf = (name) => document.querySelector(`a[href="/model/${name}/alarm"] svg`);
+
+    it('gives every model that has not retired a plain bell, for a reader signed out', async () => {
+        answer();
+        await open();
+
+        ['pt-gnn', 'tables', 'fresh'].forEach((name) => {
+            expect(bellOf(name)).toHaveAttribute('data-testid', 'NotificationsIcon');
+        });
+        expect(document.querySelector('a[href="/model/beater/alarm"]')).toBeNull();
+    });
+
+    it('rings the bell of a model whose alarm the reader holds, and no other', async () => {
+        listSubscriptions.mockResolvedValue([{ model: 'tables', ...LIVE }]);
+        answer();
+        await open();
+
+        expect(screen.getByRole('link', { name: 'Alarm for tables: subscribed' })).toHaveAttribute('href', '/model/tables/alarm');
+        expect(bellOf('tables')).toHaveAttribute('data-testid', 'NotificationsActiveIcon');
+        expect(bellOf('pt-gnn')).toHaveAttribute('data-testid', 'NotificationsIcon');
+        expect(bellOf('fresh')).toHaveAttribute('data-testid', 'NotificationsIcon');
+    });
+
+    it('lights no bell for a stream\'s alarm, even one sharing a model\'s name', async () => {
+        listSubscriptions.mockResolvedValue([{ stream: 'pt-gnn', alarm: 'ingest', since: '2026-09-26T12:00:00Z', terms: '2026-09' }]);
+        answer();
+        await open();
+
+        expect(bellOf('pt-gnn')).toHaveAttribute('data-testid', 'NotificationsIcon');
+    });
+
+    it('asks for the subscriptions once, for the whole list', async () => {
+        answer();
+        await open();
+
+        expect(listSubscriptions).toHaveBeenCalledTimes(1);
+        expect(screen.getAllByRole('link', { name: /^Alarm for / })).toHaveLength(3);
+    });
+
+    it('leaves every bell plain when the subscriptions could not be listed', async () => {
+        const quiet = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+        listSubscriptions.mockRejectedValue(new Error('busy, try again'));
+        answer();
+        await open();
+
+        expect(quiet).toHaveBeenCalledWith(expect.stringContaining('busy, try again'));
+        expect(bellOf('pt-gnn')).toHaveAttribute('data-testid', 'NotificationsIcon');
+
+        quiet.mockRestore();
+    });
+
+    it('lets the subscriptions go when they land after the page has', async () => {
+        const late = deferred();
+
+        listSubscriptions.mockReturnValue(late.promise);
+        answer();
+
+        const { unmount } = await open();
+
+        unmount();
+
+        await act(async () => late.resolve([{ model: 'pt-gnn', ...LIVE }]));
+
+        expect(document.querySelector('a[href="/model/pt-gnn/alarm"]')).toBeNull();
+    });
 });
 
 describe('linkedCompare', () => {
