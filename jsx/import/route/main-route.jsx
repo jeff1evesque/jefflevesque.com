@@ -19,6 +19,7 @@ import StreamLayoutState from '../redux/container/stream/stream.jsx';
 import StreamTriggerLayoutState from '../redux/container/stream/trigger/trigger.jsx';
 import StreamAlarm from '../layout/stream/alarm.jsx';
 import ModelLayoutState, { ModelPageState } from '../redux/container/model.jsx';
+import ModelAlarm from '../layout/model/model-alarm.jsx';
 import GraphLayout, { RetrievalGraph } from '../layout/graph/graph.jsx';
 import HomePageState from '../redux/container/home-page.jsx';
 import ForgotPasswordState from '../redux/container/forgot-password.jsx';
@@ -46,6 +47,10 @@ import StreamItem from './stream-item.jsx';
 //       segment, so it never takes '/model/<name>', and '/model' itself is a
 //       static segment, which react-router ranks above '/:user'.
 //
+// Note: '/model/:model/alarm' is a model's alarm page (#255), which its bells
+//       and its emails link to. Three segments, so '/:user/settings' never
+//       takes it either.
+//
 class MainRoute extends Component {
     render() {
         return (
@@ -70,6 +75,7 @@ class MainRoute extends Component {
                 />
                 <Route path='/model' element={<ModelLayoutState />}/>
                 <Route path='/model/:model' element={<ModelPageState />}/>
+                <Route path='/model/:model/alarm' element={<ModelAlarm />}/>
                 <Route path='/graph' element={<GraphLayout />}/>
                 <Route path='/graph/retrieval' element={<RetrievalGraph />}/>
                 <Route path='/graph/retrieval/:day' element={<RetrievalGraph />}/>
