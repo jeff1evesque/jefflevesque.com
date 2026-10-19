@@ -180,18 +180,23 @@ describe('the bell (#255)', () => {
         expect(screen.queryByRole('link', { name: /^Alarm for/ })).toBeNull();
     });
 
-    it('comes last in the row, after how many attempts went live', () => {
+    it('comes after the model\'s name and before its score, as a stream\'s does on /stream (#259)', () => {
+        //
+        // a wide screen places a row's cells by their order, into the columns
+        // '_model.scss' gives them -- see stylesheet.test.js beside this one. It
+        // came last, at the far right, where /stream has a row's figures
+        //
         const { container } = draw();
         const cells = [...container.querySelectorAll('.model-row > .model-cell')];
 
         expect(cells.map((cell) => cell.classList[1])).toEqual([
             'model-cell-compare',
             'model-cell-model',
+            'model-cell-alarm',
             'model-cell-score',
             'model-cell-trend',
             'model-cell-live',
             'model-cell-went',
-            'model-cell-alarm',
         ]);
     });
 });

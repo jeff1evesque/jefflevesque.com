@@ -527,15 +527,16 @@
 }
 
 //
-// a row's columns, the same under the headings as in every row. The last is the
-// bell's (#255), as wide as its button, and empty for a retired model
+// a row's columns, the same under the headings as in every row. The third is the
+// bell's (#255), as wide as its button and empty for a retired model: after the
+// model's name, as a /stream row's bell comes after the stream's name (#259)
 //
 .model-list-head,
 .model-row {
   align-items: center;
   column-gap: 1rem;
   display: grid;
-  grid-template-columns: 4.5rem minmax(12rem, 2fr) minmax(9rem, 1fr) 140px 8rem 6rem 2.5rem;
+  grid-template-columns: 4.5rem minmax(12rem, 2fr) 2.5rem minmax(9rem, 1fr) 140px 8rem 6rem;
 }
 
 .model-list-head {
@@ -689,9 +690,9 @@
 }
 
 //
-// a model's bell (#255): a round button at the end of its row, at the top of its
-// card on a phone, and beside its name on its own page, as /stream draws a
-// stream's. The glyph's grays, its green under the pointer and its green while
+// a model's bell (#255): a round button after its name on its row (#259), at the
+// top of its card on a phone, and beside its name on its own page, as /stream
+// draws a stream's. The glyph's grays, its green under the pointer and its green while
 // the reader holds the alarm are the stream bell's -- see '.control-tray' in
 // '_article.scss' -- and only the button about it is drawn here
 //
@@ -1139,8 +1140,9 @@
   }
 
   //
-  // the bell at the card's top right, after the box that ticks it, as a row
-  // ends with it (#255)
+  // the bell at the card's top right, after the box that ticks it (#255). Each
+  // cell is placed by name here, so the row's order on a wide screen (#259)
+  // moves nothing on a card
   //
   .model-row {
     border: 1px solid $gray-2;
