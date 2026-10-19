@@ -1,9 +1,12 @@
 /**
  * model-row.jsx: one model in /model's list (#243): a box to tick it for the
- * comparison, its name, status, address and description, its latest 20-day score
- * against the know-nothing baseline, a trend line of that score, when its live
- * version went live, how many of its nightly attempts did, and its bell, which
- * leads to its alarm page (#255). A retired model has no bell.
+ * comparison, its name, status, address and description, its bell, which leads to
+ * its alarm page (#255), its latest 20-day score against the know-nothing baseline,
+ * a trend line of that score, when its live version went live, and how many of its
+ * nightly attempts did. A retired model has no bell.
+ *
+ * The bell comes after the name, as a stream's comes after the stream's name on
+ * /stream, so the two pages put it on one side (#259).
  *
  * A row across a wide screen, under the list's headings, and a card on a phone,
  * where each figure carries its own name instead -- see '_model.scss'.
@@ -185,6 +188,9 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                 <span className='model-address'>{address}</span>
                 {model.description ? <p className='model-description'>{model.description}</p> : null}
             </div>
+            <div className='model-cell model-cell-alarm'>
+                <AlarmBell model={model} held={held} />
+            </div>
             <div className='model-cell model-cell-score'>
                 <span className='model-cell-label'>{scoreLabel(model, score)}</span>
                 <span className='model-score-value'>{formatScore(value, score)}</span>
@@ -213,9 +219,6 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                 <span className='model-cell-label'>Went live</span>
                 <span className='model-figure'>{`${model.attempts.went_live} of ${model.attempts.total}`}</span>
                 <span className='model-figure-detail'>attempts</span>
-            </div>
-            <div className='model-cell model-cell-alarm'>
-                <AlarmBell model={model} held={held} />
             </div>
         </div>
     );
