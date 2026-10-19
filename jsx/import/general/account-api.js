@@ -1,23 +1,27 @@
 /**
  * account-api.js: the account api, as the pages call it -- a signed-in reader's alarm
- *                 subscriptions, and the alarms there are to subscribe to.
+ *                 subscriptions, and the alarms there are to subscribe to: each
+ *                 stream's, and each model's (#255).
  *
- *     signedIn()                        whether there is a reader at all, asking no one
- *     readerToken()                     the reader's own ID token, for them to copy
- *     listSubscriptions()               the reader's subscriptions, every stream's
- *     subscribe(stream, alarm, terms)   subscribe, having accepted that version of the terms
- *     unsubscribe(stream, alarm)        unsubscribe
- *     streamAlarms(stream)              a stream's alarms, the same for every reader
+ *     signedIn()                             whether there is a reader at all, asking no one
+ *     readerToken()                          the reader's own ID token, for them to copy
+ *     listSubscriptions()                    the reader's subscriptions, every stream's and model's
+ *     subscribe(stream, alarm, terms)        subscribe, having accepted that version of the terms
+ *     unsubscribe(stream, alarm)             unsubscribe
+ *     subscribeModel(model, alarm, terms)    the same, for a model's alarm
+ *     unsubscribeModel(model, alarm)         the same, for a model's alarm
+ *     streamAlarms(stream)                   a stream's alarms, the same for every reader
+ *     modelAlarms(model)                     a model's alarms, the same for every reader
  *
- * The first three carry the reader's ID token as a bearer token, and it is the only
- * thing in a request that says who is asking: the api reads the reader from the token
- * and from nothing else, so no username or email address is ever sent. See
- * currentUser.js.
+ * Listing, subscribing and unsubscribing carry the reader's ID token as a bearer
+ * token, and it is the only thing in a request that says who is asking: the api reads
+ * the reader from the token and from nothing else, so no username or email address is
+ * ever sent. See currentUser.js.
  *
- * Signed out -- no token to send, or one the api answers 401 -- each of the three
- * resolves to null rather than rejecting, and with no token it makes no request at
- * all. A page reads null as the signed-out view: a session that has ended is not an
- * error, and should not look like one.
+ * Signed out -- no token to send, or one the api answers 401 -- each of those resolves
+ * to null rather than rejecting, and with no token it makes no request at all. A page
+ * reads null as the signed-out view: a session that has ended is not an error, and
+ * should not look like one.
  *
  * Any other refusal rejects with an AccountError, carrying the status and the api's
  * own message. Those are written for a reader -- a 403 asks them to verify their
@@ -25,7 +29,13 @@
  */
 
 import amplifyCurrentUser from './currentUser.js';
-import { alarmsUrl, subscriptionsUrl, subscriptionUrl } from './api-url.js';
+import {
+    alarmsUrl,
+    modelAlarmsUrl,
+    subscriptionsUrl,
+    subscriptionUrl,
+    modelSubscriptionUrl,
+} from './api-url.js';
 
 export class AccountError extends Error {
     constructor(status, message) {
@@ -147,8 +157,12 @@ export async function readerToken() {
 }
 
 /**
- * the reader's subscriptions, every stream's, each as the api answers it:
- * { stream, alarm, since, terms }. Null when signed out.
+ * the reader's subscriptions, each as the api answers it: a stream's as
+ * { stream, alarm, since, terms }, and a model's as { model, alarm, since, terms }
+ * (#255). Null when signed out.
+ *
+ * Note: both kinds come in one list, so a page that draws one kind reads it by the
+ *       name it carries -- a model's has no 'stream', and a stream's no 'model'.
  */
 export async function listSubscriptions() {
     const result = await asReader(subscriptionsUrl(), 'GET');
@@ -182,11 +196,44 @@ export async function unsubscribe(stream, alarm) {
 }
 
 /**
+ * subscribe to one of a model's alarms (#255), as subscribe does a stream's.
+ * Resolves to the subscription, or null when signed out.
+ */
+export async function subscribeModel(model, alarm, terms) {
+    const result = await asReader(modelSubscriptionUrl(model, alarm), 'PUT', { terms: terms });
+
+    return result === SIGNED_OUT ? null : result.report;
+}
+
+/**
+ * unsubscribe from one of a model's alarms (#255). Resolves to true, also when it
+ * was not held, or null when signed out.
+ *
+ * Note: a retired model's alarm can still be unsubscribed from. The api reads no
+ *       listing to remove one, so one held is never stranded.
+ */
+export async function unsubscribeModel(model, alarm) {
+    const result = await asReader(modelSubscriptionUrl(model, alarm), 'DELETE');
+
+    return result === SIGNED_OUT ? null : true;
+}
+
+/**
  * a stream's alarms, each { id, name }. Public, so asked with no token, and the
  * same for a signed-out reader as for a signed-in one.
  */
 export async function streamAlarms(stream) {
     const report = await answer(await send(alarmsUrl(stream), undefined));
+
+    return Array.isArray(report) ? report : [];
+}
+
+/**
+ * a model's alarms, each { id, name } (#255): none for a retired model. Public, as
+ * a stream's are, so asked with no token.
+ */
+export async function modelAlarms(model) {
+    const report = await answer(await send(modelAlarmsUrl(model), undefined));
 
     return Array.isArray(report) ? report : [];
 }
