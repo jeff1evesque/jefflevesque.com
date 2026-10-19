@@ -738,6 +738,9 @@ class StreamLayout extends Component {
     // service that could not answer, every bell stays as it was: a bell that cannot
     // say anything says nothing.
     //
+    // Note: a stream's subscriptions only. The list holds a model's too (#255),
+    //       which names a model and no stream, and lights no bell here.
+    //
     loadSubscriptions() {
         listSubscriptions()
             .then((subscriptions) => {
@@ -747,9 +750,11 @@ class StreamLayout extends Component {
 
                 const held = {};
 
-                subscriptions.forEach((subscription) => {
-                    held[subscription.stream] = (held[subscription.stream] || 0) + 1;
-                });
+                subscriptions
+                    .filter((subscription) => typeof subscription.stream === 'string')
+                    .forEach((subscription) => {
+                        held[subscription.stream] = (held[subscription.stream] || 0) + 1;
+                    });
 
                 this.setState({ subscriptions: held });
             })
