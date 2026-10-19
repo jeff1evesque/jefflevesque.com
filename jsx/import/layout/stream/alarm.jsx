@@ -7,7 +7,7 @@
 
 import React, { Component } from 'react';
 import Tumbling from '../../svg/window/tumbling.jsx';
-import NoticeTerms, { TERMS_VERSION } from '../../general/notice-terms.jsx';
+import NoticeTerms, { TERMS, TERMS_VERSION } from '../../general/notice-terms.jsx';
 import SummaryTrigger from '../../general/summary-trigger.jsx';
 import BreadCrumbs from '../../navigation/breadcrumbs.jsx';
 import { isMobile } from 'react-device-detect';
@@ -48,26 +48,7 @@ import {
 } from '../../general/stream-id.js';
 import { themeColors } from '../../general/colors.js';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-
-/**
- * Account Settings' email section, where a reader verifies their address.
- *
- * Settings reads its reader from the session, never from the url, so the name in the
- * path is only the one the header's own link carries -- the username the sign-in put
- * in session storage, see user-menu.jsx -- and 'account' where there is none, as in a
- * tab opened after signing in.
- */
-function emailSettingsPath() {
-    let name = null;
-
-    try {
-        name = sessionStorage.getItem('username');
-    } catch (error) {
-        name = null;
-    }
-
-    return `/${encodeURIComponent(name || 'account')}/settings#email`;
-}
+import { emailSettingsPath } from '../../general/settings-path.js';
 
 class StreamAlarm extends Component {
     //
@@ -731,9 +712,17 @@ class StreamAlarm extends Component {
                                     : <span className='title-count'>{alarm_count}</span>}
                                 <BreadCrumbs />
                             </div>
+                            {/*
+
+                                the terms a model's alarm page shows too, in place
+                                of the notice's own, which it builds from the subject
+                                and which named the ingest alarms alone (#255)
+
+                            */}
                             <NoticeTerms
                                 notice={notice}
                                 subject={term}
+                                terms={TERMS}
                                 signed_in={this.state.signed_in === true}
                                 accepted={this.state.accepted}
                                 onAccept={this.acceptTerms}
