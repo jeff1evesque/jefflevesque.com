@@ -2,7 +2,8 @@
  * model-row.jsx: one model in /model's list (#243): a box to tick it for the
  * comparison, its name, status, address and description, its latest 20-day score
  * against the know-nothing baseline, a trend line of that score, when its live
- * version went live, and how many of its nightly attempts did.
+ * version went live, how many of its nightly attempts did, and its bell, which
+ * leads to its alarm page (#255). A retired model has no bell.
  *
  * A row across a wide screen, under the list's headings, and a card on a phone,
  * where each figure carries its own name instead -- see '_model.scss'.
@@ -19,7 +20,7 @@ import { Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis } from 'recharts';
 import Tooltip from '@mui/material/Tooltip';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { StatusPill } from './parts.jsx';
+import { AlarmBell, StatusPill } from './parts.jsx';
 import {
     COMPARE_COLORS,
     TREND_DAYS,
@@ -144,7 +145,7 @@ function gapText(gap, score) {
     return `${stands === 'better' ? '▲' : '▼'} ${formatGap(gap, score)} ${stands} than the baseline`;
 }
 
-function ModelRow({ model, score, rows, axis, picked, blocked, onPick }) {
+function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false }) {
     const status = statusOf(model);
     const value = model.score ? model.score[score] : null;
     const gap = betterBy(value, model.baseline ? model.baseline[score] : null, score);
@@ -213,6 +214,9 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick }) {
                 <span className='model-figure'>{`${model.attempts.went_live} of ${model.attempts.total}`}</span>
                 <span className='model-figure-detail'>attempts</span>
             </div>
+            <div className='model-cell model-cell-alarm'>
+                <AlarmBell model={model} held={held} />
+            </div>
         </div>
     );
 }
@@ -251,6 +255,10 @@ ModelRow.propTypes = {
     //
     blocked: PropTypes.string,
     onPick: PropTypes.func.isRequired,
+    //
+    // whether the reader holds the model's alarm, which rings its bell
+    //
+    held: PropTypes.bool,
 };
 
 export default ModelRow;
