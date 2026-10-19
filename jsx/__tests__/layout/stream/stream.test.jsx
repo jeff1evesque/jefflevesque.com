@@ -317,6 +317,25 @@ describe('each row\'s bell', () => {
         expect(await screen.findByLabelText('Subscribed to 2 alarms')).toBe(bell('sec'));
     });
 
+    it('lights no bell for a model\'s alarm, even one sharing a stream\'s id (#255)', async () => {
+        //
+        // the list holds a model's subscriptions too, which name a model and no
+        // stream: a model called 'bls' is not the bls stream
+        //
+        listSubscriptions.mockResolvedValue([
+            { model: 'bls', alarm: 'live', since: '2026-10-18T12:00:00Z', terms: '2026-10' },
+            { ...HELD, stream: 'sec' },
+        ]);
+
+        setup();
+
+        expect(await screen.findByLabelText('Subscribed to 1 alarm')).toBe(bell('sec'));
+
+        STREAMS.filter((stream) => stream !== 'sec').forEach((stream) => {
+            expect(bell(stream)).toHaveAttribute('data-testid', 'NotificationsIcon');
+        });
+    });
+
     it('leaves the bell of every other stream as it was', async () => {
         listSubscriptions.mockResolvedValue([{ ...HELD, stream: 'bls' }]);
 
