@@ -1,6 +1,7 @@
 /**
  * scores.js: what the model pages know about a score, a model's status and its
- * days (#243), and how long a night's attempt took (#247).
+ * days (#243), how long a night's attempt took (#247), and the trainer's checks
+ * that take a live version down for doing worse than the baseline (#263).
  *
  * The api scores every model four ways, and the pages offer the four alike from
  * one picker:
@@ -88,6 +89,7 @@ const TOOK = { light: '#1baf7a', dark: '#199e70' };
 export const STATUSES = [
     { key: 'live', label: 'Live' },
     { key: 'new', label: 'New' },
+    { key: 'down', label: 'Behind baseline' },
     { key: 'retired', label: 'Retired' },
 ];
 
@@ -198,12 +200,17 @@ export function standing(gap, key) {
 }
 
 /**
- * a model's status: Retired once it has stopped being trained, New while it has
- * fewer than 20 scored days, and Live otherwise.
+ * a model's status: Retired once it has stopped being trained, Behind baseline
+ * while the trainer has its live version down for doing worse than the baseline
+ * (#263), New while it has fewer than 20 scored days, and Live otherwise.
  */
 export function statusOf(model) {
     if (model.retired) {
         return 'retired';
+    }
+
+    if (model.down) {
+        return 'down';
     }
 
     return model.scored_days < WINDOW ? 'new' : 'live';
@@ -227,6 +234,51 @@ export function statusLabel(model) {
  */
 export function liveKind(kind) {
     return LIVE_KINDS[kind] || '';
+}
+
+/**
+ * when a live version was taken down, as its figure says it (#263): 'Taken down
+ * Oct 19', the day held on one line where a narrow cell wraps the figure.
+ */
+export function takenDown(day) {
+    return `Taken down ${shortDay(day).replace(' ', ' ')}`;
+}
+
+/**
+ * the check that took a live version down, in words (#263): 'worse than the
+ * baseline 5 scored days in a row' for the check of each day on its own, and
+ * 'its 5-day average was worse than the baseline’s 10 days in a row' for an
+ * average's. `check` is { days, in_a_row }, as the listing's `down` gives it,
+ * and as a track record gives the day whose score set it off. A count it does
+ * not have is left out.
+ */
+export function checkWords({ days, in_a_row: inARow }) {
+    const count = finite(inARow)
+        ? ` ${inARow} ${days === 1 ? 'scored ' : ''}${inARow === 1 ? 'day' : 'days'} in a row`
+        : '';
+
+    return days === 1
+        ? `worse than the baseline${count}`
+        : `its ${days}-day average was worse than the baseline’s${count}`;
+}
+
+/**
+ * how close each of the trainer's checks is to taking a model's live version
+ * down (#263), from the listing's `behind`: 'Days in a row worse than the
+ * baseline: each day 4 of 5, 5-day average 0 of 10, 20-day average not yet.'
+ * Nothing for a listing that gives no checks, as one before format 2 does.
+ */
+export function behindLine(behind) {
+    if (!Array.isArray(behind) || !behind.length) {
+        return '';
+    }
+
+    const each = behind.map((check) => [
+        check.days === 1 ? 'each day' : `${check.days}-day average`,
+        finite(check.in_a_row) ? `${check.in_a_row} of ${check.limit}` : 'not yet',
+    ].join(' '));
+
+    return `Days in a row worse than the baseline: ${each.join(', ')}.`;
 }
 
 //
@@ -444,29 +496,4 @@ export function alignDays(records) {
  */
 export function recentDays(records, count = TREND_DAYS) {
     return alignDays(records).slice(-count).map((entry) => entry.day);
-}
-
-/**
- * the baseline's 20-day score for each day of an axis alignDays gave, for the
- * models `names` of one task.
- *
- * A day's baseline score is the same in every model's record that holds the
- * day -- it knows nothing of any model -- so the first that holds it answers for
- * them all. Its AVERAGE is not: each record averages the baseline over its own
- * model's last 20 days, and a model that started a week ago averages a week. So
- * the line is averaged here, over the last 20 days of the axis, and is the same
- * line whichever models are compared.
- */
-export function baselineAverages(aligned, names, key) {
-    const daily = aligned.map((entry) => {
-        const holder = names.find((name) => entry[name] && finite(entry[name].baseline[key]));
-
-        return holder ? entry[holder].baseline[key] : null;
-    });
-
-    return daily.map((value, at) => {
-        const recent = daily.slice(Math.max(0, at - WINDOW + 1), at + 1).filter(finite);
-
-        return value === null ? null : recent.reduce((sum, each) => sum + each, 0) / recent.length;
-    });
 }
