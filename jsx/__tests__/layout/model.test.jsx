@@ -36,7 +36,7 @@ import { MemoryRouter } from 'react-router-dom';
 import ModelLayout, { linkedCompare, writeCompare } from '../../import/layout/model.jsx';
 import { loadListing, loadReport } from '../../import/layout/model/source.js';
 import { listSubscriptions } from '../../import/general/account-api.js';
-import { COMPARE_COLORS } from '../../import/layout/model/scores.js';
+import { COMPARE_COLORS, SCORES } from '../../import/layout/model/scores.js';
 import { readLayout, writeLayout } from '../../import/general/layout-preference.js';
 import { behindOf, downModelOf, listingOf, modelOf, phoneScreen, trackOf, wideScreen } from '../../test-support/model-fixtures.js';
 
@@ -372,6 +372,40 @@ describe('the lists', () => {
             .map((heading) => heading.textContent);
 
         expect(headings).toEqual(['Compare', 'Model', '', 'Loss, last 20 days', 'Last 60 days', 'Live version', 'Went live']);
+    });
+
+    it('gives the score\'s heading the note of the score picked (#265)', async () => {
+        answer();
+
+        await open({ score: 'auc_beats' });
+
+        const heading = group('Next-day direction').querySelector('.model-list-head').children[3];
+
+        expect(heading).toHaveTextContent('Beat-the-average AUC, last 20 days');
+        expect(heading).toHaveAccessibleDescription(SCORES.find((score) => score.key === 'auc_beats').note);
+        expect(heading.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+    });
+
+    it('lets the keyboard reach the score\'s heading, which a screen reader is shown, and hides the rest (#265)', async () => {
+        //
+        // something the keyboard can reach can't sit in a part of the page hidden
+        // from a screen reader, so the score's heading alone is not hidden
+        //
+        answer();
+
+        await open();
+
+        const head = group('Next-day direction').querySelector('.model-list-head');
+        const [compare, model, bell, score, trend, live, went] = [...head.children];
+
+        expect(head).not.toHaveAttribute('aria-hidden');
+        expect(score).toHaveAttribute('tabindex', '0');
+        expect(score).not.toHaveAttribute('aria-hidden');
+        [compare, model, bell, trend, live, went].forEach((heading) => expect(heading).toHaveAttribute('aria-hidden', 'true'));
+
+        await userEvent.hover(score);
+
+        expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES[0].note);
     });
 
     it('hands the score picked up, for both pages to show', async () => {
