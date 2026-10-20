@@ -24,6 +24,10 @@
  * it could not load. A report with no rows yet answers none, which is not a failure: a model
  * is listed before its first day is scored.
  *
+ * Every set of scores carries the three loss adds up beside the four (#265) --
+ * see PARTS. A history and a track record give them; the listing does not, and
+ * neither would a report without their columns, so there each is null.
+ *
  * The 20-day average is taken over a model's own scored DAYS, not the calendar. A
  * day it was not running -- before it started, after it retired, a night the
  * trainer did not run -- has no row, so it neither counts as a zero nor shortens
@@ -47,6 +51,19 @@ export default () => {
     // the scores every report carries, as the api names them
     //
     const SCORES = ['loss', 'auc_up', 'auc_beats', 'acc_up'];
+
+    //
+    // the three scores loss adds up (#265): the log loss of whether each stock
+    // went up, and of whether it beat the average stock, and the pinball loss of
+    // the size of its move. A history and a track record carry each one under
+    // every prefix they carry a score under
+    //
+    const PARTS = ['up_log_loss', 'beats_log_loss', 'move_pinball'];
+
+    //
+    // every score a set of scores is read for, and averaged for
+    //
+    const READ = SCORES.concat(PARTS);
 
     //
     // how many of a model's scored days an average takes in
@@ -161,13 +178,13 @@ export default () => {
     }
 
     //
-    // the four scores, read off a csv row's columns named `prefix` and the score,
-    // or off an object of them
+    // the four scores and loss's three parts, read off a csv row's columns named
+    // `prefix` and the score, or off an object of them
     //
     function scoresOf(source, prefix) {
         const scores = {};
 
-        SCORES.forEach(function (score) {
+        READ.forEach(function (score) {
             scores[score] = numberOf(source[prefix + score]);
         });
 
@@ -224,12 +241,13 @@ export default () => {
 
     //
     // each score's mean over `recent`, the days that have one, or null where none
-    // does
+    // does. Loss's three parts are averaged alike, so where every day has them,
+    // their averages add up to loss's
     //
     function averageOf(recent, field) {
         const average = {};
 
-        SCORES.forEach(function (score) {
+        READ.forEach(function (score) {
             const values = recent
                 .map(function (row) { return row[field][score]; })
                 .filter(function (value) { return value !== null; });
