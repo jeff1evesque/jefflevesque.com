@@ -7,11 +7,15 @@
  * its own 20-day line, so the two can be read against each other on the days
  * both were scored. A short tick at the foot of the chart marks each night a
  * new version went live, read from the model's history, so a step in the line
- * can be laid beside the version that made it.
+ * can be laid beside the version that made it; and a red one each day whose
+ * score set off a check that took the live version down (#263), read from the
+ * track record.
  *
- * Note: the baseline is averaged over the days on the chart -- see
- *       scores.js's baselineAverages -- so it is the same line /model's
- *       comparison draws, whichever model is added here.
+ * Note: the baseline is the model's own, its record's 20-day average (#263).
+ *       Each model's track record carries the baseline's scores on its own
+ *       days, and they differ from one record to the next -- on 2026-10-15 the
+ *       baseline's loss was 1.733 in tables-gnn's and 1.702 in pt-gnn's -- and
+ *       the trainer judges each model against its own.
  */
 
 import React, { useContext } from 'react';
@@ -34,8 +38,8 @@ import {
     COMPARE_COLORS,
     WINDOW,
     alignDays,
-    baselineAverages,
     chartColors,
+    checkWords,
     formatScore,
     formatTick,
     longDay,
@@ -70,10 +74,11 @@ DayDot.propTypes = {
 };
 
 /**
- * the tick for a night a new version went live: a short upright line standing
- * on the foot of the plot, rather than the whole height a reference line runs.
+ * a short upright line standing on the foot of the plot, rather than the whole
+ * height a reference line runs: a night a new version went live, or a day whose
+ * score took the live version down (#263), each by its own class.
  */
-export function WentLiveTick({ x1, y1, y2, color }) {
+export function FootTick({ x1, y1, y2, color, className }) {
     if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(y2)) {
         return null;
     }
@@ -82,7 +87,7 @@ export function WentLiveTick({ x1, y1, y2, color }) {
 
     return (
         <line
-            className='model-went-live'
+            className={className}
             x1={x1}
             x2={x1}
             y1={foot - 9}
@@ -94,6 +99,21 @@ export function WentLiveTick({ x1, y1, y2, color }) {
     );
 }
 
+FootTick.propTypes = {
+    x1: PropTypes.number,
+    y1: PropTypes.number,
+    y2: PropTypes.number,
+    color: PropTypes.string.isRequired,
+    className: PropTypes.string.isRequired,
+};
+
+/**
+ * the tick for a night a new version went live.
+ */
+export function WentLiveTick(props) {
+    return <FootTick {...props} className='model-went-live' />;
+}
+
 WentLiveTick.propTypes = {
     x1: PropTypes.number,
     y1: PropTypes.number,
@@ -102,10 +122,21 @@ WentLiveTick.propTypes = {
 };
 
 /**
+ * the tick for a day whose score set off a check that took the live version
+ * down (#263).
+ */
+export function TakenDownTick(props) {
+    return <FootTick {...props} className='model-taken-down' />;
+}
+
+TakenDownTick.propTypes = WentLiveTick.propTypes;
+
+/**
  * each day as the chart draws it: the model's score that day and its 20-day
- * average, the baseline's average, and the other model's average where one is
- * added. A day only the other model was scored on has no dot and no line of
- * this model's.
+ * average, the 20-day average of its own baseline, the other model's average
+ * where one is added, and the check a day's score set off where it took the
+ * live version down (#263). A day only the other model was scored on has no
+ * dot and no line of this model's.
  */
 export function trackPoints(name, rows, other, otherRows, score) {
     const records = { [name]: rows };
@@ -114,11 +145,7 @@ export function trackPoints(name, rows, other, otherRows, score) {
         records[other] = otherRows || [];
     }
 
-    const names = Object.keys(records);
-    const aligned = alignDays(records);
-    const baseline = baselineAverages(aligned, names, score);
-
-    return aligned.map((entry, at) => {
+    return alignDays(records).map((entry) => {
         const own = entry[name];
         const theirs = other ? entry[other] : null;
 
@@ -127,8 +154,9 @@ export function trackPoints(name, rows, other, otherRows, score) {
             single: own ? own.score[score] : null,
             average: own ? own.average[score] : null,
             days: own ? own.days : null,
-            baseline: baseline[at],
+            baseline: own ? own.baseline_average[score] : null,
             other: theirs ? theirs.average[score] : null,
+            down: own && Number.isFinite(own.down_days) ? { days: own.down_days, in_a_row: own.down_in_a_row } : null,
         };
     });
 }
@@ -145,6 +173,12 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
     // the record has no day for has nowhere to stand
     //
     const ticks = wentLive.filter((day) => points.some((point) => point.day === day));
+
+    //
+    // the days whose score set off a check that took the live version down,
+    // from the model's own record (#263)
+    //
+    const downs = points.filter((point) => point.down).map((point) => point.day);
 
     //
     // the day its panel shows, as the attempts' panels do: the day pointed at,
@@ -193,6 +227,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
             foot: [
                 point.single === null ? `${name} has no score this day` : null,
                 ticks.includes(point.day) ? 'A new version went live this night' : null,
+                point.down ? `Live version taken down: ${checkWords(point.down)}` : null,
             ].filter(Boolean).join(' · ') || null,
         };
     };
@@ -234,6 +269,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                                 ...(shown ? [{ key: 'other', kind: 'line', color: OTHER_COLOR, label: <span className='model-legend-name'>{shown}</span> }] : []),
                                 { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
                                 ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.better, label: 'New version went live' }] : []),
+                                ...(downs.length ? [{ key: 'down', kind: 'tick', color: colors.worse, label: 'Live version taken down' }] : []),
                             ]}
                         />
                     </>
@@ -277,6 +313,13 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                                         shape={(props) => <WentLiveTick {...props} color={colors.better} />}
                                     />
                                 ))}
+                                {downs.map((day) => (
+                                    <ReferenceLine
+                                        key={`down-${day}`}
+                                        x={day}
+                                        shape={(props) => <TakenDownTick {...props} color={colors.worse} />}
+                                    />
+                                ))}
                             </ComposedChart>
                         </ResponsiveContainer>
                     </div>
@@ -290,6 +333,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                             ...(shown ? [{ key: 'other', label: `${shown}, 20 days` }] : []),
                             { key: 'baseline', label: 'Baseline, 20 days' },
                             ...(ticks.length ? [{ key: 'went', label: 'New version', text: true }] : []),
+                            ...(downs.length ? [{ key: 'down', label: 'Taken down', text: true }] : []),
                         ]}
                         rows={points.slice().reverse().map((point) => ({
                             key: point.day,
@@ -299,6 +343,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                             other: cell(point.other),
                             baseline: cell(point.baseline),
                             went: ticks.includes(point.day) ? 'went live' : '',
+                            down: point.down ? checkWords(point.down) : '',
                         }))}
                     />
                 </>
