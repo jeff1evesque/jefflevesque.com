@@ -345,6 +345,37 @@ export function intervalExpected(stream, rate, date) {
 
 {/*
 
+    the federal holiday no run was due on in the interval starting at 'date',
+    for a chart drawn at 'rate', or null: what a bar names as the reason it is
+    not scheduled (#261).
+
+    Note: an hour or a minute is named only inside the hours the stream runs.
+          outside them nothing is due on any day, so the holiday is not why
+          that interval is empty. a day is named whole, and a month never,
+          since a month is due whenever any of it is
+
+*/}
+export function intervalHoliday(stream, rate, date) {
+    const schedule = INGEST_SCHEDULE[canonicalStream(stream)];
+    const r = String(rate).toLowerCase();
+
+    if (!schedule || schedule.holidays !== 'federal' || r === 'month') {
+        return null;
+    }
+
+    const { day, hour } = easternParts(date);
+    const holiday = federalHoliday(day);
+
+    if (!holiday || (r !== 'day' && !hourExpected(schedule, hour))) {
+        return null;
+    }
+
+    return holiday;
+}
+
+
+{/*
+
     whether coverage can be stated for this stream at this rate.
 
     Note: the monthly rate used to turn on how the report is fetched. a day

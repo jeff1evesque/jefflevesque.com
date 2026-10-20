@@ -21,7 +21,9 @@
  *                 its window landed in another minute of it (a 'rate(5 minutes)'
  *                 stream fires wherever its rule was created). Not a miss.
  *   - 'off'       no run was due: a weekend on a weekday-only stream, an hour
- *                 outside its hours, a minute between its runs.
+ *                 outside its hours, a minute between its runs, a federal
+ *                 holiday for the SEC filings (#241). A holiday's bar carries
+ *                 its name, 'holiday', and says it (#261).
  *   - 'pending'   a run was due but cannot be called missed yet: the interval
  *                 holding now, or one older than the first row the report
  *                 returned. See 'missingIntervals' for why neither counts.
@@ -51,7 +53,7 @@
  */
 
 import THROUGHPUT_KEY from './throughput-key.js';
-import { INGEST_SCHEDULE, coverageBucket, intervalExpected } from './ingest-schedule.js';
+import { INGEST_SCHEDULE, coverageBucket, intervalExpected, intervalHoliday } from './ingest-schedule.js';
 import { missingIntervals } from './ingest-gaps.js';
 import { stepInterval, windowStart } from './rolling-window.js';
 import { canonicalStream } from './stream-id.js';
@@ -135,7 +137,9 @@ export function streamBars(chart_data, stream, rate, field_datetime, stream_sour
         } else if (missing.has(key)) {
             bars.push({ start: new Date(key), kind: 'missed' });
         } else if (!intervalExpected(stream, r, cursor)) {
-            bars.push({ start: new Date(key), kind: 'off' });
+            const holiday = intervalHoliday(stream, r, cursor);
+
+            bars.push({ start: new Date(key), kind: 'off', ...(holiday ? { holiday } : {}) });
         } else if (covered.has(key)) {
             bars.push({ start: new Date(key), kind: 'between' });
         } else {
@@ -183,10 +187,14 @@ export function barSummary(bar) {
         return `Failed: ${count(bar.failed)} failed, nothing succeeded`;
     }
 
+    //
+    // Note: a holiday's bar says which holiday (#261). A weekend explains itself
+    //       by its date, a Sat or a Sun, and a Monday not scheduled does not
+    //
     return {
         missed: 'Missed: a run was due, and nothing reported',
         between: 'Between runs: the run due here landed in another minute',
-        off: 'Not scheduled',
+        off: bar.holiday ? `Not scheduled: ${bar.holiday}` : 'Not scheduled',
         pending: 'Nothing reported yet',
     }[bar.kind] || '';
 }
