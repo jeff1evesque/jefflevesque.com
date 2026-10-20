@@ -1,7 +1,8 @@
 /**
  * stylesheet.test.js: what '_model.scss' promises about a row of /model's list --
- * its columns, the bell's among them (#255, #259) -- and about the pill of a
- * model taken down (#263), read out of the partial.
+ * its columns, the bell's among them (#255, #259) -- about the pill of a model
+ * taken down (#263), and about where loss's three parts go on a model's page
+ * (#265), read out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see which
  * column a cell lands in. A wide screen places a row's cells by their order, so
@@ -98,5 +99,24 @@ describe('a row on a phone, as a card', () => {
         const [top] = declared(card, 'grid-template-areas').match(/'[^']*'/g);
 
         expect(top).toBe('\'model model compare alarm\'');
+    });
+});
+
+describe('loss\'s three parts on a model\'s page (#265)', () => {
+    it('sit under the score\'s card, in its column, the third', () => {
+        const under = RULES.find((rule) => rule.selectors.join() === '.model-summary-cards > .model-parts');
+
+        expect(declared(under, 'grid-column')).toBe('3');
+    });
+
+    it('put every line\'s figures under its name at once, where the list is too narrow for its longest line', () => {
+        //
+        // rather than that line's alone, which left the three lines uneven at
+        // 1100px wide
+        //
+        const list = RULES.find((rule) => rule.selectors.join() === '.model-parts');
+
+        expect(declared(list, 'container-type')).toBe('inline-size');
+        expect(source).toMatch(/@container \(max-width: 29em\) \{\s*\.model-part \{\s*display: grid;/);
     });
 });
