@@ -45,6 +45,13 @@ function run(data) {
 const SCORES = ['loss', 'auc_up', 'auc_beats', 'acc_up'];
 
 //
+// the three scores loss adds up (#265), and how a set of scores reads where it
+// does not give them: the listing, and a report written before them
+//
+const PARTS = ['up_log_loss', 'beats_log_loss', 'move_pinball'];
+const NO_PARTS = { up_log_loss: null, beats_log_loss: null, move_pinball: null };
+
+//
 // a csv from a header and its rows
 //
 function csv(header, rows) {
@@ -96,12 +103,19 @@ describe('the listing', () => {
             scored_days: 30,
             live: { since: '2026-10-10', kind: 'nightly' },
             attempts: { total: 30, went_live: 4 },
-            score: { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 },
-            baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52 },
+            score: { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54, ...NO_PARTS },
+            baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52, ...NO_PARTS },
             down: null,
             behind: [],
         }]);
         expect(answer.tasks).toEqual([{ id: 'direction', name: 'Next-day direction', description: 'Up or down' }]);
+    });
+
+    it('reads no parts of loss, which the listing does not carry (#265)', () => {
+        const [model] = run({ kind: 'list', report: listingOf([entry()]) }).models;
+
+        expect(model.score).toMatchObject(NO_PARTS);
+        expect(model.baseline).toMatchObject(NO_PARTS);
     });
 
     it('passes over a model with no name or no task, and a name listed twice', () => {
@@ -317,9 +331,9 @@ describe('the history', () => {
                 started: null,
                 training_seconds: null,
                 total_seconds: null,
-                attempt: { loss: 1.6, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53 },
-                live: { loss: 1.62, auc_up: 0.54, auc_beats: 0.51, acc_up: 0.52 },
-                baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.51 },
+                attempt: { loss: 1.6, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53, ...NO_PARTS },
+                live: { loss: 1.62, auc_up: 0.54, auc_beats: 0.51, acc_up: 0.52, ...NO_PARTS },
+                baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.51, ...NO_PARTS },
             },
             expect.objectContaining({ day: '2026-10-13', kind: 'nightly', went_live: false }),
         ]);
@@ -363,7 +377,7 @@ describe('the history', () => {
             report: `${header.join(',')}\r\n2026-10-12,nightly,false,,0.5\r\n\r\n`,
         }).rows;
 
-        expect(rows[0].attempt).toEqual({ loss: null, auc_up: 0.5, auc_beats: null, acc_up: null });
+        expect(rows[0].attempt).toEqual({ loss: null, auc_up: 0.5, auc_beats: null, acc_up: null, ...NO_PARTS });
         expect(rows[0].baseline.loss).toBeNull();
     });
 
@@ -423,9 +437,9 @@ describe('the history', () => {
                 started: null,
                 training_seconds: null,
                 total_seconds: null,
-                attempt: { loss: 1.6, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53 },
-                live: { loss: 1.62, auc_up: 0.54, auc_beats: 0.51, acc_up: 0.52 },
-                baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.51 },
+                attempt: { loss: 1.6, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53, ...NO_PARTS },
+                live: { loss: 1.62, auc_up: 0.54, auc_beats: 0.51, acc_up: 0.52, ...NO_PARTS },
+                baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.51, ...NO_PARTS },
             });
         });
     });
@@ -460,8 +474,8 @@ describe('the track record', () => {
         expect(rows[1].days).toBe(2);
         expect(rows[1].average.loss).toBeCloseTo(1.7);
         expect(rows[1].baseline_average.loss).toBeCloseTo(1.65);
-        expect(rows[1].score).toEqual({ loss: 1.8, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53 });
-        expect(rows[1].baseline).toEqual({ loss: 1.6, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.5 });
+        expect(rows[1].score).toEqual({ loss: 1.8, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53, ...NO_PARTS });
+        expect(rows[1].baseline).toEqual({ loss: 1.6, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.5, ...NO_PARTS });
     });
 
     it('averages each day over its last 20 rows once there are more', () => {
@@ -539,6 +553,106 @@ describe('the track record', () => {
 
             expect(row).toMatchObject({ down_days: null, down_in_a_row: null });
         });
+    });
+});
+
+describe('loss\'s three parts, beside the four scores (#265)', () => {
+    //
+    // a track record as the trainer writes one: the four scores, the model's and
+    // the baseline's, and loss's three parts, each loss their sum
+    //
+    const header = [...TRACK_HEADER, ...PARTS, ...PARTS.map((part) => `baseline_${part}`)];
+    const BASE = [0.705, 0.693, 0.262];
+    const sum = (values) => values.reduce((total, value) => total + value, 0);
+
+    function partsDay(day, parts, base = BASE) {
+        return [day, sum(parts), 0.55, 0.52, 0.53, sum(base), 0.5, 0.5, 0.5, ...parts, ...base];
+    }
+
+    //
+    // `count` weekdays from 2026-09-01, as the track record's own cases count them
+    //
+    function weekdays(count) {
+        const days = [];
+        const at = new Date('2026-09-01T12:00:00Z');
+
+        while (days.length < count) {
+            if (at.getUTCDay() !== 0 && at.getUTCDay() !== 6) {
+                days.push(at.toISOString().slice(0, 10));
+            }
+
+            at.setUTCDate(at.getUTCDate() + 1);
+        }
+
+        return days;
+    }
+
+    it('reads each part from a track record, the model\'s and the baseline\'s', () => {
+        const [row] = run({ kind: 'track-record', report: csv(header, [partsDay('2026-10-12', [0.72, 0.7, 0.29])]) }).rows;
+
+        expect(row.score).toMatchObject({ auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53, up_log_loss: 0.72, beats_log_loss: 0.7, move_pinball: 0.29 });
+        expect(row.score.loss).toBeCloseTo(1.71);
+        expect(row.baseline).toMatchObject({ up_log_loss: 0.705, beats_log_loss: 0.693, move_pinball: 0.262 });
+        expect(row.average).toEqual(row.score);
+    });
+
+    it('averages each part over the same 20 days as loss, so the three add up to its average', () => {
+        const parts = (at) => [0.7 + at * 0.001, 0.69 + (at % 3) * 0.01, 0.25 + (at % 5) * 0.005];
+        const rows = run({
+            kind: 'track-record',
+            report: csv(header, weekdays(25).map((day, at) => partsDay(day, parts(at), [0.705, 0.693, 0.25 + at * 0.002]))),
+        }).rows;
+        const last = rows[24];
+        const mean = (values) => sum(values) / values.length;
+
+        //
+        // the 20 rows ending at the 25th: the 6th to the 25th
+        //
+        PARTS.forEach((part, which) => {
+            expect(last.average[part]).toBeCloseTo(mean([...Array(20).keys()].map((at) => parts(at + 5)[which])), 10);
+        });
+        expect(last.days).toBe(20);
+        expect(sum(PARTS.map((part) => last.average[part]))).toBeCloseTo(last.average.loss, 10);
+        expect(sum(PARTS.map((part) => last.baseline_average[part]))).toBeCloseTo(last.baseline_average.loss, 10);
+    });
+
+    it('leaves a day without a part out of that part\'s average, as it does a day without a score', () => {
+        const rows = run({
+            kind: 'track-record',
+            report: csv(header, [
+                partsDay('2026-10-12', [0.72, 0.7, 0.29]),
+                partsDay('2026-10-13', [0.74, 0.7, 0.29]).map((cell, at) => (at === header.indexOf('up_log_loss') ? '' : cell)),
+            ]),
+        }).rows;
+
+        expect(rows[1].score.up_log_loss).toBeNull();
+        expect(rows[1].average.up_log_loss).toBeCloseTo(0.72);
+        expect(rows[1].average.beats_log_loss).toBeCloseTo(0.7);
+    });
+
+    it('reads each part from a history, under each of its three prefixes', () => {
+        const history = ['day', 'kind', 'went_live',
+            ...['attempt_', 'live_', 'baseline_'].reduce((columns, prefix) => columns.concat([...SCORES, ...PARTS].map((score) => `${prefix}${score}`)), [])];
+        const [row] = run({
+            kind: 'history',
+            report: csv(history, [[
+                '2026-10-12', 'nightly', 'false',
+                1.6, 0.55, 0.52, 0.53, 0.72, 0.62, 0.26,
+                1.62, 0.54, 0.51, 0.52, 0.71, 0.64, 0.27,
+                1.66, 0.5, 0.5, 0.51, 0.705, 0.693, 0.262,
+            ]]),
+        }).rows;
+
+        expect(row.attempt).toMatchObject({ up_log_loss: 0.72, beats_log_loss: 0.62, move_pinball: 0.26 });
+        expect(row.live).toMatchObject({ up_log_loss: 0.71, beats_log_loss: 0.64, move_pinball: 0.27 });
+        expect(row.baseline).toMatchObject({ up_log_loss: 0.705, beats_log_loss: 0.693, move_pinball: 0.262 });
+    });
+
+    it('reads a track record written before them as no parts, on any day or in any average', () => {
+        const [row] = run({ kind: 'track-record', report: csv(TRACK_HEADER, [trackRow('2026-10-15', 1.8)]) }).rows;
+
+        ['score', 'baseline', 'average', 'baseline_average'].forEach((field) => expect(row[field]).toMatchObject(NO_PARTS));
+        expect(row.average.loss).toBeCloseTo(1.8);
     });
 });
 
@@ -629,6 +743,11 @@ describe('the worker as the bundle builds it', () => {
                 kind: 'track-record',
                 report: csv([...TRACK_HEADER, 'down_days', 'down_in_a_row'], [[...trackRow('2026-10-15', 1.8), '', ''], [...trackRow('2026-10-16', 1.8), 5, 10]]),
             },
+            {
+                kind: 'track-record',
+                report: csv([...TRACK_HEADER, ...PARTS], [[...trackRow('2026-10-15', 1.71), 0.72, 0.7, 0.29], [...trackRow('2026-10-16', 1.7), 0.71, '', 0.29]]),
+            },
+            { kind: 'history', report: 'day,kind,went_live,attempt_loss,attempt_up_log_loss,live_move_pinball\n2026-10-15,nightly,false,1.6,0.72,0.27' },
             { kind: 'track-record', report: 4 },
         ];
 
