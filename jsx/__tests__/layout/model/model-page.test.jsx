@@ -32,7 +32,13 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ModelPageRoute, { ModelPage, liveFigure, ordinal, placeAmong, sentence } from '../../../import/layout/model/model-page.jsx';
 import { loadListing, loadReport } from '../../../import/layout/model/source.js';
 import { listSubscriptions } from '../../../import/general/account-api.js';
-import { TASKS, behindOf, downModelOf, historyOf, listingOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
+import { SCORES, formatScore, scoreOf } from '../../../import/layout/model/scores.js';
+import { TASKS, behindOf, downModelOf, historyOf, listingOf, modelOf, olderTrackOf, trackOf } from '../../../test-support/model-fixtures.js';
+
+//
+// what loss's name says of it, wherever a page names it (#265)
+//
+const LOSS_NOTE = scoreOf('loss').note;
 
 //
 // a promise and the way to settle it, for an answer a case holds back
@@ -467,7 +473,7 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         await open();
 
         expect(stat('Loss, last 20 days').lastChild).toHaveTextContent(BEHIND);
-        expect(noteOf(2)).toHaveAccessibleDescription(`0.060 better than the baseline, 1.660. ${BEHIND}`);
+        expect(noteOf(2)).toHaveAccessibleDescription(`${LOSS_NOTE} 0.060 better than the baseline, 1.660. ${BEHIND}`);
         expect(stat('Live version')).toHaveTextContent(/^Live versionOct 9went live after a nightly update$/);
         expect(screen.queryByText(DOWN_LINE)).toBeNull();
     });
@@ -545,14 +551,14 @@ describe('the summary, on a phone', () => {
         expect(boxes()[2].querySelector('.stream-focus-long')).toHaveTextContent('Loss, last 20 days');
     });
 
-    it('moves the line under each card\'s value into its box\'s note, as a sentence', async () => {
+    it('moves the line under each card\'s value into its box\'s note, as a sentence, after what the score measures (#265)', async () => {
         answer({ history: historyOf(4, RETRAINS) });
 
         await open();
 
         expect(notes()[0]).toHaveAccessibleDescription('Went live after a nightly update.');
         expect(notes()[1]).toHaveAccessibleDescription(`${WENT} Weekly retrains: 1 of 2.`);
-        expect(notes()[2]).toHaveAccessibleDescription('0.060 better than the baseline, 1.660. 1st of 3 Next-day direction models.');
+        expect(notes()[2]).toHaveAccessibleDescription(`${LOSS_NOTE} 0.060 better than the baseline, 1.660. 1st of 3 Next-day direction models.`);
     });
 
     it('says only what going live is where there are no weekly retrains, or no history', async () => {
@@ -563,13 +569,21 @@ describe('the summary, on a phone', () => {
         expect(notes()[1]).toHaveAccessibleDescription(WENT);
     });
 
-    it('says what the score is where there is nothing to say beside it', async () => {
+    it('says only what the score measures where there is nothing to say beside it', async () => {
         answer({ listing: listingOf([modelOf({ score: null, baseline: null })]) });
 
         await open();
 
         expect(values()[2]).toHaveTextContent('–');
-        expect(notes()[2]).toHaveAccessibleDescription('The model’s loss.');
+        expect(notes()[2]).toHaveAccessibleDescription(LOSS_NOTE);
+    });
+
+    it('starts the score\'s note with what the score picked measures', async () => {
+        answer();
+
+        await open('pt-gnn', { score: 'acc_up' });
+
+        expect(notes()[2]).toHaveAccessibleDescription(`${scoreOf('acc_up').note} 2.0 pts better than the baseline, 52.0%. 2nd of 3 Next-day direction models.`);
     });
 
     it('colors the attempts blue, and the score green where it beats the baseline', async () => {
@@ -595,6 +609,183 @@ describe('the summary, on a phone', () => {
         await open();
 
         expect(values()[2].className).toBe('stream-focus-figure-value');
+    });
+});
+
+describe('the score\'s name on its card (#265)', () => {
+    //
+    // the name over a wide screen's score card
+    //
+    function named(label) {
+        const cards = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-cards');
+
+        return within(cards).getByText(label);
+    }
+
+    it.each(SCORES.map((score) => [score.key, score.label, score.note]))('carries %s\'s note', async (key, label, note) => {
+        answer();
+        await open('pt-gnn', { score: key });
+
+        expect(named(`${label}, last 20 days`)).toHaveAccessibleDescription(note);
+        expect(named(`${label}, last 20 days`).querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+    });
+
+    it('can be reached from the keyboard, and shows its note under the pointer', async () => {
+        answer();
+        await open();
+
+        expect(named('Loss, last 20 days')).toHaveAttribute('tabindex', '0');
+
+        await userEvent.hover(named('Loss, last 20 days'));
+
+        expect(await screen.findByRole('tooltip')).toHaveTextContent(LOSS_NOTE);
+    });
+
+    it('carries it while the score is so far, for a new model', async () => {
+        answer();
+        await open('fresh');
+
+        expect(named('Loss, 6 days so far')).toHaveAccessibleDescription(LOSS_NOTE);
+    });
+});
+
+describe('loss, part by part (#265)', () => {
+    //
+    // a track record whose newest 20-day loss is the listing's 1.600, against the
+    // baseline's 1.660, as the trainer's are: every day's loss 1.6
+    //
+    const steady = () => trackOf(5, '2026-09-01', () => 1.6);
+
+    //
+    // the parts' rows under a wide screen's score card, or under a phone's boxes:
+    // the stylesheet shows one or the other
+    //
+    function rowsIn(where) {
+        const list = screen.getByRole('region', { name: 'Summary' }).querySelector(`.model-summary-${where} .model-parts`);
+
+        return list ? [...list.querySelectorAll('.model-part')] : [];
+    }
+
+    const read = (row) => [
+        row.querySelector('.model-part-name').textContent,
+        row.querySelector('.model-part-value').textContent,
+        row.querySelector('.model-part-baseline').textContent,
+    ];
+
+    //
+    // the score's card's figure, and the baseline's in the line under it
+    //
+    function figures() {
+        const card = within(screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-cards'))
+            .getByText('Loss, last 20 days')
+            .closest('.model-stat');
+
+        return {
+            score: Number(card.querySelector('.model-stat-value').textContent),
+            baseline: Number(card.querySelector('.model-stat-detail').textContent.match(/([0-9.]+)$/)[1]),
+        };
+    }
+
+    it('shows the three under the score\'s card while Loss is picked, each beside the baseline\'s', async () => {
+        answer({ track: steady() });
+        await open();
+
+        expect(rowsIn('cards').map(read)).toEqual([
+            ['Up or down', '0.720', 'worse than baseline 0.700'],
+            ['Beats the average stock', '0.620', 'better than baseline 0.693'],
+            ['Size of the move', '0.260', 'better than baseline 0.267'],
+        ]);
+        expect(within(screen.getByRole('region', { name: 'Summary' })).getAllByRole('list', { name: 'Loss, part by part' })).toHaveLength(2);
+    });
+
+    it('adds the three up to the figure, and the baseline\'s up to the baseline\'s, within 0.001', async () => {
+        answer({ track: steady() });
+        await open();
+
+        const sum = (values) => values.reduce((total, value) => total + value, 0);
+        const values = rowsIn('cards').map((row) => Number(row.querySelector('.model-part-value').textContent));
+        const baselines = rowsIn('cards').map((row) => Number(row.querySelector('.model-part-baseline').textContent.split(' ').pop()));
+
+        expect(Math.abs(sum(values) - figures().score)).toBeLessThanOrEqual(0.001);
+        expect(Math.abs(sum(baselines) - figures().baseline)).toBeLessThanOrEqual(0.001);
+    });
+
+    it('marks each part better or worse than the baseline\'s, as the card\'s own line is', async () => {
+        answer({ track: steady() });
+        await open();
+
+        expect(rowsIn('cards').map((row) => row.querySelector('.model-part-baseline').className)).toEqual([
+            'model-part-baseline model-gap-worse',
+            'model-part-baseline model-gap-better',
+            'model-part-baseline model-gap-better',
+        ]);
+    });
+
+    it('shows the same rows under the boxes on a phone', async () => {
+        answer({ track: steady() });
+        await open();
+
+        expect(rowsIn('boxes').map(read)).toEqual(rowsIn('cards').map(read));
+    });
+
+    it('takes them from the track record\'s newest day: its 20-day averages', async () => {
+        //
+        // a 25th day's loss of 1.7, whose move is 0.36: the newest 20-day
+        // average of the move takes in 19 days of 0.26 and that one
+        //
+        const track = trackOf(25, '2026-09-01', (at) => (at === 24 ? 1.7 : 1.6));
+
+        answer({ track: track });
+        await open();
+
+        expect(read(rowsIn('cards')[2])).toEqual(['Size of the move', formatScore(0.265, 'loss'), 'better than baseline 0.267']);
+    });
+
+    it('leaves out the baseline\'s side of a part the baseline has none of', async () => {
+        const track = steady();
+        const last = track[track.length - 1];
+
+        last.baseline_average = { ...last.baseline_average, beats_log_loss: null };
+        answer({ track: track });
+        await open();
+
+        expect(rowsIn('cards')[1].querySelector('.model-part-value')).toHaveTextContent('0.620');
+        expect(rowsIn('cards')[1].querySelector('.model-part-baseline')).toBeNull();
+    });
+
+    it.each(['auc_up', 'auc_beats', 'acc_up'])('shows none with %s picked', async (score) => {
+        answer({ track: steady() });
+        await open('pt-gnn', { score: score });
+
+        expect(document.querySelector('.model-parts')).toBeNull();
+    });
+
+    it('shows none for a track record written before them, and the rest of the page as it is', async () => {
+        answer({ track: olderTrackOf() });
+        await open();
+
+        expect(document.querySelector('.model-parts')).toBeNull();
+        expect(figures().score).toBe(1.6);
+        expect(screen.getByRole('heading', { name: 'Each attempt against the live version' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Track record' })).toBeInTheDocument();
+    });
+
+    it('shows none while the track record is on its way', async () => {
+        loadListing.mockResolvedValue(listingOf());
+        loadReport.mockImplementation((name, kind) => (kind === 'history' ? Promise.resolve(historyOf()) : new Promise(() => {})));
+
+        await open();
+
+        expect(screen.getByText('Loading the track record…')).toBeInTheDocument();
+        expect(document.querySelector('.model-parts')).toBeNull();
+    });
+
+    it.each([['could not be had', null], ['has no days yet', []]])('shows none where the track record %s', async (name, track) => {
+        answer({ track: track });
+        await open();
+
+        expect(document.querySelector('.model-parts')).toBeNull();
+        expect(figures().score).toBe(1.6);
     });
 });
 
