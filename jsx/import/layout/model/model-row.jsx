@@ -3,7 +3,9 @@
  * comparison, its name, status, address and description, its bell, which leads to
  * its alarm page (#255), its latest 20-day score against the know-nothing baseline,
  * a trend line of that score, when its live version went live, and how many of its
- * nightly attempts did. A retired model has no bell.
+ * nightly attempts did. A retired model has no bell. A model whose live version
+ * the trainer took down for doing worse than the baseline says when, and which
+ * check did it, in place of when it went live (#263).
  *
  * The bell comes after the name, as a stream's comes after the stream's name on
  * /stream, so the two pages put it on one side (#259).
@@ -27,8 +29,10 @@ import { AlarmBell, StatusPill } from './parts.jsx';
 import {
     COMPARE_COLORS,
     TREND_DAYS,
+    WINDOW,
     betterBy,
     chartColors,
+    checkWords,
     formatGap,
     formatScore,
     liveKind,
@@ -36,6 +40,7 @@ import {
     shortDay,
     standing,
     statusOf,
+    takenDown,
 } from './scores.js';
 
 //
@@ -116,18 +121,37 @@ TrendLine.propTypes = {
 
 //
 // what the score's figure is called on a phone's card, where there are no
-// headings: over the last 20 days, so far for a new model, and before it retired
-// for a retired one
+// headings: over the last 20 days, before it retired for a retired one, and so
+// far for one with fewer than 20 scored days -- a new model, or one taken down
+// before it had them (#263)
 //
 function scoreLabel(model, score) {
     const label = scoreOf(score).label;
-    const status = statusOf(model);
 
-    if (status === 'new') {
-        return `${label}, ${model.scored_days} ${model.scored_days === 1 ? 'day' : 'days'} so far`;
+    if (statusOf(model) === 'retired') {
+        return `${label}, last 20 days before retiring`;
     }
 
-    return status === 'retired' ? `${label}, last 20 days before retiring` : `${label}, last 20 days`;
+    return model.scored_days < WINDOW
+        ? `${label}, ${model.scored_days} ${model.scored_days === 1 ? 'day' : 'days'} so far`
+        : `${label}, last 20 days`;
+}
+
+//
+// the Live version cell's figure, and the line under it: when the live version
+// went live and how, when a retired model retired, or when a model's live
+// version was taken down and the check that did it (#263)
+//
+function liveCell(model, status) {
+    if (status === 'retired') {
+        return { figure: `Retired ${shortDay(model.retired)}`, detail: 'no longer trained' };
+    }
+
+    if (status === 'down') {
+        return { figure: takenDown(model.down.since), detail: checkWords(model.down) };
+    }
+
+    return { figure: shortDay(model.live.since) || '–', detail: liveKind(model.live.kind) };
 }
 
 //
@@ -150,6 +174,7 @@ function gapText(gap, score) {
 
 function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false }) {
     const status = statusOf(model);
+    const live = liveCell(model, status);
     const value = model.score ? model.score[score] : null;
     const gap = betterBy(value, model.baseline ? model.baseline[score] : null, score);
     const ticked = picked !== null;
@@ -202,18 +227,8 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
             </div>
             <div className='model-cell model-cell-live'>
                 <span className='model-cell-label'>Live version</span>
-                {status === 'retired'
-                    ? (
-                        <>
-                            <span className='model-figure'>{`Retired ${shortDay(model.retired)}`}</span>
-                            <span className='model-figure-detail'>no longer trained</span>
-                        </>
-                    ) : (
-                        <>
-                            <span className='model-figure'>{shortDay(model.live.since) || '–'}</span>
-                            <span className='model-figure-detail'>{liveKind(model.live.kind)}</span>
-                        </>
-                    )}
+                <span className='model-figure'>{live.figure}</span>
+                <span className='model-figure-detail'>{live.detail}</span>
             </div>
             <div className='model-cell model-cell-went'>
                 <span className='model-cell-label'>Went live</span>
@@ -241,6 +256,15 @@ ModelRow.propTypes = {
         }).isRequired,
         score: PropTypes.object,
         baseline: PropTypes.object,
+        //
+        // the night the trainer took its live version down, and the check that
+        // did it, or null while it is live -- see worker/model/report.js
+        //
+        down: PropTypes.shape({
+            since: PropTypes.string.isRequired,
+            days: PropTypes.number.isRequired,
+            in_a_row: PropTypes.number.isRequired,
+        }),
     }).isRequired,
     score: PropTypes.string.isRequired,
     //
