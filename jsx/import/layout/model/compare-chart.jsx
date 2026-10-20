@@ -1,12 +1,19 @@
 /**
  * compare-chart.jsx: two or three models of one task, compared over /model's
- * lists (#243): their 20-day track records on one chart, with the know-nothing
- * baseline's.
+ * lists (#243): their 20-day track records on one chart, each beside its own
+ * know-nothing baseline, dashed in its color (#263).
  *
  * Each model is drawn in the color it was given when it was ticked, which it
  * keeps for as long as it stays ticked -- see ModelLayout.pick -- so unticking
  * one does not repaint the others. The legend names each in the page's own text
  * beside a swatch of its line.
+ *
+ * Note: a baseline for each model, from its own record's 20-day averages. Each
+ *       record carries the baseline's scores on its own model's days, and they
+ *       differ -- on 2026-10-15 the baseline's loss was 1.733 in tables-gnn's and
+ *       1.702 in pt-gnn's -- and the trainer judges each model against its own.
+ *       One line for them all could draw a model ahead of the baseline on the day
+ *       it was taken down for being behind its own.
  *
  * Note: the days are every day any of them was scored on. A day one of them was
  *       not running is a gap in its line, and the tooltip says why: it had not
@@ -31,7 +38,6 @@ import {
     COMPARE_COLORS,
     WINDOW,
     alignDays,
-    baselineAverages,
     chartColors,
     formatScore,
     formatTick,
@@ -69,6 +75,13 @@ function together(names) {
     return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names.join('');
 }
 
+//
+// what a model's baseline is called in the legend, the panel and the table
+//
+function baselineOf(name) {
+    return `${name}’s baseline`;
+}
+
 function CompareChart({ picks, records, score, task, onClear }) {
     const { theme } = useContext(ThemeModeContext);
     const colors = chartColors(theme);
@@ -84,14 +97,14 @@ function CompareChart({ picks, records, score, task, onClear }) {
     });
 
     const aligned = alignDays(held);
-    const baseline = baselineAverages(aligned, names, score);
-    const data = aligned.map((entry, at) => {
-        const point = { day: entry.day, baseline: baseline[at] };
+    const data = aligned.map((entry) => {
+        const point = { day: entry.day };
 
         picks.forEach((pick) => {
             const row = entry[pick.model.name];
 
             point[`slot${pick.slot}`] = row ? row.average[score] : null;
+            point[`base${pick.slot}`] = row ? row.baseline_average[score] : null;
         });
 
         return point;
@@ -111,34 +124,35 @@ function CompareChart({ picks, records, score, task, onClear }) {
             return null;
         }
 
-        const at = aligned.indexOf(entry);
-        const scored = picks.filter((pick) => entry[pick.model.name]);
-        const rows = scored
+        const scored = picks
+            .filter((pick) => entry[pick.model.name])
             .sort((a, b) => {
                 const x = entry[a.model.name].average[score];
                 const y = entry[b.model.name].average[score];
 
                 return lower ? x - y : y - x;
-            })
-            .map((pick) => {
-                const row = entry[pick.model.name];
-
-                return {
-                    key: pick.model.name,
-                    mark: <Mark kind='line' color={COMPARE_COLORS[pick.slot]} />,
-                    name: row.days < WINDOW ? `${pick.model.name} (${row.days} days)` : pick.model.name,
-                    value: formatScore(row.average[score], score),
-                };
             });
 
-        if (baseline[at] !== null) {
-            rows.push({
-                key: 'baseline',
-                mark: <Mark kind='dashed' color={colors.muted} />,
-                name: 'Know-nothing baseline',
-                value: formatScore(baseline[at], score),
-            });
-        }
+        //
+        // the models best first, then each one's own baseline, in the same order
+        //
+        const rows = scored.map((pick) => {
+            const row = entry[pick.model.name];
+
+            return {
+                key: pick.model.name,
+                mark: <Mark kind='line' color={COMPARE_COLORS[pick.slot]} />,
+                name: row.days < WINDOW ? `${pick.model.name} (${row.days} days)` : pick.model.name,
+                value: formatScore(row.average[score], score),
+            };
+        }).concat(scored
+            .filter((pick) => entry[pick.model.name].baseline_average[score] !== null)
+            .map((pick) => ({
+                key: `base-${pick.model.name}`,
+                mark: <Mark kind='dashed' color={COMPARE_COLORS[pick.slot]} />,
+                name: baselineOf(pick.model.name),
+                value: formatScore(entry[pick.model.name].baseline_average[score], score),
+            })));
 
         const absent = picks
             .filter((pick) => !entry[pick.model.name])
@@ -160,7 +174,7 @@ function CompareChart({ picks, records, score, task, onClear }) {
                     <button type='button' className='model-clear' onClick={onClear}>Clear</button>
                 </div>
                 <p className='model-card-sub'>
-                    {`${task.name}, scored on the same days. Lines are averages of the last 20 days. Up is better`}
+                    {`${task.name}, scored on the same days. Lines are averages of the last 20 days, and each model’s own know-nothing baseline is dashed in its color. Up is better`}
                     {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
                 </p>
                 <Legend
@@ -171,7 +185,12 @@ function CompareChart({ picks, records, score, task, onClear }) {
                             color: COMPARE_COLORS[pick.slot],
                             label: <span className='model-legend-name'>{pick.model.name}</span>,
                         })),
-                        { key: 'baseline', kind: 'dashed', color: colors.muted, label: 'Know-nothing baseline' },
+                        ...picks.map((pick) => ({
+                            key: `base-${pick.model.name}`,
+                            kind: 'dashed',
+                            color: COMPARE_COLORS[pick.slot],
+                            label: baselineOf(pick.model.name),
+                        })),
                     ]}
                 />
             </div>
@@ -184,7 +203,7 @@ function CompareChart({ picks, records, score, task, onClear }) {
             {waiting.length
                 ? <p className='model-status'>Loading the track records&hellip;</p>
                 : (
-                    <div className='model-chart' role='img' aria-label={`${scoreOf(score).label}, 20-day averages of ${together(names)} and the know-nothing baseline. The numbers are in the table below.`}>
+                    <div className='model-chart' role='img' aria-label={`${scoreOf(score).label}, 20-day averages of ${together(names)}, each beside its own know-nothing baseline. The numbers are in the table below.`}>
                         <ResponsiveContainer width='100%' height={HEIGHT}>
                             <ComposedChart data={data} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
                                 <CartesianGrid stroke={colors.grid} vertical={false} />
@@ -202,14 +221,18 @@ function CompareChart({ picks, records, score, task, onClear }) {
                                     {...axisStyle(colors)}
                                 />
                                 <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
-                                <Line
-                                    dataKey='baseline'
-                                    stroke={colors.muted}
-                                    strokeWidth={1.5}
-                                    strokeDasharray={BASELINE_DASH}
-                                    dot={false}
-                                    isAnimationActive={false}
-                                />
+                                {picks.map((pick) => (
+                                    <Line
+                                        key={`base-${pick.model.name}`}
+                                        dataKey={`base${pick.slot}`}
+                                        name={baselineOf(pick.model.name)}
+                                        stroke={COMPARE_COLORS[pick.slot]}
+                                        strokeWidth={1.5}
+                                        strokeDasharray={BASELINE_DASH}
+                                        dot={false}
+                                        isAnimationActive={false}
+                                    />
+                                ))}
                                 {picks.map((pick) => (
                                     <Line
                                         key={pick.model.name}
@@ -231,13 +254,14 @@ function CompareChart({ picks, records, score, task, onClear }) {
                 columns={[
                     { key: 'day', label: 'Day', text: true },
                     ...picks.map((pick) => ({ key: `slot${pick.slot}`, label: pick.model.name })),
-                    { key: 'baseline', label: 'Baseline' },
+                    ...picks.map((pick) => ({ key: `base${pick.slot}`, label: baselineOf(pick.model.name) })),
                 ]}
                 rows={data.slice().reverse().map((point) => {
-                    const row = { key: point.day, day: shortDay(point.day), baseline: cell(point.baseline) };
+                    const row = { key: point.day, day: shortDay(point.day) };
 
                     picks.forEach((pick) => {
                         row[`slot${pick.slot}`] = cell(point[`slot${pick.slot}`]);
+                        row[`base${pick.slot}`] = cell(point[`base${pick.slot}`]);
                     });
 
                     return row;
