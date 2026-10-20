@@ -1,6 +1,7 @@
 /**
  * stylesheet.test.js: what '_model.scss' promises about a row of /model's list --
- * its columns, the bell's among them (#255, #259) -- read out of the partial.
+ * its columns, the bell's among them (#255, #259) -- and about the pill of a
+ * model taken down (#263), read out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see which
  * column a cell lands in. A wide screen places a row's cells by their order, so
@@ -16,6 +17,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { chartColors } from '../../../import/layout/model/scores.js';
 
 const source = fs.readFileSync(path.resolve(__dirname, '../../../../scss/_model.scss'), 'utf8')
     .replace(/\/\/.*$/gm, '');
@@ -62,6 +64,22 @@ describe('a row of the list, on a wide screen', () => {
         expect(compare).toBe('4.5rem');
         expect(model).toBe('minmax(12rem, 2fr)');
         expect(bell).toBe('2.5rem');
+    });
+});
+
+describe('the status pill of a model taken down (#263)', () => {
+    //
+    // '--stream-missed' as '_stream.scss' sets it, by day and by night
+    //
+    const stream = fs.readFileSync(path.resolve(__dirname, '../../../../scss/_stream.scss'), 'utf8');
+    const missed = (block) => stream.match(new RegExp(`${block}\\s*\\{[^}]*--stream-missed:\\s*([^;]+);`))[1].trim();
+
+    it('draws its dot in the red the charts draw worse in, in either theme', () => {
+        const dot = RULES.find((rule) => rule.selectors.join() === '.model-pill-down .model-pill-dot');
+
+        expect(declared(dot, 'background-color')).toBe('var(--stream-missed)');
+        expect(missed(':root')).toBe(chartColors('light').worse);
+        expect(missed(':root\\[data-theme=\'dark\'\\]')).toBe(chartColors('dark').worse);
     });
 });
 
