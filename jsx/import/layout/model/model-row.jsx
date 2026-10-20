@@ -11,7 +11,9 @@
  * /stream, so the two pages put it on one side (#259).
  *
  * A row across a wide screen, under the list's headings, and a card on a phone,
- * where each figure carries its own name instead -- see '_model.scss'.
+ * where each figure carries its own name instead -- see '_model.scss'. There the
+ * score's name carries a note on what the score measures, as the heading over
+ * its column does on a wide screen (#265).
  *
  * Note: the trend line is drawn on the axis the list hands every row: the last
  *       60 days any model was scored on. A model that started a fortnight ago
@@ -25,6 +27,7 @@ import { Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis } from 'recharts';
 import Tooltip from '@mui/material/Tooltip';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
+import InfoNote from '../../general/info-note.jsx';
 import { AlarmBell, StatusPill } from './parts.jsx';
 import {
     COMPARE_COLORS,
@@ -217,7 +220,7 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                 <AlarmBell model={model} held={held} />
             </div>
             <div className='model-cell model-cell-score'>
-                <span className='model-cell-label'>{scoreLabel(model, score)}</span>
+                <InfoNote note={scoreOf(score).note} className='model-cell-label model-noted'>{scoreLabel(model, score)}</InfoNote>
                 <span className='model-score-value'>{formatScore(value, score)}</span>
                 <span className={`model-gap model-gap-${standing(gap, score)}`}>{gapText(gap, score)}</span>
             </div>

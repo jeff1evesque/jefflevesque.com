@@ -12,7 +12,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 import ModelRow, { TrendLine } from '../../../import/layout/model/model-row.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
-import { COMPARE_COLORS, recentDays } from '../../../import/layout/model/scores.js';
+import { COMPARE_COLORS, SCORES, recentDays } from '../../../import/layout/model/scores.js';
 import { downModelOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
@@ -95,6 +95,23 @@ describe('a row', () => {
         expect(fresh.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, 3 days so far');
         expect(one.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, 1 day so far');
         expect(retired.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, last 20 days before retiring');
+    });
+
+    it.each(SCORES.map((score) => [score.key, score.note]))('names the score\'s figure on a phone\'s card with %s\'s note (#265)', (key, note) => {
+        const { container } = draw({ score: key });
+        const label = container.querySelector('.model-cell-score .model-cell-label');
+
+        expect(label).toHaveAccessibleDescription(note);
+        expect(label).toHaveAttribute('tabindex', '0');
+        expect(label.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+    });
+
+    it('shows the score\'s note under the pointer, on a phone\'s card (#265)', async () => {
+        const { container } = draw();
+
+        await userEvent.hover(container.querySelector('.model-cell-score .model-cell-label'));
+
+        expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES[0].note);
     });
 
     it('says when the live version went live and how, and how many attempts did', () => {

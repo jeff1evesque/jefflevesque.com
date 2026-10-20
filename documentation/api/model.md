@@ -42,13 +42,27 @@ The listing, a history and a track record carry the same four scores:
 
 | Score | What it measures |
 |---|---|
-| `loss` | how far the predicted chances were from what happened. Lower is better, and it decides whether an attempt goes live |
+| `loss` | three scores added up, below. Lower is better, and it decides whether an attempt goes live |
 | `auc_up` | how well the predictions rank the stocks that went up above the ones that went down: 0.5 is a coin toss |
 | `auc_beats` | the same, for the stocks that beat the average stock |
 | `acc_up` | the share of stocks whose direction was called right, 0 to 1 |
 
 Beside each is the **know-nothing baseline**'s score on the same days: what a model
 that knows nothing about any stock would score.
+
+`loss` is not a single log loss. It is three scores added up, each lower-is-better:
+
+| Part | What it measures |
+|---|---|
+| `up_log_loss` | the log loss of whether each stock went up |
+| `beats_log_loss` | the log loss of whether it beat the average stock |
+| `move_pinball` | the pinball loss of the size of its move |
+
+A coin flip scores 0.693 on each of the first two, so a model that knows nothing scores
+about 1.65. A history and a track record carry each part as they carry a score, under
+the same prefixes: `attempt_up_log_loss`, `live_up_log_loss` and `baseline_up_log_loss`
+in a history, and `up_log_loss` and `baseline_up_log_loss` in a track record. The
+listing carries only `loss`.
 
 ## Response: the listing
 
@@ -111,8 +125,9 @@ A CSV string with a header row, oldest night first. Each row is one nightly atte
 - `total_seconds`, from `started` until the attempt's scores are known, so its training
   and then scoring the held-out days for the attempt and for the live version, to one
   decimal;
-- each score of the attempt, of the live version and of the baseline, all on the same
-  held-out days: `attempt_<score>`, `live_<score>` and `baseline_<score>`.
+- each score of the attempt, of the live version and of the baseline, loss's three
+  parts among them, all on the same held-out days: `attempt_<score>`, `live_<score>`
+  and `baseline_<score>`.
 
 `started`, `training_seconds` and `total_seconds` are empty for attempts made before
 2026-10-15.
@@ -120,8 +135,9 @@ A CSV string with a header row, oldest night first. Each row is one nightly atte
 ## Response: a track record
 
 A CSV string with a header row, oldest day first. Each row is one day the model
-predicted, written once that day is scored: `day`, each score as `<score>`, and the
-baseline's as `baseline_<score>`. A day the model was not running has no row.
+predicted, written once that day is scored: `day`, each score as `<score>`, loss's
+three parts among them, and the baseline's as `baseline_<score>`. A day the model was
+not running has no row.
 
 From format 2, `down_days` and `down_in_a_row` are the check that took the live version
 down, as the listing's `down` gives it, on the day whose score set it off. They are
@@ -129,7 +145,9 @@ empty on every other row. While a model is down it predicts nothing, so its trac
 record has no rows until a new version goes live.
 
 The pages work out each day's 20-day average themselves, over the model's own last 20
-rows, so a day it was not running neither counts nor shortens the window.
+rows, so a day it was not running neither counts nor shortens the window. Loss's three
+parts are averaged over the same rows, so on a model's page they add up to its 20-day
+loss.
 
 An empty cell is a score the day does not have, and is left out of an average rather
 than read as zero.

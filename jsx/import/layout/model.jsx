@@ -10,7 +10,8 @@
  * line of it; see model/model-row.jsx. The score picker chooses which of the four
  * scores the rows, their trend lines and the comparison show, and is shared with
  * each model's own page -- see redux/container/model.jsx -- and a sort menu
- * orders every list alike.
+ * orders every list alike. The heading over the score's column carries a note on
+ * what the score measures (#265).
  *
  * Ticking two or three models of one task draws their track records on one chart
  * over the lists; see model/compare-chart.jsx. A model of another task cannot be
@@ -37,6 +38,7 @@ import { Link } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ErrorFallback from '../formatter/boundary-error.jsx';
+import InfoNote from '../general/info-note.jsx';
 import ModelRow from './model/model-row.jsx';
 import CompareChart from './model/compare-chart.jsx';
 import { ScorePicker, isPhone, modelsHeld } from './model/parts.jsx';
@@ -493,6 +495,12 @@ class ModelLayout extends Component {
                 return null;
             }
 
+            //
+            // the headings over the columns are hidden from a screen reader, as
+            // a row's own cells say what they hold -- all but the score's, whose
+            // note can be focused: what is hidden from a screen reader must hold
+            // nothing the keyboard can reach (#265)
+            //
             return (
                 <section key={task.id} className='model-group' aria-labelledby={`model-group-${index}`}>
                     <div className='model-group-head'>
@@ -501,14 +509,16 @@ class ModelLayout extends Component {
                         <span className='model-group-count'>{`${models.length} ${models.length === 1 ? 'model' : 'models'}`}</span>
                     </div>
                     <div className='model-list'>
-                        <div className='model-list-head' aria-hidden='true'>
-                            <span>Compare</span>
-                            <span>Model</span>
-                            <span />
-                            <span>{`${scoreOf(score).label}, last 20 days`}</span>
-                            <span>{`Last ${TREND_DAYS} days`}</span>
-                            <span>Live version</span>
-                            <span>Went live</span>
+                        <div className='model-list-head'>
+                            <span aria-hidden='true'>Compare</span>
+                            <span aria-hidden='true'>Model</span>
+                            <span aria-hidden='true' />
+                            <InfoNote note={scoreOf(score).note} className='model-noted'>
+                                {`${scoreOf(score).label}, last 20 days`}
+                            </InfoNote>
+                            <span aria-hidden='true'>{`Last ${TREND_DAYS} days`}</span>
+                            <span aria-hidden='true'>Live version</span>
+                            <span aria-hidden='true'>Went live</span>
                         </div>
                         <div role='list' aria-label={`${task.name} models`}>
                             {sortModels(models, this.state.sort, score).map((model) => {

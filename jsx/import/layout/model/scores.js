@@ -1,14 +1,17 @@
 /**
  * scores.js: what the model pages know about a score, a model's status and its
- * days (#243), how long a night's attempt took (#247), and the trainer's checks
- * that take a live version down for doing worse than the baseline (#263).
+ * days (#243), how long a night's attempt took (#247), the trainer's checks that
+ * take a live version down for doing worse than the baseline (#263), and the
+ * three scores loss adds up (#265).
  *
  * The api scores every model four ways, and the pages offer the four alike from
  * one picker:
  *
- *     loss         how far the predicted chances were from what happened. Lower
- *                  is better, and it is the score that decides whether a night's
- *                  attempt goes live
+ *     loss         three scores added up -- see LOSS_PARTS -- of how far the
+ *                  chances predicted for each stock going up, and for it beating
+ *                  the average stock, were from what happened, and of how far off
+ *                  the size of its move was. Lower is better, and it is the score
+ *                  that decides whether a night's attempt goes live
  *     auc_up       how well the predictions rank the stocks that went up above the
  *                  ones that went down: 0.5 is a coin toss
  *     auc_beats    the same for the stocks that beat the average stock
@@ -24,11 +27,50 @@
 
 import { colors_categorical, themeColors } from '../../general/colors.js';
 
+//
+// each with the note its name carries wherever a page names it (#265): what it
+// measures, and which way is better. Without one, loss read as a single log
+// loss, and a log loss of 1.7 would be poor on most tasks
+//
 export const SCORES = [
-    { key: 'loss', label: 'Loss', lower: true },
-    { key: 'auc_up', label: 'Up/down AUC', lower: false },
-    { key: 'auc_beats', label: 'Beat-the-average AUC', lower: false },
-    { key: 'acc_up', label: 'Up/down accuracy', lower: false, share: true },
+    {
+        key: 'loss',
+        label: 'Loss',
+        lower: true,
+        note: 'Loss adds three scores: up or down, beating the average stock, and the size of the move. Lower is better. A coin flip scores 0.693 on each of the first two. The baseline is what knowing nothing scored on the same days.',
+    },
+    {
+        key: 'auc_up',
+        label: 'Up/down AUC',
+        lower: false,
+        note: 'How well the predictions rank the stocks that went up above the ones that went down: 0.5 is a coin flip, and higher is better.',
+    },
+    {
+        key: 'auc_beats',
+        label: 'Beat-the-average AUC',
+        lower: false,
+        note: 'How well the predictions rank the stocks that beat the average stock above the ones that didn’t: 0.5 is a coin flip, and higher is better.',
+    },
+    {
+        key: 'acc_up',
+        label: 'Up/down accuracy',
+        lower: false,
+        share: true,
+        note: 'The percent of stocks whose direction, up or down, was called right: higher is better.',
+    },
+];
+
+//
+// the three scores loss adds up (#265), each by the column a history and a track
+// record give it, and by its name on the pages: the log loss of whether each
+// stock went up, and of whether it beat the average stock, and the pinball loss
+// of the size of its move. Each is lower-is-better, as loss is, and is compared
+// and printed as loss is. The picker offers none of them
+//
+export const LOSS_PARTS = [
+    { key: 'up_log_loss', label: 'Up or down' },
+    { key: 'beats_log_loss', label: 'Beats the average stock' },
+    { key: 'move_pinball', label: 'Size of the move' },
 ];
 
 //
@@ -197,6 +239,40 @@ export function standing(gap, key) {
     }
 
     return gap > 0 ? 'better' : 'worse';
+}
+
+/**
+ * the three parts of a track record's day's 20-day loss (#265): each part's
+ * average, `value`, the baseline's over the same days, `baseline`, and how the
+ * part stands against it, `stands` -- better, worse or level, as loss is
+ * compared, or null where the baseline has none. The newest day's are over the
+ * same days as the listing's score, so the three add up to it.
+ *
+ * None for a day without all three, as in a track record without their columns:
+ * two parts alone would not add up to the loss.
+ *
+ * Note: compared as the two are printed, since the page prints the word beside
+ *       them. tables-gnn's size of the move was 0.26018 against the baseline's
+ *       0.26065 over its first five days: less than half a thousandth apart,
+ *       which standing calls level, and printed as 0.260 and 0.261.
+ */
+export function lossParts(row) {
+    const averageOf = (field, key) => (row && row[field] ? row[field][key] : null);
+    const printed = (value) => Number(formatScore(value, 'loss'));
+    const parts = LOSS_PARTS.map((part) => {
+        const value = averageOf('average', part.key);
+        const baseline = averageOf('baseline_average', part.key);
+
+        return {
+            key: part.key,
+            label: part.label,
+            value: value,
+            baseline: baseline,
+            stands: finite(value) && finite(baseline) ? standing(betterBy(printed(value), printed(baseline), 'loss'), 'loss') : null,
+        };
+    });
+
+    return parts.every((part) => finite(part.value)) ? parts : [];
 }
 
 /**

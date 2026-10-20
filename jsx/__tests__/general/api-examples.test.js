@@ -28,7 +28,7 @@ import { sourceNamespace } from '../../import/animation/encoding.js';
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
 import { performanceUrl, datalakeUrl } from '../../import/general/api-url.js';
 import modelReport from '../../import/worker/model/report.js';
-import { statusOf } from '../../import/layout/model/scores.js';
+import { LOSS_PARTS, SCORES, statusOf } from '../../import/layout/model/scores.js';
 
 const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', 'openapi');
 
@@ -536,9 +536,37 @@ describe('model, as /model and /model/:model read it (#243)', () => {
         const last = rows[rows.length - 1];
 
         expect(rows).toHaveLength(fiveDay().scored_days);
-        Object.keys(fiveDay().score).forEach((score) => {
-            expect(last.average[score]).toBeCloseTo(fiveDay().score[score], 3);
-            expect(last.baseline_average[score]).toBeCloseTo(fiveDay().baseline[score], 3);
+        SCORES.forEach(({ key }) => {
+            expect(last.average[key]).toBeCloseTo(fiveDay().score[key], 3);
+            expect(last.baseline_average[key]).toBeCloseTo(fiveDay().baseline[key], 3);
+        });
+    });
+
+    describe('loss\'s three parts (#265)', () => {
+        const sum = (scores) => LOSS_PARTS.reduce((total, part) => total + scores[part.key], 0);
+
+        it('reads them in the history, each side\'s adding up to its loss', () => {
+            read('history', media.examples.history.value, 'pt-gnn-5day').rows.forEach((row) => {
+                ['attempt', 'live', 'baseline'].forEach((field) => expect(sum(row[field])).toBeCloseTo(row[field].loss, 4));
+            });
+        });
+
+        it('reads them in the track record, so the newest day\'s 20-day averages add up to the listing\'s score', () => {
+            const rows = read('track-record', media.examples['track-record'].value, 'pt-gnn-5day').rows;
+            const last = rows[rows.length - 1];
+
+            rows.forEach((row) => {
+                expect(sum(row.score)).toBeCloseTo(row.score.loss, 4);
+                expect(sum(row.baseline)).toBeCloseTo(row.baseline.loss, 4);
+            });
+            expect(sum(last.average)).toBeCloseTo(fiveDay().score.loss, 3);
+            expect(sum(last.baseline_average)).toBeCloseTo(fiveDay().baseline.loss, 3);
+        });
+
+        it('reads none in the listing, which carries only loss', () => {
+            listing.models.forEach((model) => {
+                LOSS_PARTS.forEach((part) => expect(model.score[part.key]).toBeNull());
+            });
         });
     });
 });
