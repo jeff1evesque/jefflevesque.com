@@ -4,14 +4,18 @@
  *
  *     list            the listing, as the api's json: every task, every model
  *                     with its latest scores, and which layout every model report
- *                     follows (#248)
+ *                     follows (#248). From format 2 on, whether the trainer took a
+ *                     model's live version down for doing worse than the baseline,
+ *                     and how close each of its checks is to doing so (#263)
  *     history         a model's csv, one row per nightly training attempt: the
  *                     attempt's scores, the live version's and the know-nothing
  *                     baseline's, on the same held-out days, and from 2026-10-15
  *                     on, when the attempt started and how long it took
  *     track-record    a model's csv, one row per day it predicted, written once
  *                     that day is scored: its scores and the baseline's, with each
- *                     day's 20-day averages worked out here
+ *                     day's 20-day averages worked out here. From format 2 on, the
+ *                     check that took the live version down, on the day whose
+ *                     score set it off (#263)
  *
  * It is handed { kind, report, name } -- `report` as the api's envelope held it --
  * and answers the same kind and name with what the pages draw: `tasks`, `models`
@@ -97,6 +101,63 @@ export default () => {
     //
     function formatOf(value) {
         return typeof value === 'number' && isFinite(value) && Math.round(value) === value && value >= 0 ? value : 0;
+    }
+
+    //
+    // a whole number of at least `least`, as the listing writes one, or null.
+    // Text is not read as a number, as the format_version's is not
+    //
+    function wholeOf(value, least) {
+        return typeof value === 'number' && isFinite(value) && Math.round(value) === value && value >= least ? value : null;
+    }
+
+    //
+    // a csv cell's whole number of at least 1, or null for an empty cell and
+    // anything that is not one
+    //
+    function wholeCellOf(value) {
+        const parsed = numberOf(value);
+
+        return parsed !== null && Math.round(parsed) === parsed && parsed >= 1 ? parsed : null;
+    }
+
+    //
+    // a model's live version taken down by the trainer, from format 2 on (#263):
+    // the night it was, and the check that did it -- `days`, 1 for each day on
+    // its own or 5 or 20 for an average over its latest scored days, and
+    // `in_a_row`, how many scored days in a row it was worse than the baseline.
+    // Null while it is live, and for one that names no night or no whole numbers
+    //
+    function downOf(value) {
+        if (!isRecord(value)) {
+            return null;
+        }
+
+        const since = dayOf(value.since);
+        const days = wholeOf(value.days, 1);
+        const inARow = wholeOf(value.in_a_row, 1);
+
+        return since && days !== null && inARow !== null ? { since: since, days: days, in_a_row: inARow } : null;
+    }
+
+    //
+    // how close each of the trainer's checks is to taking the live version down,
+    // as of the newest scored day (#263): `days`, `in_a_row` -- how many scored
+    // days in a row it has been worse, or null until it has enough days -- and
+    // `limit`, the count that takes it down. A check that is not whole is
+    // passed over, and a listing before format 2 gives none
+    //
+    function behindOf(value) {
+        return (Array.isArray(value) ? value : [])
+            .filter(function (check) {
+                return isRecord(check)
+                    && wholeOf(check.days, 1) !== null
+                    && wholeOf(check.limit, 1) !== null
+                    && (check.in_a_row === null || wholeOf(check.in_a_row, 0) !== null);
+            })
+            .map(function (check) {
+                return { days: check.days, in_a_row: check.in_a_row, limit: check.limit };
+            });
     }
 
     //
@@ -228,6 +289,8 @@ export default () => {
                 },
                 score: isRecord(entry.score) ? scoresOf(entry.score, '') : null,
                 baseline: isRecord(entry.baseline) ? scoresOf(entry.baseline, '') : null,
+                down: downOf(entry.down),
+                behind: behindOf(entry.behind),
             });
         });
 
@@ -287,7 +350,12 @@ export default () => {
 
     //
     // the track record: every scored day, with the 20-day averages ending at it,
-    // the model's and the baseline's, and how many days they take in
+    // the model's and the baseline's, and how many days they take in.
+    //
+    // From format 2 on, the day whose score set off a check that took the live
+    // version down says which check, as the listing's `down` does (#263). Every
+    // other day's cells are empty, and a track record written before the columns
+    // has none: either way, each is null
     //
     function trackRecord(csv) {
         const rows = byDay(rowsOf(csv), function (row, day) {
@@ -295,6 +363,8 @@ export default () => {
                 day: day,
                 score: scoresOf(row, ''),
                 baseline: scoresOf(row, 'baseline_'),
+                down_days: wholeCellOf(row.down_days),
+                down_in_a_row: wholeCellOf(row.down_in_a_row),
             };
         });
 
