@@ -13,6 +13,7 @@ import {
     COMPARE_COLORS,
     COMPARE_MAX,
     DEFAULT_SCORE,
+    LOSS_PARTS,
     SCORES,
     SCORING_OPACITY,
     STATUSES,
@@ -30,6 +31,7 @@ import {
     formatTick,
     liveKind,
     longDay,
+    lossParts,
     recentDays,
     scoreOf,
     shortDay,
@@ -40,12 +42,28 @@ import {
     takenDown,
 } from '../../../import/layout/model/scores.js';
 import { colors_categorical, themeColors } from '../../../import/general/colors.js';
-import { behindOf, downModelOf, listingOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
+import { behindOf, downModelOf, listingOf, modelOf, olderTrackOf, trackOf } from '../../../test-support/model-fixtures.js';
 
 describe('the scores', () => {
     it('are the four the api keeps, loss alone lower-is-better', () => {
         expect(SCORES.map((score) => score.key)).toEqual(['loss', 'auc_up', 'auc_beats', 'acc_up']);
         expect(SCORES.filter((score) => score.lower).map((score) => score.key)).toEqual(['loss']);
+    });
+
+    it('each carry a note saying what they measure, and which way is better (#265)', () => {
+        SCORES.forEach((score) => {
+            expect(score.note).toMatch(/\.$/);
+            expect(score.note).toMatch(score.lower ? /Lower is better/ : /higher is better/);
+        });
+    });
+
+    it('say in loss\'s note that it is three scores added, and what knowing nothing scores (#265)', () => {
+        const { note } = SCORES.find((score) => score.key === 'loss');
+
+        expect(note).toBe(
+            'Loss adds three scores: up or down, beating the average stock, and the size of the move. Lower is better. '
+            + 'A coin flip scores 0.693 on each of the first two. The baseline is what knowing nothing scored on the same days.',
+        );
     });
 
     it('open on loss, which decides what goes live', () => {
@@ -56,6 +74,77 @@ describe('the scores', () => {
         expect(scoreOf('auc_up').label).toBe('Up/down AUC');
         expect(scoreOf('f1').key).toBe('loss');
         expect(scoreOf(undefined).key).toBe('loss');
+    });
+});
+
+describe('loss\'s three parts (#265)', () => {
+    //
+    // a track record's day whose 20-day averages are `average` and the
+    // baseline's `baseline`
+    //
+    const dayOf = (average, baseline) => ({ day: '2026-10-16', average: average, baseline_average: baseline });
+    const BASE = { up_log_loss: 0.71347, beats_log_loss: 0.69315, move_pinball: 0.26065 };
+
+    it('are the three columns a history and a track record add up to loss, by the names the pages give them', () => {
+        expect(LOSS_PARTS).toEqual([
+            { key: 'up_log_loss', label: 'Up or down' },
+            { key: 'beats_log_loss', label: 'Beats the average stock' },
+            { key: 'move_pinball', label: 'Size of the move' },
+        ]);
+    });
+
+    it('are named in loss\'s note, each as the pages name it', () => {
+        const { note } = SCORES.find((score) => score.key === 'loss');
+
+        LOSS_PARTS.forEach((part) => expect(note.toLowerCase()).toContain(part.label.toLowerCase().replace('beats', 'beating')));
+    });
+
+    it('are no score the picker offers', () => {
+        LOSS_PARTS.forEach((part) => expect(SCORES.map((score) => score.key)).not.toContain(part.key));
+    });
+
+    it('read a day\'s 20-day averages of each, beside the baseline\'s, each lower-is-better as loss is', () => {
+        //
+        // tables-gnn's first five days, to 2026-10-16
+        //
+        const parts = lossParts(dayOf({ up_log_loss: 0.72254, beats_log_loss: 0.72046, move_pinball: 0.26018 }, BASE));
+
+        expect(parts.map((part) => [part.label, part.value, part.baseline, part.stands])).toEqual([
+            ['Up or down', 0.72254, 0.71347, 'worse'],
+            ['Beats the average stock', 0.72046, 0.69315, 'worse'],
+            ['Size of the move', 0.26018, 0.26065, 'better'],
+        ]);
+    });
+
+    it('stand as the two are printed: 0.260 against 0.261 is better, and two printed alike are level', () => {
+        //
+        // 0.00047 apart, which standing alone would call level
+        //
+        expect(standing(betterBy(0.26018, 0.26065, 'loss'), 'loss')).toBe('level');
+        expect(lossParts(dayOf({ up_log_loss: 0.7, beats_log_loss: 0.7, move_pinball: 0.26018 }, BASE))[2].stands).toBe('better');
+        expect(lossParts(dayOf({ up_log_loss: 0.7134, beats_log_loss: 0.69, move_pinball: 0.26 }, BASE))[0].stands).toBe('level');
+    });
+
+    it('stand against nothing where the baseline has none of a part', () => {
+        const parts = lossParts(dayOf({ up_log_loss: 0.72, beats_log_loss: 0.7, move_pinball: 0.26 }, { ...BASE, move_pinball: null }));
+
+        expect(parts[2]).toMatchObject({ value: 0.26, baseline: null, stands: null });
+        expect(parts[0].stands).toBe('worse');
+    });
+
+    it('are none for a day without all three, as a track record written before them has', () => {
+        expect(lossParts(olderTrackOf(3)[2])).toEqual([]);
+        expect(lossParts(dayOf({ up_log_loss: 0.72, beats_log_loss: null, move_pinball: 0.26 }, BASE))).toEqual([]);
+        expect(lossParts(dayOf(null, BASE))).toEqual([]);
+        expect(lossParts(undefined)).toEqual([]);
+    });
+
+    it('add up to the day\'s 20-day loss, as the track record\'s fixtures do', () => {
+        const last = trackOf(25).slice(-1)[0];
+        const parts = lossParts(last);
+
+        expect(parts.reduce((sum, part) => sum + part.value, 0)).toBeCloseTo(last.average.loss, 10);
+        expect(parts.reduce((sum, part) => sum + part.baseline, 0)).toBeCloseTo(last.baseline_average.loss, 10);
     });
 });
 
