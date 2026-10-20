@@ -19,6 +19,7 @@ import {
     coverageSupported,
     expectedIntervals,
     intervalExpected,
+    intervalHoliday,
     runsContinuously
 } from '../../import/general/ingest-schedule.js';
 import { STREAMS } from '../../import/general/stream-id.js';
@@ -380,6 +381,26 @@ describe('a federal holiday (#241)', () => {
         expect(days).toContainEqual(at(9));
         expect(days).not.toContainEqual(at(12));
         expect(days).toContainEqual(at(13));
+    });
+
+    it('names the holiday, by the day and inside the filings\' hours (#261)', () => {
+        expect(intervalHoliday('sec', 'day', at(12))).toBe('Columbus Day');
+        expect(intervalHoliday('sec', 'hour', at(12, 10))).toBe('Columbus Day');
+        expect(intervalHoliday('sec', 'minute', at(12, 10, 3))).toBe('Columbus Day');
+        expect(intervalHoliday('sec', 'hour', new Date('2026-10-13T02:00:00Z'))).toBe('Columbus Day');
+    });
+
+    it('names none outside its hours, the day after, for the month, or for another stream (#261)', () => {
+        //
+        // nothing is due at 03:00 on any day, so the holiday is not why that
+        // hour is empty
+        //
+        expect(intervalHoliday('sec', 'hour', at(12, 3))).toBeNull();
+        expect(intervalHoliday('sec', 'day', at(13))).toBeNull();
+        expect(intervalHoliday('sec', 'month', new Date(2026, 9, 1))).toBeNull();
+        expect(intervalHoliday('stock-market', 'day', at(12))).toBeNull();
+        expect(intervalHoliday('sec-companyfacts', 'day', at(12))).toBeNull();
+        expect(intervalHoliday('no-such-stream', 'day', at(12))).toBeNull();
     });
 });
 
