@@ -305,6 +305,40 @@ describe('model.json, from format 2 on (#263)', () => {
     });
 });
 
+describe('model.json, loss\'s three parts (#265)', () => {
+    const PARTS = ['up_log_loss', 'beats_log_loss', 'move_pinball'];
+    const responses = documentOf('model').paths['/model'].get.responses;
+    const examples = responses['200'].content['application/json'].examples;
+
+    //
+    // an example csv's rows, each keyed by its header
+    //
+    function rowsOf(report) {
+        const [header, ...lines] = examples[report].value.report.trim().split('\n').map((line) => line.split(','));
+
+        return lines.map((cells) => Object.fromEntries(header.map((name, at) => [name, cells[at]])));
+    }
+
+    it('says loss is the three added up, and names each one\'s column', () => {
+        expect(responses['200'].description).toMatch(/Loss is three scores added up/);
+        PARTS.forEach((part) => expect(responses['200'].description).toContain(part));
+    });
+
+    it.each([['history', ['attempt_', 'live_', 'baseline_']], ['track-record', ['', 'baseline_']]])(
+        'shows each part in the %s\'s example, under every prefix, adding up to its loss',
+        (report, prefixes) => {
+            rowsOf(report).forEach((row) => {
+                prefixes.forEach((prefix) => {
+                    const parts = PARTS.reduce((total, part) => total + Number(row[`${prefix}${part}`]), 0);
+
+                    expect({ report, day: row.day, prefix, gap: Math.abs(parts - Number(row[`${prefix}loss`])) < 0.00005 })
+                        .toEqual({ report, day: row.day, prefix, gap: true });
+                });
+            });
+        },
+    );
+});
+
 describe('the guard itself', () => {
     it('rejects an example that does not match', () => {
         //
