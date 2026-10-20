@@ -490,14 +490,32 @@ describe('model, as /model and /model/:model read it (#243)', () => {
     });
 
     it('lists models of every status, so a reader sees each shape', () => {
-        expect([...new Set(listing.models.map(statusOf))].sort()).toEqual(['live', 'new', 'retired']);
+        expect([...new Set(listing.models.map(statusOf))].sort()).toEqual(['down', 'live', 'new', 'retired']);
     });
 
-    it('reads the listing\'s format_version, and the documented history has the columns it added (#248)', () => {
-        const header = media.examples.history.value.report.split('\n')[0].split(',');
+    it('reads the listing\'s format_version, and the documented reports have the columns it added (#248, #263)', () => {
+        const header = (report) => media.examples[report].value.report.split('\n')[0].split(',');
 
-        expect(listing.format_version).toBe(1);
-        expect(header).toEqual(expect.arrayContaining(['started', 'training_seconds', 'total_seconds']));
+        expect(listing.format_version).toBe(2);
+        expect(header('history')).toEqual(expect.arrayContaining(['started', 'training_seconds', 'total_seconds']));
+        expect(header('track-record')).toEqual(expect.arrayContaining(['down_days', 'down_in_a_row']));
+    });
+
+    it('reads a model taken down, and every model\'s checks, as format 2 gives them (#263)', () => {
+        const down = listing.models.filter((model) => model.down);
+
+        expect(down.map((model) => model.name)).toEqual(['tables-gnn-5day']);
+        expect(down[0].down).toEqual({ since: '2026-10-16', days: 1, in_a_row: 5 });
+        listing.models.forEach((model) => {
+            expect(model.behind.map((check) => check.days)).toEqual([1, 5, 20]);
+        });
+        expect(fiveDay().behind[2].in_a_row).toBeNull();
+    });
+
+    it('reads the documented track record as no day taking its live version down', () => {
+        const rows = read('track-record', media.examples['track-record'].value, 'pt-gnn-5day').rows;
+
+        rows.forEach((row) => expect(row).toMatchObject({ down_days: null, down_in_a_row: null }));
     });
 
     it('reads the history: every night, and as many went live as the listing says', () => {

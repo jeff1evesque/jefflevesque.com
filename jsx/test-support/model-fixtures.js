@@ -17,7 +17,8 @@ const LIVE_SCORE = { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 };
 const BASELINE = { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52 };
 
 /**
- * a model as the listing holds it.
+ * a model as the listing holds it. Its live version is live, and the listing
+ * gives no checks, as one before format 2 does (#263).
  */
 export function modelOf(overrides = {}) {
     return {
@@ -31,8 +32,37 @@ export function modelOf(overrides = {}) {
         attempts: { total: 30, went_live: 4 },
         score: { ...LIVE_SCORE },
         baseline: { ...BASELINE },
+        down: null,
+        behind: [],
         ...overrides,
     };
+}
+
+/**
+ * how close each of the trainer's checks is to taking a live version down, as a
+ * format 2 listing gives them (#263): each day 4 of 5 in a row worse than the
+ * baseline, the 5-day average 0 of 10, and the 20-day average not yet.
+ */
+export function behindOf(each = 4, five = 0, twenty = null) {
+    return [
+        { days: 1, in_a_row: each, limit: 5 },
+        { days: 5, in_a_row: five, limit: 10 },
+        { days: 20, in_a_row: twenty, limit: 5 },
+    ];
+}
+
+/**
+ * a model whose live version the trainer took down on the night of 2026-10-19,
+ * for doing worse than the baseline 5 scored days in a row (#263).
+ */
+export function downModelOf(overrides = {}) {
+    return modelOf({
+        name: 'lagging',
+        score: { loss: 1.7, auc_up: 0.48, auc_beats: 0.49, acc_up: 0.5 },
+        down: { since: '2026-10-19', days: 1, in_a_row: 5 },
+        behind: behindOf(5, 1),
+        ...overrides,
+    });
 }
 
 /**
@@ -132,13 +162,16 @@ export function timedHistoryOf(nights = {}) {
 
 /**
  * a track record, its averages worked out as the worker works them: each day
- * over the rows so far, up to 20. `loss(at)` is each day's loss.
+ * over the rows so far, up to 20. `loss(at)` is each day's loss, and
+ * `baselineLoss(at)` the baseline's. No day took the live version down.
  */
-export function trackOf(count = 5, from = '2026-09-01', loss = (at) => 1.6 + (at % 3) * 0.01) {
+export function trackOf(count = 5, from = '2026-09-01', loss = (at) => 1.6 + (at % 3) * 0.01, baselineLoss = () => BASELINE.loss) {
     const rows = weekdays(count, from).map((day, at) => ({
         day: day,
         score: scoresAt(loss(at)),
-        baseline: { ...BASELINE },
+        baseline: { ...BASELINE, loss: baselineLoss(at) },
+        down_days: null,
+        down_in_a_row: null,
     }));
 
     rows.forEach((row, at) => {
@@ -159,6 +192,19 @@ export function trackOf(count = 5, from = '2026-09-01', loss = (at) => 1.6 + (at
     });
 
     return rows;
+}
+
+/**
+ * two models' track records over the same three days, each with its own
+ * baseline, as every model's record has (#263): the baseline's loss is 1.66 in
+ * pt-gnn's and 1.70 in tables'. The trainer's differed so on 2026-10-15: 1.733
+ * in tables-gnn's record, and 1.702 in pt-gnn's.
+ */
+export function ownBaselines() {
+    return {
+        'pt-gnn': trackOf(3),
+        tables: trackOf(3, '2026-09-01', undefined, () => 1.7),
+    };
 }
 
 /**

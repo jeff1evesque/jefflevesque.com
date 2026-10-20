@@ -743,7 +743,10 @@
 }
 
 //
-// a model's status: a pill with a dot, the dot green while it is live
+// a model's status: a pill with a dot, the dot green while it is live, and red
+// while the trainer has its live version down for doing worse than the
+// baseline (#263) -- the red the charts draw worse in, which is a miss's on
+// /stream, '--stream-missed' in '_stream.scss', in either theme
 //
 .model-pill {
   align-items: center;
@@ -771,6 +774,10 @@
 
 .model-pill-new .model-pill-dot {
   background-color: $gray-8;
+}
+
+.model-pill-down .model-pill-dot {
+  background-color: var(--stream-missed);
 }
 
 .model-pill-retired {

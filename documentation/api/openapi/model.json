@@ -45,7 +45,7 @@
         ],
         "responses": {
           "200": {
-            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history or track-record, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; started, when the attempt began, in UTC with its offset, e.g. 2026-10-16T07:58:10+00:00; training_seconds, the time spent training, reading the days included, to one decimal; total_seconds, from started until the attempt's scores are known, so its training and then scoring the held-out days for the attempt and for the live version, to one decimal; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>. started, training_seconds and total_seconds are empty for attempts made before 2026-10-15.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row.\n\nThe scores are loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's.",
+            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history or track-record, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; started, when the attempt began, in UTC with its offset, e.g. 2026-10-16T07:58:10+00:00; training_seconds, the time spent training, reading the days included, to one decimal; total_seconds, from started until the attempt's scores are known, so its training and then scoring the held-out days for the attempt and for the live version, to one decimal; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>. started, training_seconds and total_seconds are empty for attempts made before 2026-10-15.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row. From format 2, down_days and down_in_a_row: the check that took the live version down, on the day whose score set it off, and empty on every other row. While a model is down it predicts nothing, so its track record has no rows until a new version goes live.\n\nThe scores are loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's.",
             "content": {
               "application/json": {
                 "schema": {
@@ -67,7 +67,7 @@
                             "format_version": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
+                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. 2: a model's down and behind, and a track record's down_days and down_in_a_row. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
                             },
                             "tasks": {
                               "type": "array",
@@ -140,7 +140,7 @@
                                   },
                                   "live": {
                                     "type": "object",
-                                    "description": "The version making its predictions, or the last one that did, for a retired model.",
+                                    "description": "The version making its predictions, or the last one that did, for a retired model or one whose live version was taken down.",
                                     "required": [
                                       "since",
                                       "kind"
@@ -260,6 +260,66 @@
                                         "description": "A share, 0 to 1."
                                       }
                                     }
+                                  },
+                                  "down": {
+                                    "type": [
+                                      "object",
+                                      "null"
+                                    ],
+                                    "description": "From format 2: null while its live version is live. Otherwise the trainer took the live version down for doing worse than the know-nothing baseline, and the model predicts nothing until a new version beats the baseline on the days it was tested on.",
+                                    "required": [
+                                      "since",
+                                      "days",
+                                      "in_a_row"
+                                    ],
+                                    "properties": {
+                                      "since": {
+                                        "type": "string",
+                                        "description": "The night it was taken down, as YYYY-MM-DD."
+                                      },
+                                      "days": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "description": "The check that took it down: 1 for each scored day on its own, or 5 or 20 for an average over its latest scored days."
+                                      },
+                                      "in_a_row": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "description": "How many scored days in a row it was worse."
+                                      }
+                                    }
+                                  },
+                                  "behind": {
+                                    "type": "array",
+                                    "description": "From format 2: one entry per check, as of the newest scored day. The checks today: each day 5 days in a row, the 5-day average 10 days in a row, and the 20-day average 5 days in a row.",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "days",
+                                        "in_a_row",
+                                        "limit"
+                                      ],
+                                      "properties": {
+                                        "days": {
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "description": "1 for each scored day on its own, or 5 or 20 for an average over its latest scored days."
+                                        },
+                                        "in_a_row": {
+                                          "type": [
+                                            "integer",
+                                            "null"
+                                          ],
+                                          "minimum": 0,
+                                          "description": "How many scored days in a row it has been worse than the baseline, or null until it has enough days."
+                                        },
+                                        "limit": {
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "description": "The count that takes the live version down."
+                                        }
+                                      }
+                                    }
                                   }
                                 }
                               }
@@ -283,7 +343,7 @@
                     "summary": "The listing, asked with no parameters",
                     "value": {
                       "report": {
-                        "format_version": 1,
+                        "format_version": 2,
                         "tasks": [
                           {
                             "id": "next-day",
@@ -323,7 +383,25 @@
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
                               "acc_up": 0.5402
-                            }
+                            },
+                            "down": null,
+                            "behind": [
+                              {
+                                "days": 1,
+                                "in_a_row": 0,
+                                "limit": 5
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": 0,
+                                "limit": 5
+                              }
+                            ]
                           },
                           {
                             "name": "tables-gnn",
@@ -351,7 +429,25 @@
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
                               "acc_up": 0.5402
-                            }
+                            },
+                            "down": null,
+                            "behind": [
+                              {
+                                "days": 1,
+                                "in_a_row": 1,
+                                "limit": 5
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": 0,
+                                "limit": 5
+                              }
+                            ]
                           },
                           {
                             "name": "pt-gnn-5day",
@@ -379,7 +475,75 @@
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
                               "acc_up": 0.52921
-                            }
+                            },
+                            "down": null,
+                            "behind": [
+                              {
+                                "days": 1,
+                                "in_a_row": 0,
+                                "limit": 5
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5
+                              }
+                            ]
+                          },
+                          {
+                            "name": "tables-gnn-5day",
+                            "task": "next-day",
+                            "description": "Reads the last five days of query tables.",
+                            "started": "2026-10-06",
+                            "retired": null,
+                            "scored_days": 8,
+                            "live": {
+                              "since": "2026-10-07",
+                              "kind": "nightly"
+                            },
+                            "attempts": {
+                              "total": 9,
+                              "went_live": 1
+                            },
+                            "score": {
+                              "loss": 1.6741,
+                              "auc_up": 0.4952,
+                              "auc_beats": 0.4987,
+                              "acc_up": 0.5214
+                            },
+                            "baseline": {
+                              "loss": 1.66325,
+                              "auc_up": 0.5,
+                              "auc_beats": 0.5,
+                              "acc_up": 0.52921
+                            },
+                            "down": {
+                              "since": "2026-10-16",
+                              "days": 1,
+                              "in_a_row": 5
+                            },
+                            "behind": [
+                              {
+                                "days": 1,
+                                "in_a_row": 5,
+                                "limit": 5
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 1,
+                                "limit": 10
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5
+                              }
+                            ]
                           },
                           {
                             "name": "tables-gnn-v0",
@@ -407,7 +571,25 @@
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
                               "acc_up": 0.5391
-                            }
+                            },
+                            "down": null,
+                            "behind": [
+                              {
+                                "days": 1,
+                                "in_a_row": 0,
+                                "limit": 5
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": 0,
+                                "limit": 5
+                              }
+                            ]
                           },
                           {
                             "name": "weekly-gnn",
@@ -435,7 +617,25 @@
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
                               "acc_up": 0.5524
-                            }
+                            },
+                            "down": null,
+                            "behind": [
+                              {
+                                "days": 1,
+                                "in_a_row": 2,
+                                "limit": 5
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": 0,
+                                "limit": 5
+                              }
+                            ]
                           }
                         ]
                       }
@@ -450,7 +650,7 @@
                   "track-record": {
                     "summary": "Model=pt-gnn-5day&Report=track-record: its eight scored days",
                     "value": {
-                      "report": "day,loss,auc_up,auc_beats,acc_up,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up\n2026-10-06,1.6582,0.5214,0.5103,0.5427,1.6650,0.5,0.5,0.5368\n2026-10-07,1.6497,0.5361,0.5188,0.5129,1.6611,0.5,0.5,0.4970\n2026-10-08,1.6710,0.4982,0.5031,0.5785,1.6693,0.5,0.5,0.5865\n2026-10-09,1.6423,0.5447,0.5262,0.4652,1.6589,0.5,0.5,0.4473\n2026-10-12,1.6538,0.5296,0.5145,0.6123,1.6627,0.5,0.5,0.6044\n2026-10-13,1.6561,0.5243,0.5121,0.5318,1.6633,0.5,0.5,0.5276\n2026-10-14,1.6472,0.5389,0.5197,0.5561,1.6602,0.5,0.5,0.5490\n2026-10-15,1.6601,0.5168,0.5089,0.4907,1.6655,0.5,0.5,0.4851\n"
+                      "report": "day,loss,auc_up,auc_beats,acc_up,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up,down_days,down_in_a_row\n2026-10-06,1.6582,0.5214,0.5103,0.5427,1.6650,0.5,0.5,0.5368,,\n2026-10-07,1.6497,0.5361,0.5188,0.5129,1.6611,0.5,0.5,0.4970,,\n2026-10-08,1.6710,0.4982,0.5031,0.5785,1.6693,0.5,0.5,0.5865,,\n2026-10-09,1.6423,0.5447,0.5262,0.4652,1.6589,0.5,0.5,0.4473,,\n2026-10-12,1.6538,0.5296,0.5145,0.6123,1.6627,0.5,0.5,0.6044,,\n2026-10-13,1.6561,0.5243,0.5121,0.5318,1.6633,0.5,0.5,0.5276,,\n2026-10-14,1.6472,0.5389,0.5197,0.5561,1.6602,0.5,0.5,0.5490,,\n2026-10-15,1.6601,0.5168,0.5089,0.4907,1.6655,0.5,0.5,0.4851,,\n"
                     }
                   }
                 }

@@ -10,8 +10,16 @@
  *     attempts-chart.jsx   every nightly attempt against the live version, and
  *                          how far each beat or missed it
  *     track-chart.jsx      every day it predicted, with another model of its
- *                          task picked from a menu, and a tick on each night
- *                          a new version went live
+ *                          task picked from a menu, a tick on each night a new
+ *                          version went live, and one on each day whose score
+ *                          took the live version down
+ *
+ * The trainer takes a live version down when it keeps doing worse than the
+ * know-nothing baseline (#263). The first figure then says when, and which check
+ * did it, and that nothing predicts until a new version beats the baseline; and
+ * under the score, how many days in a row each check has been worse, for any
+ * model that has not retired. A listing before format 2 says neither, and the
+ * figures are as they were.
  *
  * The listing says who the model is; its history and its track record are asked
  * for once the listing names it. A name the listing does not hold is a model
@@ -38,7 +46,9 @@ import { listSubscriptions } from '../../general/account-api.js';
 import {
     DEFAULT_SCORE,
     WINDOW,
+    behindLine,
     betterBy,
+    checkWords,
     formatGap,
     formatScore,
     liveKind,
@@ -47,7 +57,15 @@ import {
     sortModels,
     standing,
     statusOf,
+    takenDown,
 } from './scores.js';
+
+//
+// what a model whose live version was taken down does until it goes live again
+// (#263): a version goes live again only if it beats the baseline on the days it
+// was tested on
+//
+const DOWN_LINE = 'Nothing predicts until a new version beats the baseline on the days it was tested on.';
 
 //
 // 1st, 2nd, 3rd, 4th ... 11th, 12th, 13th ... 21st
@@ -79,13 +97,23 @@ export function placeAmong(model, models, task, score) {
 }
 
 /**
- * the live version, as the first figure says it: when it went live, and how.
+ * the live version, as the first figure says it: when it went live, and how --
+ * or, for one the trainer took down, when, and the check that did it (#263).
  */
 export function liveFigure(model) {
-    if (statusOf(model) === 'retired') {
+    const status = statusOf(model);
+
+    if (status === 'retired') {
         return {
             value: `Retired ${shortDay(model.retired)}`,
             detail: model.live.since ? `its last version went live ${shortDay(model.live.since)}` : 'no longer trained',
+        };
+    }
+
+    if (status === 'down') {
+        return {
+            value: takenDown(model.down.since),
+            detail: checkWords(model.down),
         };
     }
 
@@ -218,6 +246,7 @@ class ModelPage extends Component {
     summary(model, task) {
         const { score } = this.props;
         const { history, listing } = this.state;
+        const status = statusOf(model);
         const live = liveFigure(model);
         const value = model.score ? model.score[score] : null;
         const baseline = model.baseline ? model.baseline[score] : null;
@@ -227,9 +256,21 @@ class ModelPage extends Component {
         const retrains = weekly.length ? `weekly retrains: ${weekly.filter((row) => row.went_live).length} of ${weekly.length}` : '';
         const went = `${model.attempts.went_live} of ${model.attempts.total}`;
         const place = placeAmong(model, listing.models, task, score);
-        const scoreName = statusOf(model) === 'new'
+
+        //
+        // so far, for a model with fewer than 20 scored days: a new one, or one
+        // taken down before it had them (#263)
+        //
+        const scoreName = status !== 'retired' && model.scored_days < WINDOW
             ? `${scoreOf(score).label}, ${model.scored_days} ${model.scored_days === 1 ? 'day' : 'days'} so far`
             : `${scoreOf(score).label}, last ${WINDOW} days`;
+
+        //
+        // what a model taken down does until it goes live again, and how close
+        // each check is to taking a model down, for any model still trained (#263)
+        //
+        const down = status === 'down' ? DOWN_LINE : '';
+        const behind = status === 'retired' ? '' : behindLine(model.behind);
 
         let against = '';
 
@@ -252,6 +293,7 @@ class ModelPage extends Component {
                         <span className='model-stat-label'>Live version</span>
                         <span className='model-stat-value'>{live.value}</span>
                         <span className='model-stat-detail'>{live.detail}</span>
+                        {down ? <span className='model-stat-detail'>{down}</span> : null}
                     </div>
                     <div className='model-stat'>
                         <span className='model-stat-label'>Attempts that went live</span>
@@ -263,6 +305,7 @@ class ModelPage extends Component {
                         <span className='model-stat-value'>{formatScore(value, score)}</span>
                         <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
                         {place ? <span className='model-stat-detail'>{place}</span> : null}
+                        {behind ? <span className='model-stat-detail'>{behind}</span> : null}
                     </div>
                 </div>
                 <div className='model-summary-boxes'>
@@ -271,7 +314,7 @@ class ModelPage extends Component {
                             {
                                 key: 'live',
                                 label: 'Live version',
-                                note: sentence(live.detail),
+                                note: [sentence(live.detail), down].filter(Boolean).join(' '),
                                 value: live.value,
                             },
                             {
@@ -289,7 +332,7 @@ class ModelPage extends Component {
                                 key: 'score',
                                 label: scoreName,
                                 short: scoreOf(score).label,
-                                note: [sentence(against), sentence(place)].filter(Boolean).join(' ') || `The model’s ${scoreOf(score).label.toLowerCase()}.`,
+                                note: [sentence(against), sentence(place), behind].filter(Boolean).join(' ') || `The model’s ${scoreOf(score).label.toLowerCase()}.`,
                                 value: formatScore(value, score),
                                 tone: { better: 'good', worse: 'bad' }[stands],
                             },

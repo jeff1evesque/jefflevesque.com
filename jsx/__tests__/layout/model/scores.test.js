@@ -15,10 +15,12 @@ import {
     DEFAULT_SCORE,
     SCORES,
     SCORING_OPACITY,
+    STATUSES,
     alignDays,
-    baselineAverages,
+    behindLine,
     betterBy,
     chartColors,
+    checkWords,
     compareBlocked,
     formatDuration,
     formatGap,
@@ -35,9 +37,10 @@ import {
     standing,
     statusLabel,
     statusOf,
+    takenDown,
 } from '../../../import/layout/model/scores.js';
 import { colors_categorical, themeColors } from '../../../import/general/colors.js';
-import { listingOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
+import { behindOf, downModelOf, listingOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
 
 describe('the scores', () => {
     it('are the four the api keeps, loss alone lower-is-better', () => {
@@ -165,6 +168,49 @@ describe('a model\'s status', () => {
     });
 });
 
+describe('a live version taken down for doing worse than the baseline (#263)', () => {
+    it('is Behind baseline, whatever its days, and Retired wins over it', () => {
+        expect(statusOf(downModelOf())).toBe('down');
+        expect(statusOf(downModelOf({ scored_days: 7 }))).toBe('down');
+        expect(statusOf(downModelOf({ retired: '2026-10-20' }))).toBe('retired');
+        expect(statusLabel(downModelOf())).toBe('Behind baseline');
+    });
+
+    it('is a status of its own, offered between New and Retired', () => {
+        expect(STATUSES.map((status) => status.key)).toEqual(['live', 'new', 'down', 'retired']);
+    });
+
+    it('says when, with the day held on one line where a narrow cell wraps it', () => {
+        expect(takenDown('2026-10-19')).toBe('Taken down Oct 19');
+    });
+
+    it('words the check of each day on its own, and of an average', () => {
+        expect(checkWords({ days: 1, in_a_row: 5 })).toBe('worse than the baseline 5 scored days in a row');
+        expect(checkWords({ days: 5, in_a_row: 10 })).toBe('its 5-day average was worse than the baseline’s 10 days in a row');
+        expect(checkWords({ days: 20, in_a_row: 5 })).toBe('its 20-day average was worse than the baseline’s 5 days in a row');
+    });
+
+    it('says a single day as a day, and leaves out a count it does not have', () => {
+        expect(checkWords({ days: 1, in_a_row: 1 })).toBe('worse than the baseline 1 scored day in a row');
+        expect(checkWords({ days: 5, in_a_row: 1 })).toBe('its 5-day average was worse than the baseline’s 1 day in a row');
+        expect(checkWords({ days: 1, in_a_row: null })).toBe('worse than the baseline');
+        expect(checkWords({ days: 5, in_a_row: null })).toBe('its 5-day average was worse than the baseline’s');
+    });
+
+    it('says how many days in a row each check has been worse, of how many take a version down', () => {
+        expect(behindLine(behindOf()))
+            .toBe('Days in a row worse than the baseline: each day 4 of 5, 5-day average 0 of 10, 20-day average not yet.');
+        expect(behindLine(behindOf(0, 2, 1)))
+            .toBe('Days in a row worse than the baseline: each day 0 of 5, 5-day average 2 of 10, 20-day average 1 of 5.');
+    });
+
+    it('says nothing for a listing that gives no checks, as one before format 2', () => {
+        expect(behindLine([])).toBe('');
+        expect(behindLine(undefined)).toBe('');
+        expect(behindLine(modelOf().behind)).toBe('');
+    });
+});
+
 describe('chartColors', () => {
     it('draws in the theme\'s grays, and the site\'s blue and red for better and worse', () => {
         const light = chartColors('light');
@@ -216,23 +262,6 @@ describe('days', () => {
     it('takes the last days of them all as the trend lines\' axis', () => {
         expect(recentDays({ a: trackOf(70) })).toHaveLength(60);
         expect(recentDays({ a: trackOf(3) }, 2)).toEqual(['2026-09-02', '2026-09-03']);
-    });
-
-    it('averages the baseline over the axis\'s last 20 days, so it is one line whichever models are compared', () => {
-        const a = trackOf(25).map((row, at) => ({ ...row, baseline: { ...row.baseline, loss: at + 1 } }));
-        const aligned = alignDays({ a: a });
-        const line = baselineAverages(aligned, ['a'], 'loss');
-
-        expect(line[0]).toBe(1);
-        expect(line[1]).toBeCloseTo(1.5);
-        expect(line[24]).toBeCloseTo(15.5);
-    });
-
-    it('leaves the baseline out on a day no record has it', () => {
-        const a = trackOf(2).map((row, at) => ({ ...row, baseline: { ...row.baseline, loss: at ? 2 : null } }));
-        const line = baselineAverages(alignDays({ a: a }), ['a'], 'loss');
-
-        expect(line).toEqual([null, 2]);
     });
 });
 

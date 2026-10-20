@@ -29,7 +29,7 @@ import {
     usePhone,
 } from '../../../import/layout/model/parts.jsx';
 import { readLayout, writeLayout } from '../../../import/general/layout-preference.js';
-import { modelOf, phoneScreen, wideScreen } from '../../../test-support/model-fixtures.js';
+import { downModelOf, modelOf, phoneScreen, wideScreen } from '../../../test-support/model-fixtures.js';
 
 describe('ScorePicker', () => {
     it('offers the four scores as buttons, the one shown pressed', () => {
@@ -68,6 +68,8 @@ describe('StatusPill', () => {
         [modelOf(), 'Live', 'model-pill-live'],
         [modelOf({ scored_days: 4 }), 'New · 4 days', 'model-pill-new'],
         [modelOf({ retired: '2026-10-01' }), 'Retired', 'model-pill-retired'],
+        [downModelOf(), 'Behind baseline', 'model-pill-down'],
+        [downModelOf({ retired: '2026-10-20' }), 'Retired', 'model-pill-retired'],
     ])('says a model\'s status', (model, said, kind) => {
         render(<StatusPill model={model} />);
 

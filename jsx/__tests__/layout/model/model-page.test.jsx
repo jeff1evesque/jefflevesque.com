@@ -32,7 +32,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ModelPageRoute, { ModelPage, liveFigure, ordinal, placeAmong, sentence } from '../../../import/layout/model/model-page.jsx';
 import { loadListing, loadReport } from '../../../import/layout/model/source.js';
 import { listSubscriptions } from '../../../import/general/account-api.js';
-import { TASKS, historyOf, listingOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
+import { TASKS, behindOf, downModelOf, historyOf, listingOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
 
 //
 // a promise and the way to settle it, for an answer a case holds back
@@ -195,6 +195,15 @@ describe('liveFigure', () => {
     it('says when a retired model retired, and when its last version went live', () => {
         expect(liveFigure(modelOf({ retired: '2026-10-02' }))).toEqual({ value: 'Retired Oct 2', detail: 'its last version went live Oct 9' });
         expect(liveFigure(modelOf({ retired: '2026-10-02', live: { since: null, kind: null } })).detail).toBe('no longer trained');
+    });
+
+    it('says when a live version was taken down, and the check of each day on its own that did it (#263)', () => {
+        expect(liveFigure(downModelOf())).toEqual({ value: 'Taken down Oct 19', detail: 'worse than the baseline 5 scored days in a row' });
+    });
+
+    it('says an average\'s check as an average\'s (#263)', () => {
+        expect(liveFigure(downModelOf({ down: { since: '2026-10-19', days: 5, in_a_row: 10 } })).detail)
+            .toBe('its 5-day average was worse than the baseline’s 10 days in a row');
     });
 });
 
@@ -396,6 +405,99 @@ describe('the summary', () => {
 
         expect(stat('Loss, last 20 days').querySelector('.model-stat-value')).toHaveTextContent('–');
         expect(stat('Loss, last 20 days').querySelectorAll('.model-stat-detail')).toHaveLength(1);
+    });
+});
+
+describe('a live version taken down for doing worse than the baseline (#263)', () => {
+    const DOWN_LINE = 'Nothing predicts until a new version beats the baseline on the days it was tested on.';
+    const BEHIND = 'Days in a row worse than the baseline: each day 4 of 5, 5-day average 0 of 10, 20-day average not yet.';
+
+    //
+    // a wide screen's card, as 'the summary' reads one, and a phone's box
+    //
+    function stat(label) {
+        const cards = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-cards');
+
+        return within(cards).getByText(label).closest('.model-stat');
+    }
+
+    function noteOf(at) {
+        const row = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-boxes');
+
+        return row.querySelectorAll('.stream-focus-figure-label')[at];
+    }
+
+    it('says Behind baseline beside the name', async () => {
+        answer({ listing: listingOf([downModelOf()]) });
+        await open('lagging');
+
+        expect(document.querySelector('.model-heading .model-pill')).toHaveTextContent('Behind baseline');
+        expect(document.querySelector('.model-heading .model-pill')).toHaveClass('model-pill-down');
+    });
+
+    it('says when it was taken down, the check that did it, and that nothing predicts until a new version beats the baseline', async () => {
+        answer({ listing: listingOf([downModelOf()]) });
+        await open('lagging');
+
+        const details = [...stat('Live version').querySelectorAll('.model-stat-detail')].map((line) => line.textContent);
+
+        expect(stat('Live version').querySelector('.model-stat-value')).toHaveTextContent('Taken down Oct 19');
+        expect(details).toEqual(['worse than the baseline 5 scored days in a row', DOWN_LINE]);
+        expect(noteOf(0)).toHaveAccessibleDescription(`Worse than the baseline 5 scored days in a row. ${DOWN_LINE}`);
+    });
+
+    it('words an average\'s check as an average\'s', async () => {
+        answer({ listing: listingOf([downModelOf({ down: { since: '2026-10-19', days: 20, in_a_row: 5 } })]) });
+        await open('lagging');
+
+        expect(stat('Live version')).toHaveTextContent('its 20-day average was worse than the baseline’s 5 days in a row');
+    });
+
+    it('says how many days in a row each check has been worse, under the score', async () => {
+        answer({ listing: listingOf([downModelOf()]) });
+        await open('lagging');
+
+        expect(stat('Loss, last 20 days')).toHaveTextContent(
+            'Days in a row worse than the baseline: each day 5 of 5, 5-day average 1 of 10, 20-day average not yet.',
+        );
+    });
+
+    it('says so of a model still live too, which shows how close it is, and nothing of being taken down', async () => {
+        answer({ listing: listingOf([modelOf({ behind: behindOf() })]) });
+        await open();
+
+        expect(stat('Loss, last 20 days').lastChild).toHaveTextContent(BEHIND);
+        expect(noteOf(2)).toHaveAccessibleDescription(`0.060 better than the baseline, 1.660. ${BEHIND}`);
+        expect(stat('Live version')).toHaveTextContent(/^Live versionOct 9went live after a nightly update$/);
+        expect(screen.queryByText(DOWN_LINE)).toBeNull();
+    });
+
+    it('says none of it for a retired model, or where the listing gives no checks, as one before format 2', async () => {
+        answer({ listing: listingOf([modelOf({ retired: '2026-10-02', behind: behindOf() }), modelOf({ name: 'older' })]) });
+
+        const { unmount } = await open();
+
+        expect(screen.queryByText(/^Days in a row worse/)).toBeNull();
+
+        unmount();
+        await open('older');
+
+        expect(screen.queryByText(/^Days in a row worse/)).toBeNull();
+        expect(screen.queryByText(DOWN_LINE)).toBeNull();
+    });
+
+    it('names its score so far where it was taken down before its 20th scored day', async () => {
+        answer({ listing: listingOf([downModelOf({ scored_days: 7 })]) });
+        await open('lagging');
+
+        expect(stat('Loss, 7 days so far')).toBeInTheDocument();
+    });
+
+    it('keeps its bell, since a new version can still go live', async () => {
+        answer({ listing: listingOf([downModelOf()]) });
+        await open('lagging');
+
+        expect(document.querySelector('.model-heading a[href$="/alarm"]')).toHaveAttribute('href', '/model/lagging/alarm');
     });
 });
 

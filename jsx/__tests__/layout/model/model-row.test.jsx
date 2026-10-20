@@ -13,7 +13,7 @@ import { MemoryRouter } from 'react-router-dom';
 import ModelRow, { TrendLine } from '../../../import/layout/model/model-row.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS, recentDays } from '../../../import/layout/model/scores.js';
-import { modelOf, trackOf } from '../../../test-support/model-fixtures.js';
+import { downModelOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
     const onPick = props.onPick || jest.fn();
@@ -115,6 +115,42 @@ describe('a row', () => {
         const { container } = draw({ model: modelOf({ live: { since: null, kind: null } }) });
 
         expect(container.querySelector('.model-cell-live .model-figure')).toHaveTextContent('–');
+    });
+});
+
+describe('a model whose live version was taken down (#263)', () => {
+    it('says Behind baseline on its pill', () => {
+        draw({ model: downModelOf() });
+
+        expect(screen.getByText('Behind baseline')).toHaveClass('model-pill', 'model-pill-down');
+    });
+
+    it('says when, and the check that did it, in place of when it went live', () => {
+        const { container } = draw({ model: downModelOf() });
+
+        expect(container.querySelector('.model-cell-live .model-figure')).toHaveTextContent(/^Taken down Oct 19$/);
+        expect(container.querySelector('.model-cell-live .model-figure-detail'))
+            .toHaveTextContent(/^worse than the baseline 5 scored days in a row$/);
+    });
+
+    it('words an average\'s check as an average\'s', () => {
+        const { container } = draw({ model: downModelOf({ down: { since: '2026-10-19', days: 5, in_a_row: 10 } }) });
+
+        expect(container.querySelector('.model-cell-live .model-figure-detail'))
+            .toHaveTextContent('its 5-day average was worse than the baseline’s 10 days in a row');
+    });
+
+    it('names its score so far where it was taken down before its 20th scored day', () => {
+        const { container } = draw({ model: downModelOf({ scored_days: 7 }) });
+
+        expect(container.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, 7 days so far');
+    });
+
+    it('keeps its bell, as it can go live again, and is not dimmed', () => {
+        const { container } = draw({ model: downModelOf() });
+
+        expect(screen.getByRole('link', { name: 'Alarm for lagging' })).toHaveAttribute('href', '/model/lagging/alarm');
+        expect(container.querySelector('.model-row')).not.toHaveClass('model-row-retired');
     });
 });
 

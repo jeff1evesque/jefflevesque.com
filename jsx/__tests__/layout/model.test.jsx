@@ -38,7 +38,7 @@ import { loadListing, loadReport } from '../../import/layout/model/source.js';
 import { listSubscriptions } from '../../import/general/account-api.js';
 import { COMPARE_COLORS } from '../../import/layout/model/scores.js';
 import { readLayout, writeLayout } from '../../import/general/layout-preference.js';
-import { listingOf, modelOf, phoneScreen, trackOf, wideScreen } from '../../test-support/model-fixtures.js';
+import { behindOf, downModelOf, listingOf, modelOf, phoneScreen, trackOf, wideScreen } from '../../test-support/model-fixtures.js';
 
 function deferred() {
     let resolve;
@@ -452,6 +452,30 @@ describe('the filters', () => {
         await userEvent.click(screen.getByRole('button', { name: 'New 1' }));
 
         expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables']);
+    });
+
+    it('offer Behind baseline once the listing carries the trainer\'s checks, count a model taken down, and hide it when pressed (#263)', async () => {
+        const { models } = listingOf();
+
+        answer(listingOf([...models.map((model) => ({ ...model, behind: behindOf() })), downModelOf()]));
+        await open();
+
+        const statuses = within(within(filters()).getByRole('region', { name: 'Status' })).getAllByRole('button');
+
+        expect(statuses.map((row) => row.textContent)).toEqual(['Live2', 'New1', 'Behind baseline1', 'Retired1']);
+        expect(namesIn('Next-day direction')).toContain('lagging');
+
+        await userEvent.click(screen.getByRole('button', { name: 'Behind baseline 1' }));
+
+        expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
+        expect(document.querySelector('.model-count')).toHaveTextContent('4 of 5');
+    });
+
+    it('leave Behind baseline out of a listing before format 2, which can take no model down (#263)', async () => {
+        answer();
+        await open();
+
+        expect(within(filters()).queryByRole('button', { name: /^Behind baseline/ })).toBeNull();
     });
 
     it('say so when they leave no model', async () => {

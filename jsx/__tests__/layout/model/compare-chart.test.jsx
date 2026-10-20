@@ -14,8 +14,8 @@ import userEvent from '@testing-library/user-event';
 
 import CompareChart from '../../../import/layout/model/compare-chart.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
-import { COMPARE_COLORS, chartColors } from '../../../import/layout/model/scores.js';
-import { TASKS, listingOf, phoneScreen, pointAt, tapAt, trackOf, wideScreen } from '../../../test-support/model-fixtures.js';
+import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
+import { TASKS, listingOf, ownBaselines, phoneScreen, pointAt, tapAt, trackOf, wideScreen } from '../../../test-support/model-fixtures.js';
 
 const [ptGnn, tables, fresh] = listingOf().models;
 
@@ -62,25 +62,45 @@ describe('the comparison', () => {
         expect(screen.getByRole('heading', { name: 'Comparing pt-gnn, tables and fresh' })).toBeInTheDocument();
     });
 
-    it('draws each model in the color of its slot, and the baseline', () => {
+    it('draws each model in the color of its slot, and its baseline in the same', () => {
         const { container } = draw();
         const strokes = [...container.querySelectorAll('.recharts-line-curve')].map((line) => line.getAttribute('stroke'));
 
-        expect(strokes).toHaveLength(3);
-        expect(strokes).toContain(COMPARE_COLORS[0]);
-        expect(strokes).toContain(COMPARE_COLORS[2]);
+        expect(strokes).toHaveLength(4);
+        expect(strokes.filter((stroke) => stroke === COMPARE_COLORS[0])).toHaveLength(2);
+        expect(strokes.filter((stroke) => stroke === COMPARE_COLORS[2])).toHaveLength(2);
         expect(strokes).not.toContain(COMPARE_COLORS[1]);
     });
 
-    it('dashes the baseline, and leaves it gray beside the models\' colors (#251)', () => {
+    it('dashes each model\'s own baseline in its color, and no model\'s line (#263)', () => {
         const { container } = draw();
-        const [baseline, ...models] = container.querySelectorAll('.recharts-line-curve');
+        const lines = [...container.querySelectorAll('.recharts-line-curve')];
+        const dashed = lines.filter((line) => line.getAttribute('stroke-dasharray') === '5 4');
+        const legend = screen.getByRole('list', { name: 'Legend' });
 
-        expect(baseline).toHaveAttribute('stroke-dasharray', '5 4');
-        expect(baseline).toHaveAttribute('stroke', chartColors('light').muted);
-        models.forEach((line) => expect(line).not.toHaveAttribute('stroke-dasharray'));
-        expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('Know-nothing baseline').closest('li').querySelector('line'))
+        expect(dashed.map((line) => line.getAttribute('stroke'))).toEqual([COMPARE_COLORS[0], COMPARE_COLORS[2]]);
+        expect(lines.filter((line) => !line.getAttribute('stroke-dasharray'))).toHaveLength(2);
+        expect(within(legend).queryByText('Know-nothing baseline')).toBeNull();
+        expect(within(legend).getByText('pt-gnn’s baseline').closest('li').querySelector('line'))
             .toHaveAttribute('stroke-dasharray', '5 4');
+        expect(within(legend).getByText('tables’s baseline').closest('li').querySelector('line'))
+            .toHaveAttribute('stroke', COMPARE_COLORS[2]);
+        expect(screen.getByText(/each model’s own know-nothing baseline is dashed in its color/)).toBeInTheDocument();
+    });
+
+    it('draws two models whose baselines differ on a day as two baseline lines, each from its own record (#263)', async () => {
+        const { container } = draw({ records: ownBaselines() });
+        const rows = [...container.querySelectorAll('.model-tip-row')].map((row) => row.textContent);
+
+        expect(rows).toContain('pt-gnn’s baseline1.660');
+        expect(rows).toContain('tables’s baseline1.700');
+
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        const table = screen.getByRole('table', { name: 'Loss, 20-day averages' });
+        const [newest] = within(table).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell').map((cell) => cell.textContent));
+
+        expect(newest.slice(-2)).toEqual(['1.660', '1.700']);
     });
 
     it('names each model in its legend in the page\'s text, beside a swatch of its line', () => {
@@ -146,14 +166,15 @@ describe('the panel (#251)', () => {
         expect(container.querySelector('.recharts-tooltip-wrapper .model-tip')).toBeNull();
     });
 
-    it('marks each model in its color, and the baseline dashed in gray', () => {
+    it('marks each model in its color, and its baseline dashed in the same', () => {
         const { container } = draw();
         const rows = [...container.querySelectorAll('.model-tip-row')];
-        const baseline = rows.find((row) => row.textContent.startsWith('Know-nothing baseline'));
+        const baseline = rows.find((row) => row.textContent.startsWith('tables’s baseline'));
 
         expect(rows.map((row) => row.querySelector('line').getAttribute('stroke')).slice(0, 2).sort())
             .toEqual([COMPARE_COLORS[0], COMPARE_COLORS[2]].sort());
         expect(baseline.querySelector('line')).toHaveAttribute('stroke-dasharray', '5 4');
+        expect(baseline.querySelector('line')).toHaveAttribute('stroke', COMPARE_COLORS[2]);
     });
 
     it('is not drawn while a record is on its way', () => {
@@ -180,7 +201,7 @@ describe('the panel (#251)', () => {
         expect(container.querySelector('.model-readout')).toBeNull();
     });
 
-    it('lists the models best first, with the baseline under them', () => {
+    it('lists the models best first, with their baselines under them in the same order', () => {
         const { container } = draw({
             records: { 'pt-gnn': trackOf(1, '2026-09-01', () => 1.7), tables: trackOf(1, '2026-09-01', () => 1.5) },
         });
@@ -189,7 +210,7 @@ describe('the panel (#251)', () => {
 
         const names = [...container.querySelectorAll('.model-tip-name')].map((name) => name.textContent);
 
-        expect(names).toEqual(['tables (1 days)', 'pt-gnn (1 days)', 'Know-nothing baseline']);
+        expect(names).toEqual(['tables (1 days)', 'pt-gnn (1 days)', 'tables’s baseline', 'pt-gnn’s baseline']);
         expect(container.querySelector('.model-tip-title')).toHaveTextContent('Tue, Sep 1, 2026');
     });
 
@@ -227,13 +248,19 @@ describe('the panel (#251)', () => {
         expect(container.querySelector('.model-tip-foot')).toHaveTextContent(`fresh: ${why}`);
     });
 
-    it('leaves the baseline out on a day no record has it', () => {
-        const rows = trackOf(1).map((row) => ({ ...row, baseline: { ...row.baseline, loss: null } }));
-        const { container } = draw({ records: { 'pt-gnn': rows, tables: rows } });
+    it('leaves a model\'s baseline out on a day its record has none', () => {
+        //
+        // the worker averages a first day with no baseline to none
+        //
+        const none = trackOf(1).map((row) => ({ ...row, baseline_average: { ...row.baseline_average, loss: null } }));
+        const { container } = draw({ records: { 'pt-gnn': none, tables: trackOf(1) } });
 
         pointAt(container.querySelector('.recharts-wrapper'), 300);
 
-        expect([...container.querySelectorAll('.model-tip-name')].map((name) => name.textContent)).not.toContain('Know-nothing baseline');
+        const names = [...container.querySelectorAll('.model-tip-name')].map((name) => name.textContent);
+
+        expect(names).not.toContain('pt-gnn’s baseline');
+        expect(names).toContain('tables’s baseline');
     });
 });
 
@@ -245,13 +272,14 @@ describe('the numbers', () => {
 
         const table = screen.getByRole('table', { name: 'Loss, 20-day averages' });
 
-        expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['Day', 'pt-gnn', 'tables', 'Baseline']);
+        expect(within(table).getAllByRole('columnheader').map((cell) => cell.textContent))
+            .toEqual(['Day', 'pt-gnn', 'tables', 'pt-gnn’s baseline', 'tables’s baseline']);
 
         const rows = within(table).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell').map((cell) => cell.textContent));
 
         expect(rows).toEqual([
-            ['Sep 2', '1.605', '', '1.660'],
-            ['Sep 1', '1.600', '1.600', '1.660'],
+            ['Sep 2', '1.605', '', '1.660', ''],
+            ['Sep 1', '1.600', '1.600', '1.660', '1.660'],
         ]);
     });
 });

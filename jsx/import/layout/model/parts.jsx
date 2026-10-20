@@ -58,7 +58,8 @@ ScorePicker.propTypes = {
 };
 
 /**
- * a model's status: Live, New with its days so far, or Retired.
+ * a model's status: Live, New with its days so far, Behind baseline while its
+ * live version is down (#263), or Retired.
  */
 export function StatusPill({ model }) {
     return (
@@ -73,6 +74,7 @@ StatusPill.propTypes = {
     model: PropTypes.shape({
         retired: PropTypes.string,
         scored_days: PropTypes.number.isRequired,
+        down: PropTypes.object,
     }).isRequired,
 };
 

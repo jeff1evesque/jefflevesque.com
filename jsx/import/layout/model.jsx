@@ -354,6 +354,15 @@ class ModelLayout extends Component {
         const shown = this.shown().length;
         const toggle = this.toggleFilters;
 
+        //
+        // Behind baseline is offered once the listing carries the trainer's
+        // checks, from format 2 on (#263). A listing before then can say of no
+        // model that its live version was taken down, and its filters are as
+        // they were
+        //
+        const checked = models.some((model) => model.down || (Array.isArray(model.behind) && model.behind.length));
+        const statuses = STATUSES.filter((status) => status.key !== 'down' || checked);
+
         const row = (key, name, count, on, flip) => (
             <li key={key}>
                 <button type='button' className='model-filter' aria-pressed={on} onClick={flip}>
@@ -404,7 +413,7 @@ class ModelLayout extends Component {
                     <section className='model-filter-set' aria-label='Status'>
                         <h6>Status</h6>
                         <ul>
-                            {STATUSES.map((status) => row(
+                            {statuses.map((status) => row(
                                 status.key,
                                 status.label,
                                 models.filter((model) => statusOf(model) === status.key).length,

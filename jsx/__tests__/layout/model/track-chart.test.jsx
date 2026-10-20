@@ -12,7 +12,7 @@ import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import TrackChart, { DayDot, WentLiveTick, trackPoints } from '../../../import/layout/model/track-chart.jsx';
+import TrackChart, { DayDot, TakenDownTick, WentLiveTick, trackPoints } from '../../../import/layout/model/track-chart.jsx';
 import { chartColors } from '../../../import/layout/model/scores.js';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
@@ -77,6 +77,24 @@ describe('trackPoints', () => {
         const points = trackPoints('pt-gnn', trackOf(2), 'tables', null, 'loss');
 
         expect(points.every((point) => point.other === null)).toBe(true);
+    });
+
+    it('holds the model\'s own baseline, whatever the other model\'s is, and none on a day only the other was scored on (#263)', () => {
+        const mine = trackOf(2, '2026-09-02', undefined, () => 1.7);
+        const theirs = trackOf(3, '2026-09-01');
+        const points = trackPoints('pt-gnn', mine, 'tables', theirs, 'loss');
+
+        expect(points.map((point) => point.baseline)).toEqual([null, mine[0].baseline_average.loss, mine[1].baseline_average.loss]);
+        expect(points[2].baseline).toBeCloseTo(1.7);
+    });
+
+    it('holds the check a day\'s score set off, on that day alone (#263)', () => {
+        const rows = trackOf(3);
+
+        rows[1] = { ...rows[1], down_days: 5, down_in_a_row: 10 };
+
+        expect(trackPoints('pt-gnn', rows, null, undefined, 'loss').map((point) => point.down))
+            .toEqual([null, { days: 5, in_a_row: 10 }, null]);
     });
 });
 
@@ -237,7 +255,14 @@ describe('the panel (#251)', () => {
     });
 
     it('leaves the baseline out on a day it has none, and is not drawn for a record with no days', () => {
-        const rows = trackOf(1).map((row) => ({ ...row, baseline: { ...row.baseline, loss: null } }));
+        //
+        // the worker averages a first day with no baseline to none
+        //
+        const rows = trackOf(1).map((row) => ({
+            ...row,
+            baseline: { ...row.baseline, loss: null },
+            baseline_average: { ...row.baseline_average, loss: null },
+        }));
         const { container, unmount } = draw({ rows: rows });
 
         expect(container.querySelector('.model-readout')).not.toHaveTextContent('Know-nothing baseline');
@@ -422,5 +447,81 @@ describe('the nights a new version went live', () => {
 
         expect(within(table).getAllByRole('columnheader').pop()).toHaveTextContent('New version');
         expect(cells).toEqual(['', 'went live']);
+    });
+});
+
+describe('the days whose score took the live version down (#263)', () => {
+    //
+    // a track record of five days, the fourth of them the day whose score set
+    // off the check of each day on its own, five in a row
+    //
+    function takenDown() {
+        const rows = trackOf(5);
+
+        rows[3] = { ...rows[3], down_days: 1, down_in_a_row: 5 };
+
+        return rows;
+    }
+
+    it('stand as a short tick on the foot of the plot, in the worse color, apart from the went-live ticks', () => {
+        const { container } = render(<svg><TakenDownTick x1={40} y1={10} y2={200} color='#d03b3b' /></svg>);
+        const tick = container.querySelector('line');
+
+        expect(tick).toHaveClass('model-taken-down');
+        expect(tick).not.toHaveClass('model-went-live');
+        expect(tick).toHaveAttribute('y1', '191');
+        expect(tick).toHaveAttribute('y2', '198');
+        expect(tick).toHaveAttribute('stroke', '#d03b3b');
+    });
+
+    it('are drawn on the day the record says, beside a went-live tick, and named in the legend', () => {
+        const rows = takenDown();
+        const { container } = draw({ rows: rows, wentLive: [rows[1].day] });
+
+        expect(container.querySelectorAll('.model-taken-down')).toHaveLength(1);
+        expect(container.querySelector('.model-taken-down')).toHaveAttribute('stroke', chartColors('light').worse);
+        expect(container.querySelectorAll('.model-went-live')).toHaveLength(1);
+        expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('Live version taken down')).toBeInTheDocument();
+    });
+
+    it('name the check in the panel of their day', () => {
+        const rows = takenDown().slice(0, 4);
+        const { container } = draw({ rows: rows });
+
+        expect(container.querySelector('.model-tip-foot'))
+            .toHaveTextContent('Live version taken down: worse than the baseline 5 scored days in a row');
+    });
+
+    it('get a column of the table, saying the check', async () => {
+        draw({ rows: takenDown() });
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        const table = screen.getByRole('table', { name: 'Loss, track record' });
+        const cells = within(table).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell').pop().textContent);
+
+        expect(within(table).getAllByRole('columnheader').pop()).toHaveTextContent('Taken down');
+        expect(cells).toEqual(['', 'worse than the baseline 5 scored days in a row', '', '', '']);
+    });
+
+    it('leave the chart, its legend and its table alone where no day took one down', async () => {
+        const { container } = draw({ rows: trackOf(5) });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        expect(container.querySelector('.model-taken-down')).toBeNull();
+        expect(screen.queryByText('Live version taken down')).toBeNull();
+        expect(screen.queryByRole('columnheader', { name: 'Taken down' })).toBeNull();
+    });
+});
+
+describe('the model\'s own baseline (#263)', () => {
+    it('is drawn from its own record, and the other model\'s baseline is not drawn', () => {
+        const { container } = draw({ rows: trackOf(2, '2026-09-01', undefined, () => 1.7), other: 'tables', otherRows: trackOf(2) });
+        const baseline = [...container.querySelectorAll('.model-tip-row')]
+            .find((row) => row.textContent.startsWith('Know-nothing baseline'));
+
+        expect(baseline.querySelector('.model-tip-value')).toHaveTextContent('1.700');
+        expect([...container.querySelectorAll('.recharts-line-curve')]
+            .filter((line) => line.getAttribute('stroke-dasharray'))).toHaveLength(1);
     });
 });
