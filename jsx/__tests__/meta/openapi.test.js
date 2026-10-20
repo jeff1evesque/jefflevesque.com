@@ -267,6 +267,44 @@ describe.each(DOCUMENTS)('%s.json', (name) => {
     });
 });
 
+describe('model.json, from format 2 on (#263)', () => {
+    const responses = documentOf('model').paths['/model'].get.responses;
+    const media = responses['200'].content['application/json'];
+    const listing = media.schema.properties.report.anyOf[0];
+    const model = listing.properties.models.items;
+
+    it('documents on each model whether its live version was taken down, and when and by which check', () => {
+        const down = model.properties.down;
+
+        expect(down.type).toEqual(['object', 'null']);
+        expect(down.required).toEqual(['since', 'days', 'in_a_row']);
+        expect(model.required).not.toContain('down');
+    });
+
+    it('documents on each model how close each check is to taking it down', () => {
+        const behind = model.properties.behind;
+
+        expect(behind.type).toBe('array');
+        expect(behind.items.required).toEqual(['days', 'in_a_row', 'limit']);
+        expect(behind.items.properties.in_a_row.type).toEqual(['integer', 'null']);
+        expect(model.required).not.toContain('behind');
+    });
+
+    it('names format 2, the track record\'s two columns, and what live is for a model taken down', () => {
+        expect(listing.properties.format_version.description).toMatch(/2: a model's down and behind, and a track record's down_days and down_in_a_row/);
+        expect(responses['200'].description).toMatch(/down_days and down_in_a_row/);
+        expect(model.properties.live.description).toMatch(/taken down/);
+    });
+
+    it('shows a model taken down in the listing\'s example, and the two columns in the track record\'s', () => {
+        const models = media.examples.list.value.report.models;
+
+        expect(media.examples.list.value.report.format_version).toBe(2);
+        expect(models.filter((each) => each.down)).toHaveLength(1);
+        expect(media.examples['track-record'].value.report.split('\n')[0]).toMatch(/,down_days,down_in_a_row$/);
+    });
+});
+
 describe('the guard itself', () => {
     it('rejects an example that does not match', () => {
         //
