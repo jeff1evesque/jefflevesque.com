@@ -5,7 +5,9 @@
  * /model shares -- see redux/container/model.jsx -- and three figures: when its
  * live version went live, how many of its nightly attempts did, and its 20-day
  * score beside the baseline's and where it stands among the models of its task.
- * Then its two charts, each with a table of its numbers:
+ * The score's name carries a note on what it measures, and while Loss is picked,
+ * the three scores it adds up are under it (#265). Then its two charts, each with
+ * a table of its numbers:
  *
  *     attempts-chart.jsx   every nightly attempt against the live version, and
  *                          how far each beat or missed it
@@ -38,6 +40,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import FigureBoxes from '../../general/figure-boxes.jsx';
+import InfoNote from '../../general/info-note.jsx';
 import AttemptsChart from './attempts-chart.jsx';
 import TrackChart from './track-chart.jsx';
 import { AlarmBell, ScorePicker, StatusPill, modelsHeld } from './parts.jsx';
@@ -52,6 +55,7 @@ import {
     formatGap,
     formatScore,
     liveKind,
+    lossParts,
     scoreOf,
     shortDay,
     sortModels,
@@ -138,6 +142,55 @@ export function liveFigure(model) {
 export function sentence(line) {
     return line ? `${line.charAt(0).toUpperCase()}${line.slice(1)}.` : '';
 }
+
+//
+// how a part of loss stands against the baseline's, in words before the
+// baseline's figure, as the score's card says its own: 'worse than baseline'
+//
+const PART_STANDS = {
+    better: 'better than baseline',
+    worse: 'worse than baseline',
+    level: 'level with baseline',
+};
+
+/**
+ * the three scores loss adds up (#265), under the score's figure while Loss is
+ * picked: each part's 20-day average, and how it stands against the baseline's
+ * beside the baseline's own -- 'Up or down 0.723 worse than baseline 0.713'.
+ *
+ * `parts` are lossParts' of the track record's newest day, over the same days as
+ * the figure, so the three add up to it.
+ */
+export function LossParts({ parts }) {
+    return (
+        <ul className='model-parts' aria-label='Loss, part by part'>
+            {parts.map((part) => (
+                <li key={part.key} className='model-part'>
+                    <span className='model-part-name'>{part.label}</span>
+                    <span className='model-part-figures'>
+                        <span className='model-part-value'>{formatScore(part.value, 'loss')}</span>
+                        {part.stands
+                            ? (
+                                <span className={`model-part-baseline model-gap-${part.stands}`}>
+                                    {`${PART_STANDS[part.stands]} ${formatScore(part.baseline, 'loss')}`}
+                                </span>
+                            ) : null}
+                    </span>
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+LossParts.propTypes = {
+    parts: PropTypes.arrayOf(PropTypes.shape({
+        key: PropTypes.string.isRequired,
+        label: PropTypes.string.isRequired,
+        value: PropTypes.number.isRequired,
+        baseline: PropTypes.number,
+        stands: PropTypes.oneOf(['better', 'worse', 'level']),
+    })).isRequired,
+};
 
 class ModelPage extends Component {
     static propTypes = {
@@ -245,7 +298,7 @@ class ModelPage extends Component {
     //
     summary(model, task) {
         const { score } = this.props;
-        const { history, listing } = this.state;
+        const { history, listing, track } = this.state;
         const status = statusOf(model);
         const live = liveFigure(model);
         const value = model.score ? model.score[score] : null;
@@ -281,10 +334,19 @@ class ModelPage extends Component {
         }
 
         //
+        // the three scores loss adds up, while Loss is picked (#265), from the
+        // track record's newest day: none while the track record is on its way,
+        // where it could not be had, and where it has no columns for them
+        //
+        const parts = score === 'loss' && Array.isArray(track) && track.length ? lossParts(track[track.length - 1]) : [];
+        const lossBy = parts.length ? <LossParts parts={parts} /> : null;
+
+        //
         // the three figures: a card each on a wide screen, and on a phone one
         // row of /stream's tinted boxes, a name over a value, with the line under
         // each card's value moved into its box's note -- three cards stacked
-        // took a phone's whole first screen (#253)
+        // took a phone's whole first screen (#253). The parts of loss go under
+        // the score's card, and on a phone under the boxes (#265)
         //
         return (
             <section className='model-summary' aria-label='Summary'>
@@ -301,12 +363,13 @@ class ModelPage extends Component {
                         <span className='model-stat-detail'>{retrains || 'nightly attempts'}</span>
                     </div>
                     <div className='model-stat'>
-                        <span className='model-stat-label'>{scoreName}</span>
+                        <InfoNote note={scoreOf(score).note} className='model-stat-label model-noted'>{scoreName}</InfoNote>
                         <span className='model-stat-value'>{formatScore(value, score)}</span>
                         <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
                         {place ? <span className='model-stat-detail'>{place}</span> : null}
                         {behind ? <span className='model-stat-detail'>{behind}</span> : null}
                     </div>
+                    {lossBy}
                 </div>
                 <div className='model-summary-boxes'>
                     <FigureBoxes
@@ -332,12 +395,13 @@ class ModelPage extends Component {
                                 key: 'score',
                                 label: scoreName,
                                 short: scoreOf(score).label,
-                                note: [sentence(against), sentence(place), behind].filter(Boolean).join(' ') || `The model’s ${scoreOf(score).label.toLowerCase()}.`,
+                                note: [scoreOf(score).note, sentence(against), sentence(place), behind].filter(Boolean).join(' '),
                                 value: formatScore(value, score),
                                 tone: { better: 'good', worse: 'bad' }[stands],
                             },
                         ]}
                     />
+                    {lossBy}
                 </div>
             </section>
         );
