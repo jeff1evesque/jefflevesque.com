@@ -16,6 +16,20 @@ export const TASKS = [
 const LIVE_SCORE = { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 };
 const BASELINE = { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52 };
 
+//
+// loss's three parts as the listing gives them (#265): not at all, so the worker
+// reads each as null
+//
+const NO_PARTS = { up_log_loss: null, beats_log_loss: null, move_pinball: null };
+
+//
+// the baseline's scores on a day its loss is `loss`, its three parts adding up
+// to it: on beating the average stock, a coin flip's 0.693
+//
+function baselineAt(loss = BASELINE.loss) {
+    return { ...BASELINE, loss: loss, up_log_loss: 0.7, beats_log_loss: 0.693, move_pinball: loss - 1.393 };
+}
+
 /**
  * a model as the listing holds it. Its live version is live, and the listing
  * gives no checks, as one before format 2 does (#263).
@@ -30,8 +44,8 @@ export function modelOf(overrides = {}) {
         scored_days: 30,
         live: { since: '2026-10-09', kind: 'nightly' },
         attempts: { total: 30, went_live: 4 },
-        score: { ...LIVE_SCORE },
-        baseline: { ...BASELINE },
+        score: { ...LIVE_SCORE, ...NO_PARTS },
+        baseline: { ...BASELINE, ...NO_PARTS },
         down: null,
         behind: [],
         ...overrides,
@@ -101,8 +115,21 @@ export function weekdays(count, from = '2026-09-01') {
     return days;
 }
 
+//
+// a model's scores on a day its loss is `loss`, and loss's three parts adding up
+// to it (#265): worse than the baseline's on up or down, and better on beating
+// the average stock
+//
 function scoresAt(loss) {
-    return { loss: loss, auc_up: 2.16 - loss, auc_beats: 2.13 - loss, acc_up: 2.14 - loss };
+    return {
+        loss: loss,
+        auc_up: 2.16 - loss,
+        auc_beats: 2.13 - loss,
+        acc_up: 2.14 - loss,
+        up_log_loss: 0.72,
+        beats_log_loss: 0.62,
+        move_pinball: loss - 1.34,
+    };
 }
 
 //
@@ -147,7 +174,7 @@ export function historyOf(count = 5, nights = {}, from = '2026-10-01') {
         ...timesAt(day, at - firstTimed),
         attempt: scoresAt(1.61 + at * 0.001),
         live: scoresAt(1.6),
-        baseline: { ...BASELINE },
+        baseline: baselineAt(),
         ...(nights[at] || {}),
     }));
 }
@@ -163,13 +190,14 @@ export function timedHistoryOf(nights = {}) {
 /**
  * a track record, its averages worked out as the worker works them: each day
  * over the rows so far, up to 20. `loss(at)` is each day's loss, and
- * `baselineLoss(at)` the baseline's. No day took the live version down.
+ * `baselineLoss(at)` the baseline's, each with its three parts adding up to it
+ * (#265). No day took the live version down.
  */
 export function trackOf(count = 5, from = '2026-09-01', loss = (at) => 1.6 + (at % 3) * 0.01, baselineLoss = () => BASELINE.loss) {
     const rows = weekdays(count, from).map((day, at) => ({
         day: day,
         score: scoresAt(loss(at)),
-        baseline: { ...BASELINE, loss: baselineLoss(at) },
+        baseline: baselineAt(baselineLoss(at)),
         down_days: null,
         down_in_a_row: null,
     }));
@@ -192,6 +220,23 @@ export function trackOf(count = 5, from = '2026-09-01', loss = (at) => 1.6 + (at
     });
 
     return rows;
+}
+
+/**
+ * a track record without loss's three parts (#265), as the worker reads one:
+ * each part null on every day, in its scores and in its averages, and the rest
+ * as trackOf has it.
+ */
+export function olderTrackOf(count = 5) {
+    const without = (scores) => ({ ...scores, ...NO_PARTS });
+
+    return trackOf(count).map((row) => ({
+        ...row,
+        score: without(row.score),
+        baseline: without(row.baseline),
+        average: without(row.average),
+        baseline_average: without(row.baseline_average),
+    }));
 }
 
 /**
