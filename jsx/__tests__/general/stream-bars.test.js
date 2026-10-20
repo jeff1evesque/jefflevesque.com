@@ -112,6 +112,12 @@ describe('a federal holiday, by the day (#241)', () => {
         expect(barAt(bars, oct(12)).kind).toBe('off');
     });
 
+    it('names the holiday on its bar, and on neither of the weekend\'s (#261)', () => {
+        expect(barAt(bars, oct(12))).toEqual({ start: oct(12), kind: 'off', holiday: 'Columbus Day' });
+        expect(barAt(bars, oct(10))).not.toHaveProperty('holiday');
+        expect(barAt(bars, oct(11))).not.toHaveProperty('holiday');
+    });
+
     it('still draws a workday that brought nothing as missed', () => {
         expect(barAt(bars, oct(13)).kind).toBe('missed');
     });
@@ -417,6 +423,11 @@ describe('what a bar says of itself', () => {
     it('says a run that brought nothing failed, and how many, so it is not taken for a miss (#239)', () => {
         expect(barSummary({ kind: 'failed', records: 0, failed: 518579, health: 0 }))
             .toBe('Failed: 518,579 failed, nothing succeeded');
+    });
+
+    it('says which holiday a bar is not scheduled for (#261)', () => {
+        expect(barSummary({ kind: 'off', holiday: 'Columbus Day' })).toBe('Not scheduled: Columbus Day');
+        expect(barSummary({ kind: 'off' })).toBe('Not scheduled');
     });
 
     it.each([
