@@ -98,6 +98,8 @@ describe('the listing', () => {
             attempts: { total: 30, went_live: 4 },
             score: { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 },
             baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52 },
+            down: null,
+            behind: [],
         }]);
         expect(answer.tasks).toEqual([{ id: 'direction', name: 'Next-day direction', description: 'Up or down' }]);
     });
@@ -217,6 +219,73 @@ describe('the listing', () => {
 
             expect(answer.tasks).toEqual(asBefore.tasks);
             expect(answer.models).toEqual(asBefore.models);
+        });
+    });
+
+    describe('a live version taken down, and how close each check is, from format 2 on (#263)', () => {
+        const DOWN = { since: '2026-10-19', days: 1, in_a_row: 5 };
+        const BEHIND = [
+            { days: 1, in_a_row: 5, limit: 5 },
+            { days: 5, in_a_row: 0, limit: 10 },
+            { days: 20, in_a_row: null, limit: 5 },
+        ];
+
+        //
+        // the one model a listing of `overrides` reads as
+        //
+        const read = (overrides) => run({ kind: 'list', report: listingOf([entry(overrides)]) }).models[0];
+
+        it('keeps the night it was taken down, the check that did it, and every check', () => {
+            const model = read({ down: DOWN, behind: BEHIND });
+
+            expect(model.down).toEqual(DOWN);
+            expect(model.behind).toEqual(BEHIND);
+        });
+
+        it('reads a model whose live version is live as none taken down, and a listing before format 2 as giving no checks', () => {
+            expect(read({ down: null, behind: BEHIND }).down).toBeNull();
+            expect(read({})).toMatchObject({ down: null, behind: [] });
+        });
+
+        it.each([
+            ['names no night', { ...DOWN, since: null }],
+            ['names a night that is not a day', { ...DOWN, since: 'last night' }],
+            ['gives its check as text', { ...DOWN, days: '1' }],
+            ['gives a check of no days', { ...DOWN, days: 0 }],
+            ['gives a fraction of a day', { ...DOWN, days: 1.5 }],
+            ['gives none in a row', { ...DOWN, in_a_row: 0 }],
+            ['gives its count as text', { ...DOWN, in_a_row: '5' }],
+            ['is not an object', 'yes'],
+            ['is a list', [DOWN]],
+        ])('reads one that %s as none, rather than as a guess', (name, down) => {
+            expect(read({ down: down }).down).toBeNull();
+        });
+
+        it('trims the night it names, as every other day', () => {
+            expect(read({ down: { ...DOWN, since: ' 2026-10-19 ' } }).down.since).toBe('2026-10-19');
+        });
+
+        it('passes over a check that is not whole, and keeps the rest in the listing\'s order', () => {
+            const model = read({
+                behind: [
+                    BEHIND[0],
+                    { days: 5, in_a_row: -1, limit: 10 },
+                    { days: 5, in_a_row: 1.5, limit: 10 },
+                    { days: 5, in_a_row: '2', limit: 10 },
+                    { days: 5, limit: 10 },
+                    { days: 0, in_a_row: 1, limit: 10 },
+                    { days: 20, in_a_row: 1, limit: '5' },
+                    'each day',
+                    null,
+                    BEHIND[2],
+                ],
+            });
+
+            expect(model.behind).toEqual([BEHIND[0], BEHIND[2]]);
+        });
+
+        it('reads checks that are not a list as none', () => {
+            expect(read({ behind: { days: 1, in_a_row: 2, limit: 5 } }).behind).toEqual([]);
         });
     });
 });
@@ -445,6 +514,32 @@ describe('the track record', () => {
 
         expect(row.average.loss).toBeNull();
     });
+
+    describe('the check a day\'s score set off, from format 2 on (#263)', () => {
+        const header = [...TRACK_HEADER, 'down_days', 'down_in_a_row'];
+
+        it('reads the check on the day whose score set it off, and none on every other day', () => {
+            const rows = run({
+                kind: 'track-record',
+                report: csv(header, [[...trackRow('2026-10-15', 1.8), '', ''], [...trackRow('2026-10-16', 1.8), 1, 5]]),
+            }).rows;
+
+            expect(rows[0]).toMatchObject({ day: '2026-10-15', down_days: null, down_in_a_row: null });
+            expect(rows[1]).toMatchObject({ day: '2026-10-16', down_days: 1, down_in_a_row: 5 });
+        });
+
+        it('reads a track record written before the columns as no check on any day', () => {
+            const [row] = run({ kind: 'track-record', report: csv(TRACK_HEADER, [trackRow('2026-10-15', 1.8)]) }).rows;
+
+            expect(row).toMatchObject({ down_days: null, down_in_a_row: null });
+        });
+
+        it.each([['0'], ['1.5'], ['-5'], ['five']])('reads a cell of %p as none', (cell) => {
+            const [row] = run({ kind: 'track-record', report: csv(header, [[...trackRow('2026-10-15', 1.8), cell, cell]]) }).rows;
+
+            expect(row).toMatchObject({ down_days: null, down_in_a_row: null });
+        });
+    });
 });
 
 describe('a report with nothing in it, and one that is not a report', () => {
@@ -513,12 +608,27 @@ describe('the worker as the bundle builds it', () => {
             { kind: 'list', report: listingOf([entry(), entry({ name: 'b', task: 'beats' })]) },
             { kind: 'list', report: { format_version: 1, tasks: [], models: [entry()] } },
             { kind: 'list', report: { format_version: '1', models: [] } },
+            {
+                kind: 'list',
+                report: {
+                    format_version: 2,
+                    tasks: [],
+                    models: [entry({
+                        down: { since: '2026-10-19', days: 1, in_a_row: 5 },
+                        behind: [{ days: 1, in_a_row: 5, limit: 5 }, { days: 20, in_a_row: null, limit: 5 }, { days: 0 }],
+                    }), entry({ name: 'b', down: { since: 'soon' } })],
+                },
+            },
             { kind: 'history', name: 'pt-gnn', report: 'day,kind,went_live,attempt_loss\n2026-10-12,weekly,True,1.6' },
             {
                 kind: 'history',
                 report: 'day,kind,went_live,started,training_seconds,total_seconds,attempt_loss\n2026-10-14,nightly,false,,,,1.6\n2026-10-15,nightly,true,2026-10-16T07:58:10+00:00,437.2,532.4,1.59',
             },
             { kind: 'track-record', report: csv(TRACK_HEADER, [trackRow('2026-10-12', 1.6), trackRow('2026-10-13', 1.8)]) },
+            {
+                kind: 'track-record',
+                report: csv([...TRACK_HEADER, 'down_days', 'down_in_a_row'], [[...trackRow('2026-10-15', 1.8), '', ''], [...trackRow('2026-10-16', 1.8), 5, 10]]),
+            },
             { kind: 'track-record', report: 4 },
         ];
 
