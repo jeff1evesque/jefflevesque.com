@@ -47,7 +47,12 @@ import {
     shortDay,
 } from './scores.js';
 
-const HEIGHT = 280;
+//
+// the chart's height, in px, and the card's title, which are its placeholder's
+// as well while the track record is on its way (#274) -- see pending.jsx
+//
+export const HEIGHT = 280;
+export const TITLE = 'Track record';
 
 //
 // the color the model added from the menu is drawn in: the first of the
@@ -241,7 +246,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                     <FoldTitle
                         as='h5'
                         id='model-track-title'
-                        title='Track record'
+                        title={TITLE}
                         folded={Boolean(folds.track)}
                         onFold={() => toggle('track')}
                     />
