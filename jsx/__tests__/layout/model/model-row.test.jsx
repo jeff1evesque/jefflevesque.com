@@ -78,6 +78,17 @@ describe('a row', () => {
         expect(level.querySelector('.model-gap')).toHaveTextContent('level with the baseline');
     });
 
+    it('puts the arrow in a span of its own, so it alone takes the color of better or worse (#274)', () => {
+        const better = draw().container.querySelector('.model-gap');
+        const worse = draw({ model: modelOf({ score: { loss: 1.7 } }) }).container.querySelector('.model-gap');
+        const level = draw({ model: modelOf({ score: { loss: 1.66 } }) }).container.querySelector('.model-gap');
+
+        expect(better.querySelector('.model-gap-arrow')).toHaveTextContent(/^▲$/);
+        expect(worse.querySelector('.model-gap-arrow')).toHaveTextContent(/^▼$/);
+        expect(worse).toHaveClass('model-gap-worse');
+        expect(level.querySelector('.model-gap-arrow')).toBeNull();
+    });
+
     it('prints a dash and no comparison for a model with no score yet', () => {
         const { container } = draw({ model: modelOf({ score: null, baseline: null }) });
 

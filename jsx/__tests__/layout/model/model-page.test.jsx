@@ -263,6 +263,74 @@ describe('before there is a model to show', () => {
         expect(screen.getByRole('link', { name: '‹ All models' })).toHaveAttribute('href', '/model');
     });
 
+    describe('while the listing is on its way, its own shape (#274)', () => {
+        beforeEach(() => {
+            loadListing.mockReturnValue(new Promise(() => {}));
+        });
+
+        it('names the model, as the address does, and says it is loading to a screen reader alone', async () => {
+            await open('tables');
+
+            expect(screen.getByRole('heading', { name: 'tables' })).toBeInTheDocument();
+            expect(screen.getByRole('status')).toHaveTextContent(/^Loading the model…$/);
+            expect(screen.getByRole('status')).toHaveClass('visually-hidden');
+            expect(document.querySelector('.model-heading > .graph-pending-bar')).not.toBeNull();
+            expect(document.querySelectorAll('.model-lede .model-pending-line')).toHaveLength(2);
+        });
+
+        it('draws no bell, which a retired model would not have', async () => {
+            await open();
+
+            expect(document.querySelector('.model-heading a[href$="/alarm"]')).toBeNull();
+        });
+
+        it('draws the score picker, which hands a score up before the listing lands', async () => {
+            const onScore = jest.fn();
+
+            await open('pt-gnn', { onScore: onScore });
+            await userEvent.click(screen.getByRole('button', { name: 'Up/down accuracy' }));
+
+            expect(onScore).toHaveBeenCalledWith('acc_up');
+        });
+
+        it('names the three figures over bars, as a wide screen\'s cards and a phone\'s boxes', async () => {
+            await open('pt-gnn', { score: 'auc_up' });
+
+            const summary = document.querySelector('.model-summary');
+
+            expect(summary).toHaveAttribute('aria-hidden', 'true');
+            expect([...summary.querySelectorAll('.model-stat-label')].map((label) => label.textContent))
+                .toEqual(['Live version', 'Attempts that went live', 'Up/down AUC']);
+            expect([...summary.querySelectorAll('.stream-focus-figure-label')].map((label) => label.textContent))
+                .toEqual(['Live version', 'Went live', 'Up/down AUC']);
+        });
+
+        it('draws each chart\'s card under its title, its frame as tall as its chart', async () => {
+            await open();
+
+            const cards = [...document.querySelectorAll('.model-card')];
+
+            expect(cards.map((card) => card.querySelector('.model-fold').textContent))
+                .toEqual(['Each attempt against the live version', 'Track record']);
+            cards.forEach((card) => expect(card.querySelector('.model-chart-pending').style.height).toBe('280px'));
+        });
+    });
+
+    it('gives the placeholders\' places to the model once the listing lands (#274)', async () => {
+        const listing = deferred();
+
+        loadListing.mockReturnValue(listing.promise);
+        loadReport.mockImplementation((name, kind) => Promise.resolve(kind === 'history' ? historyOf() : trackOf()));
+        await open();
+
+        await act(async () => listing.resolve(listingOf()));
+
+        expect(await screen.findByRole('heading', { name: 'Each attempt against the live version' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Track record' })).toBeInTheDocument();
+        expect(document.querySelector('.graph-pending-bar, .model-chart-pending')).toBeNull();
+        expect(screen.queryByRole('status')).toBeNull();
+    });
+
     it('says there are no models to show yet where the listing could not be had', async () => {
         answer({ listing: null });
 
@@ -1047,6 +1115,21 @@ describe('a report that is not in', () => {
 
         expect(screen.getByText('Loading the nightly attempts…')).toBeInTheDocument();
         expect(screen.getByText('Loading the track record…')).toBeInTheDocument();
+    });
+
+    it('draws each one\'s card under its title while it is on its way, and says so to a screen reader (#274)', async () => {
+        loadListing.mockResolvedValue(listingOf());
+        loadReport.mockReturnValue(new Promise(() => {}));
+
+        await open();
+
+        const lines = screen.getAllByRole('status');
+
+        expect(lines.map((line) => line.textContent)).toEqual(['Loading the nightly attempts…', 'Loading the track record…']);
+        lines.forEach((line) => expect(line).toHaveClass('visually-hidden'));
+        expect([...document.querySelectorAll('.model-chart-pending')]
+            .map((frame) => frame.closest('.model-card').querySelector('.model-fold').textContent))
+            .toEqual(['Each attempt against the live version', 'Track record']);
     });
 
     it('says each could not be loaded where it could not be had', async () => {

@@ -2,9 +2,10 @@
  * stylesheet.test.js: what '_model.scss' promises about a row of /model's list --
  * its columns, the bell's among them (#255, #259) -- about the pill of a model
  * taken down (#263), about where loss's three parts go on a model's page (#265),
- * about the rows that page's three cards share (#267), and about a phone's
- * controls, their dropdowns and the room around them (#272), read out of the
- * partial.
+ * about the rows that page's three cards share (#267), about a phone's
+ * controls, their dropdowns and the room around them (#272), and about a phone's
+ * card, the arrow before how a score stands, and what both pages hold while the
+ * listing is on its way (#274), read out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see which
  * column a cell lands in. A wide screen places a row's cells by their order, so
@@ -92,15 +93,132 @@ describe('a row on a phone, as a card', () => {
         && declared(rule, 'grid-area')), 'grid-area');
 
     it('places each cell by name, so a row\'s order on a wide screen moves nothing on it', () => {
-        ['compare', 'model', 'score', 'trend', 'live', 'went', 'alarm'].forEach((cell) => {
+        ['compare', 'score', 'trend', 'live', 'went', 'alarm'].forEach((cell) => {
             expect({ cell, area: placed(cell) }).toEqual({ cell, area: cell });
         });
     });
 
-    it('keeps its bell at the top right, after the box that ticks it', () => {
+    it('keeps its bell at the top right, after the box that ticks it, on the name\'s line (#274)', () => {
         const [top] = declared(card, 'grid-template-areas').match(/'[^']*'/g);
 
-        expect(top).toBe('\'model model compare alarm\'');
+        expect(top).toBe('\'name name compare alarm\'');
+    });
+});
+
+describe('a phone\'s card (#274)', () => {
+    //
+    // the rule for a selector that declares a property: a phone's rules repeat
+    // selectors the wide screen's declare other things under
+    //
+    const rule = (selector, property) => RULES.find((each) => each.selectors.join() === selector && declared(each, property));
+    const card = rule('.model-row', 'grid-template-areas');
+
+    it('is padded 1rem inside its edge, where 0.75rem crowded it', () => {
+        expect(declared(card, 'padding')).toBe('1rem');
+    });
+
+    it('lets the model\'s cell give up its box: its name\'s line beside the box and the bell, the rest the card\'s width', () => {
+        //
+        // the address and the description stopped at the box's column, and left
+        // the card's right side empty
+        //
+        const rows = declared(card, 'grid-template-areas').match(/'[^']*'/g);
+
+        expect(declared(rule('.model-cell-model', 'display'), 'display')).toBe('contents');
+        expect(declared(rule('.model-name-line', 'grid-area'), 'grid-area')).toBe('name');
+        expect(declared(rule('.model-address', 'grid-area'), 'grid-area')).toBe('address');
+        expect(declared(rule('.model-description', 'grid-area'), 'grid-area')).toBe('about');
+        expect(rows.slice(1, 3)).toEqual(['\'address address address address\'', '\'about about about about\'']);
+    });
+
+    it('splits the figures in two even halves, the left never so wide that the trend line no longer fits', () => {
+        //
+        // half the card less half the gap, where the right half had the box's
+        // and the bell's columns as well; and on a 320px phone, the card less the
+        // gap and the trend line's width
+        //
+        expect(declared(card, 'column-gap')).toBe('1rem');
+        expect(declared(card, 'grid-template-columns'))
+            .toBe('min(50% - 0.5rem, 100% - 1rem - $model-trend-width) minmax(0, 1fr) auto auto');
+        expect(declared(rule('.model-trend,.model-trend-pending,.model-trend-none', 'width'), 'width')).toBe('$model-trend-width');
+        expect(source).toMatch(/\$model-trend-width: 132px;/);
+    });
+
+    it('keeps the model\'s lines together, and puts 0.6rem over each row of figures', () => {
+        expect(declared(card, 'gap')).toBeNull();
+        expect(declared(card, 'row-gap')).toBeNull();
+        expect(declared(rule('.model-cell-score,.model-cell-trend,.model-cell-live,.model-cell-went', 'margin-top'), 'margin-top'))
+            .toBe('0.6rem');
+    });
+
+    it('makes the box\'s cell as tall as the name\'s line, so the box sits at its middle', () => {
+        expect(declared(rule('.model-cell-compare', 'height'), 'height')).toBe('1.5rem');
+    });
+
+    it('raises the bell by half of what its button is taller than the line, takes as much off its foot, and brings it nearer the box', () => {
+        //
+        // so its glyph is at the line's middle as well, level with the box, and
+        // 16px from it rather than 26px
+        //
+        const button = RULES.find((each) => each.selectors[0] === '#bootstrap-override .model-layout .control-tray .control-button');
+        const line = parseFloat(declared(rule('.model-cell-compare', 'height'), 'height'));
+        const [top, right, bottom, left] = declared(rule('.model-cell-alarm', 'margin'), 'margin').split(' ');
+
+        expect(parseFloat(top)).toBeCloseTo(-(parseFloat(declared(button, 'height')) - line) / 2);
+        expect(top).toMatch(/rem$/);
+        expect(bottom).toBe(top);
+        expect(right).toBe('0');
+        expect(left).toBe('-0.75rem');
+    });
+});
+
+describe('the arrow before how a score stands against the baseline (#274)', () => {
+    const rule = (selector) => RULES.find((each) => each.selectors.join() === selector);
+
+    it('is green while the score is better, as a model\'s page colors a better score in its box', () => {
+        expect(declared(rule('.model-gap-better .model-gap-arrow'), 'color')).toBe('$green-6');
+    });
+
+    it('is dark red while it is worse, and a miss\'s red on /stream on a dark page', () => {
+        expect(source).toMatch(/\.model-gap-worse \.model-gap-arrow \{\s*color: \$red-2;\s*@include dark \{\s*color: var\(--stream-missed\);\s*\}/);
+    });
+
+    it('colors the arrow alone, the words staying in the page\'s gray', () => {
+        expect(declared(rule('.model-gap'), 'color')).toBe('$gray-7');
+        expect(rule('.model-gap-better')).toBeUndefined();
+        expect(rule('.model-gap-worse')).toBeUndefined();
+    });
+});
+
+describe('what the two pages hold while the listing is on its way (#274)', () => {
+    const rule = (selector) => RULES.find((each) => each.selectors.join() === selector);
+
+    it('breathes the trend line\'s block in /graph\'s waiting gray, as its bars do', () => {
+        const block = rule('.model-trend-pending');
+
+        expect(declared(block, 'animation')).toBe('graph-pending-breathe 1.4s ease-in-out infinite');
+        expect(declared(block, 'background-color')).toBe('$gray-2');
+    });
+
+    it('puts each line of text on a line of its own', () => {
+        expect(declared(rule('.model-pending-line'), 'display')).toBe('block');
+    });
+
+    it('draws a chart\'s frame as its grid\'s lines, inside the room the chart keeps for its axes', () => {
+        const frame = rule('.model-chart-pending');
+
+        expect(declared(frame, 'justify-content')).toBe('space-between');
+        expect(declared(frame, 'padding')).toBe('12px 12px 30px 56px');
+        expect(declared(rule('.model-chart-pending-line'), 'height')).toBe('1px');
+        expect(declared(rule('.model-chart-pending-line'), 'animation')).toBe('graph-pending-breathe 1.4s ease-in-out infinite');
+    });
+
+    it('answers the pointer with no highlight where a filter\'s row is not a control yet', () => {
+        expect(declared(rule('.model-filter-pending:hover'), 'background-color')).toBe('transparent');
+    });
+
+    it('stands still for a reader who asks for less motion', () => {
+        expect(source).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.model-trend-pending,\s*\.model-chart-pending-line \{\s*animation: none;/);
     });
 });
 

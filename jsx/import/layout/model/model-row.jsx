@@ -159,7 +159,8 @@ function liveCell(model, status) {
 
 //
 // how the score stands against the baseline's, in words: '▲ 0.034 better than
-// the baseline'
+// the baseline'. The arrow in a span of its own, so it alone takes the color
+// of better or worse -- see '.model-gap-arrow' in '_model.scss'
 //
 function gapText(gap, score) {
     const stands = standing(gap, score);
@@ -172,7 +173,12 @@ function gapText(gap, score) {
         return 'level with the baseline';
     }
 
-    return `${stands === 'better' ? '▲' : '▼'} ${formatGap(gap, score)} ${stands} than the baseline`;
+    return (
+        <>
+            <span className='model-gap-arrow'>{stands === 'better' ? '▲' : '▼'}</span>
+            {` ${formatGap(gap, score)} ${stands} than the baseline`}
+        </>
+    );
 }
 
 function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false }) {

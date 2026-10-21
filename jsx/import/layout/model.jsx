@@ -42,6 +42,8 @@ import InfoNote from '../general/info-note.jsx';
 import ModelRow from './model/model-row.jsx';
 import CompareChart from './model/compare-chart.jsx';
 import { ScorePicker, isPhone, modelsHeld } from './model/parts.jsx';
+import { PendingGroup, STAGGER } from './model/pending.jsx';
+import { PendingBar } from './graph/pending.jsx';
 import { readLayout, writeLayout } from '../general/layout-preference.js';
 import { listSubscriptions } from '../general/account-api.js';
 import { loadListing, loadReport } from './model/source.js';
@@ -122,6 +124,12 @@ const LAYOUT = 'model';
 const FILTERS_MIN = 140;
 const FILTERS_MAX = 308;
 const FILTERS_FOLD = 48;
+
+//
+// how to start a comparison, over the lists until a model is ticked, and while
+// the listing is on its way
+//
+const HINT = 'Tick two or three models that predict the same thing to compare them.';
 
 class ModelLayout extends Component {
     static propTypes = {
@@ -348,13 +356,60 @@ class ModelLayout extends Component {
     // the filters: what a model predicts, and its status, each a row that is
     // pressed while its models are shown, with how many models it holds. In a
     // column that folds to a rail as /graph's do, by its heading or the arrow
-    // on its edge, and a band over the lists on a phone
+    // on its edge, and a band over the lists on a phone. While the listing is
+    // on its way, the same column, open or folded as this browser kept it,
+    // with a bar where the band says how many models it shows (#274)
     //
     filters() {
-        const { listing, hidden_tasks, hidden_statuses, filters_open, filters_width } = this.state;
-        const { models, tasks } = listing;
-        const shown = this.shown().length;
+        const { listing, filters_open, filters_width } = this.state;
         const toggle = this.toggleFilters;
+        let summary = <PendingBar width='4.5rem' />;
+
+        if (listing) {
+            const shown = this.shown().length;
+            const all = listing.models.length;
+
+            summary = shown === all ? `${all} models` : `${shown} of ${all} models`;
+        }
+
+        return (
+            <aside
+                className={`model-filters ${filters_open ? 'model-filters-open' : 'model-filters-closed'}`}
+                style={filters_open && filters_width ? { '--model-filters-width': `${filters_width}px` } : undefined}
+                aria-label='Filters'
+            >
+                <h6 className='model-filters-heading'>
+                    <button
+                        type='button'
+                        className='model-filters-toggle'
+                        aria-expanded={filters_open}
+                        aria-controls='model-filter-sets'
+                        onClick={toggle}
+                    >
+                        <span className='model-filters-title'>Filters</span>
+                        {filters_open ? null : <span className='model-filters-summary'>{summary}</span>}
+                    </button>
+                </h6>
+                {listing ? this.filterSets() : this.pendingFilters()}
+                {filters_open
+                    ? (
+                        <>
+                            <div className='model-filters-grip' aria-hidden='true' onPointerDown={this.startDrag} />
+                            <button type='button' className='model-filters-fold' aria-label='Collapse the filters' onClick={toggle}>
+                                <ChevronLeftIcon fontSize='inherit' />
+                            </button>
+                        </>
+                    ) : null}
+            </aside>
+        );
+    }
+
+    //
+    // the two sets of filters the column holds once the listing is in
+    //
+    filterSets() {
+        const { listing, hidden_tasks, hidden_statuses } = this.state;
+        const { models, tasks } = listing;
 
         //
         // Behind baseline is offered once the listing carries the trainer's
@@ -376,65 +431,63 @@ class ModelLayout extends Component {
         );
 
         return (
-            <aside
-                className={`model-filters ${filters_open ? 'model-filters-open' : 'model-filters-closed'}`}
-                style={filters_open && filters_width ? { '--model-filters-width': `${filters_width}px` } : undefined}
-                aria-label='Filters'
-            >
-                <h6 className='model-filters-heading'>
-                    <button
-                        type='button'
-                        className='model-filters-toggle'
-                        aria-expanded={filters_open}
-                        aria-controls='model-filter-sets'
-                        onClick={toggle}
-                    >
-                        <span className='model-filters-title'>Filters</span>
-                        {filters_open
-                            ? null
-                            : (
-                                <span className='model-filters-summary'>
-                                    {shown === models.length ? `${models.length} models` : `${shown} of ${models.length} models`}
-                                </span>
-                            )}
-                    </button>
-                </h6>
-                <div className='model-filter-sets' id='model-filter-sets'>
-                    <section className='model-filter-set' aria-label='What it predicts'>
-                        <h6>What it predicts</h6>
-                        <ul>
-                            {tasks.map((task) => row(
-                                task.id,
-                                task.name,
-                                models.filter((model) => model.task === task.id).length,
-                                !hidden_tasks.includes(task.id),
-                                () => this.toggleFilter('hidden_tasks', task.id),
-                            ))}
-                        </ul>
-                    </section>
-                    <section className='model-filter-set' aria-label='Status'>
-                        <h6>Status</h6>
-                        <ul>
-                            {statuses.map((status) => row(
-                                status.key,
-                                status.label,
-                                models.filter((model) => statusOf(model) === status.key).length,
-                                !hidden_statuses.includes(status.key),
-                                () => this.toggleFilter('hidden_statuses', status.key),
-                            ))}
-                        </ul>
-                    </section>
-                </div>
-                {filters_open
-                    ? (
-                        <>
-                            <div className='model-filters-grip' aria-hidden='true' onPointerDown={this.startDrag} />
-                            <button type='button' className='model-filters-fold' aria-label='Collapse the filters' onClick={toggle}>
-                                <ChevronLeftIcon fontSize='inherit' />
-                            </button>
-                        </>
-                    ) : null}
-            </aside>
+            <div className='model-filter-sets' id='model-filter-sets'>
+                <section className='model-filter-set' aria-label='What it predicts'>
+                    <h6>What it predicts</h6>
+                    <ul>
+                        {tasks.map((task) => row(
+                            task.id,
+                            task.name,
+                            models.filter((model) => model.task === task.id).length,
+                            !hidden_tasks.includes(task.id),
+                            () => this.toggleFilter('hidden_tasks', task.id),
+                        ))}
+                    </ul>
+                </section>
+                <section className='model-filter-set' aria-label='Status'>
+                    <h6>Status</h6>
+                    <ul>
+                        {statuses.map((status) => row(
+                            status.key,
+                            status.label,
+                            models.filter((model) => statusOf(model) === status.key).length,
+                            !hidden_statuses.includes(status.key),
+                            () => this.toggleFilter('hidden_statuses', status.key),
+                        ))}
+                    </ul>
+                </section>
+            </div>
+        );
+    }
+
+    //
+    // the two sets before the listing names its tasks (#274): each set's
+    // heading, a bar for the task, and a row for each status, whose names never
+    // change, with a bar for its count. Laid out as the rows are, though not
+    // yet controls, so hidden from a screen reader -- see '.model-filter-pending'
+    //
+    pendingFilters() {
+        const row = (key, name, at) => (
+            <li key={key}>
+                <span className='model-filter model-filter-pending'>
+                    <span className='model-filter-box' />
+                    <span className='model-filter-name'>{name}</span>
+                    <span className='model-filter-count'><PendingBar width='0.6rem' delay={at * STAGGER} /></span>
+                </span>
+            </li>
+        );
+
+        return (
+            <div className='model-filter-sets' id='model-filter-sets' aria-hidden='true'>
+                <section className='model-filter-set'>
+                    <h6>What it predicts</h6>
+                    <ul>{row('task', <PendingBar width='6rem' />, 0)}</ul>
+                </section>
+                <section className='model-filter-set'>
+                    <h6>Status</h6>
+                    <ul>{STATUSES.map((status, at) => row(status.key, status.label, at + 1))}</ul>
+                </section>
+            </div>
         );
     }
 
@@ -460,7 +513,7 @@ class ModelLayout extends Component {
 
         const hint = chosen.length
             ? `Tick one or two more ${listing.tasks.find((task) => task.id === chosen[0].task).name} models to compare them with ${chosen[0].name}.`
-            : 'Tick two or three models that predict the same thing to compare them.';
+            : HINT;
 
         return <p className='model-hint'>{hint}</p>;
     }
@@ -546,14 +599,53 @@ class ModelLayout extends Component {
     }
 
     //
+    // the score picker and the sort, which need nothing from the listing, so
+    // they are drawn while it is on its way as well
+    //
+    controls() {
+        return (
+            <div className='model-controls'>
+                <ScorePicker score={this.props.score} onScore={this.props.onScore} />
+                <label className='model-sort'>
+                    <span className='model-control-label' aria-hidden='true'>Sort</span>
+                    <select
+                        aria-label='Sort'
+                        value={this.state.sort}
+                        onChange={(event) => this.setState({ sort: event.target.value })}
+                    >
+                        {SORTS.map((each) => (
+                            <option key={each.key} value={each.key}>{each.label}</option>
+                        ))}
+                    </select>
+                </label>
+            </div>
+        );
+    }
+
+    //
     // the page under its title: a line saying why there is nothing to show, or
     // the filters beside the controls, the comparison and the lists
     //
     body() {
-        const { listing, sort } = this.state;
+        const { listing } = this.state;
 
+        //
+        // while the listing is on its way, the page's own shape (#274): the
+        // filters, the controls, and the list with bars where its figures will
+        // be -- see model/pending.jsx
+        //
         if (listing === undefined) {
-            return <p className='model-status'>Loading the models&hellip;</p>;
+            return (
+                <div className='model-columns'>
+                    {this.filters()}
+                    <div className='model-main'>
+                        <p className='visually-hidden' role='status'>Loading the models&hellip;</p>
+                        {this.controls()}
+                        <p className='model-hint'>{HINT}</p>
+                        <PendingGroup score={this.props.score} />
+                    </div>
+                </div>
+            );
         }
 
         if (listing === null) {
@@ -570,21 +662,7 @@ class ModelLayout extends Component {
             <div className='model-columns'>
                 {this.filters()}
                 <div className='model-main'>
-                    <div className='model-controls'>
-                        <ScorePicker score={this.props.score} onScore={this.props.onScore} />
-                        <label className='model-sort'>
-                            <span className='model-control-label' aria-hidden='true'>Sort</span>
-                            <select
-                                aria-label='Sort'
-                                value={sort}
-                                onChange={(event) => this.setState({ sort: event.target.value })}
-                            >
-                                {SORTS.map((each) => (
-                                    <option key={each.key} value={each.key}>{each.label}</option>
-                                ))}
-                            </select>
-                        </label>
-                    </div>
+                    {this.controls()}
                     {this.comparison()}
                     {this.groups(shown)}
                     {shown.length ? null : <p className='model-status'>No model matches these filters.</p>}
@@ -622,7 +700,7 @@ class ModelLayout extends Component {
                     <div className='model-intro'>
                         <div className='model-heading'>
                             <h4>Models</h4>
-                            <span className='model-count'>{count}</span>
+                            <span className='model-count'>{listing === undefined ? <PendingBar width='1rem' /> : count}</span>
                         </div>
                         <span className='model-lede'>
                             {'Each night these models read the day’s '}

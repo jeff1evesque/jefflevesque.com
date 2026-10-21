@@ -276,6 +276,15 @@
   }
 }
 
+//
+// a row laid out as a filter's while the listing is on its way (#274), but not
+// a control yet, so it answers the pointer with no highlight -- an offer it
+// could not honor, as /graph's waiting legend rows say
+//
+.model-filter-pending:hover {
+  background-color: transparent;
+}
+
 .model-filter-name {
   flex: 1;
 }
@@ -685,6 +694,28 @@
   color: $gray-6;
 }
 
+//
+// the arrow before how a score stands against the baseline's (#274): green
+// while it is better, as a model's page colors a better score in its box, and
+// dark red while it is worse. Only the arrow: the words stay in the page's
+// grays, as the note at the top says, and the arrow's shape says which without
+// its color.
+//
+// Note: a dark page takes a miss's red on /stream, '--stream-missed', rather
+//       than '$red-2''s pair there, which reads as pink beside the text
+//
+.model-gap-better .model-gap-arrow {
+  color: $green-6;
+}
+
+.model-gap-worse .model-gap-arrow {
+  color: $red-2;
+
+  @include dark {
+    color: var(--stream-missed);
+  }
+}
+
 .model-figure {
   color: $gray-8;
   font-variant-numeric: tabular-nums;
@@ -695,17 +726,67 @@
   font-size: 0.85rem;
 }
 
+//
+// a trend line's box: model-row.jsx's TREND_WIDTH and TREND_HEIGHT. Its width
+// also bounds how wide a phone's card lets its first column of figures grow
+//
+$model-trend-width: 132px;
+
 .model-trend,
 .model-trend-pending,
 .model-trend-none {
   display: block;
   height: 36px;
-  width: 132px;
+  width: $model-trend-width;
 }
 
+//
+// a trend line's place while its track record is on its way, a block in
+// /graph's waiting gray, breathing as its bars do -- see '.graph-pending-bar'
+//
 .model-trend-pending {
-  background-color: $gray-1;
+  animation: graph-pending-breathe 1.4s ease-in-out infinite;
+  background-color: $gray-2;
   border-radius: 4px;
+}
+
+//
+// what the two pages hold while the listing is on its way (#274) -- see
+// model/pending.jsx: /graph's bars, a line of text's each on a line of its own,
+// a figure's as tall as its big type, and a chart's frame, its grid's lines
+// inside the room the chart keeps for its axes, without a mark on them
+//
+.model-pending-line {
+  display: block;
+}
+
+.model-stat-value > .graph-pending-bar,
+.stream-focus-figure-value > .graph-pending-bar {
+  height: 1rem;
+}
+
+.model-score-value > .graph-pending-bar {
+  height: 0.85rem;
+}
+
+.model-chart-pending {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 12px 30px 56px;
+}
+
+.model-chart-pending-line {
+  animation: graph-pending-breathe 1.4s ease-in-out infinite;
+  background-color: $gray-2;
+  height: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-trend-pending,
+  .model-chart-pending-line {
+    animation: none;
+  }
 }
 
 .model-trend-none {
@@ -1360,29 +1441,60 @@
   //
   // the bell at the card's top right, after the box that ticks it (#255). Each
   // cell is placed by name here, so the row's order on a wide screen (#259)
-  // moves nothing on a card
+  // moves nothing on a card.
+  //
+  // The model's cell gives up its own box, so its name's line keeps beside the
+  // box and the bell, and its address and description run the card's whole
+  // width under them: they stopped at the box's column, and left the card's
+  // right side empty (#274). The figures split the card in two even halves,
+  // where the right one had the box's and the bell's columns as well -- but
+  // the left never so wide that the trend line no longer fits beside it, as on
+  // a 320px phone. 1rem inside the card's edge, where 0.75rem crowded it. The
+  // model's lines keep their own spacing, so 0.6rem goes over each row of
+  // figures rather than between every row
   //
   .model-row {
     border: 1px solid $gray-2;
     border-radius: 8px;
-    gap: 0.6rem 1rem;
+    column-gap: 1rem;
     grid-template-areas:
-      'model model compare alarm'
+      'name name compare alarm'
+      'address address address address'
+      'about about about about'
       'score trend trend trend'
       'live went went went';
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+    grid-template-columns: min(50% - 0.5rem, 100% - 1rem - $model-trend-width) minmax(0, 1fr) auto auto;
     margin-top: 0.6rem;
-    padding: 0.75rem;
+    padding: 1rem;
   }
 
-  .model-cell-compare { grid-area: compare; align-self: start; }
+  .model-cell-model { display: contents; }
+  .model-name-line { grid-area: name; }
+  .model-address { grid-area: address; }
+  .model-description { grid-area: about; }
+
+  //
+  // as tall as the name's line, so the box sits at its middle, level with the
+  // bell's glyph: it sat at the line's top, 3px over the glyph
+  //
+  .model-cell-compare { grid-area: compare; align-self: start; height: 1.5rem; }
 
   //
   // raised so its glyph sits on the name's line rather than under it: the
-  // button is a finger tall, and its glyph is at its middle
+  // button is a finger tall, and its glyph is at its middle. As much off its
+  // foot, so the line keeps its height and the address stays under it, and
+  // 0.75rem into the gap before it: with the room the button keeps around its
+  // glyph, the gap had put 26px between the box and the glyph
   //
-  .model-cell-alarm { grid-area: alarm; align-self: start; margin-top: -0.625rem; }
-  .model-cell-model { grid-area: model; }
+  .model-cell-alarm { grid-area: alarm; align-self: start; margin: -0.625rem 0 -0.625rem -0.75rem; }
+
+  .model-cell-score,
+  .model-cell-trend,
+  .model-cell-live,
+  .model-cell-went {
+    margin-top: 0.6rem;
+  }
+
   .model-cell-score { grid-area: score; }
   .model-cell-trend { grid-area: trend; }
   .model-cell-live { grid-area: live; }
