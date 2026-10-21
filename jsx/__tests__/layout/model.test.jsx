@@ -269,6 +269,96 @@ describe('the page before the listing', () => {
         expect(document.querySelector('.model-count')).toHaveTextContent('0');
     });
 
+    describe('while the listing is on its way, its own shape (#274)', () => {
+        afterEach(wideScreen);
+
+        function waiting(props = {}) {
+            loadListing.mockReturnValue(new Promise(() => {}));
+
+            return open(props);
+        }
+
+        function filters() {
+            return screen.getByRole('complementary', { name: 'Filters' });
+        }
+
+        it('says it is loading to a screen reader, in a line the page does not show, and holds a bar for the count', async () => {
+            await waiting();
+
+            expect(screen.getByRole('status')).toHaveTextContent(/^Loading the models…$/);
+            expect(screen.getByRole('status')).toHaveClass('visually-hidden');
+            expect(document.querySelector('.model-count > .graph-pending-bar')).not.toBeNull();
+        });
+
+        it('opens the filters on a wide screen, each status named over a bar for its count, and the task a bar', async () => {
+            await waiting();
+
+            const rows = [...filters().querySelectorAll('.model-filter-pending')];
+
+            expect(filters()).toHaveClass('model-filters-open');
+            expect(rows.map((row) => row.textContent)).toEqual(['', 'Live', 'New', 'Behind baseline', 'Retired']);
+            rows.forEach((row) => expect(row.querySelector('.model-filter-count > .graph-pending-bar')).not.toBeNull());
+            expect(filters().querySelector('.model-filter-sets')).toHaveAttribute('aria-hidden', 'true');
+        });
+
+        it('folds the filters to a band on a phone, with a bar for how many it shows, and opens it when tapped', async () => {
+            phoneScreen();
+            await waiting();
+
+            const band = within(filters()).getByRole('button', { name: 'Filters' });
+
+            expect(filters()).toHaveClass('model-filters-closed');
+            expect(band.querySelector('.model-filters-summary > .graph-pending-bar')).not.toBeNull();
+
+            await userEvent.click(band);
+
+            expect(filters()).toHaveClass('model-filters-open');
+        });
+
+        it('draws the score picker and the sort, which work before the listing lands, and the hint', async () => {
+            const onScore = jest.fn();
+
+            await waiting({ onScore: onScore });
+
+            await userEvent.click(screen.getByRole('button', { name: 'Up/down AUC' }));
+            await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'name');
+
+            expect(onScore).toHaveBeenCalledWith('auc_up');
+            expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('name');
+            expect(screen.getByText('Tick two or three models that predict the same thing to compare them.')).toHaveClass('model-hint');
+        });
+
+        it('draws two rows of bars under the list\'s headings, each with its box disabled and no bell', async () => {
+            await waiting();
+
+            const rows = [...document.querySelectorAll('.model-row-pending')];
+
+            expect(rows).toHaveLength(2);
+            expect([...document.querySelector('.model-list-head').children].map((heading) => heading.textContent))
+                .toEqual(['Compare', 'Model', '', 'Loss, last 20 days', 'Last 60 days', 'Live version', 'Went live']);
+            rows.forEach((row) => {
+                expect(row.querySelector('input[type="checkbox"]')).toBeDisabled();
+                expect(row.querySelector('.control-tray')).toBeNull();
+            });
+        });
+
+        it('gives the bars\' places to the lists once the listing lands, sorted as the sort was set while it waited', async () => {
+            const listing = deferred();
+
+            loadListing.mockReturnValue(listing.promise);
+            loadReport.mockResolvedValue(trackOf(5));
+            await open();
+            await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'name');
+
+            await act(async () => listing.resolve(listingOf()));
+
+            expect(document.querySelector('.model-row-pending')).toBeNull();
+            expect(screen.queryByRole('status')).toBeNull();
+            expect(document.querySelector('.model-count')).toHaveTextContent('4');
+            expect(namesIn('Next-day direction')).toEqual(['fresh', 'pt-gnn', 'tables']);
+        });
+    });
+
     it('sets nothing once it has gone, whenever the listing or a record lands', async () => {
         const listing = deferred();
 
