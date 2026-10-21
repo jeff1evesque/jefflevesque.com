@@ -2,7 +2,8 @@
  * stylesheet.test.js: what '_model.scss' promises about a row of /model's list --
  * its columns, the bell's among them (#255, #259) -- about the pill of a model
  * taken down (#263), about where loss's three parts go on a model's page (#265),
- * and about the rows that page's three cards share (#267), read out of the
+ * about the rows that page's three cards share (#267), and about a phone's
+ * controls, their dropdowns and the room around them (#272), read out of the
  * partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see which
@@ -142,5 +143,42 @@ describe('a model\'s three cards on a wide screen (#267)', () => {
     it('rule each card\'s rows off from its top part, and keep its top part\'s lines together', () => {
         expect(declared(rule('.model-stat-body'), 'border-top')).toBe('1px solid $gray-2');
         expect(declared(rule('.model-stat-head'), 'align-content')).toBe('start');
+    });
+});
+
+describe('the controls on a phone (#272)', () => {
+    //
+    // the rule for `selector` that declares `property`, where a wide screen's
+    // rule for it declares others
+    //
+    const rule = (selector, property) => RULES.find((each) => each.selectors.join() === selector && declared(each, property));
+
+    it('put the score picker\'s and the sort\'s names in one column and their dropdowns in the next, each running to the line\'s end', () => {
+        const pickers = rule('.model-scores,.model-sort', 'grid-template-columns');
+
+        expect(declared(rule('.model-controls', 'grid-template-columns'), 'grid-template-columns')).toBe('auto minmax(0, 1fr)');
+        expect(declared(pickers, 'grid-template-columns')).toBe('subgrid');
+        expect(declared(pickers, 'grid-column')).toBe('1 / -1');
+        expect(declared(rule('.model-score-menu', 'min-width'), 'display')).toBe('flex');
+        expect(declared(rule('.model-score-menu select,.model-sort select', 'width'), 'width')).toBe('100%');
+    });
+
+    it('stand 0.75rem apart, and 1rem over a model page\'s figures', () => {
+        expect(declared(rule('.model-controls', 'grid-template-columns'), 'row-gap')).toBe('0.75rem');
+        expect(declared(rule('.model-page .model-controls', 'margin-bottom'), 'margin-bottom')).toBe('1rem');
+    });
+
+    it('put a card\'s Compare with on a line of its own, 0.75rem under the title and 1rem over the line under it, its dropdown running to the card\'s edge', () => {
+        //
+        // the card's head sets the line under it 0.3rem off already
+        //
+        const other = rule('.model-card-title .model-other', 'flex');
+
+        expect(declared(rule('.model-card-title', 'row-gap'), 'row-gap')).toBe('0.75rem');
+        expect(declared(other, 'flex')).toBe('1 1 100%');
+        expect(declared(other, 'flex-wrap')).toBe('nowrap');
+        expect(declared(other, 'margin-bottom')).toBe('calc(1rem - 0.3rem)');
+        expect(source).toMatch(/\.model-card-head \{\s*display: grid;\s*gap: 0\.3rem;/);
+        expect(declared(rule('.model-card-title .model-other select', 'flex'), 'flex')).toBe('1');
     });
 });
