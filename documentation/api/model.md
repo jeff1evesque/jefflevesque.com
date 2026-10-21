@@ -6,6 +6,11 @@ The models trained every night, and how each one scores. `/model` lists them, an
 `/model/<name>` draws one model's nightly attempts and its track record. It serves
 scores only: nothing here says how a model is built.
 
+Every model predicts the same three things about each of the roughly 500 stocks in the
+S&P 500 for the next trading day, the three that loss scores: the chance its price goes
+up, the chance it beats the average stock, and how far it moves. The api serves how
+those predictions score, not the predictions themselves.
+
 Each night the trainer builds a new version of every model, then scores it and the
 live version on the same held-out days. The new version goes live only if its loss is
 no higher. Each day a model predicts is scored once that day's prices are in.
