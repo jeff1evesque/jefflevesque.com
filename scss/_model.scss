@@ -1087,12 +1087,14 @@
 //
 // a card each on a wide screen, and on a phone one row of /stream's tinted
 // boxes -- see model-page.jsx's summary -- since three cards stacked took up a
-// phone's first screen (#253)
+// phone's first screen (#253). Two rows the cards share (#267): every card's
+// top part in the first, its rows in the second
 //
 .model-summary-cards {
   display: grid;
   gap: 0.75rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: auto auto;
 }
 
 .model-summary-boxes {
@@ -1101,16 +1103,82 @@
 
 //
 // a card, in the fill /stream's boxes have on a phone, so the figures look
-// alike at either width (#253)
+// alike at either width (#253). It spans the two rows by subgrid, so each top
+// part is as tall as the tallest, and the three rules under them line up
+// wherever a line wraps (#267): a model taken down's line wraps at 1100px
 //
 .model-stat {
   background-color: $white-2;
   border: 1px solid $gray-2;
   border-radius: 8px;
   display: grid;
-  gap: 0.1rem;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
   min-width: 0;
   padding: 0.75rem 1rem;
+  row-gap: 0;
+}
+
+//
+// a card's top part, its name, its figure and its line, together at its top
+// rather than spread down a part the tallest card stretches
+//
+.model-stat-head {
+  align-content: start;
+  display: grid;
+  gap: 0.1rem;
+}
+
+//
+// a card's rows under a thin rule (#267), and in the score's card, the parts
+// of loss after them
+//
+.model-stat-body {
+  align-self: start;
+  border-top: 1px solid $gray-2;
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+}
+
+//
+// each row drawn as a part of loss is: its name at the left and its value at
+// the right, the value in the figures' ink. A heading row, in the muted gray of
+// a figure's name on a phone's card, stands a little apart from the rows above
+// it
+//
+.model-stat-rows {
+  color: $gray-7;
+  display: grid;
+  font-size: 0.85rem;
+  gap: 0.2rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.model-stat-row {
+  align-items: baseline;
+  column-gap: 0.75rem;
+  display: flex;
+}
+
+.model-stat-row-value {
+  color: $gray-9;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-left: auto;
+  text-align: right;
+}
+
+.model-stat-row-head {
+  color: $gray-6;
+  margin-top: 0.35rem;
+}
+
+.model-stat-row-head:first-child {
+  margin-top: 0;
 }
 
 .model-stat-label,
@@ -1129,9 +1197,9 @@
 
 //
 // the three scores loss adds up, while Loss is picked (#265) -- see
-// model-page.jsx's LossParts: under the score's card, in its column, and on a
-// phone under the boxes. A line each, its name at the left and its figures at
-// the right, in the card's own gray
+// model-page.jsx's LossParts: in the score's card, under its rule (#267), and
+// on a phone under the boxes. A line each, its name at the left and its figures
+// at the right, in the card's own gray
 //
 .model-parts {
   color: $gray-7;
@@ -1142,10 +1210,6 @@
   list-style: none;
   margin: 0;
   padding: 0;
-}
-
-.model-summary-cards > .model-parts {
-  grid-column: 3;
 }
 
 .model-part {
@@ -1185,8 +1249,8 @@
 //
 // too narrow for the longest line -- 'Beats the average stock 0.720 worse than
 // baseline 0.693', 28.5em -- every line's figures go under its name, still at
-// the right, rather than that line's alone: at 1100px wide, the score's column
-// is 306px
+// the right, rather than that line's alone: at 1100px wide, the score's card
+// holds 276px. The cards' own rows are short, and stay on one line
 //
 @container (max-width: 29em) {
   .model-part {
