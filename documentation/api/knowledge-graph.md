@@ -302,18 +302,25 @@ off its node types.
 ## Caching
 
 How long an answer may be kept, by a browser or by the shared cache in front of the
-api, depends on whether it names a `Day`:
+api:
 
 | Answer | `Cache-Control` |
 |---|---|
 | one naming a `Day` — always, for `node-types`, `neighborhood`, `quotes` and `last-quotes` | `public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800` |
 | one naming no `Day` | `public, max-age=300` |
-| `days` | `public, max-age=300, stale-while-revalidate=86400, stale-if-error=86400` |
+| the listing | `public, max-age=300, stale-if-error=86400` |
+| `days` | `public, max-age=300, stale-if-error=86400` |
 | any error | `no-store` |
 
 A published day is written whole and never rewritten, so an answer naming one cannot
 change: it is fresh for a day, and usable stale for a week while a fresh copy is
 fetched. An answer naming no day reads the newest days, which a landing day changes.
+
+The listing and `days` change when a night lands, so each is fresh for five minutes,
+and a new build or day is answered within five minutes of landing. After that a copy
+is kept only while the api is failing, for up to a day, and never answered stale while
+a fresh one is fetched.
+
 The shared cache keys on the whole url, query string included.
 
 ## Errors
