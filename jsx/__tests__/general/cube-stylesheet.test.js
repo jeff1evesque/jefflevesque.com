@@ -14,7 +14,7 @@
  *
  * And about the month on a phone, beside the listing's title and in a
  * dataset's row with the icons, on one line on every phone (#224), across a
- * dataset's row (#230).
+ * dataset's row (#230), and 1rem over the search (#272).
  *
  * And about a group open on its own on a phone, a panel with room in it (#232).
  *
@@ -251,6 +251,10 @@ describe('the month on a phone, on one line on every phone (#224)', () => {
         expect(actions).toMatch(/flex\s*:\s*1 1 0\s*;/);
         expect(actions).toMatch(/min-width\s*:\s*0\s*;/);
         expect(actions).toMatch(/justify-content\s*:\s*flex-end\s*;/);
+    });
+
+    it('stands 1rem over the search, as a phone\'s other rows of controls stand off what follows them (#272)', () => {
+        expect(within('.listing-table .listing-table-head.has-actions')).toMatch(/row-gap\s*:\s*1rem\s*;/);
     });
 
     it('is a fit row: 18.25rem beside the title, and 22.25rem with a dataset\'s icons', () => {

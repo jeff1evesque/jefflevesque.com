@@ -1880,13 +1880,26 @@ $graph-held-edge: $green-4;
     flex: 1 1 100%;
   }
 
+  //
+  // the two lines 0.75rem apart, as any controls stacked one over another on a
+  // phone, and 1rem over the table, as any row of controls over what follows it
+  // (#272): 7px and 11px had run them together. The tabs and the filter are as
+  // tall as a phone's other controls, 2.75rem, where they were 30px and 36px
+  //
+  .graph-tables-controls {
+    margin-bottom: 1rem;
+    row-gap: 0.75rem;
+  }
+
   .graph-tables-tab {
     flex: 1 1 0;
+    min-height: 2.75rem;
   }
 
   .graph-tables-search {
     flex-basis: 100%;
     margin-left: 0;
+    min-height: 2.75rem;
   }
 
   //

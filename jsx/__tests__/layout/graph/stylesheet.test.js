@@ -1,8 +1,8 @@
 /**
  * stylesheet.test.js: what the graph page's stylesheet promises about the legend,
  * the reference columns, the page's title, a phone's rows of controls, each on
- * one line (#224), and the tables' tabs and filter, on two (#228), read out of
- * '_graph.scss'.
+ * one line (#224), and the tables' tabs and filter, on two (#228), spaced and
+ * sized as a phone's other controls (#272), read out of '_graph.scss'.
  *
  * jsdom lays nothing out, so no suite can see a name run past the edge of its
  * column. What can be held is the rule that decides it: a namespace's name wraps
@@ -475,5 +475,15 @@ describe('a phone\'s table tabs and filter, on two lines as wide as the page (#2
 
         expect(within('.graph-tables-search')).not.toMatch(/font-size/);
         expect(webform).toMatch(/\.small-viewport\s*\{\s*input\s*\{\s*font-size\s*:\s*16px\s*;/);
+    });
+
+    it('sets the two lines 0.75rem apart and 1rem over the table, as a phone\'s other controls are (#272)', () => {
+        expect(within('.graph-tables-controls')).toMatch(/row-gap\s*:\s*0\.75rem\s*;/);
+        expect(within('.graph-tables-controls')).toMatch(/margin-bottom\s*:\s*1rem\s*;/);
+    });
+
+    it('makes the tabs and the filter box 2.75rem tall, as a phone\'s other controls are (#272)', () => {
+        expect(within('.graph-tables-tab')).toMatch(/min-height\s*:\s*2\.75rem\s*;/);
+        expect(within('.graph-tables-search')).toMatch(/min-height\s*:\s*2\.75rem\s*;/);
     });
 });

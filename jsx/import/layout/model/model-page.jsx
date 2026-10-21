@@ -501,6 +501,21 @@ class ModelPage extends Component {
         const lossBy = parts.length ? <LossParts parts={parts} /> : null;
 
         //
+        // the score card's rows on a wide screen: its place among its task's
+        // models, then a heading over the parts of loss, as the other two cards
+        // head theirs (#272) -- the place ran straight into them
+        //
+        const scoreRows = (rank ? [{ key: 'place', name: `Among ${rank.among}`, value: rank.rank }] : [])
+            .concat(parts.length ? [{ key: 'parts', name: 'Loss, part by part', head: true }] : []);
+
+        //
+        // a taken-down model's live box on a phone: 'Taken down' its name and the
+        // day its value, where 'Taken down Oct 19' wrapped onto three lines
+        // against the box's side and made the three boxes twice as tall (#272)
+        //
+        const downBox = status === 'down' ? { short: 'Taken down', shortValue: shortDay(model.down.since) } : {};
+
+        //
         // the three figures: a card each on a wide screen, and on a phone one
         // row of /stream's tinted boxes, a name over a value, with the line under
         // each card's value moved into its box's note -- three cards stacked
@@ -537,9 +552,7 @@ class ModelPage extends Component {
                             <span className='model-stat-value'>{formatScore(value, score)}</span>
                             <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
                         </div>
-                        <CardRows rows={rank ? [{ key: 'place', name: `Among ${rank.among}`, value: rank.rank }] : []}>
-                            {lossBy}
-                        </CardRows>
+                        <CardRows rows={scoreRows}>{lossBy}</CardRows>
                     </div>
                 </div>
                 <div className='model-summary-boxes'>
@@ -550,6 +563,7 @@ class ModelPage extends Component {
                                 label: 'Live version',
                                 note: [sentence(live.detail), down].filter(Boolean).join(' '),
                                 value: live.value,
+                                ...downBox,
                             },
                             {
                                 key: 'went',

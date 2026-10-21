@@ -1292,8 +1292,60 @@
     display: none;
   }
 
+  //
+  // the score picker and the sort in a label column and a dropdown column the
+  // two share, so the dropdowns start at the one point, past the wider label,
+  // and each runs to the line's end (#272): they stopped partway across, one
+  // further in than the other. 0.75rem between the two, as between any
+  // controls stacked one over another, and 1rem under a model page's, as
+  // under any row of controls: 7px each had run them together
+  //
+  .model-controls {
+    column-gap: 0.5rem;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 0.75rem;
+  }
+
+  .model-scores,
+  .model-sort {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+
   .model-score-menu {
     display: flex;
+    min-width: 0;
+  }
+
+  .model-score-menu select,
+  .model-sort select {
+    width: 100%;
+  }
+
+  .model-page .model-controls {
+    margin-bottom: 1rem;
+  }
+
+  //
+  // a card's Compare with dropdown, on a line of its own under the title: 0.75rem
+  // under it, running to the card's edge, and 1rem over the line under it, the
+  // card's head adding its 0.3rem to the margin (#272). It was 4px
+  //
+  .model-card-title {
+    row-gap: 0.75rem;
+  }
+
+  .model-card-title .model-other {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    margin-bottom: calc(1rem - 0.3rem);
+  }
+
+  .model-card-title .model-other select {
+    flex: 1;
+    min-width: 0;
   }
 
   .model-list-head {
