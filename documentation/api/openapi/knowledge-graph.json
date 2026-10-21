@@ -19,6 +19,15 @@
         "responses": {
           "200": {
             "description": "Every published build, newest first, and which one is the default.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Fresh for five minutes, since a build landing changes the listing. After that it is kept only while the api is failing, for up to a day, and never answered stale while a fresh one is fetched.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=300, stale-if-error=86400"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -626,11 +635,11 @@
             "description": "Every published day, newest first. Empty when none has finished publishing.",
             "headers": {
               "Cache-Control": {
-                "description": "The listing's: fresh for five minutes, and usable stale for a day while a fresh one is fetched, since a day landing changes it.",
+                "description": "The listing's: fresh for five minutes, since a day landing changes it. After that it is kept only while the api is failing, for up to a day, and never answered stale while a fresh one is fetched.",
                 "schema": {
                   "type": "string"
                 },
-                "example": "public, max-age=300, stale-while-revalidate=86400, stale-if-error=86400"
+                "example": "public, max-age=300, stale-if-error=86400"
               }
             },
             "content": {
