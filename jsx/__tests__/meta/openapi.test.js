@@ -339,6 +339,18 @@ describe('model.json, loss\'s three parts (#265)', () => {
     );
 });
 
+describe('knowledge-graph.json, the two lists a night adds to (#269)', () => {
+    const paths = documentOf('knowledge-graph').paths;
+
+    it.each(['/knowledge-graph', '/knowledge-graph/tables/days'])('keeps %s five minutes, then only through an error, never stale while refetched', (route) => {
+        const header = paths[route].get.responses['200'].headers['Cache-Control'];
+
+        expect(header.schema).toEqual({ type: 'string' });
+        expect(header.example).toBe('public, max-age=300, stale-if-error=86400');
+        expect(header.description).not.toMatch(/usable stale/);
+    });
+});
+
 describe('the guard itself', () => {
     it('rejects an example that does not match', () => {
         //
