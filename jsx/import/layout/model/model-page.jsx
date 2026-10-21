@@ -43,10 +43,12 @@ import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import FigureBoxes from '../../general/figure-boxes.jsx';
 import InfoNote from '../../general/info-note.jsx';
-import AttemptsChart from './attempts-chart.jsx';
-import TrackChart from './track-chart.jsx';
+import AttemptsChart, { HEIGHT as ATTEMPTS_HEIGHT, TITLE as ATTEMPTS_TITLE } from './attempts-chart.jsx';
+import TrackChart, { HEIGHT as TRACK_HEIGHT, TITLE as TRACK_TITLE } from './track-chart.jsx';
 import { AlarmBell, ScorePicker, StatusPill, modelsHeld } from './parts.jsx';
 import { loadListing, loadReport } from './source.js';
+import { PendingChart, PendingLines, PendingSummary, STAGGER } from './pending.jsx';
+import { PendingBar } from '../graph/pending.jsx';
 import { listSubscriptions } from '../../general/account-api.js';
 import {
     DEFAULT_SCORE,
@@ -75,6 +77,13 @@ import {
 // was tested on
 //
 const DOWN_LINE = 'Nothing predicts until a new version beats the baseline on the days it was tested on.';
+
+//
+// each chart's card, as its placeholder draws it while its report is on its way
+// (#274): the card's title and the chart's height -- see pending.jsx
+//
+const ATTEMPTS_CARD = { title: ATTEMPTS_TITLE, height: ATTEMPTS_HEIGHT };
+const TRACK_CARD = { title: TRACK_TITLE, height: TRACK_HEIGHT };
 
 //
 // 1st, 2nd, 3rd, 4th ... 11th, 12th, 13th ... 21st
@@ -593,11 +602,18 @@ class ModelPage extends Component {
     }
 
     //
-    // a report's chart, or a line saying why there is none
+    // a report's chart, or a line saying why there is none. While the report is
+    // on its way, its card's placeholder, `card` (#274), and for a screen reader
+    // the line that used to be drawn
     //
-    report(rows, what, chart) {
+    report(rows, what, card, chart) {
         if (rows === undefined) {
-            return <p className='model-status'>{`Loading the ${what}…`}</p>;
+            return (
+                <>
+                    <p className='visually-hidden' role='status'>{`Loading the ${what}…`}</p>
+                    <PendingChart {...card} />
+                </>
+            );
         }
 
         if (rows === null) {
@@ -611,8 +627,32 @@ class ModelPage extends Component {
         const { name, score, onScore } = this.props;
         const { listing, history, track, other, other_rows } = this.state;
 
+        //
+        // while the listing is on its way, the page's own shape (#274): the
+        // model's name, which the address holds, the score picker, and bars
+        // where its figures and its line will be -- see pending.jsx
+        //
         if (listing === undefined) {
-            return <p className='model-status'>Loading the model&hellip;</p>;
+            return (
+                <>
+                    <p className='visually-hidden' role='status'>Loading the model&hellip;</p>
+                    <div className='model-intro'>
+                        <div className='model-heading'>
+                            <h4>{name}</h4>
+                            <PendingBar width='5.5rem' />
+                        </div>
+                        <span className='model-lede' aria-hidden='true'>
+                            <PendingLines widths={['36rem', '22rem']} delay={STAGGER} />
+                        </span>
+                    </div>
+                    <div className='model-controls'>
+                        <ScorePicker score={score} onScore={onScore} />
+                    </div>
+                    <PendingSummary score={score} />
+                    <PendingChart {...ATTEMPTS_CARD} />
+                    <PendingChart {...TRACK_CARD} />
+                </>
+            );
         }
 
         if (listing === null) {
@@ -655,10 +695,10 @@ class ModelPage extends Component {
                     <ScorePicker score={score} onScore={onScore} />
                 </div>
                 {this.summary(model, task)}
-                {this.report(history, 'nightly attempts', () => (history.length
+                {this.report(history, 'nightly attempts', ATTEMPTS_CARD, () => (history.length
                     ? <AttemptsChart rows={history} score={score} />
                     : <p className='model-status model-status-empty'>No nightly attempts yet.</p>))}
-                {this.report(track, 'track record', () => (track.length
+                {this.report(track, 'track record', TRACK_CARD, () => (track.length
                     ? (
                         <TrackChart
                             name={model.name}
