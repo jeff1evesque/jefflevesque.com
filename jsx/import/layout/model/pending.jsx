@@ -1,0 +1,253 @@
+/**
+ * pending.jsx: what /model and a model's own page hold while the listing is
+ * still on its way (#274).
+ *
+ * Both pages used to wait as a title over one line, 'Loading the models…' or
+ * 'Loading the model…', and the whole page arrived with the listing. On a cold
+ * start that is most of a phone's first screen left white. So, as /graph does
+ * (see graph/pending.jsx), each page draws its own shape while it waits: the
+ * pieces here wear the real elements' classes, so what arrives fills them
+ * rather than pushing the page around underneath the reader.
+ *
+ * Note: nothing here invents a value. What is the same whatever the listing
+ *       says is drawn as it will be -- the column headings, a figure's name, a
+ *       chart's title, and on a model's page its name, which the address
+ *       holds -- and every value is a gray bar, breathing as /graph's do.
+ *
+ * Note: two rows stand in for a list, as many as /model shows today. A list of
+ *       more grows when it lands, under the first screen.
+ */
+
+import React from 'react';
+import PropTypes from 'prop-types';
+import { PendingBar } from '../graph/pending.jsx';
+import { TREND_DAYS, scoreOf } from './scores.js';
+
+//
+// how far apart, in milliseconds, two neighboring bars breathe -- /graph's own
+// beat, so a page of them reads as one thing waiting
+//
+export const STAGGER = 90;
+
+/**
+ * lines of text that have not arrived, a bar each, one under another, each at
+ * most as wide as its line.
+ *
+ * Note: 'min()' rather than the bar's own 'max-width: 100%'. Each line lands in
+ *       a grid item -- a card's head, the lede -- whose track is sized to what
+ *       it holds, and a fixed width there widens the track past a phone's edge.
+ *       A width with a percentage in it gives nothing to that sizing, and is
+ *       resolved against the line once the track has its width.
+ */
+export function PendingLines({ widths, delay = 0 }) {
+    return widths.map((width, at) => (
+        <span key={at} className='model-pending-line'>
+            <PendingBar width={`min(${width}, 100%)`} delay={delay + at * STAGGER} />
+        </span>
+    ));
+}
+
+PendingLines.propTypes = {
+    widths: PropTypes.arrayOf(PropTypes.string).isRequired,
+    delay: PropTypes.number,
+};
+
+/**
+ * one of /model's rows, or a phone's card, before the listing says whose: its
+ * figures' names, and a bar for every value. The box that ticks it is drawn
+ * disabled, and there is no bell, since a retired model has none.
+ */
+export function PendingRow({ score, at }) {
+    const delay = (step) => (at * 8 + step) * STAGGER;
+
+    return (
+        <div className='model-row model-row-pending'>
+            <div className='model-cell model-cell-compare'>
+                <span className='model-compare-box'>
+                    <input type='checkbox' disabled />
+                </span>
+            </div>
+            <div className='model-cell model-cell-model'>
+                <div className='model-name-line'>
+                    <PendingBar width='5.5rem' delay={delay(0)} />
+                    <PendingBar width='5rem' delay={delay(1)} />
+                </div>
+                <span className='model-address'>
+                    <PendingBar width='8rem' delay={delay(2)} />
+                </span>
+                <p className='model-description'>
+                    <PendingLines widths={['17rem', '9rem']} delay={delay(3)} />
+                </p>
+            </div>
+            <div className='model-cell model-cell-alarm' />
+            <div className='model-cell model-cell-score'>
+                <span className='model-cell-label'>{scoreOf(score).label}</span>
+                <span className='model-score-value'>
+                    <PendingBar width='3.5rem' delay={delay(5)} />
+                </span>
+                <span className='model-gap'>
+                    <PendingBar width='8.5rem' delay={delay(6)} />
+                </span>
+            </div>
+            <div className='model-cell model-cell-trend'>
+                <span className='model-cell-label'>{`Last ${TREND_DAYS} days`}</span>
+                <span className='model-trend-pending' style={{ animationDelay: `${delay(7)}ms` }} />
+            </div>
+            <div className='model-cell model-cell-live'>
+                <span className='model-cell-label'>Live version</span>
+                <span className='model-figure'>
+                    <PendingBar width='3.5rem' delay={delay(8)} />
+                </span>
+                <span className='model-figure-detail'>
+                    <PendingBar width='6rem' delay={delay(9)} />
+                </span>
+            </div>
+            <div className='model-cell model-cell-went'>
+                <span className='model-cell-label'>Went live</span>
+                <span className='model-figure'>
+                    <PendingBar width='3rem' delay={delay(8)} />
+                </span>
+                <span className='model-figure-detail'>
+                    <PendingBar width='4rem' delay={delay(9)} />
+                </span>
+            </div>
+        </div>
+    );
+}
+
+PendingRow.propTypes = {
+    score: PropTypes.string.isRequired,
+    at: PropTypes.number.isRequired,
+};
+
+/**
+ * /model's list before the listing names its task and its models: the task's
+ * heading, the list's own column headings, and two rows.
+ */
+export function PendingGroup({ score }) {
+    return (
+        <section className='model-group' aria-hidden='true'>
+            <div className='model-group-head'>
+                <h5><PendingBar width='7.5rem' /></h5>
+                <span className='model-group-detail'>
+                    <PendingLines widths={['26rem', '12rem']} delay={STAGGER} />
+                </span>
+                <span className='model-group-count'>
+                    <PendingBar width='4rem' delay={2 * STAGGER} />
+                </span>
+            </div>
+            <div className='model-list'>
+                <div className='model-list-head'>
+                    <span>Compare</span>
+                    <span>Model</span>
+                    <span />
+                    <span>{`${scoreOf(score).label}, last 20 days`}</span>
+                    <span>{`Last ${TREND_DAYS} days`}</span>
+                    <span>Live version</span>
+                    <span>Went live</span>
+                </div>
+                <div>
+                    {[0, 1].map((at) => <PendingRow key={at} score={score} at={at} />)}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+PendingGroup.propTypes = {
+    score: PropTypes.string.isRequired,
+};
+
+/**
+ * a model page's three figures before the listing has them: a card each on a
+ * wide screen, its name over a bar for its figure and one for its line, and two
+ * rows under its rule, and on a phone the row of boxes, a name over a bar.
+ */
+export function PendingSummary({ score }) {
+    const label = scoreOf(score).label;
+    const cards = [
+        { key: 'live', name: 'Live version', short: 'Live version' },
+        { key: 'went', name: 'Attempts that went live', short: 'Went live' },
+        { key: 'score', name: label, short: label },
+    ];
+
+    return (
+        <section className='model-summary' aria-hidden='true'>
+            <div className='model-summary-cards'>
+                {cards.map((card, at) => (
+                    <div key={card.key} className='model-stat'>
+                        <div className='model-stat-head'>
+                            <span className='model-stat-label'>{card.name}</span>
+                            <span className='model-stat-value'>
+                                <PendingBar width='5rem' delay={at * STAGGER} />
+                            </span>
+                            <span className='model-stat-detail'>
+                                <PendingBar width='10rem' delay={(at + 1) * STAGGER} />
+                            </span>
+                        </div>
+                        <div className='model-stat-body'>
+                            <ul className='model-stat-rows'>
+                                {[0, 1].map((row) => (
+                                    <li key={row} className='model-stat-row'>
+                                        <span className='model-stat-row-name'>
+                                            <PendingBar width={row ? '6rem' : '8rem'} delay={(at + row + 2) * STAGGER} />
+                                        </span>
+                                        <span className='model-stat-row-value'>
+                                            <PendingBar width='2.5rem' delay={(at + row + 3) * STAGGER} />
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <div className='model-summary-boxes'>
+                <div className='stream-focus-figures'>
+                    {cards.map((card, at) => (
+                        <div key={card.key} className='stream-focus-figure'>
+                            <span className='stream-focus-figure-label'>{card.short}</span>
+                            <span className='stream-focus-figure-value'>
+                                <PendingBar width='3.5rem' delay={at * STAGGER} />
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+PendingSummary.propTypes = {
+    score: PropTypes.string.isRequired,
+};
+
+/**
+ * a chart's card before its report is in: its title, which never changes, two
+ * bars for the line under it, and the chart's frame, its grid's lines without
+ * a mark on them, `height` tall, as the chart it stands in for is.
+ */
+export function PendingChart({ title, height }) {
+    return (
+        <section className='model-card' aria-hidden='true'>
+            <div className='model-card-head'>
+                <h5 className='model-fold-title'>
+                    <span className='model-fold'>{title}</span>
+                </h5>
+                <p className='model-card-sub'>
+                    <PendingLines widths={['40rem', '24rem']} />
+                </p>
+            </div>
+            <div className='model-chart-pending' style={{ height: height }}>
+                {[0, 1, 2, 3, 4].map((line) => (
+                    <span key={line} className='model-chart-pending-line' style={{ animationDelay: `${line * STAGGER}ms` }} />
+                ))}
+            </div>
+        </section>
+    );
+}
+
+PendingChart.propTypes = {
+    title: PropTypes.string.isRequired,
+    height: PropTypes.number.isRequired,
+};
