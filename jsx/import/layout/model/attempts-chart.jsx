@@ -72,9 +72,15 @@ import {
 // the charts' heights, in px: the attempts, the bars under them, and how long
 // each attempt took
 //
-const HEIGHT = 280;
+export const HEIGHT = 280;
 const GAP_HEIGHT = 140;
 const TOOK_HEIGHT = 140;
+
+//
+// the card's title. It and the first chart's height are its placeholder's as
+// well, while the history is on its way (#274) -- see pending.jsx
+//
+export const TITLE = 'Each attempt against the live version';
 
 //
 // what the charts are tied by: pointing at a night on one points at it on the
@@ -323,7 +329,7 @@ function AttemptsChart({ rows, score }) {
                 <FoldTitle
                     as='h5'
                     id='model-attempts-title'
-                    title='Each attempt against the live version'
+                    title={TITLE}
                     folded={Boolean(folds.attempts)}
                     onFold={() => toggle('attempts')}
                 />
