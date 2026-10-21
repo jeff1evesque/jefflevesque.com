@@ -311,6 +311,14 @@
     flex-wrap: nowrap;
   }
 
+  //
+  // the month's row 1rem over the search's, as any row of controls stands off
+  // what follows it on a phone (#272), where 0.75rem had run them together
+  //
+  .listing-table .listing-table-head.has-actions {
+    row-gap: 1rem;
+  }
+
   .listing-table .listing-table-actions {
     @include fit-row(18.25);
     display: flex;
