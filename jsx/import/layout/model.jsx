@@ -1,9 +1,11 @@
 /**
  * model.jsx: /model, every model trained each night and how it scores (#243).
  *
- * Under its title, two sentences say what the models are for, what they read
- * and what they predict, linking the knowledge graph and the data it is built
- * from (#251). One list per task -- what a model predicts -- beside a column of
+ * Under its title, four sentences say what the models predict for each S&P 500
+ * stock -- the three things loss scores (#277) -- what they read, linking the
+ * knowledge graph and the data it is built from (#251), and that the page shows
+ * how the predictions are graded rather than the predictions, which the api does
+ * not publish. One list per task -- what a model predicts -- beside a column of
  * filters, by task and by status, which folds to a rail as /graph's columns do
  * and is a folded band on a phone (#251). Every row carries the
  * model's latest 20-day score against the know-nothing baseline, and a trend
@@ -707,11 +709,11 @@ class ModelLayout extends Component {
                             <span className='model-count'>{listing === undefined ? <PendingBar width='1rem' /> : count}</span>
                         </div>
                         <span className='model-lede'>
-                            {'Each night these models read the day’s '}
+                            {'For each of the roughly 500 stocks in the S&P 500, these models predict three things about the next trading day: the chance its price goes up, the chance it beats the average stock, and how far it moves. Each night they read the day’s '}
                             <Link to='/graph'>knowledge graph</Link>
                             {', built from the '}
                             <Link to='/stream'>data this site collects</Link>
-                            {', and predict how each S&P 500 stock will move the next trading day. Once that day’s prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all.'}
+                            {'. Once that day’s prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all. This page shows those grades, not the predictions themselves.'}
                         </span>
                     </div>
                     {this.body()}

@@ -523,16 +523,18 @@ describe('the lists', () => {
 });
 
 describe('the title', () => {
-    it('says what the models are for, what they read and what they predict, linking the graph and the data (#251)', async () => {
+    it('says what the models predict for each stock, what they read, and what the page shows, linking the graph and the data (#251, #277)', async () => {
         answer();
         await open();
 
         const lede = document.querySelector('.model-lede');
 
         expect(lede).toHaveTextContent(
-            'Each night these models read the day’s knowledge graph, built from the data this site collects, and predict '
-            + 'how each S&P 500 stock will move the next trading day. Once that day’s prices are in, every prediction is '
-            + 'graded against a guess that knows nothing, to show whether the data can predict the market at all.'
+            'For each of the roughly 500 stocks in the S&P 500, these models predict three things about the next trading '
+            + 'day: the chance its price goes up, the chance it beats the average stock, and how far it moves. Each night '
+            + 'they read the day’s knowledge graph, built from the data this site collects. Once that day’s prices are in, '
+            + 'every prediction is graded against a guess that knows nothing, to show whether the data can predict the '
+            + 'market at all. This page shows those grades, not the predictions themselves.'
         );
         expect(within(lede).getByRole('link', { name: 'knowledge graph' })).toHaveAttribute('href', '/graph');
         expect(within(lede).getByRole('link', { name: 'data this site collects' })).toHaveAttribute('href', '/stream');
