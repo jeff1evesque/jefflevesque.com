@@ -315,6 +315,18 @@ describe('the page before the listing', () => {
             expect(filters()).toHaveClass('model-filters-open');
         });
 
+        it('sizes a folded column\'s bar by the stylesheet, so it runs down a wide screen\'s rail rather than across it', async () => {
+            //
+            // a width of its own stood across the rail, whose words are turned on
+            // their side, and made it 74px wide -- see '_model.scss'
+            //
+            writeLayout('model', 'wide', { fold: { filters: true } });
+            await waiting();
+
+            expect(filters()).toHaveClass('model-filters-closed');
+            expect(filters().querySelector('.model-filters-summary > .graph-pending-bar')).not.toHaveAttribute('style');
+        });
+
         it('draws the score picker and the sort, which work before the listing lands, and the hint', async () => {
             const onScore = jest.fn();
 

@@ -186,6 +186,20 @@
   text-transform: none;
 }
 
+//
+// the count's bar while the listing is on its way (#274), as long as '2 models'
+// and run along the line the count is written on: across a phone's band, and
+// down a wide screen's folded rail, whose words are turned on their side. A
+// block of its own, so it adds nothing to the line's thickness. Sized by its
+// width, it stood across the rail and made it 74px wide, a width the browser
+// kept once the count replaced it
+//
+.model-filters-summary > .graph-pending-bar {
+  block-size: 0.7rem;
+  display: block;
+  inline-size: 4.5rem;
+}
+
 .model-filter-sets {
   display: none;
 }

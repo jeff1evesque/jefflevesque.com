@@ -213,6 +213,20 @@ describe('what the two pages hold while the listing is on its way (#274)', () =>
         expect(declared(rule('.model-chart-pending-line'), 'animation')).toBe('graph-pending-breathe 1.4s ease-in-out infinite');
     });
 
+    it('runs the folded filters\' bar along the line its count is written on, adding nothing to its thickness', () => {
+        //
+        // down a wide screen's rail, whose words are turned on their side: sized
+        // by its width, it stood across the rail and made it 74px wide, a width
+        // the browser kept once the count replaced it
+        //
+        const bar = rule('.model-filters-summary > .graph-pending-bar');
+
+        expect(declared(bar, 'inline-size')).toBe('4.5rem');
+        expect(declared(bar, 'block-size')).toBe('0.7rem');
+        expect(declared(bar, 'display')).toBe('block');
+        expect(declared(bar, 'width')).toBeNull();
+    });
+
     it('answers the pointer with no highlight where a filter\'s row is not a control yet', () => {
         expect(declared(rule('.model-filter-pending:hover'), 'background-color')).toBe('transparent');
     });
