@@ -338,6 +338,19 @@ export function checkWords({ days, in_a_row: inARow }) {
         : `its ${days}-day average was worse than the baseline’s${count}`;
 }
 
+//
+// one of the trainer's checks by name, 'each day' or '5-day average', and how
+// many scored days in a row it has been worse than the baseline, '4 of 5', or
+// 'not yet' while it has too few days to say
+//
+function checkName(check) {
+    return check.days === 1 ? 'each day' : `${check.days}-day average`;
+}
+
+function checkCount(check) {
+    return finite(check.in_a_row) ? `${check.in_a_row} of ${check.limit}` : 'not yet';
+}
+
 /**
  * how close each of the trainer's checks is to taking a model's live version
  * down (#263), from the listing's `behind`: 'Days in a row worse than the
@@ -349,12 +362,26 @@ export function behindLine(behind) {
         return '';
     }
 
-    const each = behind.map((check) => [
-        check.days === 1 ? 'each day' : `${check.days}-day average`,
-        finite(check.in_a_row) ? `${check.in_a_row} of ${check.limit}` : 'not yet',
-    ].join(' '));
+    const each = behind.map((check) => `${checkName(check)} ${checkCount(check)}`);
 
     return `Days in a row worse than the baseline: ${each.join(', ')}.`;
+}
+
+/**
+ * the same checks as rows of the Live version card on a wide screen (#267), a
+ * name and a count each: { key, name: 'Each day', value: '4 of 5' }. None for a
+ * listing that gives no checks.
+ */
+export function behindRows(behind) {
+    if (!Array.isArray(behind)) {
+        return [];
+    }
+
+    return behind.map((check) => {
+        const name = checkName(check);
+
+        return { key: `check-${check.days}`, name: `${name.charAt(0).toUpperCase()}${name.slice(1)}`, value: checkCount(check) };
+    });
 }
 
 //

@@ -6,8 +6,10 @@
  * live version went live, how many of its nightly attempts did, and its 20-day
  * score beside the baseline's and where it stands among the models of its task.
  * The score's name carries a note on what it measures, and while Loss is picked,
- * the three scores it adds up are under it (#265). Then its two charts, each with
- * a table of its numbers:
+ * the three scores it adds up are under it (#265). On a wide screen, each figure
+ * has rows of what it is made of: how the live version came to be live and how
+ * close it is to being taken down, how the attempts went, and where the score
+ * stands (#267). Then its two charts, each with a table of its numbers:
  *
  *     attempts-chart.jsx   every nightly attempt against the live version, and
  *                          how far each beat or missed it
@@ -50,10 +52,13 @@ import {
     DEFAULT_SCORE,
     WINDOW,
     behindLine,
+    behindRows,
     betterBy,
     checkWords,
+    formatDuration,
     formatGap,
     formatScore,
+    formatStarted,
     liveKind,
     lossParts,
     scoreOf,
@@ -82,22 +87,32 @@ export function ordinal(place) {
 }
 
 /**
- * where `model` stands among the models of its task on `score`: '2nd of 3
- * Next-day direction models', or '' where it is the only one, or has no score
- * to stand by.
+ * where `model` stands among the models of its task on `score`, best first, in
+ * two parts: { rank: '2nd of 3', among: 'Next-day direction models' }, or null
+ * where it is the only one, or has no score to stand by.
  */
-export function placeAmong(model, models, task, score) {
+export function rankAmong(model, models, task, score) {
     const scored = models.filter((each) => (
         each.task === model.task && each.score && Number.isFinite(each.score[score])
     ));
 
     if (scored.length < 2 || !scored.includes(model)) {
-        return '';
+        return null;
     }
 
     const place = sortModels(scored, 'score', score).indexOf(model) + 1;
 
-    return `${ordinal(place)} of ${scored.length} ${task ? task.name : model.task} models`;
+    return { rank: `${ordinal(place)} of ${scored.length}`, among: `${task ? task.name : model.task} models` };
+}
+
+/**
+ * the same as one line, as a phone's note says it: '2nd of 3 Next-day direction
+ * models', or ''.
+ */
+export function placeAmong(model, models, task, score) {
+    const place = rankAmong(model, models, task, score);
+
+    return place ? `${place.rank} ${place.among}` : '';
 }
 
 /**
@@ -142,6 +157,147 @@ export function liveFigure(model) {
 export function sentence(line) {
     return line ? `${line.charAt(0).toUpperCase()}${line.slice(1)}.` : '';
 }
+
+//
+// what a model whose live version was taken down does until it goes live again,
+// under its figure on a wide screen (#267). Its rows show the check that took it
+// down, so the line says only what happens next
+//
+const DOWN_SHORT = 'Nothing predicts until a version beats the baseline.';
+
+/**
+ * the line under the Live version card's figure on a wide screen (#267): how the
+ * live version came to be live, as liveFigure says it, or for one taken down,
+ * what happens until a version beats the baseline.
+ */
+export function liveLine(model) {
+    return statusOf(model) === 'down' ? DOWN_SHORT : liveFigure(model).detail;
+}
+
+/**
+ * the Live version card's rows on a wide screen (#267), each { key, name, value },
+ * or a heading { key, name, head: true } over the rows after it:
+ *
+ *     Beat the version it replaced by     how much lower its loss was than the
+ *                                         version before it, on the night it went
+ *                                         live: loss, which decides what goes
+ *                                         live, whatever score is picked
+ *     First predicted                     the listing's `started`
+ *     Days in a row worse than the        a heading over a row per check -- see
+ *     baseline                            behindRows
+ *
+ * No first row for a first version, one taken down, a retired model, a night the
+ * history does not hold, or a version that only matched the one before it. No
+ * checks for a retired model, or a listing that gives none, as before format 2.
+ */
+export function liveRows(model, history) {
+    const status = statusOf(model);
+    const rows = [];
+
+    if ((status === 'live' || status === 'new') && model.live.kind && model.live.kind !== 'first' && Array.isArray(history)) {
+        const night = history.find((row) => row.day === model.live.since && row.went_live);
+        const gap = night ? betterBy(night.attempt.loss, night.live.loss, 'loss') : null;
+
+        if (standing(gap, 'loss') === 'better') {
+            rows.push({ key: 'beat', name: 'Beat the version it replaced by', value: formatGap(gap, 'loss') });
+        }
+    }
+
+    if (model.started) {
+        rows.push({ key: 'started', name: 'First predicted', value: shortDay(model.started) });
+    }
+
+    const checks = status === 'retired' ? [] : behindRows(model.behind);
+
+    return checks.length
+        ? rows.concat([{ key: 'checks', name: 'Days in a row worse than the baseline', head: true }], checks)
+        : rows;
+}
+
+/**
+ * the line under the Attempts card's figure on a wide screen (#267): how far
+ * back its count goes, 'every attempt since Oct 9', the history's first night --
+ * or 'nightly attempts' where there is no history to say.
+ */
+export function attemptsLine(history) {
+    return Array.isArray(history) && history.length ? `every attempt since ${shortDay(history[0].day)}` : 'nightly attempts';
+}
+
+/**
+ * the Attempts card's rows on a wide screen (#267), as liveRows gives them: how
+ * many nightly updates and weekly retrains went live, of how many -- a kind with
+ * no attempts has no row -- then the newest night, under 'Last attempt, Oct 19':
+ * whether it went live, and when it started and how long it took, where the
+ * history has its times. None where there is no history.
+ */
+export function attemptRows(history) {
+    if (!Array.isArray(history) || !history.length) {
+        return [];
+    }
+
+    const rows = [];
+
+    [['nightly', 'Nightly updates'], ['weekly', 'Weekly retrains']].forEach(([kind, name]) => {
+        const nights = history.filter((row) => row.kind === kind);
+
+        if (nights.length) {
+            rows.push({ key: kind, name: name, value: `${nights.filter((row) => row.went_live).length} of ${nights.length}` });
+        }
+    });
+
+    const last = history[history.length - 1];
+    const times = [
+        { key: 'started', name: 'Started', value: formatStarted(last.started) },
+        { key: 'took', name: 'Took', value: formatDuration(last.total_seconds) },
+    ];
+
+    return rows.concat(
+        [
+            { key: 'last', name: `Last attempt, ${shortDay(last.day)}`, head: true },
+            { key: 'result', name: 'Result', value: last.went_live ? 'went live' : 'kept back' },
+        ],
+        times.filter((row) => row.value),
+    );
+}
+
+/**
+ * a card's rows on a wide screen, under a thin rule (#267), drawn as loss's parts
+ * are: a name at the left and its value at the right, and a heading in gray over
+ * the rows after it. `children` come after the rows: the Loss card's parts.
+ * Nothing, not even the rule, where there are neither.
+ */
+export function CardRows({ rows, children = null }) {
+    if (!rows.length && !children) {
+        return null;
+    }
+
+    return (
+        <div className='model-stat-body'>
+            {rows.length
+                ? (
+                    <ul className='model-stat-rows'>
+                        {rows.map((row) => (
+                            <li key={row.key} className={row.head ? 'model-stat-row model-stat-row-head' : 'model-stat-row'}>
+                                <span className='model-stat-row-name'>{row.name}</span>
+                                {row.head ? null : <span className='model-stat-row-value'>{row.value}</span>}
+                            </li>
+                        ))}
+                    </ul>
+                ) : null}
+            {children}
+        </div>
+    );
+}
+
+CardRows.propTypes = {
+    rows: PropTypes.arrayOf(PropTypes.shape({
+        key: PropTypes.string.isRequired,
+        name: PropTypes.string.isRequired,
+        value: PropTypes.string,
+        head: PropTypes.bool,
+    })).isRequired,
+    children: PropTypes.node,
+};
 
 //
 // how a part of loss stands against the baseline's, in words before the
@@ -308,6 +464,7 @@ class ModelPage extends Component {
         const weekly = Array.isArray(history) ? history.filter((row) => row.kind === 'weekly') : [];
         const retrains = weekly.length ? `weekly retrains: ${weekly.filter((row) => row.went_live).length} of ${weekly.length}` : '';
         const went = `${model.attempts.went_live} of ${model.attempts.total}`;
+        const rank = rankAmong(model, listing.models, task, score);
         const place = placeAmong(model, listing.models, task, score);
 
         //
@@ -320,7 +477,9 @@ class ModelPage extends Component {
 
         //
         // what a model taken down does until it goes live again, and how close
-        // each check is to taking a model down, for any model still trained (#263)
+        // each check is to taking a model down, for any model still trained
+        // (#263), as a phone's notes say them. A wide screen's cards say them in
+        // their rows (#267)
         //
         const down = status === 'down' ? DOWN_LINE : '';
         const behind = status === 'retired' ? '' : behindLine(model.behind);
@@ -345,31 +504,43 @@ class ModelPage extends Component {
         // the three figures: a card each on a wide screen, and on a phone one
         // row of /stream's tinted boxes, a name over a value, with the line under
         // each card's value moved into its box's note -- three cards stacked
-        // took a phone's whole first screen (#253). The parts of loss go under
-        // the score's card, and on a phone under the boxes (#265)
+        // took a phone's whole first screen (#253).
+        //
+        // On a wide screen each card is a top part, its name, its figure and one
+        // line, then its rows under a thin rule, as the parts of loss are drawn,
+        // which had read cleanly where the cards' sentences ran together (#267).
+        // The parts go in the score's card, under its place among its task's
+        // models; on a phone they go under the boxes (#265)
         //
         return (
             <section className='model-summary' aria-label='Summary'>
                 <div className='model-summary-cards'>
                     <div className='model-stat'>
-                        <span className='model-stat-label'>Live version</span>
-                        <span className='model-stat-value'>{live.value}</span>
-                        <span className='model-stat-detail'>{live.detail}</span>
-                        {down ? <span className='model-stat-detail'>{down}</span> : null}
+                        <div className='model-stat-head'>
+                            <span className='model-stat-label'>Live version</span>
+                            <span className='model-stat-value'>{live.value}</span>
+                            <span className='model-stat-detail'>{liveLine(model)}</span>
+                        </div>
+                        <CardRows rows={liveRows(model, history)} />
                     </div>
                     <div className='model-stat'>
-                        <span className='model-stat-label'>Attempts that went live</span>
-                        <span className='model-stat-value'>{went}</span>
-                        <span className='model-stat-detail'>{retrains || 'nightly attempts'}</span>
+                        <div className='model-stat-head'>
+                            <span className='model-stat-label'>Attempts that went live</span>
+                            <span className='model-stat-value'>{went}</span>
+                            <span className='model-stat-detail'>{attemptsLine(history)}</span>
+                        </div>
+                        <CardRows rows={attemptRows(history)} />
                     </div>
                     <div className='model-stat'>
-                        <InfoNote note={scoreOf(score).note} className='model-stat-label model-noted'>{scoreName}</InfoNote>
-                        <span className='model-stat-value'>{formatScore(value, score)}</span>
-                        <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
-                        {place ? <span className='model-stat-detail'>{place}</span> : null}
-                        {behind ? <span className='model-stat-detail'>{behind}</span> : null}
+                        <div className='model-stat-head'>
+                            <InfoNote note={scoreOf(score).note} className='model-stat-label model-noted'>{scoreName}</InfoNote>
+                            <span className='model-stat-value'>{formatScore(value, score)}</span>
+                            <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
+                        </div>
+                        <CardRows rows={rank ? [{ key: 'place', name: `Among ${rank.among}`, value: rank.rank }] : []}>
+                            {lossBy}
+                        </CardRows>
                     </div>
-                    {lossBy}
                 </div>
                 <div className='model-summary-boxes'>
                     <FigureBoxes

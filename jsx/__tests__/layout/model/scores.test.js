@@ -19,6 +19,7 @@ import {
     STATUSES,
     alignDays,
     behindLine,
+    behindRows,
     betterBy,
     chartColors,
     checkWords,
@@ -297,6 +298,16 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         expect(behindLine([])).toBe('');
         expect(behindLine(undefined)).toBe('');
         expect(behindLine(modelOf().behind)).toBe('');
+    });
+
+    it('gives the same checks as rows, a name and a count each, for a wide screen\'s card (#267)', () => {
+        expect(behindRows(behindOf())).toEqual([
+            { key: 'check-1', name: 'Each day', value: '4 of 5' },
+            { key: 'check-5', name: '5-day average', value: '0 of 10' },
+            { key: 'check-20', name: '20-day average', value: 'not yet' },
+        ]);
+        expect(behindRows([])).toEqual([]);
+        expect(behindRows(undefined)).toEqual([]);
     });
 });
 
