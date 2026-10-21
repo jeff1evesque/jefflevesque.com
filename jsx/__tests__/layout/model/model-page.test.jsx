@@ -492,6 +492,23 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         expect(rowsOf(stat('Live version'))).toContainEqual(['Each day', '5 of 5']);
     });
 
+    it('names a phone\'s box Taken down, with the day as its value, where a live version\'s box keeps its one name and value (#272)', async () => {
+        answer({ listing: listingOf([modelOf(), downModelOf()]) });
+
+        const { unmount } = await open();
+        const box = () => noteOf(0).closest('.stream-focus-figure');
+
+        expect(box().querySelector('.stream-focus-short')).toBeNull();
+
+        unmount();
+        await open('lagging');
+
+        expect(box().querySelector('.stream-focus-figure-label .stream-focus-short')).toHaveTextContent(/^Taken down$/);
+        expect(box().querySelector('.stream-focus-figure-value .stream-focus-short')).toHaveTextContent(/^Oct 19$/);
+        expect(box().querySelector('.stream-focus-figure-label .stream-focus-long')).toHaveTextContent(/^Live version$/);
+        expect(box().querySelector('.stream-focus-figure-value .stream-focus-long')).toHaveTextContent(/^Taken down Oct 19$/);
+    });
+
     it('keeps the check that did it, and what happens next, in a phone\'s note', async () => {
         answer({ listing: listingOf([downModelOf()]) });
         await open('lagging');
@@ -959,27 +976,29 @@ describe('each card\'s rows on a wide screen (#267)', () => {
         //
         const steady = () => trackOf(5, '2026-09-01', () => 1.6);
 
-        it('puts its place among its task\'s models first, then the parts, under its rule', async () => {
+        it('puts its place among its task\'s models first, then a heading over the parts, then the parts, under its rule (#272)', async () => {
             answer({ track: steady() });
             await open();
 
             const body = cardOf('Loss, last 20 days').querySelector('.model-stat-body');
 
             expect([...body.children].map((part) => part.className)).toEqual(['model-stat-rows', 'model-parts']);
-            expect(rowsOf(body)).toEqual([['Among Next-day direction models', '1st of 3']]);
+            expect(rowsOf(body)).toEqual([['Among Next-day direction models', '1st of 3'], ['Loss, part by part']]);
+            expect(body.querySelector('.model-stat-row:last-child')).toHaveClass('model-stat-row-head');
             expect(cardOf('Loss, last 20 days').querySelector('.model-stat-head')).not.toHaveTextContent('Next-day direction models');
         });
 
-        it('gives the only model of its task no place, and keeps its parts', async () => {
+        it('gives the only model of its task no place, and keeps the heading and the parts', async () => {
             answer({ listing: listingOf([modelOf()]), track: steady() });
             await open();
 
             const body = cardOf('Loss, last 20 days').querySelector('.model-stat-body');
 
-            expect([...body.children].map((part) => part.className)).toEqual(['model-parts']);
+            expect([...body.children].map((part) => part.className)).toEqual(['model-stat-rows', 'model-parts']);
+            expect(rowsOf(body)).toEqual([['Loss, part by part']]);
         });
 
-        it('keeps its place, and has no parts, with another score picked', async () => {
+        it('keeps its place, and has no heading or parts, with another score picked', async () => {
             answer({ track: steady() });
             await open('pt-gnn', { score: 'auc_up' });
 
@@ -987,6 +1006,13 @@ describe('each card\'s rows on a wide screen (#267)', () => {
 
             expect(rowsOf(body)).toEqual([['Among Next-day direction models', '1st of 3']]);
             expect(body.querySelector('.model-parts')).toBeNull();
+        });
+
+        it.each([['written before the parts', olderTrackOf], ['that could not be had', () => null]])('has no heading for a track record %s, which has no parts to head (#272)', async (name, track) => {
+            answer({ track: track() });
+            await open();
+
+            expect(rowsOf(cardOf('Loss, last 20 days'))).toEqual([['Among Next-day direction models', '1st of 3']]);
         });
     });
 });
