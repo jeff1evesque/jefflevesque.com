@@ -1,8 +1,8 @@
 /**
  * stylesheet.test.js: what /stream's stylesheet promises about a stream on its
  * own (#206, #208), its rows' grips, a phone's rows (#218), and a phone's line
- * of controls, which keeps to one line on every phone (#222, #224), read out of
- * '_stream.scss'.
+ * of controls, which keeps to one line on every phone (#222, #224) and stands
+ * 1rem under the gray line (#272), read out of '_stream.scss'.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see where
  * the figures stand. What can be held is the rule that decides it: the figures
@@ -209,6 +209,10 @@ describe('a phone\'s line of controls, one line on every phone (#224)', () => {
 
     it('keeps to one line below 375px too, where it broke in two', () => {
         expect(blocks(source, '@media (max-width: 374.98px)')).toEqual([]);
+    });
+
+    it('stands 1rem under the gray line, as a phone\'s other rows of controls stand off what is next to them (#272)', () => {
+        expect(holding('.stream-rows-bar', /'intro links'/)).toMatch(/gap\s*:\s*1rem 0\.5rem\s*;/);
     });
 
     it('sizes the menus, the arrows, the sort\'s button and their gaps in --fit-rem', () => {
