@@ -358,12 +358,16 @@ class ModelLayout extends Component {
     // column that folds to a rail as /graph's do, by its heading or the arrow
     // on its edge, and a band over the lists on a phone. While the listing is
     // on its way, the same column, open or folded as this browser kept it,
-    // with a bar where the band says how many models it shows (#274)
+    // with a bar where the band says how many models it shows (#274).
+    //
+    // Note: the bar is sized by the stylesheet rather than by PendingBar's
+    //       width, so it runs down a wide screen's folded rail as the count's
+    //       words do -- see '.model-filters-summary' in '_model.scss'
     //
     filters() {
         const { listing, filters_open, filters_width } = this.state;
         const toggle = this.toggleFilters;
-        let summary = <PendingBar width='4.5rem' />;
+        let summary = <span className='graph-pending-bar' />;
 
         if (listing) {
             const shown = this.shown().length;
