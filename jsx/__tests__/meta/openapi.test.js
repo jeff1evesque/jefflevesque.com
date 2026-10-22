@@ -297,11 +297,100 @@ describe('model.json, from format 2 on (#263)', () => {
     });
 
     it('shows a model taken down in the listing\'s example, and the two columns in the track record\'s', () => {
+        //
+        // a listing of format 3 since #279, which still holds what format 2 added
+        //
         const models = media.examples.list.value.report.models;
 
-        expect(media.examples.list.value.report.format_version).toBe(2);
+        expect(media.examples.list.value.report.format_version).toBeGreaterThanOrEqual(2);
         expect(models.filter((each) => each.down)).toHaveLength(1);
         expect(media.examples['track-record'].value.report.split('\n')[0]).toMatch(/,down_days,down_in_a_row$/);
+    });
+});
+
+describe('model.json, from format 3 on (#279)', () => {
+    const operation = documentOf('model').paths['/model'].get;
+    const media = operation.responses['200'].content['application/json'];
+    const listing = media.schema.properties.report.anyOf[0];
+    const model = listing.properties.models.items;
+    const parameter = (name) => operation.parameters.find((each) => each.name === name);
+    const headerOf = (example) => media.examples[example].value.report.split('\n')[0].split(',');
+    const errors = (status) => Object.values(operation.responses[status].content['application/json'].examples)
+        .map((example) => example.value.report.error);
+
+    it('asks for an options model\'s picks as a Report, and a stock\'s by a Ticker of its symbol', () => {
+        const validate = ajv().compile(parameter('Ticker').schema);
+
+        expect(parameter('Report').schema.enum).toEqual(['summary', 'history', 'track-record', 'picks']);
+        expect(parameter('Ticker')).toMatchObject({ in: 'query', required: false, example: 'AAPL' });
+        expect(['AAPL', 'BRK.B', 'V'].map(validate)).toEqual([true, true, true]);
+        expect(['aapl', 'BRK/B', 'BRK.BB', 'TOOLONG', ''].map(validate)).toEqual([false, false, false, false, false]);
+    });
+
+    it('says a task\'s scores, and keeps the four stock scores required beside the three it adds', () => {
+        const task = listing.properties.tasks.items;
+
+        expect(task.properties.scores).toMatchObject({ type: 'array', items: { type: 'string' } });
+        expect(task.required).not.toContain('scores');
+        ['score', 'baseline'].forEach((side) => {
+            expect(model.properties[side].required).toEqual(['loss', 'auc_up', 'auc_beats', 'acc_up']);
+            ['profit_auc', 'top10_gain', 'top10_wins'].forEach((key) => {
+                expect(model.properties[side].properties[key].type).toEqual(['number', 'null']);
+            });
+        });
+    });
+
+    it('says which hold a take-down and each check ran on, a whole number of days or null, and need not', () => {
+        const down = model.properties.down;
+        const check = model.properties.behind.items;
+
+        [down, check].forEach((each) => {
+            expect(each.properties.hold).toMatchObject({ type: ['integer', 'null'], minimum: 1 });
+            expect(each.required).not.toContain('hold');
+        });
+    });
+
+    it('names format 3, and what it added', () => {
+        expect(listing.properties.format_version.description).toMatch(/3: a task's scores; the top 10's scores, profit_auc and an options model's track record's hold columns; the hold of down and of each check in behind; and the picks/);
+    });
+
+    it('describes every column of the picks, and an options model\'s track record\'s holds', () => {
+        const described = operation.responses['200'].description;
+
+        headerOf('picks').forEach((column) => expect(described).toContain(column));
+        expect(described).toMatch(/<score>_1d, <score>_5d and <score>_20d/);
+        expect(described).toMatch(/Its plain columns repeat the 1-day hold's/);
+    });
+
+    it('shows a listing of both tasks, an options model\'s picks, and its track record with a set of columns for each hold', () => {
+        const report = media.examples.list.value.report;
+        const options = report.tasks.find((task) => task.scores.includes('profit_auc'));
+
+        expect(report.format_version).toBe(3);
+        expect(options.scores).toEqual(['loss', 'profit_auc', 'top10_gain', 'top10_wins']);
+        expect(report.tasks.find((task) => task.id === 'next-day').scores)
+            .toEqual(['loss', 'auc_up', 'auc_beats', 'acc_up', 'top10_gain', 'top10_wins']);
+        expect(report.models.filter((each) => each.task === options.id).map((each) => each.name)).toEqual(['pt-options']);
+        expect(headerOf('picks')).toEqual(['day', 'hold', 'rank', 'ticker', 'contract', 'call_put', 'strike', 'expiry',
+            'buy_on', 'sell_on', 'last_bid', 'last_ask', 'chance', 'usual_chance', 'gain_low', 'gain_middle', 'gain_high']);
+        ['_1d', '_5d', '_20d'].forEach((hold) => {
+            expect(headerOf('option-picks-track-record')).toEqual(expect.arrayContaining([`loss${hold}`, `top10_gain${hold}`, `baseline_profit_auc${hold}`]));
+        });
+    });
+
+    it('answers what is wrong with a Ticker, and a model or a stock with no picks, in the api\'s own words', () => {
+        expect(errors('400')).toEqual([
+            'Model and Report go together, and Report is summary, history, track-record or picks.',
+            'Model, Report and Ticker are the only parameters.',
+            'Ticker goes with Report=picks.',
+            'Ticker is a stock\'s symbol, like AAPL or BRK.B.',
+            'Model, Report and Ticker may each be given once.',
+        ]);
+        expect(errors('404')).toEqual(['There is no model named nope.', 'This model has no picks.', 'No picks for that stock.']);
+    });
+
+    it('says the api serves scores, and an options model\'s picks', () => {
+        expect(documentOf('model').info.description).toMatch(/Scores, and for an options model, its nightly picks/);
     });
 });
 
