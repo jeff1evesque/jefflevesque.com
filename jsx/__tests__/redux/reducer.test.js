@@ -291,25 +291,47 @@ describe('the string initial states', () => {
 });
 
 describe('model (#243)', () => {
-    it('starts on loss, the score that decides what goes live', () => {
-        expect(model(undefined, { type: '@@INIT' })).toEqual({ score: 'loss' });
+    it('starts with no score picked for any task, which the pages read as loss, and on the 1-day hold (#279)', () => {
+        expect(model(undefined, { type: '@@INIT' })).toEqual({ scores: {}, hold: 1 });
     });
 
-    it.each(['loss', 'auc_up', 'auc_beats', 'acc_up'])('takes %s', (score) => {
-        expect(model({ score: 'loss' }, { type: 'SET-MODEL-SCORE', score: score })).toEqual({ score: score });
+    it.each(['loss', 'auc_up', 'auc_beats', 'acc_up', 'profit_auc', 'top10_gain', 'top10_wins'])('takes %s for a task (#279)', (score) => {
+        expect(model({ scores: {}, hold: 1 }, { type: 'SET-MODEL-SCORE', task: 'direction', score: score }))
+            .toEqual({ scores: { direction: score }, hold: 1 });
     });
 
-    it('turns down a score the pages have no button for', () => {
-        const state = { score: 'auc_up' };
+    it('keeps a score for each task, so picking one for a task leaves another\'s alone (#279)', () => {
+        const state = { scores: { direction: 'auc_up' }, hold: 5 };
 
-        expect(model(state, { type: 'SET-MODEL-SCORE', score: 'f1' })).toBe(state);
-        expect(model(state, { type: 'SET-MODEL-SCORE' })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-SCORE', task: 'option-picks', score: 'top10_gain' }))
+            .toEqual({ scores: { direction: 'auc_up', 'option-picks': 'top10_gain' }, hold: 5 });
+        expect(model(state, { type: 'SET-MODEL-SCORE', task: 'direction', score: 'loss' }).scores).toEqual({ direction: 'loss' });
+    });
+
+    it('turns down a score the pages have no button for, and a score for no task', () => {
+        const state = { scores: { direction: 'auc_up' }, hold: 1 };
+
+        expect(model(state, { type: 'SET-MODEL-SCORE', task: 'direction', score: 'f1' })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-SCORE', task: 'direction' })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-SCORE', score: 'loss' })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-SCORE', task: '', score: 'loss' })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-SCORE', task: 7, score: 'loss' })).toBe(state);
+    });
+
+    it.each([1, 5, 20])('takes the %s-day hold (#279)', (hold) => {
+        expect(model({ scores: {}, hold: 1 }, { type: 'SET-MODEL-HOLD', hold: hold })).toEqual({ scores: {}, hold: hold });
+    });
+
+    it('turns down a hold that is none of the three', () => {
+        const state = { scores: {}, hold: 5 };
+
+        [2, '5', null, undefined].forEach((hold) => expect(model(state, { type: 'SET-MODEL-HOLD', hold: hold })).toBe(state));
     });
 
     it('leaves another action alone', () => {
-        const state = { score: 'acc_up' };
+        const state = { scores: { direction: 'acc_up' }, hold: 1 };
 
-        expect(model(state, { type: 'SET-LAYOUT', score: 'loss' })).toBe(state);
+        expect(model(state, { type: 'SET-LAYOUT', task: 'direction', score: 'loss' })).toBe(state);
         expect(model(state, undefined)).toBe(state);
     });
 });
