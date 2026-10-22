@@ -1,11 +1,12 @@
 /**
  * scores.js: what the model pages know about a score, a model's status and its
  * days (#243), how long a night's attempt took (#247), the trainer's checks that
- * take a live version down for doing worse than the baseline (#263), and the
- * three scores loss adds up (#265).
+ * take a live version down for doing worse than the baseline (#263), the three
+ * scores loss adds up (#265), and the scores of an options model and of every
+ * model's top 10, and an options model's holds (#279).
  *
- * The api scores every model four ways, and the pages offer the four alike from
- * one picker:
+ * The api scores the stock models four ways, which a listing before format 3
+ * gives every task:
  *
  *     loss         three scores added up -- see LOSS_PARTS -- of how far the
  *                  chances predicted for each stock going up, and for it beating
@@ -17,12 +18,23 @@
  *     auc_beats    the same for the stocks that beat the average stock
  *     acc_up       the share of stocks whose direction was called right
  *
+ * From format 3, each task names its scores -- see scoresFor -- and the pages
+ * offer a task's from a picker of its own. An options model has loss, which adds
+ * up two scores for each hold it is held, and three more -- see TRADE_SCORES --
+ * and the stock models have the top 10's two beside their four. Each of those is
+ * of what a model's picks would have made, so models of different tasks can be
+ * compared on one -- see compareBlocked.
+ *
  * Every chart draws "better" upward, so loss's axis is flipped, and every
  * difference here is signed the same way: positive is better, whichever way the
  * score runs. See betterBy.
  *
- * Note: nothing here says how a model is built. The api serves scores only, and
- *       so do the pages.
+ * Note: nothing here says how a model is built. The api serves scores, and an
+ *       options model's picks, and so do the pages.
+ *
+ * Note: no task is named here. A task that trades options is told apart by the
+ *       scores it names -- see tradesOptions -- so a new task is drawn from the
+ *       listing alone.
  */
 
 import { colors_categorical, themeColors } from '../../general/colors.js';
@@ -30,7 +42,9 @@ import { colors_categorical, themeColors } from '../../general/colors.js';
 //
 // each with the note its name carries wherever a page names it (#265): what it
 // measures, and which way is better. Without one, loss read as a single log
-// loss, and a log loss of 1.7 would be poor on most tasks
+// loss, and a log loss of 1.7 would be poor on most tasks. A score whose note
+// is another for a task that trades options has that one as `optionsNote`
+// (#279) -- see noteOf
 //
 export const SCORES = [
     {
@@ -38,6 +52,7 @@ export const SCORES = [
         label: 'Loss',
         lower: true,
         note: 'Loss adds three scores: up or down, beating the average stock, and the size of the move. Lower is better. A coin flip scores 0.693 on each of the first two. The baseline is what knowing nothing scored on the same days.',
+        optionsNote: 'Loss adds up, for each hold that is on, the log loss of the chance each option makes money and the pinball loss of its gain. Lower is better, and the baseline beside it is a know-nothing model’s.',
     },
     {
         key: 'auc_up',
@@ -59,6 +74,63 @@ export const SCORES = [
         note: 'The percent of stocks whose direction, up or down, was called right: higher is better.',
     },
 ];
+
+//
+// what each night's 10 best picks are, for a task of stocks and one of options,
+// as the top 10's notes say it
+//
+const TOP_STOCKS = 'the 10 stocks the model is surest will go up, bought at the 9:40 AM ask and sold at the 3:40 PM bid the same day';
+const TOP_OPTIONS = 'the model’s 10 best options for the hold, bought at the 9:40 AM ask and sold at the 3:40 PM bid on the sell day';
+const AT_RANDOM = 'Higher is better, and the baseline is the average of everything it could have picked: what a random pick got.';
+
+//
+// the scores a format 3 listing adds (#279), of what a model's picks would have
+// made:
+//
+//     profit_auc   an options model's: how well its chance ranks the options
+//                  that made money above the ones that didn't. Only a task that
+//                  trades options has it, `options`
+//     top10_gain   the average gain of each night's top 10, as a share of what
+//                  they cost: a fraction of a percent for a day's stock, so to two
+//                  places of a percent
+//     top10_wins   how many of each night's top 10 made money, a count of 10
+//
+// The top 10's two are every task's, each of its own picks, so models of tasks
+// that both name one can be compared on it, `across` -- see compareBlocked
+//
+export const TRADE_SCORES = [
+    {
+        key: 'profit_auc',
+        label: 'Profit AUC',
+        lower: false,
+        options: true,
+        note: 'How well the chance ranks the options that made money above the ones that didn’t: 0.5 is a coin flip, and higher is better.',
+    },
+    {
+        key: 'top10_gain',
+        label: 'Top 10 gain',
+        lower: false,
+        share: true,
+        places: 2,
+        across: true,
+        note: `The average gain of each night’s top 10: ${TOP_STOCKS}. ${AT_RANDOM}`,
+        optionsNote: `The average gain of each night’s top 10: ${TOP_OPTIONS}. ${AT_RANDOM}`,
+    },
+    {
+        key: 'top10_wins',
+        label: 'Top 10 wins',
+        lower: false,
+        count: true,
+        across: true,
+        note: `How many of each night’s top 10 made money: ${TOP_STOCKS}. ${AT_RANDOM}`,
+        optionsNote: `How many of each night’s top 10 made money: ${TOP_OPTIONS}. ${AT_RANDOM}`,
+    },
+];
+
+//
+// every score the pages know, and so can offer, print and store a choice of
+//
+export const KNOWN_SCORES = SCORES.concat(TRADE_SCORES);
 
 //
 // the three scores loss adds up (#265), each by the column a history and a track
@@ -94,6 +166,45 @@ export const TREND_DAYS = 60;
 // easy to tell apart
 //
 export const COMPARE_MAX = 3;
+
+//
+// how many trading days an options model's picks are held (#279): each bought
+// at 9:40 AM the trading day after they are picked, and sold at 3:40 PM this
+// many trading days after that. Its track record has its scores for each, and
+// the pages open on the 1-day hold's, which are the listing's
+//
+export const HOLDS = [
+    { days: 1, label: '1 day' },
+    { days: 5, label: '5 days' },
+    { days: 20, label: '20 days' },
+];
+
+export const DEFAULT_HOLD = 1;
+
+/**
+ * the column a score is in for a hold (#279): 'top10_gain_5d', or the score's
+ * own for no hold.
+ */
+export function columnOf(key, hold = null) {
+    return hold ? `${key}_${hold}d` : key;
+}
+
+/**
+ * the holds a track record has columns for (#279): none for a stock model's,
+ * and an options model's three.
+ */
+export function holdsOf(rows) {
+    const keys = Array.isArray(rows) && rows.length && rows[0].score ? Object.keys(rows[0].score) : [];
+
+    return HOLDS.filter((hold) => keys.some((key) => key.endsWith(`_${hold.days}d`)));
+}
+
+/**
+ * a hold as the pages name it: '5-day hold'.
+ */
+export function holdName(hold) {
+    return `${hold}-day hold`;
+}
 
 //
 // the colors of the models compared, kept by each while it stays ticked: the
@@ -155,7 +266,72 @@ const LIVE_KINDS = {
  * a score by its key, or the default for a key that is none.
  */
 export function scoreOf(key) {
-    return SCORES.find((score) => score.key === key) || SCORES.find((score) => score.key === DEFAULT_SCORE);
+    return KNOWN_SCORES.find((score) => score.key === key) || SCORES.find((score) => score.key === DEFAULT_SCORE);
+}
+
+/**
+ * whether a key is a score the pages know (#279).
+ */
+export function isScore(key) {
+    return KNOWN_SCORES.some((score) => score.key === key);
+}
+
+/**
+ * the scores a task's models have, in the order its picker offers them (#279):
+ * those the listing names that the pages know, or the four stock scores for a
+ * task that names none, as every task before format 3. Loss, which every
+ * listing gives, for one that names only scores the pages do not know.
+ */
+export function scoresFor(task) {
+    if (!task || !Array.isArray(task.scores)) {
+        return SCORES.map((score) => score.key);
+    }
+
+    const known = task.scores.filter(isScore);
+
+    return known.length ? known : [DEFAULT_SCORE];
+}
+
+/**
+ * whether a task's models trade options (#279): it names a score only an
+ * options model has.
+ */
+export function tradesOptions(task) {
+    return scoresFor(task).some((key) => scoreOf(key).options);
+}
+
+/**
+ * what a score measures, for the models of `task` (#279): loss and the top 10's
+ * mean something else for a task that trades options.
+ */
+export function noteOf(key, task) {
+    const score = scoreOf(key);
+
+    return tradesOptions(task) && score.optionsNote ? score.optionsNote : score.note;
+}
+
+/**
+ * the score a task's list and pages show (#279): the one `scores` holds for it,
+ * which the reader picked, where the task has it, and otherwise loss.
+ */
+export function chosenScore(scores, task) {
+    const offered = scoresFor(task);
+    const chosen = scores && task ? scores[task.id] : null;
+
+    if (offered.includes(chosen)) {
+        return chosen;
+    }
+
+    return offered.includes(DEFAULT_SCORE) ? DEFAULT_SCORE : offered[0];
+}
+
+/**
+ * the scores models of every task in `tasks` can be compared on (#279): those
+ * of what each one's picks would have made that every one of them names. None
+ * for tasks before format 3, which name none of them.
+ */
+export function sharedScores(tasks) {
+    return scoresFor(tasks[0]).filter((key) => scoreOf(key).across && tasks.every((task) => scoresFor(task).includes(key)));
 }
 
 function finite(value) {
@@ -163,15 +339,48 @@ function finite(value) {
 }
 
 /**
- * a value as the pages print it: three places, or a share as a percentage to
- * one, and a dash where there is none.
+ * a score's value in a set of them, or null where the set has none (#279): a
+ * set carries a format 3 score only where its report gave it.
+ */
+export function scoreIn(scores, key) {
+    return scores && finite(scores[key]) ? scores[key] : null;
+}
+
+//
+// how a score is printed: a share as a percentage, to its places or one, a
+// count to one place, and the rest to three
+//
+function printOf(key) {
+    const score = scoreOf(key);
+
+    if (score.share) {
+        return { scale: 100, places: score.places || 1, unit: '%', gap: ' pts' };
+    }
+
+    return { scale: 1, places: score.count ? 1 : 3, unit: '', gap: '' };
+}
+
+//
+// a printed number below zero with a minus sign, as a signed tick has, and one
+// that prints as zero without one
+//
+function signed(text) {
+    return Number(text) === 0 ? text.replace('-', '') : text.replace('-', '−');
+}
+
+/**
+ * a value as the pages print it: three places, a share as a percentage to one
+ * -- the top 10's gain to two -- or a count to one, and a dash where there is
+ * none.
  */
 export function formatScore(value, key) {
     if (!finite(value)) {
         return '–';
     }
 
-    return scoreOf(key).share ? `${(value * 100).toFixed(1)}%` : value.toFixed(3);
+    const { scale, places, unit } = printOf(key);
+
+    return `${signed((value * scale).toFixed(places))}${unit}`;
 }
 
 /**
@@ -182,7 +391,9 @@ export function formatGap(value, key) {
         return '–';
     }
 
-    return scoreOf(key).share ? `${(Math.abs(value) * 100).toFixed(1)} pts` : Math.abs(value).toFixed(3);
+    const { scale, places, gap } = printOf(key);
+
+    return `${(Math.abs(value) * scale).toFixed(places)}${gap}`;
 }
 
 /**
@@ -194,7 +405,9 @@ export function formatTick(value, key) {
         return '';
     }
 
-    return scoreOf(key).share ? `${Number((value * 100).toFixed(1))}%` : String(Number(value.toFixed(3)));
+    const { scale, places, unit } = printOf(key);
+
+    return `${signed(String(Number((value * scale).toFixed(places))))}${unit}`;
 }
 
 /**
@@ -206,14 +419,14 @@ export function formatSignedTick(value, key) {
         return '';
     }
 
-    const share = scoreOf(key).share;
-    const size = share ? Number((Math.abs(value) * 100).toFixed(1)) : Number(Math.abs(value).toFixed(3));
+    const { scale, places, gap } = printOf(key);
+    const size = Number((Math.abs(value) * scale).toFixed(places));
 
     if (size === 0) {
         return '0';
     }
 
-    return `${value > 0 ? '+' : '−'}${size}${share ? ' pts' : ''}`;
+    return `${value > 0 ? '+' : '−'}${size}${gap}`;
 }
 
 /**
@@ -327,11 +540,21 @@ export function takenDown(day) {
  * average's. `check` is { days, in_a_row }, as the listing's `down` gives it,
  * and as a track record gives the day whose score set it off. A count it does
  * not have is left out.
+ *
+ * An options model's checks run on each hold, and say which (#279): 'the 5-day
+ * hold did worse than the baseline 5 scored days in a row', and 'the 5-day
+ * hold’s 20-day average was worse than the baseline’s 5 days in a row'.
  */
-export function checkWords({ days, in_a_row: inARow }) {
+export function checkWords({ days, in_a_row: inARow, hold = null }) {
     const count = finite(inARow)
         ? ` ${inARow} ${days === 1 ? 'scored ' : ''}${inARow === 1 ? 'day' : 'days'} in a row`
         : '';
+
+    if (hold) {
+        return days === 1
+            ? `the ${holdName(hold)} did worse than the baseline${count}`
+            : `the ${holdName(hold)}’s ${days}-day average was worse than the baseline’s${count}`;
+    }
 
     return days === 1
         ? `worse than the baseline${count}`
@@ -351,37 +574,72 @@ function checkCount(check) {
     return finite(check.in_a_row) ? `${check.in_a_row} of ${check.limit}` : 'not yet';
 }
 
+//
+// the checks by the hold each is of, in the order they come (#279): one group
+// of every check for a model with no holds
+//
+function byHold(behind) {
+    const groups = [];
+
+    behind.forEach((check) => {
+        const hold = check.hold || null;
+        const group = groups.find((each) => each.hold === hold);
+
+        if (group) {
+            group.checks.push(check);
+        } else {
+            groups.push({ hold: hold, checks: [check] });
+        }
+    });
+
+    return groups;
+}
+
 /**
  * how close each of the trainer's checks is to taking a model's live version
  * down (#263), from the listing's `behind`: 'Days in a row worse than the
  * baseline: each day 4 of 5, 5-day average 0 of 10, 20-day average not yet.'
- * Nothing for a listing that gives no checks, as one before format 2 does.
+ * Nothing for a listing that gives no checks, as one before format 2 does. An
+ * options model's are said hold by hold (#279): '…: 1-day hold, each day 4 of
+ * 5, …; 5-day hold, each day 0 of 5, ….'
  */
 export function behindLine(behind) {
     if (!Array.isArray(behind) || !behind.length) {
         return '';
     }
 
-    const each = behind.map((check) => `${checkName(check)} ${checkCount(check)}`);
+    const each = byHold(behind).map((group) => {
+        const said = group.checks.map((check) => `${checkName(check)} ${checkCount(check)}`).join(', ');
 
-    return `Days in a row worse than the baseline: ${each.join(', ')}.`;
+        return group.hold ? `${holdName(group.hold)}, ${said}` : said;
+    });
+
+    return `Days in a row worse than the baseline: ${each.join('; ')}.`;
 }
 
 /**
  * the same checks as rows of the Live version card on a wide screen (#267), a
  * name and a count each: { key, name: 'Each day', value: '4 of 5' }. None for a
- * listing that gives no checks.
+ * listing that gives no checks. An options model's under a heading for each
+ * hold (#279), { key, name: '1-day hold', head: true }.
  */
 export function behindRows(behind) {
     if (!Array.isArray(behind)) {
         return [];
     }
 
-    return behind.map((check) => {
-        const name = checkName(check);
+    return byHold(behind).reduce((rows, group) => rows.concat(
+        group.hold ? [{ key: `hold-${group.hold}`, name: holdName(group.hold), head: true }] : [],
+        group.checks.map((check) => {
+            const name = checkName(check);
 
-        return { key: `check-${check.days}`, name: `${name.charAt(0).toUpperCase()}${name.slice(1)}`, value: checkCount(check) };
-    });
+            return {
+                key: group.hold ? `check-${group.hold}-${check.days}` : `check-${check.days}`,
+                name: `${name.charAt(0).toUpperCase()}${name.slice(1)}`,
+                value: checkCount(check),
+            };
+        }),
+    ), []);
 }
 
 //
@@ -555,13 +813,20 @@ export function sortModels(models, sort, key) {
  * why `model` cannot be ticked beside those `picked`, or null where it can: it
  * predicts something else, or three are ticked already. One already ticked can
  * always be unticked.
+ *
+ * A model of another task can be ticked where `score`, the one compared on, is
+ * of what each one's picks would have made and every task ticked names it
+ * (#279): the top 10's, Top 10 gain or Top 10 wins. `tasks` are the listing's.
  */
-export function compareBlocked(model, picked) {
+export function compareBlocked(model, picked, score = DEFAULT_SCORE, tasks = []) {
     if (!picked.length || picked.some((each) => each.name === model.name)) {
         return null;
     }
 
-    if (picked[0].task !== model.task) {
+    const ids = picked.map((each) => each.task).concat([model.task])
+        .filter((id, at, all) => all.indexOf(id) === at);
+
+    if (ids.length > 1 && !sharedScores(ids.map((id) => tasks.find((task) => task.id === id))).includes(score)) {
         return 'Predicts something else, so it can’t be compared with the ticked models';
     }
 
