@@ -7,6 +7,9 @@
  * replacing it, and that it is anchored on the icon rather than the middle of
  * the name.
  *
+ * And that a tapped note stays until the next tap, as long as reading it takes
+ * (#281).
+ *
  * And that the note's box stands as far from the text on its right as on its
  * left, however the note's lines break (#237).
  *
@@ -21,6 +24,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import InfoNote, { fitNote } from '../../import/general/info-note.jsx';
 
 const NOTE = 'Percent of records that succeeded';
+const OTHER = 'Minutes since the last record arrived';
 
 function draw() {
     render(<InfoNote note={NOTE} className='a-figure'>Health</InfoNote>);
@@ -28,6 +32,18 @@ function draw() {
     const name = document.querySelector('.a-figure');
 
     return { name: name, icon: name.querySelector('svg') };
+}
+
+//
+// a tap, as a phone sends one: the touch, the mouse event a browser follows it
+// with, and the click it ends in. The mouse event is the one a tooltip must not
+// take for a pointer arriving
+//
+function tap(element) {
+    fireEvent.touchStart(element);
+    fireEvent.touchEnd(element);
+    fireEvent.mouseOver(element);
+    fireEvent.click(element);
 }
 
 describe('the name', () => {
@@ -90,28 +106,6 @@ describe('the note', () => {
         expect(await screen.findByRole('tooltip')).toHaveTextContent(NOTE);
     });
 
-    it('shows at a tap, without the touch being held', async () => {
-        jest.useFakeTimers();
-
-        try {
-            const { name } = draw();
-
-            fireEvent.touchStart(name);
-
-            //
-            // a tooltip's own short wait, and no more: by default a touch has to
-            // be held for 700ms
-            //
-            act(() => {
-                jest.advanceTimersByTime(150);
-            });
-
-            expect(screen.getByRole('tooltip')).toHaveTextContent(NOTE);
-        } finally {
-            jest.useRealTimers();
-        }
-    });
-
     it('is anchored on the icon, not the middle of the name', async () => {
         const { name, icon } = draw();
         const box = { x: 60, y: 40, top: 40, left: 60, right: 72, bottom: 52, width: 12, height: 12 };
@@ -123,6 +117,136 @@ describe('the note', () => {
         await screen.findByRole('tooltip');
 
         expect(icon.getBoundingClientRect).toHaveBeenCalled();
+    });
+});
+
+describe('the note at a tap (#281)', () => {
+    beforeEach(() => {
+        jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    // time passing, long enough for a tooltip to open or close all the way
+    function wait(ms) {
+        act(() => {
+            jest.advanceTimersByTime(ms);
+        });
+    }
+
+    it('shows at once, without the touch being held', () => {
+        //
+        // by default a touch has to be held for 700ms
+        //
+        const { name } = draw();
+
+        tap(name);
+
+        expect(screen.getByRole('tooltip')).toHaveTextContent(NOTE);
+    });
+
+    it('stays after the finger lifts, for as long as reading it takes', () => {
+        //
+        // by default it is gone 1500ms after the touch ends
+        //
+        const { name } = draw();
+
+        tap(name);
+        wait(60000);
+
+        expect(screen.getByRole('tooltip')).toHaveTextContent(NOTE);
+    });
+
+    it('goes at a second tap on the name', () => {
+        const { name } = draw();
+
+        tap(name);
+        wait(150);
+        tap(name);
+        wait(1000);
+
+        expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+
+    it('goes at a tap anywhere else', () => {
+        const { name } = draw();
+
+        tap(name);
+        wait(150);
+        tap(document.body);
+        wait(1000);
+
+        expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+
+    it('stays while the page is scrolled under it', () => {
+        const { name } = draw();
+
+        tap(name);
+        wait(150);
+
+        //
+        // a touch that moves is a scroll, and ends in no click
+        //
+        fireEvent.touchStart(document.body);
+        fireEvent.touchMove(document.body);
+        fireEvent.touchEnd(document.body);
+        wait(1000);
+
+        expect(screen.getByRole('tooltip')).toHaveTextContent(NOTE);
+    });
+
+    it('gives way to another note tapped after it', () => {
+        render(
+            <>
+                <InfoNote note={NOTE} className='one'>Health</InfoNote>
+                <InfoNote note={OTHER} className='two'>Lag</InfoNote>
+            </>
+        );
+
+        tap(document.querySelector('.one'));
+        wait(150);
+        tap(document.querySelector('.two'));
+        wait(1000);
+
+        const notes = screen.getAllByRole('tooltip');
+
+        expect(notes).toHaveLength(1);
+        expect(notes[0]).toHaveTextContent(OTHER);
+    });
+
+    it('does not show for a touch that scrolls the page from the name', () => {
+        const { name } = draw();
+
+        fireEvent.touchStart(name);
+        fireEvent.touchMove(name);
+        fireEvent.touchEnd(name);
+        wait(1000);
+
+        expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+
+    it('is not held by a click from a mouse, which the pointer shows it for and takes it from', () => {
+        const { name } = draw();
+
+        fireEvent.mouseOver(name);
+        wait(150);
+
+        expect(screen.getByRole('tooltip')).toHaveTextContent(NOTE);
+
+        fireEvent.click(name);
+        fireEvent.mouseLeave(name);
+
+        //
+        // the pointer leaving starts a wait of its own, and the note's closing
+        // plays out only after that one has run
+        //
+        wait(0);
+        wait(1000);
+
+        expect(screen.queryByRole('tooltip')).toBeNull();
     });
 });
 

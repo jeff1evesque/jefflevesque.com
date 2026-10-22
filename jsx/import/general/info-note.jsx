@@ -4,7 +4,9 @@
  *
  * The name and its icon are one focusable span, so the note shows under the
  * pointer, over either of them, from the keyboard, and at a tap. A tap shows it
- * at once: by default a touch has to be held for most of a second.
+ * at once: by default a touch has to be held for most of a second. And it stays
+ * until the next tap, on the name or anywhere else: by default it is gone a
+ * second and a half after the finger lifts, which is too soon to read it (#281).
  *
  * The note DESCRIBES the name rather than replacing it, so a screen reader still
  * reads the name, and the note after it. The icon is hidden from one, since it
@@ -19,8 +21,9 @@
  *       Multi-D (#237).
  */
 
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import ClickAwayListener from '@mui/material/ClickAwayListener';
 import Tooltip from '@mui/material/Tooltip';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
@@ -97,6 +100,15 @@ const NOTE_SLOTS = { tooltip: { ref: fitNote, style: { textWrap: 'balance' } } }
 
 function InfoNote({ note, className = null, children = null }) {
     const icon = useRef(null);
+    const touched = useRef(false);
+
+    //
+    // the note is shown for either of two reasons: the pointer or the keyboard,
+    // which mui opens and closes it for as it always has, or a tap, which holds
+    // it until the next tap
+    //
+    const [shown, setShown] = useState(false);
+    const [held, setHeld] = useState(false);
 
     //
     // mui anchors a tooltip on the element it wraps, the whole span; this anchors
@@ -105,13 +117,48 @@ function InfoNote({ note, className = null, children = null }) {
     //
     const popper = useMemo(() => ({ anchorEl: () => icon.current }), []);
 
+    //
+    // a tap is a click that a touch began. A click from a mouse holds nothing:
+    // the pointer is already showing the note, and takes it away as it leaves
+    //
+    const tap = () => {
+        if (touched.current) {
+            touched.current = false;
+            setHeld((was) => !was);
+        }
+    };
+
+    //
+    // Note: the listener listens only while a tap holds the note, rather than on
+    //       every note on the page for every click anywhere.
+    //
     return (
-        <Tooltip title={note} describeChild enterTouchDelay={0} PopperProps={popper} slotProps={NOTE_SLOTS}>
-            <span className={className} tabIndex={0}>
-                {children}
-                <InfoOutlinedIcon ref={icon} fontSize='inherit' />
-            </span>
-        </Tooltip>
+        <ClickAwayListener
+            onClickAway={() => setHeld(false)}
+            mouseEvent={held ? 'onClick' : false}
+            touchEvent={held ? 'onTouchEnd' : false}
+        >
+            <Tooltip
+                title={note}
+                describeChild
+                open={shown || held}
+                onOpen={() => setShown(true)}
+                onClose={() => setShown(false)}
+                disableTouchListener
+                PopperProps={popper}
+                slotProps={NOTE_SLOTS}
+            >
+                <span
+                    className={className}
+                    tabIndex={0}
+                    onTouchStart={() => { touched.current = true; }}
+                    onClick={tap}
+                >
+                    {children}
+                    <InfoOutlinedIcon ref={icon} fontSize='inherit' />
+                </span>
+            </Tooltip>
+        </ClickAwayListener>
     );
 }
 
