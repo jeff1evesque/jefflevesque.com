@@ -178,6 +178,13 @@ describe('the listing', () => {
         });
     });
 
+    it('passes over a task that is not an object, and reads a model\'s scores that are not an object as none', () => {
+        const answer = run({ kind: 'list', report: listingOf([entry({ score: 'high', baseline: null })], ['direction', null, { id: 'direction', name: 'Next-day direction', description: '' }]) });
+
+        expect(answer.tasks).toEqual([{ id: 'direction', name: 'Next-day direction', description: '' }]);
+        expect(answer.models[0]).toMatchObject({ score: null, baseline: null });
+    });
+
     it('reads a live block or an attempts block that is not an object as empty', () => {
         const [model] = run({ kind: 'list', report: listingOf([entry({ live: 'x', attempts: null })]) }).models;
 
@@ -656,6 +663,220 @@ describe('loss\'s three parts, beside the four scores (#265)', () => {
     });
 });
 
+describe('an options model, and every model\'s top 10, from format 3 on (#279)', () => {
+    const OPTIONS = ['loss', 'profit_auc', 'top10_gain', 'top10_wins'];
+    const HOLDS = ['_1d', '_5d', '_20d'];
+
+    //
+    // an options model's track record: its four scores, then each again for
+    // every hold, the model's and the baseline's. The plain columns repeat the
+    // 1-day hold's, and a day's 5 and 20-day columns are empty until they are in
+    //
+    const columns = (prefix) => [...OPTIONS, ...HOLDS.flatMap((hold) => OPTIONS.map((score) => `${score}${hold}`))]
+        .map((score) => `${prefix}${score}`);
+    const header = ['day', ...columns(''), ...columns('baseline_'), 'down_days', 'down_in_a_row'];
+
+    function optionsDay(day, loss, held = { _1d: true, _5d: true, _20d: false }) {
+        const scores = (base) => {
+            const plain = [base, 0.56, 0.012, 6];
+
+            return [...plain, ...HOLDS.flatMap((hold) => (held[hold] ? plain : ['', '', '', '']))];
+        };
+
+        return [day, ...scores(loss), ...scores(1.1), '', ''];
+    }
+
+    const read = (overrides) => run({ kind: 'list', report: listingOf([entry(overrides)]) }).models[0];
+
+    it('reads an options model\'s scores in the listing, the four stock scores null, and passes over a name it does not know', () => {
+        const model = read({
+            score: { loss: 0.84, auc_up: null, auc_beats: null, acc_up: null, profit_auc: 0.55, top10_gain: 0.031, top10_wins: 6.2, sharpe: 1.4 },
+        });
+
+        expect(model.score).toEqual({
+            loss: 0.84,
+            auc_up: null,
+            auc_beats: null,
+            acc_up: null,
+            ...NO_PARTS,
+            profit_auc: 0.55,
+            top10_gain: 0.031,
+            top10_wins: 6.2,
+        });
+    });
+
+    it('reads a stock model\'s top 10 beside its four scores, and nothing of what the listing does not give', () => {
+        const model = read({ score: { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54, top10_gain: 0.0004, top10_wins: '5.5' } });
+
+        expect(model.score).toMatchObject({ top10_gain: 0.0004, top10_wins: 5.5 });
+        expect(model.score).not.toHaveProperty('profit_auc');
+        expect(model.score).not.toHaveProperty('loss_1d');
+    });
+
+    it('reads a score the listing gives as anything but a number as none', () => {
+        expect(read({ score: { loss: 1, profit_auc: 'high', top10_gain: '', top10_wins: null } }).score)
+            .toMatchObject({ profit_auc: null, top10_gain: null, top10_wins: null });
+    });
+
+    it('reads every hold\'s columns of a track record, and each one\'s 20-day average over the days it has', () => {
+        const rows = run({
+            kind: 'track-record',
+            report: csv(header, [
+                optionsDay('2026-10-12', 0.8),
+                optionsDay('2026-10-13', 0.9),
+                optionsDay('2026-10-14', 0.7, { _1d: true, _5d: false, _20d: false }),
+            ]),
+        }).rows;
+
+        expect(rows[0].score).toMatchObject({ loss: 0.8, loss_1d: 0.8, loss_5d: 0.8, profit_auc_5d: 0.56, top10_gain_1d: 0.012, top10_wins_1d: 6 });
+        expect(rows[0].score).toMatchObject({ loss_20d: null, top10_gain_20d: null });
+        expect(rows[2].score.loss_5d).toBeNull();
+        expect(rows[2].average.loss_1d).toBeCloseTo(0.8);
+        expect(rows[2].average.loss_5d).toBeCloseTo(0.85);
+        expect(rows[2].average.loss_20d).toBeNull();
+        expect(rows[2].baseline_average.loss_5d).toBeCloseTo(1.1);
+        expect(rows[2].score).toMatchObject({ auc_up: null, ...NO_PARTS });
+    });
+
+    it('drops a column whose name it does not know, as it always has', () => {
+        const [row] = run({
+            kind: 'track-record',
+            report: csv(['day', 'loss', 'loss_2d', 'acc_up_5d', 'top10_gain_1d'], [['2026-10-12', 0.8, 0.7, 0.5, 0.01]]),
+        }).rows;
+
+        expect(Object.keys(row.score).sort()).toEqual([...SCORES, ...PARTS, 'top10_gain_1d'].sort());
+    });
+
+    it('reads the top 10 in a stock model\'s history, under each prefix', () => {
+        const [row] = run({
+            kind: 'history',
+            report: 'day,kind,went_live,attempt_loss,attempt_top10_gain,live_top10_gain,baseline_top10_wins\n2026-10-15,nightly,false,1.6,0.002,0.001,4.8',
+        }).rows;
+
+        expect(row.attempt).toMatchObject({ loss: 1.6, top10_gain: 0.002 });
+        expect(row.live.top10_gain).toBe(0.001);
+        expect(row.baseline.top10_wins).toBe(4.8);
+        expect(row.live).not.toHaveProperty('top10_wins');
+    });
+
+    it('keeps the scores a task names, each once, in the listing\'s order', () => {
+        const answer = run({
+            kind: 'list',
+            report: listingOf([entry(), entry({ name: 'o', task: 'options' })], [
+                { id: 'direction', name: 'Next-day direction', description: '', scores: ['loss', 'auc_up', ' top10_gain ', 'loss', '', 7] },
+                { id: 'options', name: 'Option picks', description: '', scores: ['loss', 'profit_auc', 'top10_gain', 'top10_wins'] },
+            ]),
+        });
+
+        expect(answer.tasks).toEqual([
+            { id: 'direction', name: 'Next-day direction', description: '', scores: ['loss', 'auc_up', 'top10_gain'] },
+            { id: 'options', name: 'Option picks', description: '', scores: ['loss', 'profit_auc', 'top10_gain', 'top10_wins'] },
+        ]);
+    });
+
+    it('gives a task no scores where the listing names none, as one before format 3', () => {
+        const answer = run({
+            kind: 'list',
+            report: listingOf([entry()], [{ id: 'direction', name: 'Next-day direction', description: '', scores: 'loss' }]),
+        });
+
+        expect(answer.tasks[0]).not.toHaveProperty('scores');
+    });
+
+    describe('the hold a check is of', () => {
+        const DOWN = { since: '2026-10-19', days: 1, in_a_row: 5 };
+
+        it('keeps the hold of a live version taken down, and of each check', () => {
+            const model = read({
+                down: { ...DOWN, hold: 5 },
+                behind: [{ days: 1, in_a_row: 5, limit: 5, hold: 5 }, { days: 20, in_a_row: null, limit: 5, hold: 20 }],
+            });
+
+            expect(model.down).toEqual({ ...DOWN, hold: 5 });
+            expect(model.behind).toEqual([{ days: 1, in_a_row: 5, limit: 5, hold: 5 }, { days: 20, in_a_row: null, limit: 5, hold: 20 }]);
+        });
+
+        it('reads a hold given as null as no hold, as a stock model\'s checks have', () => {
+            const model = read({ down: { ...DOWN, hold: null }, behind: [{ days: 1, in_a_row: 0, limit: 5, hold: null }] });
+
+            expect(model.down).toEqual(DOWN);
+            expect(model.behind).toEqual([{ days: 1, in_a_row: 0, limit: 5 }]);
+        });
+
+        it.each([['text', '5'], ['none', 0], ['a fraction', 1.5]])('reads a take-down whose hold is %s as none, and passes over such a check', (name, hold) => {
+            const model = read({ down: { ...DOWN, hold: hold }, behind: [{ days: 1, in_a_row: 0, limit: 5, hold: hold }, { days: 5, in_a_row: 0, limit: 10 }] });
+
+            expect(model.down).toBeNull();
+            expect(model.behind).toEqual([{ days: 5, in_a_row: 0, limit: 10 }]);
+        });
+    });
+
+    describe('the picks', () => {
+        const PICKS = ['day', 'hold', 'rank', 'ticker', 'contract', 'call_put', 'strike', 'expiry', 'buy_on', 'sell_on',
+            'last_bid', 'last_ask', 'chance', 'usual_chance', 'gain_low', 'gain_middle', 'gain_high'];
+
+        function pick(hold, rank, ticker = 'AAPL') {
+            return ['2026-10-21', hold, rank, ticker, `${ticker}  261120C00230000`, 'Call', 230, '2026-11-20', '2026-10-22',
+                hold === 1 ? '2026-10-23' : '2026-10-29', 4.1, 4.35, 0.62, 0.48, -0.35, 0.12, 0.8];
+        }
+
+        it('reads every pick, each hold\'s apart and best first, its contract\'s name with its spaces', () => {
+            const rows = run({
+                kind: 'option-picks',
+                name: 'pt-options',
+                report: csv(PICKS, [pick(5, 2), pick(1, 2, 'MSFT'), pick(5, 1), pick(1, 1)]),
+            }).rows;
+
+            expect(rows.map((row) => [row.hold, row.rank, row.ticker])).toEqual([[1, 1, 'AAPL'], [1, 2, 'MSFT'], [5, 1, 'AAPL'], [5, 2, 'AAPL']]);
+            expect(rows[0]).toEqual({
+                day: '2026-10-21',
+                hold: 1,
+                rank: 1,
+                ticker: 'AAPL',
+                contract: 'AAPL  261120C00230000',
+                call_put: 'call',
+                strike: 230,
+                expiry: '2026-11-20',
+                buy_on: '2026-10-22',
+                sell_on: '2026-10-23',
+                last_bid: 4.1,
+                last_ask: 4.35,
+                chance: 0.62,
+                usual_chance: 0.48,
+                gain_low: -0.35,
+                gain_middle: 0.12,
+                gain_high: 0.8,
+            });
+        });
+
+        it('reads a cell it cannot read as none, and passes over a row with no day, hold, rank or stock', () => {
+            const rows = run({
+                kind: 'option-picks',
+                report: csv(PICKS, [
+                    pick(1, 1).map((cell, at) => (['last_bid', 'expiry'].includes(PICKS[at]) ? '' : cell)),
+                    pick(1, 2).map((cell, at) => (PICKS[at] === 'day' ? 'tonight' : cell)),
+                    pick(0, 3),
+                    pick(1, 1.5),
+                    pick(1, 4, ''),
+                ]),
+            }).rows;
+
+            expect(rows).toHaveLength(1);
+            expect(rows[0]).toMatchObject({ rank: 1, last_bid: null, expiry: null, last_ask: 4.35 });
+        });
+
+        it.each([
+            ['answered with null', null],
+            ['empty', ''],
+            ['a header alone', PICKS.join(',')],
+            ['missing its hold and rank', 'day,ticker\n2026-10-21,AAPL'],
+            ['not text', { rows: [] }],
+        ])('gives none for picks %s', (name, report) => {
+            expect(run({ kind: 'option-picks', report: report }).rows).toBeNull();
+        });
+    });
+});
+
 describe('a report with nothing in it, and one that is not a report', () => {
     it.each(['history', 'track-record'])('%s answered with null, or with no rows, has none yet', (kind) => {
         expect(run({ kind: kind, report: null }).rows).toEqual([]);
@@ -749,6 +970,28 @@ describe('the worker as the bundle builds it', () => {
             },
             { kind: 'history', report: 'day,kind,went_live,attempt_loss,attempt_up_log_loss,live_move_pinball\n2026-10-15,nightly,false,1.6,0.72,0.27' },
             { kind: 'track-record', report: 4 },
+            {
+                kind: 'list',
+                report: {
+                    format_version: 3,
+                    tasks: [{ id: 'options', name: 'Option picks', description: '', scores: ['loss', 'profit_auc', 'loss'] }, { id: 'x', scores: 'no' }],
+                    models: [entry({
+                        task: 'options',
+                        score: { loss: 0.8, auc_up: null, profit_auc: 0.55, top10_gain: 0.03, top10_wins: 6 },
+                        down: { since: '2026-10-19', days: 1, in_a_row: 5, hold: 5 },
+                        behind: [{ days: 1, in_a_row: 5, limit: 5, hold: 5 }, { days: 5, in_a_row: 0, limit: 10, hold: null }, { days: 5, in_a_row: 0, limit: 10, hold: 'x' }],
+                    })],
+                },
+            },
+            {
+                kind: 'track-record',
+                report: 'day,loss,loss_1d,loss_5d,top10_gain_20d,baseline_loss_5d\n2026-10-12,0.8,0.8,0.9,,1.1\n2026-10-13,0.7,0.7,,,1.2',
+            },
+            {
+                kind: 'option-picks',
+                report: 'day,hold,rank,ticker,contract,call_put,strike\n2026-10-21,5,1,AAPL,AAPL  261120C00230000,Put,230\n2026-10-21,1,1,MSFT,MSFT  261120C00500000,call,500',
+            },
+            { kind: 'option-picks', report: '' },
         ];
 
         messages.forEach((data) => {
