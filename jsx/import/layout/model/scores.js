@@ -2,8 +2,9 @@
  * scores.js: what the model pages know about a score, a model's status and its
  * days (#243), how long a night's attempt took (#247), the trainer's checks that
  * take a live version down for doing worse than the baseline (#263), the three
- * scores loss adds up (#265), and the scores of an options model and of every
- * model's top 10, and an options model's holds (#279).
+ * scores loss adds up (#265), and the lists that show them in place of their sum
+ * (#283), and the scores of an options model and of every model's top 10, and an
+ * options model's holds (#279).
  *
  * The api scores the stock models four ways, which a listing before format 3
  * gives every task:
@@ -486,6 +487,17 @@ export function lossParts(row) {
     });
 
     return parts.every((part) => finite(part.value)) ? parts : [];
+}
+
+/**
+ * whether /model's list shows loss's three parts in place of its sum (#283):
+ * while Loss is picked, for a task of stocks. A total of three things read as
+ * nothing a reader could name, and hid which of them a model beat the baseline
+ * on. An options model's loss adds up other scores, hold by hold, and its list
+ * shows the sum.
+ */
+export function showsParts(score, task) {
+    return score === DEFAULT_SCORE && !tradesOptions(task);
 }
 
 /**
