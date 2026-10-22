@@ -1,6 +1,6 @@
 /**
  * scores.test.js: what the model pages know about a score, a model's status and
- * its days (#243).
+ * its days (#243), and which lists show loss's three parts (#283).
  *
  * The rule every chart and figure leans on is betterBy's: a difference is
  * positive where it is better, whichever way the score runs. Loss is lower-is-
@@ -49,6 +49,7 @@ import {
     scoresFor,
     sharedScores,
     shortDay,
+    showsParts,
     sortModels,
     standing,
     statusLabel,
@@ -173,6 +174,24 @@ describe('loss\'s three parts (#265)', () => {
 
         expect(parts.reduce((sum, part) => sum + part.value, 0)).toBeCloseTo(last.average.loss, 10);
         expect(parts.reduce((sum, part) => sum + part.baseline, 0)).toBeCloseTo(last.baseline_average.loss, 10);
+    });
+});
+
+describe('showsParts: the lists that show loss\'s three parts in place of its sum (#283)', () => {
+    it('is true on Loss, for a task of stocks, before format 3 and from it on', () => {
+        expect(showsParts('loss', TASKS[0])).toBe(true);
+        expect(showsParts('loss', { id: 'next-day-move', scores: STOCK_SCORES })).toBe(true);
+        expect(showsParts('loss', undefined)).toBe(true);
+    });
+
+    it('is false on any other score', () => {
+        SCORES.concat(TRADE_SCORES).filter((score) => score.key !== 'loss').forEach((score) => {
+            expect({ key: score.key, shows: showsParts(score.key, TASKS[0]) }).toEqual({ key: score.key, shows: false });
+        });
+    });
+
+    it('is false for a task that trades options, whose loss adds up other scores', () => {
+        expect(showsParts('loss', OPTIONS_TASK)).toBe(false);
     });
 });
 
