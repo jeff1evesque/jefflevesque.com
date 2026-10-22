@@ -1,24 +1,29 @@
 /**
  * model.jsx: /model, every model trained each night and how it scores (#243).
  *
- * Under its title, four sentences say what the models predict for each S&P 500
- * stock -- the three things loss scores (#277) -- what they read, linking the
- * knowledge graph and the data it is built from (#251), and that the page shows
- * how the predictions are graded rather than the predictions, which the api does
- * not publish. One list per task -- what a model predicts -- beside a column of
- * filters, by task and by status, which folds to a rail as /graph's columns do
- * and is a folded band on a phone (#251). Every row carries the
- * model's latest 20-day score against the know-nothing baseline, and a trend
- * line of it; see model/model-row.jsx. The score picker chooses which of the four
- * scores the rows, their trend lines and the comparison show, and is shared with
- * each model's own page -- see redux/container/model.jsx -- and a sort menu
- * orders every list alike. The heading over the score's column carries a note on
- * what the score measures (#265).
+ * Under its title, five sentences say what the stock models predict for each
+ * S&P 500 stock -- the three things their loss scores (#277) -- and what the
+ * options model predicts for each of its options (#279), what they read, linking
+ * the knowledge graph and the data it is built from (#251), and that the page
+ * shows how the predictions are graded, and the options model's page its picks.
+ * One list per task -- what a model predicts -- beside a column of filters, by
+ * task and by status, which folds to a rail as /graph's columns do and is a
+ * folded band on a phone (#251). Every row carries the model's latest 20-day
+ * score against the know-nothing baseline, and a trend line of it; see
+ * model/model-row.jsx. Each list has a score picker of its own, of the scores its
+ * task has (#279), which chooses what its rows and their trend lines show, and
+ * is shared with each of its models' own pages -- see redux/container/model.jsx
+ * -- and a sort menu orders every list alike. The heading over the score's
+ * column carries a note on what the score measures (#265).
  *
  * Ticking two or three models of one task draws their track records on one chart
- * over the lists; see model/compare-chart.jsx. A model of another task cannot be
- * ticked beside them, and neither can a fourth. The address carries what is
- * ticked, '?compare=a,b', so a comparison can be linked, and the page reopens it.
+ * over the lists, on the score its list shows; see model/compare-chart.jsx. A
+ * model of another task can be ticked beside them only on a score of what each
+ * one's picks would have made that both tasks name, the top 10's (#279), and the
+ * chart then has a picker of those scores of its own. Neither can a fourth. The
+ * address carries what is ticked, '?compare=a,b', so a comparison can be linked,
+ * and the page reopens it -- one of models of different tasks on the first score
+ * they share.
  *
  * Each row's bell leads to its model's alarm page, and rings for a reader who holds
  * the alarm (#255). The reader's subscriptions are asked for once, for every row, as
@@ -50,33 +55,55 @@ import { readLayout, writeLayout } from '../general/layout-preference.js';
 import { listSubscriptions } from '../general/account-api.js';
 import { loadListing, loadReport } from './model/source.js';
 import {
-    DEFAULT_SCORE,
     SORTS,
     STATUSES,
     TREND_DAYS,
+    chosenScore,
     compareBlocked,
+    noteOf,
     recentDays,
     scoreOf,
+    scoresFor,
+    sharedScores,
     sortModels,
     statusOf,
 } from './model/scores.js';
+
+//
+// the tasks `models` predict, as the listing describes them, each once and in
+// the order of the models: a task the listing does not describe, as itself
+//
+function tasksOf(models, tasks) {
+    return models
+        .map((model) => model.task)
+        .filter((id, at, all) => all.indexOf(id) === at)
+        .map((id) => tasks.find((task) => task.id === id) || { id: id, name: id });
+}
 
 /**
  * the comparison an address names -- '?compare=a,b' -- as the models it ticks,
  * each with the color slot it is drawn in: the first named the first color. A
  * name the listing does not hold is passed over, and so is one that could not be
- * ticked beside those before it: another task's, or a fourth.
+ * ticked beside those before it: a fourth, or another task's on no score of what
+ * each one's picks would have made that the tasks share (#279). `tasks` are the
+ * listing's.
  *
  * Note: names are joined by commas, which no model's name holds.
  */
-export function linkedCompare(search, models) {
+export function linkedCompare(search, models, tasks = []) {
     const asked = (new URLSearchParams(search).get('compare') || '').split(',').map((name) => name.trim());
     const ticked = [];
 
     asked.forEach((name) => {
         const model = models.find((each) => each.name === name);
 
-        if (model && !ticked.includes(model) && !compareBlocked(model, ticked)) {
+        if (!model || ticked.includes(model)) {
+            return;
+        }
+
+        const [shared] = sharedScores(tasksOf(ticked.concat([model]), tasks));
+
+        if (!compareBlocked(model, ticked, shared, tasks)) {
             ticked.push(model);
         }
     });
@@ -136,15 +163,16 @@ const HINT = 'Tick two or three models that predict the same thing to compare th
 class ModelLayout extends Component {
     static propTypes = {
         //
-        // the score shown, and the way to choose another: the store's, shared
-        // with each model's own page -- see redux/container/model.jsx
+        // the score shown for each task, by its id, and the way to choose
+        // another for a task (#279): the store's, shared with each model's own
+        // page -- see redux/container/model.jsx. A task with none shows loss
         //
-        score: PropTypes.string,
+        scores: PropTypes.objectOf(PropTypes.string),
         onScore: PropTypes.func,
     }
 
     static defaultProps = {
-        score: DEFAULT_SCORE,
+        scores: {},
         onScore: () => {},
     }
 
@@ -168,6 +196,10 @@ class ModelLayout extends Component {
             // the models ticked to compare, each with its color slot, in the
             // order of the slots
             picked: [],
+            // the score models of more than one task are compared on, which
+            // the comparison's own picker chooses (#279), and none while they
+            // are of one task, whose list's score they are compared on
+            compare_score: null,
             // the names of the models whose alarms the reader holds, which ring
             // their bells: none until the subscriptions arrive, and none signed
             // out -- see loadSubscriptions
@@ -198,9 +230,12 @@ class ModelLayout extends Component {
                 return;
             }
 
-            const picked = listing ? linkedCompare(window.location.search, listing.models) : [];
+            const picked = listing ? linkedCompare(window.location.search, listing.models, listing.tasks) : [];
+            const tasks = listing
+                ? tasksOf(picked.map((each) => listing.models.find((model) => model.name === each.name)), listing.tasks)
+                : [];
 
-            this.setState({ listing: listing, picked: picked }, () => {
+            this.setState({ listing: listing, picked: picked, compare_score: tasks.length > 1 ? sharedScores(tasks)[0] : null }, () => {
                 if (!listing) {
                     return;
                 }
@@ -310,6 +345,29 @@ class ModelLayout extends Component {
         return picked.map((each) => listing.models.find((model) => model.name === each.name));
     }
 
+    //
+    // the score a task's list shows (#279): the one the reader picked for its
+    // task, and loss until they do
+    //
+    scoreFor(task) {
+        return chosenScore(this.props.scores, task);
+    }
+
+    //
+    // the score the models ticked are compared on: their list's, while they are
+    // of one task, and the comparison's own once they are of more (#279). None
+    // while none is ticked
+    //
+    comparedScore(chosen) {
+        const tasks = tasksOf(chosen, this.state.listing.tasks);
+
+        if (!tasks.length) {
+            return null;
+        }
+
+        return tasks.length > 1 ? this.state.compare_score : this.scoreFor(tasks[0]);
+    }
+
     /**
      * a model ticked or unticked for the comparison.
      *
@@ -317,15 +375,21 @@ class ModelLayout extends Component {
      * keeps it while it stays ticked, so unticking one leaves the others as they
      * were drawn. One that cannot be ticked -- see compareBlocked -- is left as
      * it is: its box is disabled, and says why.
+     *
+     * A model of another task ticked on a score of what each one's picks would
+     * have made is compared on that score, by the comparison's own picker, until
+     * the models ticked are of one task again (#279).
      */
     pick(model) {
-        const { picked } = this.state;
+        const { listing, picked } = this.state;
+        const chosen = this.chosen();
+        const score = this.comparedScore(chosen);
         let next;
 
         if (picked.some((each) => each.name === model.name)) {
             next = picked.filter((each) => each.name !== model.name);
         } else {
-            if (compareBlocked(model, this.chosen())) {
+            if (compareBlocked(model, chosen, score, listing.tasks)) {
                 return;
             }
 
@@ -339,11 +403,16 @@ class ModelLayout extends Component {
             next = picked.concat([{ name: model.name, slot: slot }]).sort((a, b) => a.slot - b.slot);
         }
 
-        this.setState({ picked: next }, () => writeCompare(next.map((each) => each.name)));
+        const across = tasksOf(next.map((each) => listing.models.find((one) => one.name === each.name)), listing.tasks).length > 1;
+
+        this.setState(
+            { picked: next, compare_score: across ? score : null },
+            () => writeCompare(next.map((each) => each.name)),
+        );
     }
 
     clear() {
-        this.setState({ picked: [] }, () => writeCompare([]));
+        this.setState({ picked: [], compare_score: null }, () => writeCompare([]));
     }
 
     toggleFilter(list, value) {
@@ -506,12 +575,16 @@ class ModelLayout extends Component {
         const chosen = this.chosen();
 
         if (chosen.length >= 2) {
+            const tasks = tasksOf(chosen, listing.tasks);
+
             return (
                 <CompareChart
                     picks={chosen.map((model, at) => ({ model: model, slot: picked[at].slot }))}
                     records={records}
-                    score={this.props.score}
-                    task={listing.tasks.find((task) => task.id === chosen[0].task)}
+                    score={this.comparedScore(chosen)}
+                    task={tasks[0]}
+                    tasks={tasks}
+                    onScore={tasks.length > 1 ? (score) => this.setState({ compare_score: score }) : null}
                     onClear={this.clear}
                 />
             );
@@ -526,12 +599,14 @@ class ModelLayout extends Component {
 
     //
     // one list per task the filters leave, each sorted, and none for a task
-    // they leave no model of
+    // they leave no model of. Each under a score picker of its own, of the
+    // scores its task has (#279)
     //
     groups(shown) {
         const { listing, records, picked, subscribed } = this.state;
-        const { score } = this.props;
+        const { onScore } = this.props;
         const chosen = this.chosen();
+        const compared = this.comparedScore(chosen);
 
         //
         // the axis every row's trend line is drawn on: the last 60 days any of
@@ -554,6 +629,8 @@ class ModelLayout extends Component {
                 return null;
             }
 
+            const score = this.scoreFor(task);
+
             //
             // the headings over the columns are hidden from a screen reader, as
             // a row's own cells say what they hold -- all but the score's, whose
@@ -567,12 +644,15 @@ class ModelLayout extends Component {
                         {task.description ? <span className='model-group-detail'>{task.description}</span> : null}
                         <span className='model-group-count'>{`${models.length} ${models.length === 1 ? 'model' : 'models'}`}</span>
                     </div>
+                    <div className='model-controls model-group-controls'>
+                        <ScorePicker score={score} onScore={(key) => onScore(task.id, key)} offered={scoresFor(task)} />
+                    </div>
                     <div className='model-list'>
                         <div className='model-list-head'>
                             <span aria-hidden='true'>Compare</span>
                             <span aria-hidden='true'>Model</span>
                             <span aria-hidden='true' />
-                            <InfoNote note={scoreOf(score).note} className='model-noted'>
+                            <InfoNote note={noteOf(score, task)} className='model-noted'>
                                 {`${scoreOf(score).label}, last 20 days`}
                             </InfoNote>
                             <span aria-hidden='true'>{`Last ${TREND_DAYS} days`}</span>
@@ -587,11 +667,12 @@ class ModelLayout extends Component {
                                     <ModelRow
                                         key={model.name}
                                         model={model}
+                                        task={task}
                                         score={score}
                                         rows={records[model.name]}
                                         axis={axis}
                                         picked={tick ? tick.slot : null}
-                                        blocked={compareBlocked(model, chosen)}
+                                        blocked={compareBlocked(model, chosen, compared, listing.tasks)}
                                         onPick={this.pick}
                                         held={subscribed.includes(model.name)}
                                     />
@@ -605,13 +686,13 @@ class ModelLayout extends Component {
     }
 
     //
-    // the score picker and the sort, which need nothing from the listing, so
-    // they are drawn while it is on its way as well
+    // the sort, which needs nothing from the listing, so it is drawn while it
+    // is on its way as well. Each list has its own score picker (#279), of the
+    // scores the listing says its task has
     //
     controls() {
         return (
             <div className='model-controls'>
-                <ScorePicker score={this.props.score} onScore={this.props.onScore} />
                 <label className='model-sort'>
                     <span className='model-control-label' aria-hidden='true'>Sort</span>
                     <select
@@ -648,7 +729,7 @@ class ModelLayout extends Component {
                         <p className='visually-hidden' role='status'>Loading the models&hellip;</p>
                         {this.controls()}
                         <p className='model-hint'>{HINT}</p>
-                        <PendingGroup score={this.props.score} />
+                        <PendingGroup />
                     </div>
                 </div>
             );
@@ -709,11 +790,11 @@ class ModelLayout extends Component {
                             <span className='model-count'>{listing === undefined ? <PendingBar width='1rem' /> : count}</span>
                         </div>
                         <span className='model-lede'>
-                            {'For each of the roughly 500 stocks in the S&P 500, these models predict three things about the next trading day: the chance its price goes up, the chance it beats the average stock, and how far it moves. Each night they read the day’s '}
+                            {'For each of the roughly 500 stocks in the S&P 500, the stock models predict three things about the next trading day: the chance its price goes up, the chance it beats the average stock, and how far it moves. The options model predicts, for each of those stocks’ options, the chance it makes money if bought at 9:40 AM the next trading day and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and sell prices. Each night they read the day’s '}
                             <Link to='/graph'>knowledge graph</Link>
                             {', built from the '}
                             <Link to='/stream'>data this site collects</Link>
-                            {'. Once that day’s prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all. This page shows those grades, not the predictions themselves.'}
+                            {'. Once the prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all. This page shows those grades, and the options model’s own page its picks.'}
                         </span>
                     </div>
                     {this.body()}
