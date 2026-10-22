@@ -240,12 +240,12 @@ describe('the model pages (#243)', () => {
         expect(screen.getByRole('link', { name: '‹ All models' })).toHaveAttribute('href', '/model');
     });
 
-    it('shares the score picked between the two', async () => {
+    it('shares the score picked between the two, as its task\'s (#279)', async () => {
         const store = await openAt('/model/pt-gnn');
 
         await act(async () => screen.getByRole('button', { name: 'Up/down AUC' }).click());
 
-        expect(store.getState().model.score).toBe('auc_up');
+        expect(store.getState().model.scores).toEqual({ direction: 'auc_up' });
         expect(screen.getByRole('button', { name: 'Up/down AUC' })).toHaveAttribute('aria-pressed', 'true');
     });
 });
