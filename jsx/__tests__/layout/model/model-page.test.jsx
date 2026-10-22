@@ -12,6 +12,7 @@ jest.mock('recharts', () => require('../../../test-support/model-fixtures.js').s
 jest.mock('../../../import/layout/model/source.js', () => ({
     loadListing: jest.fn(),
     loadReport: jest.fn(),
+    loadOptionPicks: jest.fn(),
 }));
 
 //
@@ -41,10 +42,11 @@ import ModelPageRoute, {
     rankAmong,
     sentence,
 } from '../../../import/layout/model/model-page.jsx';
-import { loadListing, loadReport } from '../../../import/layout/model/source.js';
+import { loadListing, loadOptionPicks, loadReport } from '../../../import/layout/model/source.js';
 import { listSubscriptions } from '../../../import/general/account-api.js';
-import { SCORES, formatScore, scoreOf } from '../../../import/layout/model/scores.js';
+import { SCORES, formatScore, noteOf, scoreOf } from '../../../import/layout/model/scores.js';
 import {
+    OPTIONS_TASK,
     TASKS,
     behindOf,
     downModelOf,
@@ -52,8 +54,14 @@ import {
     listingOf,
     modelOf,
     olderTrackOf,
+    optionsHistoryOf,
+    optionsListingOf,
+    optionsModelOf,
+    optionsTrackOf,
+    picksOf,
     timedHistoryOf,
     trackOf,
+    withTop10,
 } from '../../../test-support/model-fixtures.js';
 
 //
@@ -107,6 +115,8 @@ async function open(name = 'pt-gnn', props = {}) {
 beforeEach(() => {
     loadListing.mockReset();
     loadReport.mockReset();
+    loadOptionPicks.mockReset();
+    loadOptionPicks.mockResolvedValue(picksOf());
     listSubscriptions.mockReset();
     listSubscriptions.mockResolvedValue(null);
     // the charts a case folds are kept, as a reader's are (#253)
@@ -284,25 +294,27 @@ describe('before there is a model to show', () => {
             expect(document.querySelector('.model-heading a[href$="/alarm"]')).toBeNull();
         });
 
-        it('draws the score picker, which hands a score up before the listing lands', async () => {
-            const onScore = jest.fn();
+        it('draws the score picker\'s name over bars, as which scores it offers is the task\'s, which the listing says (#279)', async () => {
+            await open('pt-gnn');
 
-            await open('pt-gnn', { onScore: onScore });
-            await userEvent.click(screen.getByRole('button', { name: 'Up/down accuracy' }));
+            const picker = document.querySelector('.model-controls .model-picker-pending');
 
-            expect(onScore).toHaveBeenCalledWith('acc_up');
+            expect(picker).toHaveAttribute('aria-hidden', 'true');
+            expect(picker.querySelector('.model-control-label')).toHaveTextContent('Score');
+            expect(picker.querySelectorAll('.model-score-buttons .graph-pending-bar')).toHaveLength(4);
+            expect(screen.queryByRole('button', { name: 'Up/down accuracy' })).toBeNull();
         });
 
-        it('names the three figures over bars, as a wide screen\'s cards and a phone\'s boxes', async () => {
-            await open('pt-gnn', { score: 'auc_up' });
+        it('names the three figures over bars, as a wide screen\'s cards and a phone\'s boxes, the score as loss, which every task opens on', async () => {
+            await open('pt-gnn', { scores: { direction: 'auc_up' } });
 
             const summary = document.querySelector('.model-summary');
 
             expect(summary).toHaveAttribute('aria-hidden', 'true');
             expect([...summary.querySelectorAll('.model-stat-label')].map((label) => label.textContent))
-                .toEqual(['Live version', 'Attempts that went live', 'Up/down AUC']);
+                .toEqual(['Live version', 'Attempts that went live', 'Loss']);
             expect([...summary.querySelectorAll('.stream-focus-figure-label')].map((label) => label.textContent))
-                .toEqual(['Live version', 'Went live', 'Up/down AUC']);
+                .toEqual(['Live version', 'Went live', 'Loss']);
         });
 
         it('draws each chart\'s card under its title, its frame as tall as its chart', async () => {
@@ -480,7 +492,7 @@ describe('the summary', () => {
     it('follows the score picked', async () => {
         answer();
 
-        await open('pt-gnn', { score: 'acc_up' });
+        await open('pt-gnn', { scores: { direction: 'acc_up' } });
 
         expect(stat('Up/down accuracy, last 20 days')).toHaveTextContent('54.0%');
         expect(stat('Up/down accuracy, last 20 days')).toHaveTextContent('2.0 pts better than the baseline, 52.0%');
@@ -723,7 +735,7 @@ describe('the summary, on a phone', () => {
     it('starts the score\'s note with what the score picked measures', async () => {
         answer();
 
-        await open('pt-gnn', { score: 'acc_up' });
+        await open('pt-gnn', { scores: { direction: 'acc_up' } });
 
         expect(notes()[2]).toHaveAccessibleDescription(`${scoreOf('acc_up').note} 2.0 pts better than the baseline, 52.0%. 2nd of 3 Next-day direction models.`);
     });
@@ -766,7 +778,7 @@ describe('the score\'s name on its card (#265)', () => {
 
     it.each(SCORES.map((score) => [score.key, score.label, score.note]))('carries %s\'s note', async (key, label, note) => {
         answer();
-        await open('pt-gnn', { score: key });
+        await open('pt-gnn', { scores: { direction: key } });
 
         expect(named(`${label}, last 20 days`)).toHaveAccessibleDescription(note);
         expect(named(`${label}, last 20 days`).querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
@@ -897,7 +909,7 @@ describe('loss, part by part (#265)', () => {
 
     it.each(['auc_up', 'auc_beats', 'acc_up'])('shows none with %s picked', async (score) => {
         answer({ track: steady() });
-        await open('pt-gnn', { score: score });
+        await open('pt-gnn', { scores: { direction: score } });
 
         expect(document.querySelector('.model-parts')).toBeNull();
     });
@@ -955,7 +967,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
     describe('Live version', () => {
         it('says by how much the live version beat the one it replaced, in loss, whatever score is picked', async () => {
             answer({ history: wentOn() });
-            await open('pt-gnn', { score: 'auc_up' });
+            await open('pt-gnn', { scores: { direction: 'auc_up' } });
 
             expect(rowsOf(cardOf('Live version'))).toEqual([
                 ['Beat the version it replaced by', '0.010'],
@@ -1068,7 +1080,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
 
         it('keeps its place, and has no heading or parts, with another score picked', async () => {
             answer({ track: steady() });
-            await open('pt-gnn', { score: 'auc_up' });
+            await open('pt-gnn', { scores: { direction: 'auc_up' } });
 
             const body = cardOf('Up/down AUC, last 20 days').querySelector('.model-stat-body');
 
@@ -1086,7 +1098,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
 });
 
 describe('the score picker', () => {
-    it('hands the score picked up, for both pages to show', async () => {
+    it('hands the score picked up, with the model\'s task, for both pages to show (#279)', async () => {
         const onScore = jest.fn();
 
         answer();
@@ -1094,13 +1106,25 @@ describe('the score picker', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Up/down AUC' }));
 
-        expect(onScore).toHaveBeenCalledWith('auc_up');
+        expect(onScore).toHaveBeenCalledWith('direction', 'auc_up');
+    });
+
+    it('changes nothing, and breaks nothing, picked where no store listens (#279)', async () => {
+        loadListing.mockResolvedValue(optionsListingOf());
+        loadReport.mockImplementation((name, kind) => Promise.resolve(kind === 'history' ? optionsHistoryOf() : optionsTrackOf(30)));
+        await open('pt-options');
+
+        await userEvent.click(screen.getByRole('button', { name: 'Profit AUC' }));
+        await userEvent.click(screen.getByRole('button', { name: '20 days' }));
+
+        expect(screen.getByRole('button', { name: 'Loss' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: '1 day' })).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('shows the score it is handed as picked', async () => {
         answer();
 
-        await open('pt-gnn', { score: 'auc_beats' });
+        await open('pt-gnn', { scores: { direction: 'auc_beats' } });
 
         expect(screen.getByRole('button', { name: 'Beat-the-average AUC' })).toHaveAttribute('aria-pressed', 'true');
     });
@@ -1222,6 +1246,282 @@ describe('the went-live ticks', () => {
         const { container } = await open();
 
         expect(container.querySelector('.model-went-live')).toBeNull();
+    });
+});
+
+describe('an options model (#279)', () => {
+    //
+    // a format 3 listing, pt-options' history, and thirty days of its track
+    // record, the last four without their 5-day results and the last nineteen
+    // without their 20-day ones -- see optionsTrackOf
+    //
+    function options({ listing = optionsListingOf(), track = optionsTrackOf(30) } = {}) {
+        loadListing.mockResolvedValue(listing);
+        loadReport.mockImplementation((name, kind) => {
+            if (kind === 'history') {
+                return Promise.resolve(name === 'pt-options' ? optionsHistoryOf() : historyOf());
+            }
+
+            return Promise.resolve(name === 'pt-options' ? track : withTop10(trackOf()));
+        });
+    }
+
+    function stat(label) {
+        const cards = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-cards');
+
+        return within(cards).getByText(label).closest('.model-stat');
+    }
+
+    const picker = (name) => within(screen.getByRole('group', { name: name })).getAllByRole('button');
+    const pressed = (name) => picker(name).filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent);
+    const trackOn = () => document.querySelector('.model-track .model-chart').getAttribute('aria-label');
+
+    describe('its scores', () => {
+        it('are its task\'s own, in its picker, which hands one up with its task', async () => {
+            const onScore = jest.fn();
+
+            options();
+            await open('pt-options', { onScore: onScore });
+
+            expect(picker('Score').map((button) => button.textContent)).toEqual(['Loss', 'Profit AUC', 'Top 10 gain', 'Top 10 wins']);
+
+            await userEvent.click(screen.getByRole('button', { name: 'Profit AUC' }));
+
+            expect(onScore).toHaveBeenCalledWith('option-picks', 'profit_auc');
+        });
+
+        it('show its own loss, beside its baseline\'s, under its task\'s note, and no parts of loss', async () => {
+            options();
+            await open('pt-options');
+
+            expect(stat('Loss, last 20 days').querySelector('.model-stat-value')).toHaveTextContent('0.840');
+            expect(stat('Loss, last 20 days')).toHaveTextContent('0.040 better than the baseline, 0.880');
+            expect(within(stat('Loss, last 20 days')).getByText('Loss, last 20 days')).toHaveAccessibleDescription(noteOf('loss', OPTIONS_TASK));
+            expect(document.querySelector('.model-parts')).toBeNull();
+        });
+
+        it.each([
+            ['profit_auc', 'Profit AUC', '0.550', '0.050 better than the baseline, 0.500'],
+            ['top10_gain', 'Top 10 gain', '3.10%', '7.30 pts better than the baseline, −4.20%'],
+            ['top10_wins', 'Top 10 wins', '6.2', '2.1 better than the baseline, 4.1'],
+        ])('show %s picked, with no dash for a score it has', async (key, label, value, against) => {
+            options();
+            await open('pt-options', { scores: { 'option-picks': key } });
+
+            expect(stat(`${label}, last 20 days`).querySelector('.model-stat-value')).toHaveTextContent(value);
+            expect(stat(`${label}, last 20 days`)).toHaveTextContent(against);
+            expect(within(stat(`${label}, last 20 days`)).getByText(`${label}, last 20 days`)).toHaveAccessibleDescription(noteOf(key, OPTIONS_TASK));
+        });
+
+        it('rank it among its own task\'s models alone, where it is the only one', async () => {
+            options();
+            await open('pt-options', { scores: { 'option-picks': 'top10_gain' } });
+
+            expect(rowsOf(stat('Top 10 gain, last 20 days'))).toEqual([]);
+        });
+
+        it('leave a stock model\'s picker and figures as they were, the top 10\'s after its four', async () => {
+            options();
+            await open('pt-gnn', { scores: { direction: 'top10_wins' } });
+
+            expect(picker('Score').map((button) => button.textContent))
+                .toEqual(['Loss', 'Up/down AUC', 'Beat-the-average AUC', 'Up/down accuracy', 'Top 10 gain', 'Top 10 wins']);
+            expect(stat('Top 10 wins, last 20 days').querySelector('.model-stat-value')).toHaveTextContent('5.6');
+            expect(screen.queryByRole('group', { name: 'Hold' })).toBeNull();
+        });
+    });
+
+    describe('its holds', () => {
+        it('are picked beside the score, on the 1-day hold to start, which the track record is drawn on', async () => {
+            options();
+            await open('pt-options');
+
+            expect(picker('Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days']);
+            expect(pressed('Hold')).toEqual(['1 day']);
+            expect(trackOn()).toMatch(/^Loss on the 1-day hold of pt-options/);
+        });
+
+        it('hand the hold picked up', async () => {
+            const onHold = jest.fn();
+
+            options();
+            await open('pt-options', { onHold: onHold });
+
+            await userEvent.click(screen.getByRole('button', { name: '5 days' }));
+
+            expect(onHold).toHaveBeenCalledWith(5);
+        });
+
+        it('switch the track record\'s columns to the hold picked, and leave the attempts on the plain scores', async () => {
+            options();
+
+            const { container } = await open('pt-options', { hold: 5 });
+
+            expect(pressed('Hold')).toEqual(['5 days']);
+            expect(trackOn()).toMatch(/^Loss on the 5-day hold of pt-options/);
+            expect(container.querySelectorAll('.model-track .model-day-dot')).toHaveLength(26);
+            expect(container.querySelector('.model-card:not(.model-track)')).not.toHaveTextContent(/hold/);
+        });
+
+        it.each([
+            [5, 3, 'No 5-day results yet: each one comes in 6 trading days after its prediction.'],
+            [20, 15, 'No 20-day results yet: each one comes in 21 trading days after its prediction.'],
+        ])('say why the %s-day hold has nothing to draw, where no day\'s result is in yet', async (hold, days, said) => {
+            options({ track: optionsTrackOf(days) });
+            await open('pt-options', { hold: hold });
+
+            expect(screen.getByText(said)).toHaveClass('model-status-empty');
+            expect(document.querySelector('.model-track')).toBeNull();
+        });
+
+        it('offer the holds the track record has columns for, on the first where the one handed is none of them', async () => {
+            const without = optionsTrackOf(30).map((row) => {
+                const drop = (scores) => Object.fromEntries(Object.entries(scores).filter(([key]) => !key.endsWith('_20d')));
+
+                return { ...row, score: drop(row.score), baseline: drop(row.baseline), average: drop(row.average), baseline_average: drop(row.baseline_average) };
+            });
+
+            options({ track: without });
+            await open('pt-options', { hold: 20 });
+
+            expect(picker('Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days']);
+            expect(pressed('Hold')).toEqual(['1 day']);
+        });
+
+        it('are offered while the track record is on its way, so the picker does not arrive after the page', async () => {
+            loadListing.mockResolvedValue(optionsListingOf());
+            loadReport.mockReturnValue(new Promise(() => {}));
+            await open('pt-options');
+
+            expect(picker('Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days']);
+        });
+
+        it('go where the track record has no hold columns, or could not be had', async () => {
+            options({ track: trackOf() });
+
+            const { unmount } = await open('pt-options');
+
+            expect(screen.queryByRole('group', { name: 'Hold' })).toBeNull();
+
+            unmount();
+            options({ track: null });
+            await open('pt-options');
+
+            expect(screen.queryByRole('group', { name: 'Hold' })).toBeNull();
+        });
+    });
+
+    describe('its take-downs', () => {
+        const down = () => optionsModelOf({ down: { since: '2026-10-19', days: 1, in_a_row: 5, hold: 5 }, behind: [] });
+
+        it('name the hold that took the live version down', async () => {
+            options({ listing: optionsListingOf([down()]) });
+            await open('pt-options');
+
+            const box = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-boxes .stream-focus-figure-label');
+
+            expect(stat('Live version').querySelector('.model-stat-value')).toHaveTextContent('Taken down Oct 19');
+            expect(box).toHaveAccessibleDescription(
+                'The 5-day hold did worse than the baseline 5 scored days in a row. Nothing predicts until a new version beats the baseline on the days it was tested on.',
+            );
+            expect(liveFigure(down()).detail).toBe('the 5-day hold did worse than the baseline 5 scored days in a row');
+        });
+
+        it('list each check for each hold in the Live version card', async () => {
+            options();
+            await open('pt-options');
+
+            expect(rowsOf(stat('Live version'))).toEqual([
+                ['First predicted', 'Sep 1'],
+                ['Days in a row worse than the baseline'],
+                ['1-day hold'],
+                ['Each day', '2 of 5'],
+                ['5-day average', '0 of 10'],
+                ['20-day average', '0 of 5'],
+                ['5-day hold'],
+                ['Each day', '0 of 5'],
+                ['5-day average', '0 of 10'],
+                ['20-day average', 'not yet'],
+                ['20-day hold'],
+                ['Each day', '0 of 5'],
+                ['5-day average', 'not yet'],
+                ['20-day average', 'not yet'],
+            ]);
+        });
+    });
+
+    describe('the track record\'s menu', () => {
+        const offered = () => within(screen.getByRole('combobox', { name: 'Compare with' })).getAllByRole('option').map((option) => option.textContent);
+
+        it('offers no other model on loss, where no other is of its task', async () => {
+            options();
+            await open('pt-options');
+
+            expect(screen.queryByRole('combobox', { name: 'Compare with' })).toBeNull();
+        });
+
+        it('offers the other tasks\' models on a score they share', async () => {
+            options();
+            await open('pt-options', { scores: { 'option-picks': 'top10_gain' } });
+
+            expect(offered()).toEqual(['No other model', 'beater', 'fresh', 'pt-gnn', 'tables']);
+        });
+
+        it('offers a stock model its own task\'s models first, and the options model after them, only on a shared score', async () => {
+            options();
+
+            const { unmount } = await open('pt-gnn', { scores: { direction: 'top10_gain' } });
+
+            expect(offered()).toEqual(['No other model', 'fresh', 'tables', 'beater', 'pt-options']);
+
+            unmount();
+            options();
+            await open('pt-gnn');
+
+            expect(offered()).toEqual(['No other model', 'fresh', 'tables']);
+        });
+
+        it('draws another task\'s model on its own scores, and lets it go once the score picked is no longer shared', async () => {
+            options();
+
+            const view = await open('pt-options', { scores: { 'option-picks': 'top10_gain' } });
+
+            await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Compare with' }), 'pt-gnn');
+
+            expect(loadReport).toHaveBeenLastCalledWith('pt-gnn', 'track-record');
+            expect(trackOn()).toMatch(/of pt-options and pt-gnn/);
+
+            await act(async () => {
+                view.rerender(
+                    <MemoryRouter>
+                        <ModelPage name='pt-options' scores={{ 'option-picks': 'loss' }} />
+                    </MemoryRouter>
+                );
+            });
+
+            expect(trackOn()).not.toMatch(/pt-gnn/);
+            expect(screen.queryByRole('combobox', { name: 'Compare with' })).toBeNull();
+        });
+    });
+
+    describe('its picks', () => {
+        it('come after the charts, asked for by its name', async () => {
+            options();
+            await open('pt-options');
+
+            const cards = [...document.querySelectorAll('.model-card')];
+
+            expect(loadOptionPicks).toHaveBeenCalledWith('pt-options');
+            expect(cards[cards.length - 1]).toBe(screen.getByRole('region', { name: 'Tonight’s top 10' }));
+        });
+
+        it('are not drawn, nor asked for, for a stock model', async () => {
+            options();
+            await open('pt-gnn');
+
+            expect(screen.queryByRole('region', { name: 'Tonight’s top 10' })).toBeNull();
+            expect(loadOptionPicks).not.toHaveBeenCalled();
+        });
     });
 });
 
