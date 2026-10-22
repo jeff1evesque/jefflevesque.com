@@ -12,17 +12,23 @@ import {
     BASELINE_DASH,
     COMPARE_COLORS,
     COMPARE_MAX,
+    DEFAULT_HOLD,
     DEFAULT_SCORE,
+    HOLDS,
+    KNOWN_SCORES,
     LOSS_PARTS,
     SCORES,
     SCORING_OPACITY,
     STATUSES,
+    TRADE_SCORES,
     alignDays,
     behindLine,
     behindRows,
     betterBy,
     chartColors,
     checkWords,
+    chosenScore,
+    columnOf,
     compareBlocked,
     formatDuration,
     formatGap,
@@ -30,20 +36,41 @@ import {
     formatSignedTick,
     formatStarted,
     formatTick,
+    holdName,
+    holdsOf,
+    isScore,
     liveKind,
     longDay,
     lossParts,
+    noteOf,
     recentDays,
+    scoreIn,
     scoreOf,
+    scoresFor,
+    sharedScores,
     shortDay,
     sortModels,
     standing,
     statusLabel,
     statusOf,
     takenDown,
+    tradesOptions,
 } from '../../../import/layout/model/scores.js';
 import { colors_categorical, themeColors } from '../../../import/general/colors.js';
-import { behindOf, downModelOf, listingOf, modelOf, olderTrackOf, trackOf } from '../../../test-support/model-fixtures.js';
+import {
+    OPTIONS_TASK,
+    STOCK_SCORES,
+    TASKS,
+    behindOf,
+    downModelOf,
+    holdsBehindOf,
+    listingOf,
+    modelOf,
+    olderTrackOf,
+    optionsListingOf,
+    optionsTrackOf,
+    trackOf,
+} from '../../../test-support/model-fixtures.js';
 
 describe('the scores', () => {
     it('are the four the api keeps, loss alone lower-is-better', () => {
@@ -423,5 +450,200 @@ describe('compareBlocked', () => {
 
     it('always lets a ticked model be unticked', () => {
         expect(compareBlocked(fresh, [ptGnn, tables, fresh])).toBeNull();
+    });
+
+    describe('across tasks, on what each one\'s picks would have made (#279)', () => {
+        const listing = optionsListingOf();
+        const named = (name) => listing.models.find((model) => model.name === name);
+
+        it('lets a stock model be ticked next to pt-options on Top 10 gain or Top 10 wins, either first', () => {
+            ['top10_gain', 'top10_wins'].forEach((score) => {
+                expect(compareBlocked(named('pt-options'), [named('pt-gnn')], score, listing.tasks)).toBeNull();
+                expect(compareBlocked(named('tables'), [named('pt-options')], score, listing.tasks)).toBeNull();
+                expect(compareBlocked(named('tables'), [named('pt-gnn'), named('pt-options')], score, listing.tasks)).toBeNull();
+            });
+        });
+
+        it('turns it down on loss, and on a score the other task does not name, as before', () => {
+            ['loss', 'auc_up', 'profit_auc'].forEach((score) => {
+                expect(compareBlocked(named('pt-options'), [named('pt-gnn')], score, listing.tasks)).toMatch(/Predicts something else/);
+            });
+        });
+
+        it('turns it down on a top 10\'s score where either task names none, as a listing before format 3', () => {
+            const [stocks] = listing.tasks;
+
+            expect(compareBlocked(named('pt-options'), [named('pt-gnn')], 'top10_gain', [{ ...stocks, scores: undefined }, OPTIONS_TASK]))
+                .toMatch(/Predicts something else/);
+            expect(compareBlocked(named('pt-options'), [named('pt-gnn')], 'top10_gain')).toMatch(/Predicts something else/);
+        });
+
+        it('still turns down a fourth', () => {
+            expect(compareBlocked(named('fresh'), [named('pt-gnn'), named('tables'), named('pt-options')], 'top10_gain', listing.tasks))
+                .toMatch(/Up to three/);
+        });
+    });
+});
+
+describe('each task\'s scores, from format 3 on (#279)', () => {
+    const [stocks, , options] = optionsListingOf().tasks;
+
+    it('are the stock models\' four, and the top 10\'s two after them, and an options model\'s loss and its three', () => {
+        expect(scoresFor(stocks)).toEqual(STOCK_SCORES);
+        expect(scoresFor(options)).toEqual(['loss', 'profit_auc', 'top10_gain', 'top10_wins']);
+    });
+
+    it('are the four stock scores for a task that names none, as before format 3', () => {
+        expect(scoresFor(TASKS[0])).toEqual(['loss', 'auc_up', 'auc_beats', 'acc_up']);
+        expect(scoresFor(undefined)).toEqual(['loss', 'auc_up', 'auc_beats', 'acc_up']);
+    });
+
+    it('leave out a score the pages do not know, and keep loss for a task that names none they know', () => {
+        expect(scoresFor({ id: 'x', scores: ['sharpe', 'top10_wins', 'loss'] })).toEqual(['top10_wins', 'loss']);
+        expect(scoresFor({ id: 'x', scores: ['sharpe'] })).toEqual(['loss']);
+    });
+
+    it('know every score by its key, and fall back to loss for one they do not', () => {
+        expect(KNOWN_SCORES.map((score) => score.key)).toEqual([...SCORES.map((score) => score.key), 'profit_auc', 'top10_gain', 'top10_wins']);
+        expect(TRADE_SCORES.map((score) => score.label)).toEqual(['Profit AUC', 'Top 10 gain', 'Top 10 wins']);
+        expect(isScore('top10_gain')).toBe(true);
+        expect(isScore('loss_5d')).toBe(false);
+        expect(scoreOf('top10_wins').label).toBe('Top 10 wins');
+    });
+
+    it('run higher-is-better, and say so in their notes', () => {
+        TRADE_SCORES.forEach((score) => {
+            expect(score.lower).toBe(false);
+            [score.note, score.optionsNote].filter(Boolean).forEach((note) => expect(note).toMatch(/[Hh]igher is better/));
+        });
+    });
+
+    it('tell a task that trades options by a score only an options model has', () => {
+        expect(tradesOptions(options)).toBe(true);
+        expect(tradesOptions(stocks)).toBe(false);
+        expect(tradesOptions(TASKS[0])).toBe(false);
+    });
+
+    it('say what Profit AUC measures, and that 0.5 is a coin flip', () => {
+        expect(noteOf('profit_auc', options))
+            .toBe('How well the chance ranks the options that made money above the ones that didn’t: 0.5 is a coin flip, and higher is better.');
+    });
+
+    it('say for each task what its top 10 is, and that the baseline is a random pick', () => {
+        expect(noteOf('top10_gain', stocks)).toBe(
+            'The average gain of each night’s top 10: the 10 stocks the model is surest will go up, bought at the 9:40 AM ask and sold at the '
+            + '3:40 PM bid the same day. Higher is better, and the baseline is the average of everything it could have picked: what a random pick got.',
+        );
+        expect(noteOf('top10_gain', options)).toMatch(/^The average gain of each night’s top 10: the model’s 10 best options for the hold, bought at the 9:40 AM ask and sold at the 3:40 PM bid on the sell day\./);
+        expect(noteOf('top10_wins', stocks)).toMatch(/^How many of each night’s top 10 made money: the 10 stocks/);
+        expect(noteOf('top10_wins', options)).toMatch(/^How many of each night’s top 10 made money: the model’s 10 best options/);
+    });
+
+    it('say what an options model\'s loss adds up, and the stock models\' loss as before', () => {
+        expect(noteOf('loss', options)).toBe(
+            'Loss adds up, for each hold that is on, the log loss of the chance each option makes money and the pinball loss of its gain. '
+            + 'Lower is better, and the baseline beside it is a know-nothing model’s.',
+        );
+        expect(noteOf('loss', stocks)).toBe(scoreOf('loss').note);
+        expect(noteOf('auc_up', stocks)).toBe(scoreOf('auc_up').note);
+    });
+
+    it('show the score the reader picked for a task, where it has it, and loss otherwise', () => {
+        expect(chosenScore({ 'option-picks': 'profit_auc' }, options)).toBe('profit_auc');
+        expect(chosenScore({ 'option-picks': 'auc_up' }, options)).toBe('loss');
+        expect(chosenScore({ direction: 'top10_wins' }, TASKS[0])).toBe('loss');
+        expect(chosenScore({}, options)).toBe('loss');
+        expect(chosenScore(undefined, options)).toBe('loss');
+        expect(chosenScore({ x: 'top10_wins' }, { id: 'x', scores: ['top10_gain', 'top10_wins'] })).toBe('top10_wins');
+        expect(chosenScore({}, { id: 'x', scores: ['top10_gain', 'top10_wins'] })).toBe('top10_gain');
+    });
+
+    it('share between tasks only the top 10\'s that each names', () => {
+        expect(sharedScores([stocks, options])).toEqual(['top10_gain', 'top10_wins']);
+        expect(sharedScores([options, stocks])).toEqual(['top10_gain', 'top10_wins']);
+        expect(sharedScores([stocks, { ...options, scores: ['loss', 'top10_wins'] }])).toEqual(['top10_wins']);
+        expect(sharedScores([TASKS[0], TASKS[1]])).toEqual([]);
+    });
+
+    it('read a score off a set that carries it, and none off one that does not', () => {
+        expect(scoreIn({ loss: 1.6, top10_gain: null }, 'loss')).toBe(1.6);
+        expect(scoreIn({ loss: 1.6, top10_gain: null }, 'top10_gain')).toBeNull();
+        expect(scoreIn({ loss: 1.6 }, 'top10_wins')).toBeNull();
+        expect(scoreIn(null, 'loss')).toBeNull();
+    });
+});
+
+describe('printing the top 10\'s scores (#279)', () => {
+    it('prints the gain as a percentage to two places, below zero with a minus sign', () => {
+        expect(formatScore(0.0123, 'top10_gain')).toBe('1.23%');
+        expect(formatScore(-0.0421, 'top10_gain')).toBe('−4.21%');
+        expect(formatScore(-0.00001, 'top10_gain')).toBe('0.00%');
+        expect(formatGap(-0.0009, 'top10_gain')).toBe('0.09 pts');
+        expect(formatTick(-0.015, 'top10_gain')).toBe('−1.5%');
+        expect(formatSignedTick(0.0004, 'top10_gain')).toBe('+0.04 pts');
+    });
+
+    it('prints how many won as a count to one place', () => {
+        expect(formatScore(6.25, 'top10_wins')).toBe('6.3');
+        expect(formatGap(-2.1, 'top10_wins')).toBe('2.1');
+        expect(formatTick(6, 'top10_wins')).toBe('6');
+        expect(formatSignedTick(-0.5, 'top10_wins')).toBe('−0.5');
+    });
+
+    it('prints Profit AUC as an AUC, to three places', () => {
+        expect(formatScore(0.5512, 'profit_auc')).toBe('0.551');
+    });
+
+    it('calls two gains level where they print alike', () => {
+        expect(standing(betterBy(0.01204, 0.01201, 'top10_gain'), 'top10_gain')).toBe('level');
+        expect(standing(betterBy(0.0012, 0.0003, 'top10_gain'), 'top10_gain')).toBe('better');
+        expect(standing(betterBy(5.1, 5.6, 'top10_wins'), 'top10_wins')).toBe('worse');
+    });
+});
+
+describe('an options model\'s holds (#279)', () => {
+    it('are held 1, 5 and 20 trading days, and the pages open on the 1-day hold\'s', () => {
+        expect(HOLDS).toEqual([{ days: 1, label: '1 day' }, { days: 5, label: '5 days' }, { days: 20, label: '20 days' }]);
+        expect(DEFAULT_HOLD).toBe(1);
+    });
+
+    it('put each score of a hold in a column of its own, and a score of none in its own', () => {
+        expect(columnOf('top10_gain', 5)).toBe('top10_gain_5d');
+        expect(columnOf('loss', 20)).toBe('loss_20d');
+        expect(columnOf('loss', null)).toBe('loss');
+        expect(columnOf('loss')).toBe('loss');
+    });
+
+    it('are the holds a track record has columns for: an options model\'s three, and none for a stock model\'s', () => {
+        expect(holdsOf(optionsTrackOf(3)).map((hold) => hold.days)).toEqual([1, 5, 20]);
+        expect(holdsOf(trackOf(3))).toEqual([]);
+        expect(holdsOf([])).toEqual([]);
+        expect(holdsOf(null)).toEqual([]);
+    });
+
+    it('are named as the pages name them', () => {
+        expect(holdName(5)).toBe('5-day hold');
+    });
+
+    it('say which hold took a live version down', () => {
+        expect(checkWords({ days: 1, in_a_row: 5, hold: 5 })).toBe('the 5-day hold did worse than the baseline 5 scored days in a row');
+        expect(checkWords({ days: 20, in_a_row: 5, hold: 1 })).toBe('the 1-day hold’s 20-day average was worse than the baseline’s 5 days in a row');
+        expect(checkWords({ days: 1, in_a_row: 5, hold: null })).toBe('worse than the baseline 5 scored days in a row');
+    });
+
+    it('say how close each check is on each hold, in a line and in a card\'s rows', () => {
+        expect(behindLine(holdsBehindOf())).toBe(
+            'Days in a row worse than the baseline: 1-day hold, each day 2 of 5, 5-day average 0 of 10, 20-day average 0 of 5; '
+            + '5-day hold, each day 0 of 5, 5-day average 0 of 10, 20-day average not yet; '
+            + '20-day hold, each day 0 of 5, 5-day average not yet, 20-day average not yet.',
+        );
+        expect(behindRows(holdsBehindOf()).slice(0, 5)).toEqual([
+            { key: 'hold-1', name: '1-day hold', head: true },
+            { key: 'check-1-1', name: 'Each day', value: '2 of 5' },
+            { key: 'check-1-5', name: '5-day average', value: '0 of 10' },
+            { key: 'check-1-20', name: '20-day average', value: '0 of 5' },
+            { key: 'hold-5', name: '5-day hold', head: true },
+        ]);
+        expect(behindRows(holdsBehindOf())).toHaveLength(12);
     });
 });
