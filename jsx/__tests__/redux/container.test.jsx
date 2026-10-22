@@ -32,9 +32,10 @@
  * spelling of the username half. They are asserted to agree, so a fix applied to
  * one and not the others shows up here.
  *
- * The model container is the exception to both (#243). It maps the one thing
- * the model pages share, the score they show, and binds its creator properly,
- * so the score a page hands onScore is the action's score.
+ * The model container is the exception to both (#243). It maps what the model
+ * pages share, the score they show for each task and a model page's hold (#279),
+ * and binds its creators properly, so what a page hands onScore or onHold is the
+ * action's.
  */
 
 import React from 'react';
@@ -247,44 +248,73 @@ describe.each([
     ['/model', ModelLayoutState, 'model'],
     ['/model/:model', ModelPageState, 'model-page'],
 ])('the model container, for %s (#243)', (label, Container, probe) => {
-    it('hands the page the score the store holds', () => {
-        const { props } = propsOf(Container, { model: { score: 'auc_up' } }, probe);
+    it('hands the page the score the store holds for each task (#279)', () => {
+        const { props } = propsOf(Container, { model: { scores: { direction: 'auc_up', 'option-picks': 'top10_gain' }, hold: 1 } }, probe);
 
-        expect(props.score).toBe('auc_up');
+        expect(props.scores).toEqual({ direction: 'auc_up', 'option-picks': 'top10_gain' });
     });
 
-    it('hands it loss on a store with no model slice', () => {
-        expect(propsOf(Container, {}, probe).props.score).toBe('loss');
+    it('hands it no score for any task on a store with no model slice, which the pages read as loss', () => {
+        expect(propsOf(Container, {}, probe).props.scores).toEqual({});
     });
 
-    it('hands it loss on a cold store, as the reducer starts', () => {
+    it('hands it none on a cold store, as the reducer starts', () => {
         render(<Provider store={realStore()}><Container /></Provider>);
 
-        expect(mockSeen[probe].score).toBe('loss');
+        expect(mockSeen[probe].scores).toEqual({});
     });
 
-    it('maps the score and the way to pick one, and nothing else', () => {
-        const { props } = propsOf(Container, { user: { name: 'jeff' } }, probe);
-
-        expect(Object.keys(props).sort()).toEqual(['onScore', 'score']);
-    });
-
-    it('dispatches the score onScore is handed', () => {
+    it('dispatches the task and the score onScore is handed (#279)', () => {
         const { props, dispatched } = propsOf(Container, {}, probe);
 
-        act(() => props.onScore('acc_up'));
+        act(() => props.onScore('direction', 'acc_up'));
 
-        expect(dispatched[dispatched.length - 1]).toEqual({ type: 'SET-MODEL-SCORE', score: 'acc_up' });
+        expect(dispatched[dispatched.length - 1]).toEqual({ type: 'SET-MODEL-SCORE', task: 'direction', score: 'acc_up' });
     });
 
-    it('so a score picked on one page is the score the store then holds', () => {
+    it('so a score picked for a task on one page is the score the store then holds for it, and for no other', () => {
         const store = realStore();
 
         render(<Provider store={store}><Container /></Provider>);
-        act(() => mockSeen[probe].onScore('auc_beats'));
+        act(() => mockSeen[probe].onScore('direction', 'auc_beats'));
 
-        expect(store.getState().model).toEqual({ score: 'auc_beats' });
-        expect(mockSeen[probe].score).toBe('auc_beats');
+        expect(store.getState().model.scores).toEqual({ direction: 'auc_beats' });
+        expect(mockSeen[probe].scores).toEqual({ direction: 'auc_beats' });
+    });
+});
+
+describe('the model container\'s hold, for a model\'s page (#279)', () => {
+    it('maps /model the scores and the way to pick one, and nothing else', () => {
+        const { props } = propsOf(ModelLayoutState, { user: { name: 'jeff' } }, 'model');
+
+        expect(Object.keys(props).sort()).toEqual(['onScore', 'scores']);
+    });
+
+    it('maps a model\'s page the hold and the way to pick one too, and nothing else', () => {
+        const { props } = propsOf(ModelPageState, { user: { name: 'jeff' } }, 'model-page');
+
+        expect(Object.keys(props).sort()).toEqual(['hold', 'onHold', 'onScore', 'scores']);
+    });
+
+    it('hands the page the hold the store holds, and the 1-day hold on a store with none', () => {
+        expect(propsOf(ModelPageState, { model: { scores: {}, hold: 20 } }, 'model-page').props.hold).toBe(20);
+        expect(propsOf(ModelPageState, {}, 'model-page').props.hold).toBe(1);
+    });
+
+    it('dispatches the hold onHold is handed, which the store then holds', () => {
+        const { props, dispatched } = propsOf(ModelPageState, {}, 'model-page');
+
+        act(() => props.onHold(5));
+
+        expect(dispatched[dispatched.length - 1]).toEqual({ type: 'SET-MODEL-HOLD', hold: 5 });
+
+        const store = realStore();
+
+        render(<Provider store={store}><ModelPageState /></Provider>);
+        act(() => mockSeen['model-page'].onHold(20));
+
+        expect(store.getState().model).toEqual({ scores: {}, hold: 20 });
+        expect(mockSeen['model-page'].hold).toBe(20);
     });
 });
 
