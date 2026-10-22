@@ -8,13 +8,16 @@
  * shows how the predictions are graded, and the options model's page its picks.
  * One list per task -- what a model predicts -- beside a column of filters, by
  * task and by status, which folds to a rail as /graph's columns do and is a
- * folded band on a phone (#251). Every row carries the model's latest 20-day
- * score against the know-nothing baseline, and a trend line of it; see
- * model/model-row.jsx. Each list has a score picker of its own, of the scores its
- * task has (#279), which chooses what its rows and their trend lines show, and
- * is shared with each of its models' own pages -- see redux/container/model.jsx
- * -- and a sort menu orders every list alike. The heading over the score's
- * column carries a note on what the score measures (#265).
+ * folded band on a phone (#251). Every row carries the model's live version, how
+ * many of its attempts went live, a trend line of its score, and last its latest
+ * 20-day score against the know-nothing baseline; see model/model-row.jsx. Each
+ * list has a score picker of its own, of the scores its task has (#279), which
+ * chooses what its rows and their trend lines show, and is shared with each of
+ * its models' own pages -- see redux/container/model.jsx -- and a sort menu
+ * orders every list alike. The heading over the score's column carries a note
+ * on what the score measures (#265). While Loss is picked, a list of stock
+ * models shows loss's three parts in its place, each under its own name, the
+ * score's heading over the three (#283).
  *
  * Ticking two or three models of one task draws their track records on one chart
  * over the lists, on the score its list shows; see model/compare-chart.jsx. A
@@ -55,6 +58,7 @@ import { readLayout, writeLayout } from '../general/layout-preference.js';
 import { listSubscriptions } from '../general/account-api.js';
 import { loadListing, loadReport } from './model/source.js';
 import {
+    LOSS_PARTS,
     SORTS,
     STATUSES,
     TREND_DAYS,
@@ -65,6 +69,7 @@ import {
     scoreOf,
     scoresFor,
     sharedScores,
+    showsParts,
     sortModels,
     statusOf,
 } from './model/scores.js';
@@ -630,12 +635,21 @@ class ModelLayout extends Component {
             }
 
             const score = this.scoreFor(task);
+            const parts = showsParts(score, task);
+            const scoreHead = (
+                <InfoNote note={noteOf(score, task)} className='model-noted'>
+                    {`${scoreOf(score).label}, last 20 days`}
+                </InfoNote>
+            );
 
             //
             // the headings over the columns are hidden from a screen reader, as
             // a row's own cells say what they hold -- all but the score's, whose
             // note can be focused: what is hidden from a screen reader must hold
-            // nothing the keyboard can reach (#265)
+            // nothing the keyboard can reach (#265). Where loss's parts stand in
+            // its place, the score's heading is over the three, each under its
+            // own name (#283). The 60-day line's heading goes with the line,
+            // where a list is too narrow for it -- see '_model.scss'
             //
             return (
                 <section key={task.id} className='model-group' aria-labelledby={`model-group-${index}`}>
@@ -647,17 +661,21 @@ class ModelLayout extends Component {
                     <div className='model-controls model-group-controls'>
                         <ScorePicker score={score} onScore={(key) => onScore(task.id, key)} offered={scoresFor(task)} />
                     </div>
-                    <div className='model-list'>
+                    <div className={parts ? 'model-list model-list-parts' : 'model-list'}>
                         <div className='model-list-head'>
                             <span aria-hidden='true'>Compare</span>
                             <span aria-hidden='true'>Model</span>
                             <span aria-hidden='true' />
-                            <InfoNote note={noteOf(score, task)} className='model-noted'>
-                                {`${scoreOf(score).label}, last 20 days`}
-                            </InfoNote>
-                            <span aria-hidden='true'>{`Last ${TREND_DAYS} days`}</span>
                             <span aria-hidden='true'>Live version</span>
                             <span aria-hidden='true'>Went live</span>
+                            <span aria-hidden='true' className='model-head-trend'>{`Last ${TREND_DAYS} days`}</span>
+                            {parts
+                                ? (
+                                    <div className='model-parts-head'>
+                                        {scoreHead}
+                                        {LOSS_PARTS.map((part) => <span key={part.key} aria-hidden='true'>{part.label}</span>)}
+                                    </div>
+                                ) : scoreHead}
                         </div>
                         <div role='list' aria-label={`${task.name} models`}>
                             {sortModels(models, this.state.sort, score).map((model) => {
@@ -675,6 +693,7 @@ class ModelLayout extends Component {
                                         blocked={compareBlocked(model, chosen, compared, listing.tasks)}
                                         onPick={this.pick}
                                         held={subscribed.includes(model.name)}
+                                        parts={parts}
                                     />
                                 );
                             })}
