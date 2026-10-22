@@ -25,6 +25,13 @@
  * model that has not retired. A listing before format 2 says neither, and the
  * figures are as they were.
  *
+ * The score picker offers the scores the model's task has (#279). An options
+ * model's page has a hold picker beside it, which the track record follows --
+ * the attempts are scored on the plain scores, which decide what goes live --
+ * its checks say which hold each is of, and after the charts are its picks: see
+ * option-picks.jsx. On a score of what each model's picks would have made, the
+ * track record's menu offers the models of other tasks too.
+ *
  * The listing says who the model is; its history and its track record are asked
  * for once the listing names it. A name the listing does not hold is a model
  * that does not exist, and the page says so rather than drawing nothing.
@@ -45,30 +52,40 @@ import FigureBoxes from '../../general/figure-boxes.jsx';
 import InfoNote from '../../general/info-note.jsx';
 import AttemptsChart, { HEIGHT as ATTEMPTS_HEIGHT, TITLE as ATTEMPTS_TITLE } from './attempts-chart.jsx';
 import TrackChart, { HEIGHT as TRACK_HEIGHT, TITLE as TRACK_TITLE } from './track-chart.jsx';
-import { AlarmBell, ScorePicker, StatusPill, modelsHeld } from './parts.jsx';
+import OptionPicks from './option-picks.jsx';
+import { AlarmBell, HoldPicker, ScorePicker, StatusPill, modelsHeld } from './parts.jsx';
 import { loadListing, loadReport } from './source.js';
-import { PendingChart, PendingLines, PendingSummary, STAGGER } from './pending.jsx';
+import { PendingChart, PendingLines, PendingPicker, PendingSummary, STAGGER } from './pending.jsx';
 import { PendingBar } from '../graph/pending.jsx';
 import { listSubscriptions } from '../../general/account-api.js';
 import {
+    DEFAULT_HOLD,
     DEFAULT_SCORE,
+    HOLDS,
     WINDOW,
     behindLine,
     behindRows,
     betterBy,
     checkWords,
+    chosenScore,
+    columnOf,
     formatDuration,
     formatGap,
     formatScore,
     formatStarted,
+    holdsOf,
     liveKind,
     lossParts,
+    noteOf,
+    scoreIn,
     scoreOf,
+    scoresFor,
     shortDay,
     sortModels,
     standing,
     statusOf,
     takenDown,
+    tradesOptions,
 } from './scores.js';
 
 //
@@ -363,13 +380,23 @@ class ModelPage extends Component {
         // the model's name, as the address holds it
         //
         name: PropTypes.string.isRequired,
-        score: PropTypes.string,
+        //
+        // the score shown for each task, and the way to choose another for one,
+        // as /model's lists are (#279), and the hold an options model's track
+        // record is drawn on, and the way to choose another -- the store's, see
+        // redux/container/model.jsx
+        //
+        scores: PropTypes.objectOf(PropTypes.string),
         onScore: PropTypes.func,
+        hold: PropTypes.number,
+        onHold: PropTypes.func,
     }
 
     static defaultProps = {
-        score: DEFAULT_SCORE,
+        scores: {},
         onScore: () => {},
+        hold: DEFAULT_HOLD,
+        onHold: () => {},
     }
 
     constructor(props) {
@@ -459,15 +486,14 @@ class ModelPage extends Component {
     }
 
     //
-    // the three figures over the charts
+    // the three figures over the charts, on `score`
     //
-    summary(model, task) {
-        const { score } = this.props;
+    summary(model, task, score) {
         const { history, listing, track } = this.state;
         const status = statusOf(model);
         const live = liveFigure(model);
-        const value = model.score ? model.score[score] : null;
-        const baseline = model.baseline ? model.baseline[score] : null;
+        const value = scoreIn(model.score, score);
+        const baseline = scoreIn(model.baseline, score);
         const gap = betterBy(value, baseline, score);
         const stands = standing(gap, score);
         const weekly = Array.isArray(history) ? history.filter((row) => row.kind === 'weekly') : [];
@@ -557,7 +583,7 @@ class ModelPage extends Component {
                     </div>
                     <div className='model-stat'>
                         <div className='model-stat-head'>
-                            <InfoNote note={scoreOf(score).note} className='model-stat-label model-noted'>{scoreName}</InfoNote>
+                            <InfoNote note={noteOf(score, task)} className='model-stat-label model-noted'>{scoreName}</InfoNote>
                             <span className='model-stat-value'>{formatScore(value, score)}</span>
                             <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
                         </div>
@@ -589,7 +615,7 @@ class ModelPage extends Component {
                                 key: 'score',
                                 label: scoreName,
                                 short: scoreOf(score).label,
-                                note: [scoreOf(score).note, sentence(against), sentence(place), behind].filter(Boolean).join(' '),
+                                note: [noteOf(score, task), sentence(against), sentence(place), behind].filter(Boolean).join(' '),
                                 value: formatScore(value, score),
                                 tone: { better: 'good', worse: 'bad' }[stands],
                             },
@@ -623,14 +649,90 @@ class ModelPage extends Component {
         return chart();
     }
 
+    //
+    // the holds an options model's track record is drawn on (#279), and the one
+    // it is drawn on now: the hold picked, where the record has it, and its
+    // first otherwise. While the record is on its way, the three, for a task
+    // that trades options, so the picker does not arrive after the page has;
+    // and none for a model with no holds
+    //
+    holds(task) {
+        const { track } = this.state;
+        const holds = track === undefined && tradesOptions(task) ? HOLDS : holdsOf(track);
+        const hold = holds.some((each) => each.days === this.props.hold) ? this.props.hold : null;
+
+        return { holds: holds, hold: hold || (holds.length ? holds[0].days : null) };
+    }
+
+    //
+    // the models the track record's menu offers, by name: the others of its
+    // task, and on a score of what each one's picks would have made, the models
+    // of other tasks that name it, after them (#279)
+    //
+    others(model, score) {
+        const { listing } = this.state;
+        const named = (models) => models.map((each) => each.name).sort();
+
+        return named(listing.models.filter((each) => each.task === model.task && each.name !== model.name))
+            .concat(scoreOf(score).across
+                ? named(listing.models.filter((each) => (
+                    each.task !== model.task && scoresFor(listing.tasks.find((task) => task.id === each.task)).includes(score)
+                )))
+                : []);
+    }
+
+    //
+    // the track record's chart, or a line saying why there is none: no day
+    // scored yet, or none on the hold picked (#279) -- each of its results is
+    // in a trading day after its sell day
+    //
+    trackRecord(model, score, holds) {
+        const { history, track, other, other_rows } = this.state;
+        const hold = holdsOf(track).length ? holds.hold : null;
+
+        if (!track.length) {
+            return <p className='model-status model-status-empty'>No days scored yet.</p>;
+        }
+
+        if (hold && !track.some((row) => scoreIn(row.score, columnOf(score, hold)) !== null)) {
+            return (
+                <p className='model-status model-status-empty'>
+                    {`No ${hold}-day results yet: each one comes in ${hold + 1} trading days after its prediction.`}
+                </p>
+            );
+        }
+
+        //
+        // the other model picked, while the menu still offers it: on another
+        // score, another task's no longer is
+        //
+        const others = this.others(model, score);
+        const offered = others.includes(other) ? other : null;
+
+        return (
+            <TrackChart
+                name={model.name}
+                rows={track}
+                score={score}
+                hold={hold}
+                others={others}
+                other={offered}
+                otherRows={offered ? other_rows : undefined}
+                onOther={this.pickOther}
+                wentLive={Array.isArray(history) ? history.filter((row) => row.went_live).map((row) => row.day) : []}
+            />
+        );
+    }
+
     body() {
-        const { name, score, onScore } = this.props;
-        const { listing, history, track, other, other_rows } = this.state;
+        const { name, scores, onScore, onHold } = this.props;
+        const { listing, history, track } = this.state;
 
         //
         // while the listing is on its way, the page's own shape (#274): the
-        // model's name, which the address holds, the score picker, and bars
-        // where its figures and its line will be -- see pending.jsx
+        // model's name, which the address holds, the score picker's name over
+        // bars, as which scores it offers is its task's (#279), and bars where
+        // its figures and its line will be -- see pending.jsx
         //
         if (listing === undefined) {
             return (
@@ -646,9 +748,9 @@ class ModelPage extends Component {
                         </span>
                     </div>
                     <div className='model-controls'>
-                        <ScorePicker score={score} onScore={onScore} />
+                        <PendingPicker />
                     </div>
-                    <PendingSummary score={score} />
+                    <PendingSummary score={DEFAULT_SCORE} />
                     <PendingChart {...ATTEMPTS_CARD} />
                     <PendingChart {...TRACK_CARD} />
                 </>
@@ -671,10 +773,8 @@ class ModelPage extends Component {
         }
 
         const task = listing.tasks.find((each) => each.id === model.task);
-        const others = listing.models
-            .filter((each) => each.task === model.task && each.name !== model.name)
-            .map((each) => each.name)
-            .sort();
+        const score = chosenScore(scores, task || { id: model.task });
+        const holds = this.holds(task);
 
         return (
             <>
@@ -692,25 +792,15 @@ class ModelPage extends Component {
                     </span>
                 </div>
                 <div className='model-controls'>
-                    <ScorePicker score={score} onScore={onScore} />
+                    <ScorePicker score={score} onScore={(key) => onScore(model.task, key)} offered={scoresFor(task)} />
+                    {holds.holds.length ? <HoldPicker hold={holds.hold} onHold={onHold} holds={holds.holds} /> : null}
                 </div>
-                {this.summary(model, task)}
+                {this.summary(model, task, score)}
                 {this.report(history, 'nightly attempts', ATTEMPTS_CARD, () => (history.length
                     ? <AttemptsChart rows={history} score={score} />
                     : <p className='model-status model-status-empty'>No nightly attempts yet.</p>))}
-                {this.report(track, 'track record', TRACK_CARD, () => (track.length
-                    ? (
-                        <TrackChart
-                            name={model.name}
-                            rows={track}
-                            score={score}
-                            others={others}
-                            other={other}
-                            otherRows={other_rows}
-                            onOther={this.pickOther}
-                            wentLive={Array.isArray(history) ? history.filter((row) => row.went_live).map((row) => row.day) : []}
-                        />
-                    ) : <p className='model-status model-status-empty'>No days scored yet.</p>))}
+                {this.report(track, 'track record', TRACK_CARD, () => this.trackRecord(model, score, holds))}
+                {tradesOptions(task) ? <OptionPicks name={model.name} /> : null}
             </>
         );
     }
