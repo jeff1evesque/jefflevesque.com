@@ -63,6 +63,7 @@ import {
     formatStarted,
     formatTick,
     longDay,
+    scoreIn,
     scoreOf,
     shortDay,
     standing,
@@ -140,7 +141,8 @@ AttemptMark.propTypes = {
 /**
  * each night as the charts draw it: its scores on `score`, how much better than
  * the live version the attempt was -- positive where it was better, whichever
- * way the score runs -- and when it started, as the history wrote it.
+ * way the score runs -- and when it started, as the history wrote it. A score
+ * the history has no column for is none (#279).
  *
  * Where the night has times, `training` and `scoring` split how long it took,
  * in seconds: the training, and the rest of the attempt after it. Both are null
@@ -152,15 +154,17 @@ export function attemptPoints(rows, score) {
         const training = row.training_seconds;
         const total = row.total_seconds;
         const timed = Number.isFinite(training) && Number.isFinite(total) && training >= 0 && total >= training;
+        const attempt = scoreIn(row.attempt, score);
+        const live = scoreIn(row.live, score);
 
         return {
             day: row.day,
             kind: row.kind,
             went_live: row.went_live,
-            attempt: row.attempt[score],
-            live: row.live[score],
-            baseline: row.baseline[score],
-            gap: betterBy(row.attempt[score], row.live[score], score),
+            attempt: attempt,
+            live: live,
+            baseline: scoreIn(row.baseline, score),
+            gap: betterBy(attempt, live, score),
             started: row.started || null,
             training: timed ? training : null,
             scoring: timed ? total - training : null,

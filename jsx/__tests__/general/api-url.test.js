@@ -38,6 +38,7 @@ import {
     PERFORMANCE_STREAMS,
     TABLES_VALUES,
     MODEL_REPORTS,
+    TICKER,
     performanceStream,
 } from '../../import/general/api-url.js';
 import { STREAMS } from '../../import/general/stream-id.js';
@@ -515,8 +516,34 @@ describe('modelUrl (#243)', () => {
             .toBe(`https://api.jefflevesque.com/v1/public/model?Model=pt-gnn-5day&Report=${report}`);
     });
 
-    it('keeps the two reports the pages read, not the summary (#245)', () => {
-        expect(MODEL_REPORTS).toEqual(['history', 'track-record']);
+    it('keeps the reports the pages read, an options model\'s picks among them (#279), not the summary (#245)', () => {
+        expect(MODEL_REPORTS).toEqual(['history', 'track-record', 'picks']);
+    });
+
+    it('asks for one stock\'s picks by its symbol, a share class\'s with its dot (#279)', () => {
+        expect(String(modelUrl('pt-options', 'picks', undefined, 'AAPL')))
+            .toBe('https://api.jefflevesque.com/v1/public/model?Model=pt-options&Report=picks&Ticker=AAPL');
+        expect(modelUrl('pt-options', 'picks', undefined, 'BRK.B').searchParams.get('Ticker')).toBe('BRK.B');
+        expect([...modelUrl('pt-options', 'picks').searchParams.keys()]).toEqual(['Model', 'Report']);
+    });
+
+    it.each([
+        ['history', 'pt-gnn', 'history'],
+        ['the track record', 'pt-gnn', 'track-record'],
+        ['the listing', null, null],
+    ])('refuses a ticker with %s, which the api would answer with a 400 (#279)', (label, model, report) => {
+        expect(() => modelUrl(model, report, undefined, 'AAPL')).toThrow(/a Ticker goes with Report=picks/);
+    });
+
+    it.each(['aapl', 'BRK/B', 'TOOLONG', 'BRK.BB', 'A1', ' AAPL'])('refuses %p, which is not a stock\'s symbol (#279)', (ticker) => {
+        expect(() => modelUrl('pt-options', 'picks', undefined, ticker)).toThrow(/a Ticker is a stock's symbol, like AAPL or BRK.B/);
+    });
+
+    it('takes the pattern a symbol is held to from the api document\'s Ticker (#279)', () => {
+        const document = JSON.parse(fs.readFileSync(path.join(OPENAPI, 'model.json'), 'utf8'));
+        const ticker = document.paths['/model'].get.parameters.find((parameter) => parameter.name === 'Ticker');
+
+        expect(ticker.schema.pattern).toBe(TICKER.source);
     });
 
     it('escapes a name as the query string needs it', () => {
@@ -611,12 +638,16 @@ describe('what is sent is what is documented', () => {
     });
 
     it('model: the listing sends nothing, and a report exactly what the document declares (#243)', () => {
+        //
+        // a stock's picks send the one more, Ticker, which only they take (#279)
+        //
         const document = documentOf('model');
 
         expect(sent(modelUrl())).toEqual([]);
         MODEL_REPORTS.forEach((report) => {
-            expect(sent(modelUrl('pt-gnn', report))).toEqual(declared(document));
+            expect(sent(modelUrl('pt-gnn', report))).toEqual(declared(document).filter((name) => name !== 'Ticker'));
         });
+        expect(sent(modelUrl('pt-options', 'picks', undefined, 'AAPL'))).toEqual(declared(document));
     });
 
     it('model: asks for the one route its document templates, and a report its Report enumerates', () => {

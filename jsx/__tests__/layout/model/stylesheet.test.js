@@ -314,3 +314,62 @@ describe('the controls on a phone (#272)', () => {
         expect(declared(rule('.model-card-title .model-other select', 'flex'), 'flex')).toBe('1');
     });
 });
+
+describe('the pickers and the picks of #279', () => {
+    const rule = (selector, property) => RULES.find((each) => each.selectors.join() === selector && declared(each, property));
+
+    it('put each list\'s score picker 0.75rem under its task\'s heading, over its list', () => {
+        expect(declared(rule('.model-group-controls', 'margin'), 'margin')).toBe('0.75rem 0 0.25rem');
+    });
+
+    it('answer the pointer with no highlight over a picker\'s outlines while the listing is on its way', () => {
+        expect(declared(RULES.find((each) => each.selectors.join() === '&:hover' && /border-color: \$gray-3/.test(each.body)), 'border-color')).toBe('$gray-3');
+        expect(source).toMatch(/\.model-score\.model-score-pending \{[^}]*cursor: default;/);
+    });
+
+    it('draw the hold the picks show as a picked score is drawn, dark', () => {
+        const tab = rule('.model-picks-tabs .model-score[aria-selected=\'true\']', 'background-color');
+
+        expect(declared(tab, 'background-color')).toBe('$gray-9');
+        expect(declared(tab, 'color')).toBe('$white-1');
+    });
+
+    it('scroll a hold\'s table sideways on a card too narrow for it, and read its figures from the right', () => {
+        expect(declared(rule('.model-picks-panel', 'overflow-x'), 'overflow-x')).toBe('auto');
+        expect(declared(rule('.model-pick-rank,.model-pick-quote,.model-pick-chance,.model-pick-gain', 'text-align'), 'text-align')).toBe('right');
+    });
+
+    describe('on a phone', () => {
+        it('make each pick a card, as /model\'s rows are, the table\'s head no longer shown', () => {
+            const card = rule('.model-picks-table tr', 'grid-template-columns');
+
+            expect(declared(card, 'display')).toBe('grid');
+            expect(declared(card, 'border-radius')).toBe('8px');
+            expect(declared(card, 'margin-top')).toBe(declared(rule('.model-row', 'grid-template-areas'), 'margin-top'));
+            expect(declared(rule('.model-picks-table thead', 'display'), 'display')).toBe('none');
+        });
+
+        it('put each figure on a line of its own, named at the left by its column\'s heading', () => {
+            const figures = '.model-picks-table .model-pick-buy,.model-picks-table .model-pick-sell,.model-picks-table .model-pick-quote,.model-picks-table .model-pick-chance,.model-picks-table .model-pick-gain';
+            const names = figures.split(',').map((selector) => `${selector}::before`).join();
+
+            expect(declared(rule(figures, 'grid-column'), 'grid-column')).toBe('1 / -1');
+            expect(declared(rule(figures, 'justify-content'), 'justify-content')).toBe('space-between');
+            expect(declared(rule(names, 'content'), 'content')).toBe('attr(data-label)');
+        });
+
+        it('put a figure too long for its name\'s line under it, still at the right, rather than break the two into each other', () => {
+            const figures = '.model-picks-table .model-pick-buy,.model-picks-table .model-pick-sell,.model-picks-table .model-pick-quote,.model-picks-table .model-pick-chance,.model-picks-table .model-pick-gain';
+            const cell = rule('.model-picks-table .model-pick-cell', 'margin-left');
+
+            expect(declared(rule(figures, 'flex-wrap'), 'flex-wrap')).toBe('wrap');
+            expect(declared(cell, 'margin-left')).toBe('auto');
+            expect(declared(cell, 'white-space')).toBe('nowrap');
+        });
+
+        it('put the box a stock is looked up by on a line of its own, running to the card\'s edge', () => {
+            expect(declared(rule('.model-card-title .model-picks-lookup', 'flex'), 'flex')).toBe('1 1 100%');
+            expect(declared(rule('.model-picks-lookup input', 'flex'), 'flex')).toBe('1');
+        });
+    });
+});

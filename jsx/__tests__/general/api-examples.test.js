@@ -26,9 +26,9 @@ import { buildDay, graphSources, sourceTypes, outsideGraph } from '../../import/
 import filterSchema from '../../import/animation/filter-schema.js';
 import { sourceNamespace } from '../../import/animation/encoding.js';
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
-import { performanceUrl, datalakeUrl } from '../../import/general/api-url.js';
+import { performanceUrl, datalakeUrl, TICKER } from '../../import/general/api-url.js';
 import modelReport from '../../import/worker/model/report.js';
-import { LOSS_PARTS, SCORES, statusOf } from '../../import/layout/model/scores.js';
+import { LOSS_PARTS, SCORES, holdsOf, scoresFor, statusOf, tradesOptions } from '../../import/layout/model/scores.js';
 
 const OPENAPI = path.join(__dirname, '..', '..', '..', 'documentation', 'api', 'openapi');
 
@@ -493,21 +493,26 @@ describe('model, as /model and /model/:model read it (#243)', () => {
         expect([...new Set(listing.models.map(statusOf))].sort()).toEqual(['down', 'live', 'new', 'retired']);
     });
 
-    it('reads the listing\'s format_version, and the documented reports have the columns it added (#248, #263)', () => {
+    it('reads the listing\'s format_version, and the documented reports have the columns it added (#248, #263, #279)', () => {
         const header = (report) => media.examples[report].value.report.split('\n')[0].split(',');
 
-        expect(listing.format_version).toBe(2);
+        expect(listing.format_version).toBe(3);
         expect(header('history')).toEqual(expect.arrayContaining(['started', 'training_seconds', 'total_seconds']));
-        expect(header('track-record')).toEqual(expect.arrayContaining(['down_days', 'down_in_a_row']));
+        expect(header('history')).toEqual(expect.arrayContaining(['attempt_top10_gain', 'live_top10_wins', 'baseline_top10_gain']));
+        expect(header('track-record')).toEqual(expect.arrayContaining(['down_days', 'down_in_a_row', 'top10_gain', 'baseline_top10_wins']));
     });
 
-    it('reads a model taken down, and every model\'s checks, as format 2 gives them (#263)', () => {
+    it('reads a model taken down, and every model\'s checks, as format 2 gives them (#263), an options model\'s on each hold (#279)', () => {
         const down = listing.models.filter((model) => model.down);
 
         expect(down.map((model) => model.name)).toEqual(['tables-gnn-5day']);
         expect(down[0].down).toEqual({ since: '2026-10-16', days: 1, in_a_row: 5 });
         listing.models.forEach((model) => {
-            expect(model.behind.map((check) => check.days)).toEqual([1, 5, 20]);
+            const holds = [...new Set(model.behind.map((check) => check.hold || null))];
+
+            holds.forEach((hold) => {
+                expect(model.behind.filter((check) => (check.hold || null) === hold).map((check) => check.days)).toEqual([1, 5, 20]);
+            });
         });
         expect(fiveDay().behind[2].in_a_row).toBeNull();
     });
@@ -566,6 +571,90 @@ describe('model, as /model and /model/:model read it (#243)', () => {
         it('reads none in the listing, which carries only loss', () => {
             listing.models.forEach((model) => {
                 LOSS_PARTS.forEach((part) => expect(model.score[part.key]).toBeNull());
+            });
+        });
+    });
+
+    describe('an options model, and every stock model\'s top 10, from format 3 on (#279)', () => {
+        const options = () => listing.models.find((model) => model.name === 'pt-options');
+        const optionsTask = () => listing.tasks.find((task) => task.id === options().task);
+
+        it('reads the options task\'s scores, and each stock task\'s, as the pages offer them', () => {
+            expect(scoresFor(optionsTask())).toEqual(['loss', 'profit_auc', 'top10_gain', 'top10_wins']);
+            expect(tradesOptions(optionsTask())).toBe(true);
+            expect(scoresFor(listing.tasks.find((task) => task.id === fiveDay().task)))
+                .toEqual(['loss', 'auc_up', 'auc_beats', 'acc_up', 'top10_gain', 'top10_wins']);
+        });
+
+        it('reads the options model\'s own scores, the stock scores none, and each of its checks on its hold', () => {
+            const model = options();
+
+            expect(model.score).toMatchObject({ auc_up: null, auc_beats: null, acc_up: null });
+            ['loss', 'profit_auc', 'top10_gain', 'top10_wins'].forEach((key) => {
+                expect(Number.isFinite(model.score[key])).toBe(true);
+                expect(Number.isFinite(model.baseline[key])).toBe(true);
+            });
+            expect(model.behind.map((check) => check.hold)).toEqual([1, 1, 1, 5, 5, 5, 20, 20, 20]);
+            expect(statusOf(model)).toBe('new');
+        });
+
+        it('reads the stock model\'s top 10 in its track record, averaging to the listing\'s', () => {
+            const rows = read('track-record', media.examples['track-record'].value, 'pt-gnn-5day').rows;
+            const last = rows[rows.length - 1];
+
+            ['top10_gain', 'top10_wins'].forEach((key) => {
+                expect(last.average[key]).toBeCloseTo(fiveDay().score[key], 5);
+                expect(last.baseline_average[key]).toBeCloseTo(fiveDay().baseline[key], 5);
+            });
+        });
+
+        it('reads the options model\'s track record: as many days as the listing scored, its plain columns the 1-day hold\'s, averaging to the listing\'s', () => {
+            const rows = read('track-record', media.examples['option-picks-track-record'].value, 'pt-options').rows;
+            const last = rows[rows.length - 1];
+
+            expect(rows).toHaveLength(options().scored_days);
+            expect(holdsOf(rows).map((hold) => hold.days)).toEqual([1, 5, 20]);
+            ['loss', 'profit_auc', 'top10_gain', 'top10_wins'].forEach((key) => {
+                rows.forEach((row) => expect(row.score[key]).toBe(row.score[`${key}_1d`]));
+                expect(last.average[key]).toBeCloseTo(options().score[key], 5);
+                expect(last.baseline_average[key]).toBeCloseTo(options().baseline[key], 5);
+            });
+        });
+
+        it('reads the 5-day hold\'s results for the days old enough to have them, and none yet of the 20-day hold\'s', () => {
+            const rows = read('track-record', media.examples['option-picks-track-record'].value, 'pt-options').rows;
+            const days = (column) => rows.filter((row) => row.score[column] !== null).map((row) => row.day);
+
+            expect(days('loss_5d')).toEqual(['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-12']);
+            expect(days('loss_20d')).toEqual([]);
+            expect(rows[rows.length - 1].average.loss_20d).toBeNull();
+        });
+
+        it('reads the picks: each hold\'s top 10, best first, made from one day, each contract\'s name with its spaces', () => {
+            const rows = read('option-picks', media.examples.picks.value, 'pt-options').rows;
+
+            expect(rows).toHaveLength(30);
+            [1, 5, 20].forEach((hold) => {
+                expect(rows.filter((row) => row.hold === hold).map((row) => row.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+            });
+            expect(new Set(rows.map((row) => row.day))).toEqual(new Set(['2026-10-20']));
+            rows.forEach((row) => {
+                expect(row.contract).toMatch(/^[A-Z]{1,5} +\d{6}[CP]\d{8}$/);
+                expect(['call', 'put']).toContain(row.call_put);
+                expect(row.ticker).toMatch(TICKER);
+                ['strike', 'last_bid', 'last_ask', 'chance', 'usual_chance', 'gain_low', 'gain_middle', 'gain_high']
+                    .forEach((key) => expect(Number.isFinite(row[key])).toBe(true));
+                expect(row.buy_on < row.sell_on && row.sell_on <= row.expiry).toBe(true);
+            });
+        });
+
+        it('ranks each hold\'s picks by how far each chance is above the usual chance', () => {
+            const rows = read('option-picks', media.examples.picks.value, 'pt-options').rows;
+
+            [1, 5, 20].forEach((hold) => {
+                const above = rows.filter((row) => row.hold === hold).map((row) => row.chance - row.usual_chance);
+
+                expect(above).toEqual([...above].sort((a, b) => b - a));
             });
         });
     });

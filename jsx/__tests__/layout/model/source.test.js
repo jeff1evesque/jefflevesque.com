@@ -46,7 +46,7 @@ jest.mock('../../../import/worker/web-worker.js', () => {
     };
 });
 
-import { MODEL, loadListing, loadReport, readInWorker } from '../../../import/layout/model/source.js';
+import { MODEL, loadListing, loadOptionPicks, loadReport, readInWorker } from '../../../import/layout/model/source.js';
 import { ENDPOINTS } from '../../../import/general/api-url.js';
 import { listingOf } from '../../../test-support/model-fixtures.js';
 
@@ -161,6 +161,63 @@ describe('a report', () => {
         answers({ report: { rows: [] } });
 
         expect(await loadReport('pt-gnn', 'track-record')).toBeNull();
+    });
+});
+
+describe('an options model\'s picks (#279)', () => {
+    const CSV = 'day,hold,rank,ticker,contract\n2026-10-21,5,1,AAPL,AAPL  261120C00230000\n2026-10-21,1,1,MSFT,MSFT  261120C00500000';
+
+    it('are asked for by the model, and a stock\'s by its symbol too', async () => {
+        answers({ report: CSV });
+
+        await loadOptionPicks('pt-options');
+        await loadOptionPicks('pt-options', 'BRK.B');
+
+        expect(asked()).toEqual([
+            `${MODEL}?Model=pt-options&Report=picks`,
+            `${MODEL}?Model=pt-options&Report=picks&Ticker=BRK.B`,
+        ]);
+    });
+
+    it('resolve to their rows, each hold\'s apart and best first', async () => {
+        answers({ report: CSV });
+
+        const rows = await loadOptionPicks('pt-options');
+
+        expect(rows.map((row) => [row.hold, row.ticker, row.contract])).toEqual([
+            [1, 'MSFT', 'MSFT  261120C00500000'],
+            [5, 'AAPL', 'AAPL  261120C00230000'],
+        ]);
+    });
+
+    it('resolve to null, and say why, for a model or a stock the api has no picks for', async () => {
+        answers({ report: { error: 'No picks for that stock.' } }, false, 404);
+
+        expect(await loadOptionPicks('pt-options', 'ZZZZ')).toBeNull();
+        expect(logged).toHaveBeenCalledWith(`Error: ${MODEL} Model=pt-options Report=picks Ticker=ZZZZ returned status 404`);
+    });
+
+    it('resolve to null where the request never lands, or the answer holds none', async () => {
+        global.fetch = jest.fn(() => Promise.reject(new TypeError('offline')));
+        expect(await loadOptionPicks('pt-options')).toBeNull();
+
+        answers({ report: null });
+        expect(await loadOptionPicks('pt-options')).toBeNull();
+    });
+
+    it('resolve to null, and ask for nothing, for what is not a stock\'s symbol', async () => {
+        answers({ report: CSV });
+
+        expect(await loadOptionPicks('pt-options', 'BRK/B')).toBeNull();
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('can be asked of another base', async () => {
+        answers({ report: CSV });
+
+        await loadOptionPicks('pt-options', null, 'https://example.test/model');
+
+        expect(asked()).toEqual(['https://example.test/model?Model=pt-options&Report=picks']);
     });
 });
 

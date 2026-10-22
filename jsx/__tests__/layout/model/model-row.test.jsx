@@ -12,8 +12,8 @@ import { MemoryRouter } from 'react-router-dom';
 
 import ModelRow, { TrendLine } from '../../../import/layout/model/model-row.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
-import { COMPARE_COLORS, SCORES, recentDays } from '../../../import/layout/model/scores.js';
-import { downModelOf, modelOf, trackOf } from '../../../test-support/model-fixtures.js';
+import { COMPARE_COLORS, SCORES, noteOf, recentDays } from '../../../import/layout/model/scores.js';
+import { OPTIONS_TASK, downModelOf, modelOf, optionsModelOf, trackOf } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
     const onPick = props.onPick || jest.fn();
@@ -115,6 +115,27 @@ describe('a row', () => {
         expect(label).toHaveAccessibleDescription(note);
         expect(label).toHaveAttribute('tabindex', '0');
         expect(label.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+    });
+
+    it('names an options model\'s score with its task\'s note, and prints its top 10\'s gain as a percent (#279)', () => {
+        const loss = draw({ model: optionsModelOf(), task: OPTIONS_TASK }).container;
+
+        expect(loss.querySelector('.model-cell-score .model-cell-label')).toHaveAccessibleDescription(noteOf('loss', OPTIONS_TASK));
+        expect(loss.querySelector('.model-score-value')).toHaveTextContent('0.840');
+
+        const gain = draw({ model: optionsModelOf(), task: OPTIONS_TASK, score: 'top10_gain' }).container;
+
+        expect(gain.querySelector('.model-score-value')).toHaveTextContent('3.10%');
+        expect(gain.querySelector('.model-gap')).toHaveTextContent('▲ 7.30 pts better than the baseline');
+        expect(gain.querySelector('.model-cell-score .model-cell-label')).toHaveAccessibleDescription(noteOf('top10_gain', OPTIONS_TASK));
+    });
+
+    it('prints a dash for a score the listing gives a model none of, as one before format 3 (#279)', () => {
+        const { container } = draw({ score: 'top10_wins' });
+
+        expect(container.querySelector('.model-score-value')).toHaveTextContent('–');
+        expect(container.querySelector('.model-gap')).toHaveTextContent(/^$/);
+        expect(container.querySelector('.model-trend-none')).toHaveAttribute('title', 'Not scored in the last 60 days');
     });
 
     it('shows the score\'s note under the pointer, on a phone\'s card (#265)', async () => {

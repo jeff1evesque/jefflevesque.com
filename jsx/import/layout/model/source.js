@@ -1,10 +1,12 @@
 /**
  * source.js: where the model pages get what they draw (#243): the listing of
- * models, and a model's history and track record, from the model api.
+ * models, and a model's history and track record, from the model api, and an
+ * options model's picks (#279).
  *
- *     GET <model>                                   -> { report: { tasks: [...], models: [...] } }
- *     GET <model>?Model=<name>&Report=history       -> { report: '<csv>' }
- *     GET <model>?Model=<name>&Report=track-record  -> { report: '<csv>' }
+ *     GET <model>                                         -> { report: { tasks: [...], models: [...] } }
+ *     GET <model>?Model=<name>&Report=history             -> { report: '<csv>' }
+ *     GET <model>?Model=<name>&Report=track-record        -> { report: '<csv>' }
+ *     GET <model>?Model=<name>&Report=picks[&Ticker=AAPL] -> { report: '<csv>' }
  *
  * Each answer is read in a worker -- see worker/model/report.js -- which hands
  * back what the pages draw: the listing's tasks and models, or a report's rows,
@@ -89,6 +91,24 @@ export function loadReport(name, kind, base = MODEL) {
         .then((value) => readInWorker(kind, value, name))
         .then((read) => (read && Array.isArray(read.rows) ? read.rows : Promise.reject(read)))
         .catch((e) => logged(`${base} Model=${name} Report=${kind}`, e));
+}
+
+/**
+ * an options model's picks (#279): each hold's top 10, or with `ticker` that
+ * stock's options, best first, up to 100 for each hold -- their rows, each hold's
+ * apart and best first, or null where they cannot be had. The api answers a
+ * model with no picks, and a stock with none, with a 404, which is null as well.
+ */
+export function loadOptionPicks(name, ticker = null, base = MODEL) {
+    //
+    // the url built inside the chain, as a report's is, so a ticker modelUrl
+    // refuses is a failure like any other rather than a throw
+    //
+    return Promise.resolve()
+        .then(() => envelope(modelUrl(name, 'picks', base, ticker)))
+        .then((value) => readInWorker('option-picks', value, name))
+        .then((read) => (read && Array.isArray(read.rows) ? read.rows : Promise.reject(read)))
+        .catch((e) => logged(`${base} Model=${name} Report=picks${ticker ? ` Ticker=${ticker}` : ''}`, e));
 }
 
 export { MODEL };

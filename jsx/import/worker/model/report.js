@@ -1,6 +1,6 @@
 /**
  * report.js: web-worker for the model api's answers (#243): the listing of models,
- * and a model's two reports.
+ * a model's two reports, and an options model's picks (#279).
  *
  *     list            the listing, as the api's json: every task, every model
  *                     with its latest scores, and which layout every model report
@@ -17,16 +17,28 @@
  *                     check that took the live version down, on the day whose
  *                     score set it off (#263)
  *
+ *     option-picks    an options model's csv of its nightly picks (#279): each
+ *                     hold's top 10, or one stock's options best first, up to
+ *                     100 for each hold
+ *
  * It is handed { kind, report, name } -- `report` as the api's envelope held it --
  * and answers the same kind and name with what the pages draw: `tasks`, `models`
  * and `format_version` for the listing, `rows` for a report. Each is null where
  * the report is not the shape the api documents, which the page shows as a report
  * it could not load. A report with no rows yet answers none, which is not a failure: a model
- * is listed before its first day is scored.
+ * is listed before its first day is scored. Picks with no rows are, as there is
+ * nothing to show of them.
  *
  * Every set of scores carries the three loss adds up beside the four (#265) --
  * see PARTS. A history and a track record give them; the listing does not, and
  * neither would a report without their columns, so there each is null.
+ *
+ * From format 3 (#279) a set of scores also carries each of MORE the report
+ * gives: an options model's scores, the top 10's of every model, and an options
+ * model's for each hold it is held. Only where it gives them, so a report before
+ * them reads exactly as it did. A task says which scores its models have, and a
+ * live version taken down, and each check, which hold it was where the model
+ * has holds.
  *
  * The 20-day average is taken over a model's own scored DAYS, not the calendar. A
  * day it was not running -- before it started, after it retired, a night the
@@ -42,8 +54,9 @@
  *       file as the bundle does and runs the function's text on its own.
  *
  * Note: the csvs are read here rather than through papaparse. They hold dates,
- *       times, two words and numbers -- nothing quoted, and no comma inside a
- *       cell -- and a worker cannot import the parser.
+ *       times, words and numbers, and an option's contract, whose name holds
+ *       spaces -- nothing quoted, and no comma inside a cell -- and a worker
+ *       cannot import the parser.
  */
 
 export default () => {
@@ -66,6 +79,21 @@ export default () => {
     const READ = SCORES.concat(PARTS);
 
     //
+    // the scores a set carries only where the report gives them (#279): an
+    // options model's chance of making money ranked against what did, and every
+    // model's top 10 -- the average gain of each night's 10 best picks, and how
+    // many of them made money. An options model gives its four scores again for
+    // each hold, 1, 5 and 20 trading days, as `<score>_1d`, `_5d` and `_20d`
+    //
+    const MORE = ['profit_auc', 'top10_gain', 'top10_wins'];
+
+    ['_1d', '_5d', '_20d'].forEach(function (hold) {
+        ['loss', 'profit_auc', 'top10_gain', 'top10_wins'].forEach(function (score) {
+            MORE.push(score + hold);
+        });
+    });
+
+    //
     // how many of a model's scored days an average takes in
     //
     const WINDOW = 20;
@@ -80,6 +108,10 @@ export default () => {
 
     function isRecord(value) {
         return value !== null && value !== undefined && value === Object(value) && !Array.isArray(value);
+    }
+
+    function has(source, key) {
+        return Object.prototype.hasOwnProperty.call(source, key);
     }
 
     function dayOf(value) {
@@ -139,11 +171,37 @@ export default () => {
     }
 
     //
+    // which hold a check is of, from format 3 on (#279): the trading days an
+    // options model's picks are held, or none for a model that has no holds --
+    // given as null, or not at all. Anything else is not whole, and undefined
+    // here, so the check it is on is read as one that is not
+    //
+    function holdOf(value) {
+        if (!has(value, 'hold') || value.hold === null) {
+            return null;
+        }
+
+        return wholeOf(value.hold, 1) === null ? undefined : value.hold;
+    }
+
+    //
+    // a check with the hold it is of, where it is of one
+    //
+    function withHold(check, hold) {
+        if (hold !== null) {
+            check.hold = hold;
+        }
+
+        return check;
+    }
+
+    //
     // a model's live version taken down by the trainer, from format 2 on (#263):
     // the night it was, and the check that did it -- `days`, 1 for each day on
     // its own or 5 or 20 for an average over its latest scored days, and
-    // `in_a_row`, how many scored days in a row it was worse than the baseline.
-    // Null while it is live, and for one that names no night or no whole numbers
+    // `in_a_row`, how many scored days in a row it was worse than the baseline --
+    // and from format 3, the hold it was of (#279). Null while it is live, and
+    // for one that names no night or no whole numbers
     //
     function downOf(value) {
         if (!isRecord(value)) {
@@ -153,16 +211,20 @@ export default () => {
         const since = dayOf(value.since);
         const days = wholeOf(value.days, 1);
         const inARow = wholeOf(value.in_a_row, 1);
+        const hold = holdOf(value);
 
-        return since && days !== null && inARow !== null ? { since: since, days: days, in_a_row: inARow } : null;
+        return since && days !== null && inARow !== null && hold !== undefined
+            ? withHold({ since: since, days: days, in_a_row: inARow }, hold)
+            : null;
     }
 
     //
     // how close each of the trainer's checks is to taking the live version down,
     // as of the newest scored day (#263): `days`, `in_a_row` -- how many scored
     // days in a row it has been worse, or null until it has enough days -- and
-    // `limit`, the count that takes it down. A check that is not whole is
-    // passed over, and a listing before format 2 gives none
+    // `limit`, the count that takes it down, and from format 3 the hold it is of
+    // (#279), an options model's checks running on each. A check that is not
+    // whole is passed over, and a listing before format 2 gives none
     //
     function behindOf(value) {
         return (Array.isArray(value) ? value : [])
@@ -170,22 +232,53 @@ export default () => {
                 return isRecord(check)
                     && wholeOf(check.days, 1) !== null
                     && wholeOf(check.limit, 1) !== null
-                    && (check.in_a_row === null || wholeOf(check.in_a_row, 0) !== null);
+                    && (check.in_a_row === null || wholeOf(check.in_a_row, 0) !== null)
+                    && holdOf(check) !== undefined;
             })
             .map(function (check) {
-                return { days: check.days, in_a_row: check.in_a_row, limit: check.limit };
+                return withHold({ days: check.days, in_a_row: check.in_a_row, limit: check.limit }, holdOf(check));
             });
     }
 
     //
+    // the scores a task's models have, in the order the pages offer them, from
+    // format 3 on (#279): each name once, as text. Undefined for a task that does
+    // not say, as one before format 3 does not
+    //
+    function taskScoresOf(value) {
+        if (!Array.isArray(value)) {
+            return undefined;
+        }
+
+        const named = [];
+
+        value.forEach(function (name) {
+            const score = textOf(name);
+
+            if (score && named.indexOf(score) < 0) {
+                named.push(score);
+            }
+        });
+
+        return named;
+    }
+
+    //
     // the four scores and loss's three parts, read off a csv row's columns named
-    // `prefix` and the score, or off an object of them
+    // `prefix` and the score, or off an object of them, and each of MORE that it
+    // has a column or a key for (#279)
     //
     function scoresOf(source, prefix) {
         const scores = {};
 
         READ.forEach(function (score) {
             scores[score] = numberOf(source[prefix + score]);
+        });
+
+        MORE.forEach(function (score) {
+            if (has(source, prefix + score)) {
+                scores[score] = numberOf(source[prefix + score]);
+            }
         });
 
         return scores;
@@ -242,12 +335,13 @@ export default () => {
     //
     // each score's mean over `recent`, the days that have one, or null where none
     // does. Loss's three parts are averaged alike, so where every day has them,
-    // their averages add up to loss's
+    // their averages add up to loss's. Every row of one report carries the same
+    // scores, its header's -- see scoresOf -- so the newest's are every row's
     //
     function averageOf(recent, field) {
         const average = {};
 
-        READ.forEach(function (score) {
+        Object.keys(recent[recent.length - 1][field]).forEach(function (score) {
             const values = recent
                 .map(function (row) { return row[field][score]; })
                 .filter(function (value) { return value !== null; });
@@ -264,7 +358,8 @@ export default () => {
     // the listing: the models with a name and a task, each named once, and the
     // tasks they name, in the listing's order. A task a model names that the
     // listing does not describe is named by its id, after the rest; one no model
-    // names is left out, having nothing to list
+    // names is left out, having nothing to list. A task keeps the scores it names
+    // from format 3 on (#279)
     //
     function listing(report) {
         if (!isRecord(report) || !Array.isArray(report.models)) {
@@ -319,8 +414,15 @@ export default () => {
             const id = isRecord(entry) ? textOf(entry.id) : '';
 
             if (id && !named[id]) {
+                const task = { id: id, name: textOf(entry.name) || id, description: textOf(entry.description) };
+                const scores = taskScoresOf(entry.scores);
+
+                if (scores) {
+                    task.scores = scores;
+                }
+
                 named[id] = true;
-                tasks.push({ id: id, name: textOf(entry.name) || id, description: textOf(entry.description) });
+                tasks.push(task);
             }
         });
 
@@ -397,6 +499,52 @@ export default () => {
         return rows;
     }
 
+    //
+    // an options model's picks (#279): a row per option, each hold's apart and
+    // best first, so the pages draw each hold's in the order it was ranked. A
+    // row names the night it was picked, its hold and its rank, and the stock;
+    // one without them is passed over. What the option is -- its contract, call
+    // or put, strike and expiry -- when it is bought and sold, its last bid and
+    // ask, and the model's chance it makes money beside the usual chance for
+    // options like it, and the gain it guesses, low, middle and high, are each
+    // as the csv has them, or null.
+    //
+    // Note: a contract's name holds spaces, never a comma, so the cells split as
+    //       every other csv's do, and only the ends of each are trimmed
+    //
+    function optionPicks(csv) {
+        const rows = rowsOf(csv)
+            .map(function (row) {
+                return {
+                    day: dayOf(row.day),
+                    hold: wholeCellOf(row.hold),
+                    rank: wholeCellOf(row.rank),
+                    ticker: textOf(row.ticker),
+                    contract: textOf(row.contract),
+                    call_put: textOf(row.call_put).toLowerCase(),
+                    strike: numberOf(row.strike),
+                    expiry: dayOf(row.expiry),
+                    buy_on: dayOf(row.buy_on),
+                    sell_on: dayOf(row.sell_on),
+                    last_bid: numberOf(row.last_bid),
+                    last_ask: numberOf(row.last_ask),
+                    chance: numberOf(row.chance),
+                    usual_chance: numberOf(row.usual_chance),
+                    gain_low: numberOf(row.gain_low),
+                    gain_middle: numberOf(row.gain_middle),
+                    gain_high: numberOf(row.gain_high),
+                };
+            })
+            .filter(function (row) {
+                return row.day && row.hold !== null && row.rank !== null && row.ticker;
+            })
+            .sort(function (a, b) {
+                return a.hold - b.hold || a.rank - b.rank;
+            });
+
+        return rows.length ? rows : null;
+    }
+
     self.onmessage = (event) => {
         const asked = isRecord(event.data) ? event.data : {};
         const answer = { kind: asked.kind, name: asked.name || null };
@@ -417,6 +565,8 @@ export default () => {
             answer.rows = typeof csv === 'string' ? history(csv) : null;
         } else if (asked.kind === 'track-record') {
             answer.rows = typeof csv === 'string' ? trackRecord(csv) : null;
+        } else if (asked.kind === 'option-picks') {
+            answer.rows = typeof csv === 'string' ? optionPicks(csv) : null;
         } else {
             answer.rows = null;
         }

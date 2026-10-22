@@ -13,6 +13,7 @@ import { MemoryRouter } from 'react-router-dom';
 import {
     AlarmBell,
     FoldTitle,
+    HoldPicker,
     Legend,
     Mark,
     NoBox,
@@ -60,6 +61,55 @@ describe('ScorePicker', () => {
         expect(menu).toHaveValue('loss');
         await userEvent.selectOptions(menu, 'auc_up');
         expect(onScore).toHaveBeenCalledWith('auc_up');
+    });
+
+    it('offers a task\'s own scores, in its order, as buttons and as a menu (#279)', async () => {
+        const onScore = jest.fn();
+
+        render(<ScorePicker score='top10_gain' onScore={onScore} offered={['loss', 'profit_auc', 'top10_gain', 'top10_wins']} />);
+
+        const buttons = within(screen.getByRole('group', { name: 'Score' })).getAllByRole('button');
+        const menu = screen.getByRole('combobox', { name: 'Score' });
+
+        expect(buttons.map((button) => button.textContent)).toEqual(['Loss', 'Profit AUC', 'Top 10 gain', 'Top 10 wins']);
+        expect(buttons.map((button) => button.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true', 'false']);
+        expect(within(menu).getAllByRole('option').map((option) => option.textContent)).toEqual(['Loss', 'Profit AUC', 'Top 10 gain', 'Top 10 wins']);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Top 10 wins' }));
+
+        expect(onScore).toHaveBeenCalledWith('top10_wins');
+    });
+});
+
+describe('HoldPicker (#279)', () => {
+    it('offers the three holds as buttons, the one shown pressed', () => {
+        render(<HoldPicker hold={5} onHold={() => {}} />);
+
+        const buttons = within(screen.getByRole('group', { name: 'Hold' })).getAllByRole('button');
+
+        expect(buttons.map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days']);
+        expect(buttons.map((button) => button.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false']);
+        expect(document.querySelector('.model-holds')).toHaveClass('model-scores');
+    });
+
+    it('hands up the hold picked, as its days, from a button or a phone\'s menu', async () => {
+        const onHold = jest.fn();
+
+        render(<HoldPicker hold={1} onHold={onHold} />);
+
+        await userEvent.click(screen.getByRole('button', { name: '20 days' }));
+        expect(onHold).toHaveBeenLastCalledWith(20);
+
+        expect(screen.getByRole('combobox', { name: 'Hold' })).toHaveValue('1');
+        await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Hold' }), '5');
+        expect(onHold).toHaveBeenLastCalledWith(5);
+    });
+
+    it('offers only the holds it is handed', () => {
+        render(<HoldPicker hold={1} onHold={() => {}} holds={[{ days: 1, label: '1 day' }, { days: 5, label: '5 days' }]} />);
+
+        expect(within(screen.getByRole('group', { name: 'Hold' })).getAllByRole('button').map((button) => button.textContent))
+            .toEqual(['1 day', '5 days']);
     });
 });
 

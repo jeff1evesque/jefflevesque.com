@@ -5,11 +5,18 @@
  * Each day's score is a faint dot, and the 20-day average of them a line, beside
  * the know-nothing baseline's. A menu adds another model of the same task, as
  * its own 20-day line, so the two can be read against each other on the days
- * both were scored. A short tick at the foot of the chart marks each night a
+ * both were scored -- or of another task, on a score of what each one's picks
+ * would have made (#279). A short tick at the foot of the chart marks each night a
  * new version went live, read from the model's history, so a step in the line
  * can be laid beside the version that made it; and a red one each day whose
  * score set off a check that took the live version down (#263), read from the
  * track record.
+ *
+ * An options model's track record has its scores for each hold its picks are
+ * held (#279), and the chart draws the hold picked over the page: each day once
+ * that hold's sell day is in, so the newest days of a longer hold have no dot
+ * or line yet. Another model drawn beside it is drawn on the same hold where it
+ * has holds, and on its own scores where it has none, as a stock model.
  *
  * Note: the baseline is the model's own, its record's 20-day average (#263).
  *       Each model's track record carries the baseline's scores on its own
@@ -40,9 +47,13 @@ import {
     alignDays,
     chartColors,
     checkWords,
+    columnOf,
     formatScore,
     formatTick,
+    holdName,
+    holdsOf,
     longDay,
+    scoreIn,
     scoreOf,
     shortDay,
 } from './scores.js';
@@ -142,9 +153,16 @@ TakenDownTick.propTypes = WentLiveTick.propTypes;
  * where one is added, and the check a day's score set off where it took the
  * live version down (#263). A day only the other model was scored on has no
  * dot and no line of this model's.
+ *
+ * With a `hold` (#279), each is the hold's column of the score, and a day whose
+ * hold's result is not in yet has none of them: its 20-day average would be of
+ * the days before it alone. The other model's is the hold's too, where its
+ * record has the hold, and its score's own where it does not.
  */
-export function trackPoints(name, rows, other, otherRows, score) {
+export function trackPoints(name, rows, other, otherRows, score, hold = null) {
     const records = { [name]: rows };
+    const column = columnOf(score, hold);
+    const theirs = hold && holdsOf(otherRows).some((each) => each.days === hold) ? column : score;
 
     if (other) {
         records[other] = otherRows || [];
@@ -152,27 +170,35 @@ export function trackPoints(name, rows, other, otherRows, score) {
 
     return alignDays(records).map((entry) => {
         const own = entry[name];
-        const theirs = other ? entry[other] : null;
+        const their = other ? entry[other] : null;
+        const single = own ? scoreIn(own.score, column) : null;
+        const held = !hold || single !== null;
 
         return {
             day: entry.day,
-            single: own ? own.score[score] : null,
-            average: own ? own.average[score] : null,
+            single: single,
+            average: own && held ? scoreIn(own.average, column) : null,
             days: own ? own.days : null,
-            baseline: own ? own.baseline_average[score] : null,
-            other: theirs ? theirs.average[score] : null,
+            baseline: own && held ? scoreIn(own.baseline_average, column) : null,
+            other: their ? scoreIn(their.average, theirs) : null,
             down: own && Number.isFinite(own.down_days) ? { days: own.down_days, in_a_row: own.down_in_a_row } : null,
         };
     });
 }
 
-function TrackChart({ name, rows, score, others, other, otherRows, onOther, wentLive = [] }) {
+function TrackChart({ name, rows, score, others, other, otherRows, onOther, wentLive = [], hold = null }) {
     const { theme } = useContext(ThemeModeContext);
     const colors = chartColors(theme);
     const lower = scoreOf(score).lower;
     const label = scoreOf(score).label;
     const shown = other && otherRows ? other : null;
-    const points = trackPoints(name, rows, shown, otherRows, score);
+    const points = trackPoints(name, rows, shown, otherRows, score, hold);
+
+    //
+    // the hold the chart draws, as its description and its table's name say it
+    // (#279): nothing for a model with no holds
+    //
+    const onHold = hold ? ` on the ${holdName(hold)}` : '';
     //
     // the nights a new version went live that are days on the chart: a night
     // the record has no day for has nowhere to stand
@@ -187,9 +213,11 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
 
     //
     // the day its panel shows, as the attempts' panels do: the day pointed at,
-    // the latest until then, or on a phone the day tapped -- see usePanelDay
+    // the latest until then, or on a phone the day tapped -- see usePanelDay. On
+    // a hold, the latest whose result is in (#279): the newest days have none yet
     //
-    const panel = usePanelDay(points.length ? points[points.length - 1].day : null);
+    const latest = hold ? points.filter((point) => point.single !== null) : points;
+    const panel = usePanelDay(latest.length ? latest[latest.length - 1].day : null);
 
     //
     // folded down to its title by the reader, as the attempts' charts fold --
@@ -226,11 +254,17 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
             tipRows.push({ key: 'baseline', mark: <Mark kind='dashed' color={colors.baseline} />, name: 'Know-nothing baseline, 20 days', value: formatScore(point.baseline, score) });
         }
 
+        //
+        // why this model has nothing on the day: on a hold, that its result is
+        // not in yet (#279)
+        //
+        const none = hold ? `${name}’s ${hold}-day result for this day is not in yet` : `${name} has no score this day`;
+
         return {
             title: longDay(point.day),
             rows: tipRows,
             foot: [
-                point.single === null ? `${name} has no score this day` : null,
+                point.single === null ? none : null,
                 ticks.includes(point.day) ? 'A new version went live this night' : null,
                 point.down ? `Live version taken down: ${checkWords(point.down)}` : null,
             ].filter(Boolean).join(' · ') || null,
@@ -264,7 +298,10 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                 {folds.track ? null : (
                     <>
                         <p className='model-card-sub'>
-                            {'Each day’s real predictions, scored once that day’s prices are in. Dots are single days, and lines are averages of the last 20 days. Up is better'}
+                            {hold
+                                ? 'Each day’s real predictions, scored once each hold’s sell day is in. '
+                                : 'Each day’s real predictions, scored once that day’s prices are in. '}
+                            {'Dots are single days, and lines are averages of the last 20 days. Up is better'}
                             {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
                         </p>
                         <Legend
@@ -287,7 +324,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                     <div
                         className='model-chart'
                         role='img'
-                        aria-label={`${label} of ${name}${shown ? ` and ${shown}` : ''} and the know-nothing baseline, as averages of the last 20 days, with single days as dots. The numbers are in the table below.`}
+                        aria-label={`${label}${onHold} of ${name}${shown ? ` and ${shown}` : ''} and the know-nothing baseline, as averages of the last 20 days, with single days as dots. The numbers are in the table below.`}
                     >
                         <ResponsiveContainer width='100%' height={HEIGHT}>
                             <ComposedChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
@@ -330,7 +367,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                     </div>
                     <Readout tip={tipOf(panel.dayFor())} line={!panel.phone} />
                     <Numbers
-                        label={`${label}, track record`}
+                        label={`${label}${onHold}, track record`}
                         columns={[
                             { key: 'day', label: 'Day', text: true },
                             { key: 'single', label: 'This day' },
@@ -365,7 +402,8 @@ TrackChart.propTypes = {
     rows: PropTypes.array.isRequired,
     score: PropTypes.string.isRequired,
     //
-    // the names of the other models of its task, which the menu offers
+    // the names of the other models the menu offers: its task's, and other
+    // tasks' too on a score of what each one's picks would have made (#279)
     //
     others: PropTypes.arrayOf(PropTypes.string).isRequired,
     //
@@ -379,6 +417,11 @@ TrackChart.propTypes = {
     // the nights a new version went live, from the model's history
     //
     wentLive: PropTypes.arrayOf(PropTypes.string),
+    //
+    // the hold an options model's record is drawn on, in trading days, or none
+    // for a model with no holds (#279)
+    //
+    hold: PropTypes.number,
 };
 
 export default TrackChart;

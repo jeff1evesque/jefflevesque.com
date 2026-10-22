@@ -16,12 +16,17 @@
  *
  * Note: two rows stand in for a list, as many as /model shows today. A list of
  *       more grows when it lands, under the first screen.
+ *
+ * Note: a score picker is a task's (#279), and which scores it offers is the
+ *       listing's to say, so before it lands the picker is its name over bars
+ *       -- see PendingPicker -- and the score named is loss, which every task
+ *       opens on.
  */
 
 import React from 'react';
 import PropTypes from 'prop-types';
 import { PendingBar } from '../graph/pending.jsx';
-import { TREND_DAYS, scoreOf } from './scores.js';
+import { DEFAULT_SCORE, TREND_DAYS, scoreOf } from './scores.js';
 
 //
 // how far apart, in milliseconds, two neighboring bars breathe -- /graph's own
@@ -51,6 +56,32 @@ PendingLines.propTypes = {
     widths: PropTypes.arrayOf(PropTypes.string).isRequired,
     delay: PropTypes.number,
 };
+
+/**
+ * a score picker before the listing says whose task it is, and so which scores
+ * it offers (#279): its name, and a bar for each of four buttons, laid out as a
+ * picker is, and on a phone a bar where its menu will be. Hidden from a screen
+ * reader, as it is not a control yet.
+ */
+export function PendingPicker() {
+    return (
+        <div className='model-scores model-picker-pending' aria-hidden='true'>
+            <span className='model-control-label'>Score</span>
+            <div className='model-score-buttons'>
+                {['3.5rem', '6.5rem', '9rem', '8rem'].map((width, at) => (
+                    <span key={width} className='model-score model-score-pending'>
+                        <PendingBar width={width} delay={at * STAGGER} />
+                    </span>
+                ))}
+            </div>
+            <span className='model-score-menu'>
+                <span className='model-score model-score-pending'>
+                    <PendingBar width='6rem' />
+                </span>
+            </span>
+        </div>
+    );
+}
 
 /**
  * one of /model's rows, or a phone's card, before the listing says whose: its
@@ -122,9 +153,10 @@ PendingRow.propTypes = {
 
 /**
  * /model's list before the listing names its task and its models: the task's
- * heading, the list's own column headings, and two rows.
+ * heading, its score picker (#279), the list's own column headings, and two
+ * rows.
  */
-export function PendingGroup({ score }) {
+export function PendingGroup({ score = DEFAULT_SCORE }) {
     return (
         <section className='model-group' aria-hidden='true'>
             <div className='model-group-head'>
@@ -135,6 +167,9 @@ export function PendingGroup({ score }) {
                 <span className='model-group-count'>
                     <PendingBar width='4rem' delay={2 * STAGGER} />
                 </span>
+            </div>
+            <div className='model-controls model-group-controls'>
+                <PendingPicker />
             </div>
             <div className='model-list'>
                 <div className='model-list-head'>
@@ -155,7 +190,7 @@ export function PendingGroup({ score }) {
 }
 
 PendingGroup.propTypes = {
-    score: PropTypes.string.isRequired,
+    score: PropTypes.string,
 };
 
 /**
@@ -250,4 +285,42 @@ export function PendingChart({ title, height }) {
 PendingChart.propTypes = {
     title: PropTypes.string.isRequired,
     height: PropTypes.number.isRequired,
+};
+
+/**
+ * an options model's picks before they are in (#279): the card's title, which
+ * never changes, a bar for the line under it and one for each of the holds'
+ * tabs, and five rows of bars where the table's will be.
+ */
+export function PendingPicks({ title }) {
+    return (
+        <section className='model-card model-picks' aria-hidden='true'>
+            <div className='model-card-head'>
+                <div className='model-card-title'>
+                    <h5>{title}</h5>
+                </div>
+                <p className='model-card-sub'>
+                    <PendingLines widths={['14rem']} />
+                </p>
+            </div>
+            <div className='model-picks-tabs'>
+                {['3rem', '3.5rem', '4rem'].map((width, at) => (
+                    <span key={width} className='model-score model-score-pending'>
+                        <PendingBar width={width} delay={at * STAGGER} />
+                    </span>
+                ))}
+            </div>
+            <div className='model-picks-pending'>
+                {[0, 1, 2, 3, 4].map((row) => (
+                    <span key={row} className='model-pending-line'>
+                        <PendingBar width='100%' delay={(row + 3) * STAGGER} />
+                    </span>
+                ))}
+            </div>
+        </section>
+    );
+}
+
+PendingPicks.propTypes = {
+    title: PropTypes.string.isRequired,
 };

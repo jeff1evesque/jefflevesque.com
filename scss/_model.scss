@@ -2,10 +2,12 @@
 // _model.scss: /model and each model's own page (#243).
 //
 // /model is a column of filters beside the controls, the comparison and one
-// list per task. A row of a list is a grid across a wide screen, under the
-// list's headings, and a card on a phone, where each figure carries its own
-// name and the filters fold behind a button. A model's page is one column: its
-// name, the score picker, three figures, and two charts, each in a card.
+// list per task, each under a score picker of its own (#279). A row of a list
+// is a grid across a wide screen, under the list's headings, and a card on a
+// phone, where each figure carries its own name and the filters fold behind a
+// button. A model's page is one column: its name, the score picker -- and an
+// options model's hold picker beside it -- three figures, and two charts, each
+// in a card, and after them an options model's picks, a card too.
 //
 // Note: a series' color is only ever a mark's. The words beside it -- a model's
 //       name in a legend, a score better or worse than the baseline -- are in
@@ -517,6 +519,39 @@
 .model-hint {
   color: $gray-6;
   margin: 0;
+}
+
+//
+// each list's score picker, under its task's heading (#279), and the picker of
+// the comparison's own while it holds models of more than one task, under its
+// title. An options model's page puts its hold picker beside its score picker,
+// as one more of '.model-scores'
+//
+.model-group-controls {
+  margin: 0.75rem 0 0.25rem;
+}
+
+.model-compare-controls {
+  margin: 0.2rem 0;
+}
+
+//
+// a picker's buttons and its phone's menu while the listing is on its way: their
+// outlines, each round a bar, answering the pointer with no highlight -- an
+// offer they could not honor, as a filter's row is before it is a control
+//
+.model-score.model-score-pending {
+  align-items: center;
+  cursor: default;
+  display: inline-flex;
+
+  &:hover {
+    border-color: $gray-3;
+  }
+}
+
+.model-score-menu > .model-score-pending {
+  flex: 1;
 }
 
 //
@@ -1173,6 +1208,118 @@ $model-trend-width: 132px;
 }
 
 //
+// an options model's picks (#279) -- see option-picks.jsx: the box a stock is
+// looked up by, beside the card's title as a chart's menu is; a tab for each
+// hold, in the score buttons' look, the one shown dark as a picked score is; the
+// hold's table, as wide as the card and scrolled sideways where the card is
+// narrower; and the line under it, in the card's own gray
+//
+//
+// the card's title with Clear beside it while a stock is shown, as the
+// comparison's has it, and the box at the row's other end
+//
+.model-picks-name {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.model-picks-lookup,
+.model-picks-label {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+//
+// as tall as the button beside it, and the pickers' pills: a browser's own
+// height for a box of text stood it a few pixels over them
+//
+.model-picks-lookup input {
+  background-color: $white-1;
+  border: 1px solid $gray-3;
+  border-radius: 999px;
+  color: $gray-8;
+  font: inherit;
+  height: 2.25rem;
+  padding: 0 0.9rem;
+  text-transform: uppercase;
+  width: 8rem;
+}
+
+.model-picks-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.model-picks-tabs .model-score[aria-selected='true'] {
+  background-color: $gray-9;
+  border-color: $gray-9;
+  color: $white-1;
+}
+
+.model-picks-panel {
+  overflow-x: auto;
+}
+
+.model-picks-table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+
+  th,
+  td {
+    border-bottom: 1px solid $gray-2;
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  th {
+    color: $gray-7;
+    font-weight: 600;
+  }
+
+  //
+  // the figures read from the right, as a chart's numbers do
+  //
+  .model-pick-rank,
+  .model-pick-quote,
+  .model-pick-chance,
+  .model-pick-gain {
+    text-align: right;
+  }
+}
+
+.model-pick-value {
+  color: $gray-9;
+  font-weight: 600;
+}
+
+.model-pick-usual {
+  color: $gray-6;
+}
+
+.model-picks-foot {
+  color: $gray-7;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+//
+// the table's rows while the picks are on their way, a bar each
+//
+.model-picks-pending {
+  display: grid;
+  gap: 0.75rem;
+}
+
+//
 // a model's page: its three figures
 //
 .model-summary {
@@ -1441,6 +1588,103 @@ $model-trend-width: 132px;
   .model-card-title .model-other select {
     flex: 1;
     min-width: 0;
+  }
+
+  //
+  // the picks' box on a line of its own under the title, as Compare with is,
+  // running to the card's edge beside its button (#279)
+  //
+  .model-card-title .model-picks-lookup {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+  }
+
+  .model-picks-label {
+    flex: 1;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+
+  .model-picks-lookup input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  //
+  // a pick a card each, as /model's rows are (#279): its rank, the stock and
+  // the option on the first line, then each figure on a line of its own, named
+  // at the left by its column's heading, which the table's own head no longer
+  // shows. Room over each card, as over each of /model's
+  //
+  .model-picks-table,
+  .model-picks-table tbody {
+    display: block;
+  }
+
+  .model-picks-table thead {
+    display: none;
+  }
+
+  .model-picks-table tr {
+    border: 1px solid $gray-2;
+    border-radius: 8px;
+    column-gap: 0.75rem;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    margin-top: 0.6rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .model-picks-table td {
+    border: 0;
+    padding: 0.15rem 0;
+    white-space: normal;
+  }
+
+  .model-picks-table .model-pick-rank::before {
+    content: '#';
+  }
+
+  .model-picks-table .model-pick-stock {
+    font-weight: 600;
+  }
+
+  .model-picks-table .model-pick-option {
+    text-align: right;
+  }
+
+  .model-picks-table .model-pick-buy,
+  .model-picks-table .model-pick-sell,
+  .model-picks-table .model-pick-quote,
+  .model-picks-table .model-pick-chance,
+  .model-picks-table .model-pick-gain {
+    column-gap: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    text-align: right;
+  }
+
+  .model-picks-table .model-pick-buy::before,
+  .model-picks-table .model-pick-sell::before,
+  .model-picks-table .model-pick-quote::before,
+  .model-picks-table .model-pick-chance::before,
+  .model-picks-table .model-pick-gain::before {
+    color: $gray-6;
+    content: attr(data-label);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  //
+  // a figure too long for the line its name is on goes under it, still at the
+  // right, rather than both breaking into each other: the gains' three, beside
+  // their long name on a 390px phone
+  //
+  .model-picks-table .model-pick-cell {
+    margin-left: auto;
+    white-space: nowrap;
   }
 
   .model-list-head {

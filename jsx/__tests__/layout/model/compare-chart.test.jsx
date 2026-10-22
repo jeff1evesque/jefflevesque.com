@@ -15,7 +15,19 @@ import userEvent from '@testing-library/user-event';
 import CompareChart from '../../../import/layout/model/compare-chart.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
-import { TASKS, listingOf, ownBaselines, phoneScreen, pointAt, tapAt, trackOf, wideScreen } from '../../../test-support/model-fixtures.js';
+import {
+    TASKS,
+    listingOf,
+    optionsListingOf,
+    optionsTrackOf,
+    ownBaselines,
+    phoneScreen,
+    pointAt,
+    tapAt,
+    trackOf,
+    wideScreen,
+    withTop10,
+} from '../../../test-support/model-fixtures.js';
 
 const [ptGnn, tables, fresh] = listingOf().models;
 
@@ -261,6 +273,93 @@ describe('the panel (#251)', () => {
 
         expect(names).not.toContain('pt-gnn’s baseline');
         expect(names).toContain('tables’s baseline');
+    });
+});
+
+describe('models of different tasks, on a score of what their picks made (#279)', () => {
+    const listing = optionsListingOf();
+    const [stocks, , options] = listing.tasks;
+    const named = (name) => listing.models.find((model) => model.name === name);
+
+    function across(props = {}) {
+        return draw({
+            picks: [{ model: named('pt-gnn'), slot: 0 }, { model: named('pt-options'), slot: 1 }],
+            records: { 'pt-gnn': withTop10(trackOf(3)), 'pt-options': optionsTrackOf(3) },
+            score: 'top10_gain',
+            task: stocks,
+            tasks: [stocks, options],
+            onScore: jest.fn(),
+            ...props,
+        });
+    }
+
+    it('draws both, each beside its own baseline, dashed in its color', () => {
+        const { container } = across();
+        const lines = [...container.querySelectorAll('.recharts-line-curve')];
+
+        expect(lines).toHaveLength(4);
+        expect(lines.filter((line) => line.getAttribute('stroke-dasharray') === '5 4').map((line) => line.getAttribute('stroke')))
+            .toEqual([COMPARE_COLORS[0], COMPARE_COLORS[1]]);
+        expect(screen.getByRole('heading', { name: 'Comparing pt-gnn and pt-options' })).toBeInTheDocument();
+    });
+
+    it('reads each one\'s own gain and its own baseline\'s, an options model\'s on its 1-day hold', () => {
+        const { container } = across();
+        const rows = [...container.querySelectorAll('.model-tip-row')].map((row) => row.textContent);
+
+        expect(rows).toEqual([
+            'pt-options (3 days)3.07%',
+            'pt-gnn (3 days)0.12%',
+            'pt-options’s baseline−4.00%',
+            'pt-gnn’s baseline0.03%',
+        ]);
+    });
+
+    it('offers a picker of its own of the scores both tasks name, and hands up the one picked', async () => {
+        const onScore = jest.fn();
+
+        across({ onScore: onScore });
+
+        const buttons = within(screen.getByRole('group', { name: 'Score' })).getAllByRole('button');
+
+        expect(buttons.map((button) => button.textContent)).toEqual(['Top 10 gain', 'Top 10 wins']);
+        expect(buttons[0]).toHaveAttribute('aria-pressed', 'true');
+
+        await userEvent.click(buttons[1]);
+
+        expect(onScore).toHaveBeenCalledWith('top10_wins');
+    });
+
+    it('says what each predicts, and that the trades last different lengths and options swing more', () => {
+        across();
+
+        expect(screen.getByText(/^Next-day direction and Option picks, scored on the same days\./)).toBeInTheDocument();
+        expect(screen.getByText(/These trades last different lengths: the stocks are held from 9:40 to 3:40 the same day, the options’ 1-day hold until 3:40 the next day\. Options also swing far more than stocks\./))
+            .toBeInTheDocument();
+        expect(screen.queryByText(/flipped/)).toBeNull();
+    });
+
+    it('has no picker of its own, and says nothing of lengths, for models of one task', () => {
+        draw();
+
+        expect(screen.queryByRole('group', { name: 'Score' })).toBeNull();
+        expect(screen.queryByText(/different lengths/)).toBeNull();
+    });
+
+    it('says nothing of lengths for two tasks of stocks, which are traded alike', () => {
+        across({ tasks: [stocks, listing.tasks[1]] });
+
+        expect(screen.queryByText(/different lengths/)).toBeNull();
+    });
+
+    it('lists a model whose record has no column for the score after the rest, with none for it', () => {
+        const { container } = across({ records: { 'pt-gnn': trackOf(3), 'pt-options': optionsTrackOf(3) } });
+        const names = [...container.querySelectorAll('.model-tip-name')].map((name) => name.textContent);
+        const values = [...container.querySelectorAll('.model-tip-value')].map((value) => value.textContent);
+
+        expect(names.slice(0, 2)).toEqual(['pt-options (3 days)', 'pt-gnn (3 days)']);
+        expect(values[1]).toBe('–');
+        expect(names).not.toContain('pt-gnn’s baseline');
     });
 });
 

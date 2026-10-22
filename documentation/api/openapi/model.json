@@ -3,7 +3,7 @@
   "info": {
     "title": "Model",
     "version": "v1",
-    "description": "The models trained every night, and how each one scores: every nightly attempt to better it, and every day it predicted. Read by /model and /model/<name>. Scores only: nothing here says how a model is built."
+    "description": "The models trained every night, and how each one scores: every nightly attempt to better it, and every day it predicted. Read by /model and /model/<name>. Scores, and for an options model, its nightly picks: nothing here says how a model is built."
   },
   "servers": [
     {
@@ -14,8 +14,8 @@
     "/model": {
       "get": {
         "operationId": "getModel",
-        "summary": "The models, or one model's summary, history or track record",
-        "description": "Four calls on one path. With no parameters, the listing, as JSON. With a Model from the listing and a Report, one of that model's reports: summary, its summary, as JSON; or history, one row per nightly attempt, or track-record, one row per day it predicted, each as a CSV string with a header row. Model and Report go together: either alone is a 400.",
+        "summary": "The models, or one model's summary, history, track record or picks",
+        "description": "Five calls on one path. With no parameters, the listing, as JSON. With a Model from the listing and a Report, one of that model's reports: summary, its summary, as JSON; or history, one row per nightly attempt, track-record, one row per day it predicted, or picks, an options model's nightly picks, each as a CSV string with a header row. Model and Report go together: either alone is a 400. Ticker goes with Report=picks alone, and asks for one stock's options.",
         "parameters": [
           {
             "name": "Model",
@@ -31,21 +31,33 @@
             "name": "Report",
             "in": "query",
             "required": false,
-            "description": "Which of the model's reports: summary, its summary, as JSON; history, one row per nightly attempt; or track-record, one row per day it predicted. Asked with Model.",
+            "description": "Which of the model's reports: summary, its summary, as JSON; history, one row per nightly attempt; track-record, one row per day it predicted; or picks, an options model's nightly picks. Asked with Model.",
             "schema": {
               "type": "string",
               "enum": [
                 "summary",
                 "history",
-                "track-record"
+                "track-record",
+                "picks"
               ]
             },
             "example": "track-record"
+          },
+          {
+            "name": "Ticker",
+            "in": "query",
+            "required": false,
+            "description": "A stock's symbol, as AAPL, or BRK.B for a share class -- not BRK/B. Only with Report=picks: that stock's options, best first, up to 100 for each hold, rather than each hold's top 10.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,5}(\\.[A-Z])?$"
+            },
+            "example": "AAPL"
           }
         ],
         "responses": {
           "200": {
-            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history or track-record, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; started, when the attempt began, in UTC with its offset, e.g. 2026-10-16T07:58:10+00:00; training_seconds, the time spent training, reading the days included, to one decimal; total_seconds, from started until the attempt's scores are known, so its training and then scoring the held-out days for the attempt and for the live version, to one decimal; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>. started, training_seconds and total_seconds are empty for attempts made before 2026-10-15.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row. From format 2, down_days and down_in_a_row: the check that took the live version down, on the day whose score set it off, and empty on every other row. While a model is down it predicts nothing, so its track record has no rows until a new version goes live.\n\nThe scores are loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's. Loss is three scores added up, each lower-is-better, which a history and a track record carry under every prefix they carry a score under: up_log_loss, the log loss of whether each stock went up; beats_log_loss, the log loss of whether it beat the average stock; and move_pinball, the pinball loss of the size of its move. A coin flip scores 0.693 on each of the first two. The listing carries only loss.",
+            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history, track-record or picks, a CSV string with a header row, oldest row first, and the picks best first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; started, when the attempt began, in UTC with its offset, e.g. 2026-10-16T07:58:10+00:00; training_seconds, the time spent training, reading the days included, to one decimal; total_seconds, from started until the attempt's scores are known, so its training and then scoring the held-out days for the attempt and for the live version, to one decimal; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>. started, training_seconds and total_seconds are empty for attempts made before 2026-10-15.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row. From format 2, down_days and down_in_a_row: the check that took the live version down, on the day whose score set it off, and empty on every other row. While a model is down it predicts nothing, so its track record has no rows until a new version goes live. From format 3, an options model's track record has a set of columns for each hold, each score again as <score>_1d, <score>_5d and <score>_20d, and the baseline's as baseline_<score>_1d and so on. Its plain columns repeat the 1-day hold's. A day's 5 and 20-day columns are empty until those holds' sell days are in, 6 and 21 trading days after the day.\n\npicks, an options model's picks, made each night: with no Ticker, the top 10 options for each hold; with Ticker, that stock's options, best first, up to 100 for each hold. One row per option: day, the day the picks were made from; hold, 1, 5 or 20, the trading days it is held; rank, 1 for the best of its hold; ticker, its stock, e.g. BRK.B; contract, the option's contract name, which holds spaces but never a comma; call_put, call or put; strike, in dollars; expiry, the day it expires; buy_on, the day it is bought, at 9:40 AM; sell_on, the day it is sold, at 3:40 PM; last_bid and last_ask, its last quotes, in dollars; chance, the chance it makes money, bought at the ask and sold at the bid; usual_chance, the usual chance for options like it; and gain_low, gain_middle and gain_high, the gain the model guesses, low, middle and high, as a share of the price paid: 0.12 is 12%. Each hold's rows are ranked by how far chance is above usual_chance. Days are YYYY-MM-DD.\n\nThe scores are each task's: from format 3 the listing's tasks name them, and a task that names none has the four of the stock models, loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's. Loss is three scores added up for a stock model, each lower-is-better, which a history and a track record carry under every prefix they carry a score under: up_log_loss, the log loss of whether each stock went up; beats_log_loss, the log loss of whether it beat the average stock; and move_pinball, the pinball loss of the size of its move. A coin flip scores 0.693 on each of the first two. The listing carries only loss.\n\nFrom format 3 a stock model also has top10_gain, the average gain of each night's top 10, the 10 stocks it is surest will go up, bought at the 9:40 AM ask and sold at the 3:40 PM bid the same day, as a share of what they cost; and top10_wins, how many of each night's top 10 made money, 0 to 10. An options model has loss, which adds up, for each hold that is on, the log loss of its chance and the pinball loss of its gain; profit_auc, how well its chance ranks the options that made money above the ones that didn't, where 0.5 is a coin flip; and top10_gain and top10_wins, of each hold's 10 best options, bought at the 9:40 AM ask and sold at the 3:40 PM bid on the sell day. The baseline's top10_gain and top10_wins are those of everything the model could have picked: what a random pick got.",
             "content": {
               "application/json": {
                 "schema": {
@@ -67,7 +79,7 @@
                             "format_version": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. 2: a model's down and behind, and a track record's down_days and down_in_a_row. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
+                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. 2: a model's down and behind, and a track record's down_days and down_in_a_row. 3: a task's scores; the top 10's scores, profit_auc and an options model's track record's hold columns; the hold of down and of each check in behind; and the picks. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
                             },
                             "tasks": {
                               "type": "array",
@@ -90,6 +102,13 @@
                                   "description": {
                                     "type": "string",
                                     "description": "One line: what is predicted, and when it is scored."
+                                  },
+                                  "scores": {
+                                    "type": "array",
+                                    "description": "From format 3: the scores its models have, in the order /model offers them. A task without it has the four of the stock models.",
+                                    "items": {
+                                      "type": "string"
+                                    }
                                   }
                                 }
                               }
@@ -184,7 +203,7 @@
                                       "object",
                                       "null"
                                     ],
-                                    "description": "Each score averaged over the last 20 rows of its track record, or all of them while it has fewer. Null while it has none.",
+                                    "description": "Each score averaged over the last 20 rows of its track record, or all of them while it has fewer. Null while it has none. The four stock scores are always there, null where the task does not have them, and the rest where it does. An options model's are its 1-day hold's.",
                                     "required": [
                                       "loss",
                                       "auc_up",
@@ -217,6 +236,27 @@
                                           "null"
                                         ],
                                         "description": "A share, 0 to 1."
+                                      },
+                                      "profit_auc": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "From format 3, for an options model: how well its chance ranks the options that made money above the ones that didn't."
+                                      },
+                                      "top10_gain": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "From format 3: the average gain of each night's top 10, as a share of what they cost."
+                                      },
+                                      "top10_wins": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "From format 3: how many of each night's top 10 made money, 0 to 10."
                                       }
                                     }
                                   },
@@ -225,7 +265,7 @@
                                       "object",
                                       "null"
                                     ],
-                                    "description": "The know-nothing baseline's scores, averaged over the same days. Null while it has none.",
+                                    "description": "The know-nothing baseline's scores, averaged over the same days. Null while it has none. Its top10_gain and top10_wins are those of everything the model could have picked: what a random pick got.",
                                     "required": [
                                       "loss",
                                       "auc_up",
@@ -258,6 +298,27 @@
                                           "null"
                                         ],
                                         "description": "A share, 0 to 1."
+                                      },
+                                      "profit_auc": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "From format 3, for an options model: how well its chance ranks the options that made money above the ones that didn't."
+                                      },
+                                      "top10_gain": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "From format 3: the average gain of each night's top 10, as a share of what they cost."
+                                      },
+                                      "top10_wins": {
+                                        "type": [
+                                          "number",
+                                          "null"
+                                        ],
+                                        "description": "From format 3: how many of each night's top 10 made money, 0 to 10."
                                       }
                                     }
                                   },
@@ -286,12 +347,20 @@
                                         "type": "integer",
                                         "minimum": 1,
                                         "description": "How many scored days in a row it was worse."
+                                      },
+                                      "hold": {
+                                        "type": [
+                                          "integer",
+                                          "null"
+                                        ],
+                                        "minimum": 1,
+                                        "description": "From format 3: the hold the check ran on, in trading days, for an options model, whose checks run on each hold. Null, or left out, for a model with no holds."
                                       }
                                     }
                                   },
                                   "behind": {
                                     "type": "array",
-                                    "description": "From format 2: one entry per check, as of the newest scored day. The checks today: each day 5 days in a row, the 5-day average 10 days in a row, and the 20-day average 5 days in a row.",
+                                    "description": "From format 2: one entry per check, as of the newest scored day. The checks today: each day 5 days in a row, the 5-day average 10 days in a row, and the 20-day average 5 days in a row. An options model has each of them for each hold, from format 3.",
                                     "items": {
                                       "type": "object",
                                       "required": [
@@ -317,6 +386,14 @@
                                           "type": "integer",
                                           "minimum": 1,
                                           "description": "The count that takes the live version down."
+                                        },
+                                        "hold": {
+                                          "type": [
+                                            "integer",
+                                            "null"
+                                          ],
+                                          "minimum": 1,
+                                          "description": "From format 3: the hold the check ran on, in trading days, for an options model, whose checks run on each hold. Null, or left out, for a model with no holds."
                                         }
                                       }
                                     }
@@ -332,7 +409,7 @@
                         },
                         {
                           "type": "string",
-                          "description": "Asked with Model and Report=history or track-record: the report, as a CSV string with a header row."
+                          "description": "Asked with Model and Report=history, track-record or picks: the report, as a CSV string with a header row."
                         }
                       ]
                     }
@@ -343,17 +420,42 @@
                     "summary": "The listing, asked with no parameters",
                     "value": {
                       "report": {
-                        "format_version": 2,
+                        "format_version": 3,
                         "tasks": [
                           {
                             "id": "next-day",
                             "name": "Next-day move",
-                            "description": "Whether each S&P 500 stock closes higher the next trading day, scored once that day's prices are in."
+                            "description": "Whether each S&P 500 stock closes higher the next trading day, scored once that day's prices are in.",
+                            "scores": [
+                              "loss",
+                              "auc_up",
+                              "auc_beats",
+                              "acc_up",
+                              "top10_gain",
+                              "top10_wins"
+                            ]
                           },
                           {
                             "id": "next-week",
                             "name": "Next-week move",
-                            "description": "Whether each S&P 500 stock closes higher five trading days on, scored once those prices are in."
+                            "description": "Whether each S&P 500 stock closes higher five trading days on, scored once those prices are in.",
+                            "scores": [
+                              "loss",
+                              "auc_up",
+                              "auc_beats",
+                              "acc_up"
+                            ]
+                          },
+                          {
+                            "id": "option-picks",
+                            "name": "Option picks",
+                            "description": "For every S&P 500 option, the chance it makes money if bought at 9:40 AM the next trading day and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and sell prices, scored once each hold's sell day is in.",
+                            "scores": [
+                              "loss",
+                              "profit_auc",
+                              "top10_gain",
+                              "top10_wins"
+                            ]
                           }
                         ],
                         "models": [
@@ -376,13 +478,17 @@
                               "loss": 1.6421,
                               "auc_up": 0.5418,
                               "auc_beats": 0.5287,
-                              "acc_up": 0.5561
+                              "acc_up": 0.5561,
+                              "top10_gain": 0.0014,
+                              "top10_wins": 5.62
                             },
                             "baseline": {
                               "loss": 1.6631,
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
-                              "acc_up": 0.5402
+                              "acc_up": 0.5402,
+                              "top10_gain": -0.0003,
+                              "top10_wins": 4.71
                             },
                             "down": null,
                             "behind": [
@@ -422,13 +528,17 @@
                               "loss": 1.6478,
                               "auc_up": 0.5366,
                               "auc_beats": 0.5241,
-                              "acc_up": 0.5507
+                              "acc_up": 0.5507,
+                              "top10_gain": 0.0011,
+                              "top10_wins": 5.48
                             },
                             "baseline": {
                               "loss": 1.6631,
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
-                              "acc_up": 0.5402
+                              "acc_up": 0.5402,
+                              "top10_gain": -0.0003,
+                              "top10_wins": 4.71
                             },
                             "down": null,
                             "behind": [
@@ -468,13 +578,17 @@
                               "loss": 1.6548,
                               "auc_up": 0.52625,
                               "auc_beats": 0.5142,
-                              "acc_up": 0.53628
+                              "acc_up": 0.53628,
+                              "top10_gain": 0.001237,
+                              "top10_wins": 5.375
                             },
                             "baseline": {
                               "loss": 1.66325,
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
-                              "acc_up": 0.52921
+                              "acc_up": 0.52921,
+                              "top10_gain": -0.000287,
+                              "top10_wins": 4.65
                             },
                             "down": null,
                             "behind": [
@@ -514,13 +628,17 @@
                               "loss": 1.6741,
                               "auc_up": 0.4952,
                               "auc_beats": 0.4987,
-                              "acc_up": 0.5214
+                              "acc_up": 0.5214,
+                              "top10_gain": -0.0006,
+                              "top10_wins": 4.63
                             },
                             "baseline": {
                               "loss": 1.66325,
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
-                              "acc_up": 0.52921
+                              "acc_up": 0.52921,
+                              "top10_gain": -0.000287,
+                              "top10_wins": 4.65
                             },
                             "down": {
                               "since": "2026-10-16",
@@ -564,13 +682,17 @@
                               "loss": 1.6552,
                               "auc_up": 0.5243,
                               "auc_beats": 0.515,
-                              "acc_up": 0.5449
+                              "acc_up": 0.5449,
+                              "top10_gain": 0.0007,
+                              "top10_wins": 5.18
                             },
                             "baseline": {
                               "loss": 1.664,
                               "auc_up": 0.5,
                               "auc_beats": 0.5,
-                              "acc_up": 0.5391
+                              "acc_up": 0.5391,
+                              "top10_gain": -0.0002,
+                              "top10_wins": 4.75
                             },
                             "down": null,
                             "behind": [
@@ -636,6 +758,97 @@
                                 "limit": 5
                               }
                             ]
+                          },
+                          {
+                            "name": "pt-options",
+                            "task": "option-picks",
+                            "description": "Reads the day's Training Graph build.",
+                            "started": "2026-10-06",
+                            "retired": null,
+                            "scored_days": 9,
+                            "live": {
+                              "since": "2026-10-14",
+                              "kind": "nightly"
+                            },
+                            "attempts": {
+                              "total": 11,
+                              "went_live": 3
+                            },
+                            "score": {
+                              "loss": 0.740478,
+                              "auc_up": null,
+                              "auc_beats": null,
+                              "acc_up": null,
+                              "profit_auc": 0.5443,
+                              "top10_gain": 0.013978,
+                              "top10_wins": 5.333333
+                            },
+                            "baseline": {
+                              "loss": 0.760022,
+                              "auc_up": null,
+                              "auc_beats": null,
+                              "acc_up": null,
+                              "profit_auc": 0.5,
+                              "top10_gain": -0.045133,
+                              "top10_wins": 3.766667
+                            },
+                            "down": null,
+                            "behind": [
+                              {
+                                "days": 1,
+                                "in_a_row": 1,
+                                "limit": 5,
+                                "hold": 1
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10,
+                                "hold": 1
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 1
+                              },
+                              {
+                                "days": 1,
+                                "in_a_row": 0,
+                                "limit": 5,
+                                "hold": 5
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10,
+                                "hold": 5
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 5
+                              },
+                              {
+                                "days": 1,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 20
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": null,
+                                "limit": 10,
+                                "hold": 20
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 20
+                              }
+                            ]
                           }
                         ]
                       }
@@ -644,13 +857,25 @@
                   "history": {
                     "summary": "Model=pt-gnn-5day&Report=history: its nine nightly attempts, the last two with times",
                     "value": {
-                      "report": "day,kind,went_live,started,training_seconds,total_seconds,attempt_loss,attempt_auc_up,attempt_auc_beats,attempt_acc_up,attempt_up_log_loss,attempt_beats_log_loss,attempt_move_pinball,live_loss,live_auc_up,live_auc_beats,live_acc_up,live_up_log_loss,live_beats_log_loss,live_move_pinball,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up,baseline_up_log_loss,baseline_beats_log_loss,baseline_move_pinball\n2026-10-06,nightly,false,,,,1.6631,0.5120,0.5044,0.5302,0.7052,0.6939,0.2640,1.6594,0.5188,0.5097,0.5371,0.7038,0.6928,0.2628,1.6648,0.5,0.5,0.5356,0.7004,0.6931,0.2713\n2026-10-07,nightly,true,,,,1.6519,0.5302,0.5150,0.5411,0.7008,0.6906,0.2605,1.6578,0.5203,0.5101,0.5390,0.7031,0.6923,0.2624,1.6641,0.5,0.5,0.5302,0.7000,0.6931,0.2710\n2026-10-08,nightly,false,,,,1.6602,0.5187,0.5079,0.5354,0.7041,0.6931,0.2630,1.6533,0.5288,0.5139,0.5401,0.7013,0.6910,0.2610,1.6655,0.5,0.5,0.5419,0.7008,0.6931,0.2716\n2026-10-09,weekly,false,,,,1.6561,0.5251,0.5122,0.5377,0.7024,0.6918,0.2619,1.6540,0.5279,0.5133,0.5395,0.7016,0.6912,0.2612,1.6630,0.5,0.5,0.5287,0.6995,0.6931,0.2704\n2026-10-12,nightly,true,,,,1.6478,0.5342,0.5170,0.5426,0.6991,0.6893,0.2594,1.6526,0.5297,0.5142,0.5408,0.7010,0.6908,0.2608,1.6619,0.5,0.5,0.5333,0.6990,0.6931,0.2698\n2026-10-13,nightly,false,,,,1.6512,0.5318,0.5160,0.5419,0.7005,0.6904,0.2603,1.6489,0.5336,0.5166,0.5423,0.6996,0.6897,0.2596,1.6622,0.5,0.5,0.5359,0.6991,0.6931,0.2700\n2026-10-14,nightly,false,,,,1.6534,0.5296,0.5149,0.5402,0.7014,0.6910,0.2610,1.6497,0.5329,0.5161,0.5417,0.6999,0.6899,0.2599,1.6627,0.5,0.5,0.5341,0.6994,0.6931,0.2702\n2026-10-15,nightly,false,2026-10-16T07:58:10+00:00,437.2,532.4,1.6503,0.5321,0.5163,0.5415,0.7001,0.6901,0.2601,1.6481,0.5342,0.5170,0.5428,0.6992,0.6894,0.2595,1.6618,0.5,0.5,0.5362,0.6989,0.6931,0.2698\n2026-10-16,weekly,false,2026-10-17T07:56:03+00:00,2418.6,2517.9,1.6492,0.5335,0.5168,0.5421,0.6997,0.6898,0.2597,1.6475,0.5349,0.5174,0.5431,0.6990,0.6892,0.2593,1.6612,0.5,0.5,0.5355,0.6986,0.6931,0.2695\n"
+                      "report": "day,kind,went_live,started,training_seconds,total_seconds,attempt_loss,attempt_auc_up,attempt_auc_beats,attempt_acc_up,attempt_top10_gain,attempt_top10_wins,attempt_up_log_loss,attempt_beats_log_loss,attempt_move_pinball,live_loss,live_auc_up,live_auc_beats,live_acc_up,live_top10_gain,live_top10_wins,live_up_log_loss,live_beats_log_loss,live_move_pinball,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up,baseline_top10_gain,baseline_top10_wins,baseline_up_log_loss,baseline_beats_log_loss,baseline_move_pinball\n2026-10-06,nightly,false,,,,1.6631,0.5120,0.5044,0.5302,0.0005,5.5,0.7052,0.6939,0.2640,1.6594,0.5188,0.5097,0.5371,0.0023,4.9,0.7038,0.6928,0.2628,1.6648,0.5,0.5,0.5356,-0.0002,4.8,0.7004,0.6931,0.2713\n2026-10-07,nightly,true,,,,1.6519,0.5302,0.5150,0.5411,0.0027,5.2,0.7008,0.6906,0.2605,1.6578,0.5203,0.5101,0.5390,0.0019,5.5,0.7031,0.6923,0.2624,1.6641,0.5,0.5,0.5302,-0.0005,4.6,0.7000,0.6931,0.2710\n2026-10-08,nightly,false,,,,1.6602,0.5187,0.5079,0.5354,-0.0017,5.3,0.7041,0.6931,0.2630,1.6533,0.5288,0.5139,0.5401,0.0006,4.8,0.7013,0.6910,0.2610,1.6655,0.5,0.5,0.5419,-0.0001,4.8,0.7008,0.6931,0.2716\n2026-10-09,weekly,false,,,,1.6561,0.5251,0.5122,0.5377,-0.0009,5.7,0.7024,0.6918,0.2619,1.6540,0.5279,0.5133,0.5395,-0.0010,5.3,0.7016,0.6912,0.2612,1.6630,0.5,0.5,0.5287,-0.0003,4.8,0.6995,0.6931,0.2704\n2026-10-12,nightly,true,,,,1.6478,0.5342,0.5170,0.5426,-0.0009,5.5,0.6991,0.6893,0.2594,1.6526,0.5297,0.5142,0.5408,0.0011,5.7,0.7010,0.6908,0.2608,1.6619,0.5,0.5,0.5333,-0.0003,4.9,0.6990,0.6931,0.2698\n2026-10-13,nightly,false,,,,1.6512,0.5318,0.5160,0.5419,-0.0015,5.9,0.7005,0.6904,0.2603,1.6489,0.5336,0.5166,0.5423,0.0019,5.6,0.6996,0.6897,0.2596,1.6622,0.5,0.5,0.5359,-0.0001,4.7,0.6991,0.6931,0.2700\n2026-10-14,nightly,false,,,,1.6534,0.5296,0.5149,0.5402,0.0014,4.8,0.7014,0.6910,0.2610,1.6497,0.5329,0.5161,0.5417,0.0028,5.4,0.6999,0.6899,0.2599,1.6627,0.5,0.5,0.5341,-0.0007,4.9,0.6994,0.6931,0.2702\n2026-10-15,nightly,false,2026-10-16T07:58:10+00:00,437.2,532.4,1.6503,0.5321,0.5163,0.5415,-0.0007,5.4,0.7001,0.6901,0.2601,1.6481,0.5342,0.5170,0.5428,0.0020,5.5,0.6992,0.6894,0.2595,1.6618,0.5,0.5,0.5362,-0.0011,4.8,0.6989,0.6931,0.2698\n2026-10-16,weekly,false,2026-10-17T07:56:03+00:00,2418.6,2517.9,1.6492,0.5335,0.5168,0.5421,0.0040,5.3,0.6997,0.6898,0.2597,1.6475,0.5349,0.5174,0.5431,0.0009,5.2,0.6990,0.6892,0.2593,1.6612,0.5,0.5,0.5355,-0.0002,4.8,0.6986,0.6931,0.2695\n"
                     }
                   },
                   "track-record": {
                     "summary": "Model=pt-gnn-5day&Report=track-record: its eight scored days",
                     "value": {
-                      "report": "day,loss,auc_up,auc_beats,acc_up,up_log_loss,beats_log_loss,move_pinball,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up,baseline_up_log_loss,baseline_beats_log_loss,baseline_move_pinball,down_days,down_in_a_row\n2026-10-06,1.6582,0.5214,0.5103,0.5427,0.7033,0.6925,0.2624,1.6650,0.5,0.5,0.5368,0.7005,0.6931,0.2714,,\n2026-10-07,1.6497,0.5361,0.5188,0.5129,0.6999,0.6899,0.2599,1.6611,0.5,0.5,0.4970,0.6986,0.6931,0.2694,,\n2026-10-08,1.6710,0.4982,0.5031,0.5785,0.7084,0.6963,0.2663,1.6693,0.5,0.5,0.5865,0.7026,0.6931,0.2736,,\n2026-10-09,1.6423,0.5447,0.5262,0.4652,0.6969,0.6877,0.2577,1.6589,0.5,0.5,0.4473,0.6974,0.6931,0.2684,,\n2026-10-12,1.6538,0.5296,0.5145,0.6123,0.7015,0.6911,0.2612,1.6627,0.5,0.5,0.6044,0.6994,0.6931,0.2702,,\n2026-10-13,1.6561,0.5243,0.5121,0.5318,0.7024,0.6918,0.2619,1.6633,0.5,0.5,0.5276,0.6996,0.6931,0.2706,,\n2026-10-14,1.6472,0.5389,0.5197,0.5561,0.6989,0.6892,0.2591,1.6602,0.5,0.5,0.5490,0.6981,0.6931,0.2690,,\n2026-10-15,1.6601,0.5168,0.5089,0.4907,0.7040,0.6930,0.2631,1.6655,0.5,0.5,0.4851,0.7008,0.6931,0.2716,,\n"
+                      "report": "day,loss,auc_up,auc_beats,acc_up,top10_gain,top10_wins,up_log_loss,beats_log_loss,move_pinball,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up,baseline_top10_gain,baseline_top10_wins,baseline_up_log_loss,baseline_beats_log_loss,baseline_move_pinball,down_days,down_in_a_row\n2026-10-06,1.6582,0.5214,0.5103,0.5427,0.0021,6,0.7033,0.6925,0.2624,1.6650,0.5,0.5,0.5368,-0.0004,4.6,0.7005,0.6931,0.2714,,\n2026-10-07,1.6497,0.5361,0.5188,0.5129,-0.0008,4,0.6999,0.6899,0.2599,1.6611,0.5,0.5,0.4970,-0.0011,4.1,0.6986,0.6931,0.2694,,\n2026-10-08,1.6710,0.4982,0.5031,0.5785,0.0035,7,0.7084,0.6963,0.2663,1.6693,0.5,0.5,0.5865,0.0006,5.2,0.7026,0.6931,0.2736,,\n2026-10-09,1.6423,0.5447,0.5262,0.4652,0.0012,5,0.6969,0.6877,0.2577,1.6589,0.5,0.5,0.4473,-0.0002,4.7,0.6974,0.6931,0.2684,,\n2026-10-12,1.6538,0.5296,0.5145,0.6123,-0.0015,4,0.7015,0.6911,0.2612,1.6627,0.5,0.5,0.6044,-0.0009,4.3,0.6994,0.6931,0.2702,,\n2026-10-13,1.6561,0.5243,0.5121,0.5318,0.0027,6,0.7024,0.6918,0.2619,1.6633,0.5,0.5,0.5276,0.0003,5.0,0.6996,0.6931,0.2706,,\n2026-10-14,1.6472,0.5389,0.5197,0.5561,0.0009,5,0.6989,0.6892,0.2591,1.6602,0.5,0.5,0.5490,-0.0005,4.5,0.6981,0.6931,0.2690,,\n2026-10-15,1.6601,0.5168,0.5089,0.4907,0.0018,6,0.7040,0.6930,0.2631,1.6655,0.5,0.5,0.4851,-0.0001,4.8,0.7008,0.6931,0.2716,,\n"
+                    }
+                  },
+                  "picks": {
+                    "summary": "Model=pt-options&Report=picks: tonight's top 10 for each hold, made from Oct 20",
+                    "value": {
+                      "report": "day,hold,rank,ticker,contract,call_put,strike,expiry,buy_on,sell_on,last_bid,last_ask,chance,usual_chance,gain_low,gain_middle,gain_high\n2026-10-20,1,1,AVGO,AVGO  261030C00350000,call,350,2026-10-30,2026-10-21,2026-10-22,4.38,4.52,0.6250,0.4441,-0.4672,0.0223,0.3796\n2026-10-20,1,2,NVDA,NVDA  261030P00175000,put,175,2026-10-30,2026-10-21,2026-10-22,1.91,2.01,0.6378,0.4604,-0.4549,0.0755,0.3481\n2026-10-20,1,3,XOM,XOM   261030C00120000,call,120,2026-10-30,2026-10-21,2026-10-22,1.04,1.10,0.6354,0.4595,-0.4272,0.0619,0.3488\n2026-10-20,1,4,UNH,UNH   261030P00340000,put,340,2026-10-30,2026-10-21,2026-10-22,3.11,3.27,0.5814,0.4056,-0.4637,0.0370,0.3475\n2026-10-20,1,5,MRK,MRK   261030C00088000,call,88,2026-10-30,2026-10-21,2026-10-22,1.12,1.17,0.6234,0.4664,-0.4545,0.0306,0.3388\n2026-10-20,1,6,PG,PG    261030P00145000,put,145,2026-10-30,2026-10-21,2026-10-22,1.83,1.92,0.5632,0.4181,-0.4063,0.0256,0.3132\n2026-10-20,1,7,JNJ,JNJ   261030C00195000,call,195,2026-10-30,2026-10-21,2026-10-22,2.51,2.61,0.5703,0.4422,-0.4785,0.0613,0.3289\n2026-10-20,1,8,AMD,AMD   261030C00235000,call,235,2026-10-30,2026-10-21,2026-10-22,2.75,2.84,0.5700,0.4420,-0.3915,0.0309,0.3076\n2026-10-20,1,9,CRM,CRM   261030C00250000,call,250,2026-10-30,2026-10-21,2026-10-22,2.37,2.49,0.5215,0.4018,-0.4721,0.0229,0.3145\n2026-10-20,1,10,V,V     261030C00350000,call,350,2026-10-30,2026-10-21,2026-10-22,4.31,4.45,0.4998,0.3921,-0.4694,0.0499,0.3887\n2026-10-20,5,1,GOOGL,GOOGL 261120C00260000,call,260,2026-11-20,2026-10-21,2026-10-28,6.02,6.21,0.6143,0.4267,-0.5717,0.0511,0.7550\n2026-10-20,5,2,PEP,PEP   261120P00140000,put,140,2026-11-20,2026-10-21,2026-10-28,3.09,3.17,0.5570,0.3803,-0.5323,0.1094,0.7534\n2026-10-20,5,3,NFLX,NFLX  261120C01235000,call,1235,2026-11-20,2026-10-21,2026-10-28,27.30,28.12,0.6008,0.4254,-0.6442,0.1161,0.8146\n2026-10-20,5,4,JNJ,JNJ   261120P00185000,put,185,2026-11-20,2026-10-21,2026-10-28,5.94,6.06,0.5645,0.3985,-0.5303,0.0497,0.6940\n2026-10-20,5,5,MRK,MRK   261120C00088000,call,88,2026-11-20,2026-10-21,2026-10-28,1.66,1.72,0.5699,0.4326,-0.5787,0.0722,0.8607\n2026-10-20,5,6,AVGO,AVGO  261120C00350000,call,350,2026-11-20,2026-10-21,2026-10-28,7.46,7.71,0.5716,0.4414,-0.6225,0.0758,0.8294\n2026-10-20,5,7,MA,MA    261120C00585000,call,585,2026-11-20,2026-10-21,2026-10-28,11.24,11.54,0.5757,0.4580,-0.6475,0.1140,0.7756\n2026-10-20,5,8,CVX,CVX   261120P00150000,put,150,2026-11-20,2026-10-21,2026-10-28,3.04,3.17,0.4977,0.4131,-0.5660,0.1160,0.6970\n2026-10-20,5,9,AMD,AMD   261120C00235000,call,235,2026-11-20,2026-10-21,2026-10-28,4.65,4.83,0.4506,0.3801,-0.6007,0.1270,0.6434\n2026-10-20,5,10,TSLA,TSLA  261120P00415000,put,415,2026-11-20,2026-10-21,2026-10-28,11.01,11.59,0.4553,0.3927,-0.5898,0.0683,0.6913\n2026-10-20,20,1,CVX,CVX   261218C00160000,call,160,2026-12-18,2026-10-21,2026-11-18,6.25,6.53,0.6251,0.4362,-0.7892,0.1518,1.2118\n2026-10-20,20,2,NFLX,NFLX  261218P01165000,put,1165,2026-12-18,2026-10-21,2026-11-18,50.25,52.77,0.6293,0.4626,-0.7234,0.2135,1.1189\n2026-10-20,20,3,JNJ,JNJ   261218P00185000,put,185,2026-12-18,2026-10-21,2026-11-18,8.33,8.72,0.5816,0.4510,-0.7388,0.0789,1.1545\n2026-10-20,20,4,JPM,JPM   261218C00310000,call,310,2026-12-18,2026-10-21,2026-11-18,12.02,12.32,0.5540,0.4290,-0.6663,0.1681,1.0638\n2026-10-20,20,5,V,V     261218C00350000,call,350,2026-12-18,2026-10-21,2026-11-18,13.24,14.02,0.5837,0.4617,-0.7255,0.1687,1.1910\n2026-10-20,20,6,BAC,BAC   261218C00052000,call,52,2026-12-18,2026-10-21,2026-11-18,2.42,2.50,0.5576,0.4471,-0.7637,0.0840,1.1010\n2026-10-20,20,7,XOM,XOM   261218C00120000,call,120,2026-12-18,2026-10-21,2026-11-18,4.29,4.47,0.5455,0.4360,-0.7517,0.0751,1.3658\n2026-10-20,20,8,PEP,PEP   261218P00140000,put,140,2026-12-18,2026-10-21,2026-11-18,7.25,7.66,0.4818,0.3863,-0.7135,0.1357,1.1943\n2026-10-20,20,9,WMT,WMT   261218P00095000,put,95,2026-12-18,2026-10-21,2026-11-18,4.63,4.85,0.4867,0.4007,-0.6575,0.2212,1.0495\n2026-10-20,20,10,TSLA,TSLA  261218P00415000,put,415,2026-12-18,2026-10-21,2026-11-18,19.79,20.63,0.4548,0.3855,-0.7241,0.1667,1.0942\n"
+                    }
+                  },
+                  "option-picks-track-record": {
+                    "summary": "Model=pt-options&Report=track-record: an options model's nine scored days, each hold in its own columns, the 5-day hold's in for five and the 20-day hold's for none yet",
+                    "value": {
+                      "report": "day,loss,profit_auc,top10_gain,top10_wins,loss_1d,profit_auc_1d,top10_gain_1d,top10_wins_1d,loss_5d,profit_auc_5d,top10_gain_5d,top10_wins_5d,loss_20d,profit_auc_20d,top10_gain_20d,top10_wins_20d,baseline_loss,baseline_profit_auc,baseline_top10_gain,baseline_top10_wins,baseline_loss_1d,baseline_profit_auc_1d,baseline_top10_gain_1d,baseline_top10_wins_1d,baseline_loss_5d,baseline_profit_auc_5d,baseline_top10_gain_5d,baseline_top10_wins_5d,baseline_loss_20d,baseline_profit_auc_20d,baseline_top10_gain_20d,baseline_top10_wins_20d,down_days,down_in_a_row\n2026-10-06,0.7412,0.5412,0.0312,6,0.7412,0.5412,0.0312,6,0.7895,0.5321,0.0621,6,,,,,0.7598,0.5,-0.0452,3.8,0.7598,0.5,-0.0452,3.8,0.8121,0.5,-0.0821,3.5,,,,,,\n2026-10-07,0.7388,0.5521,-0.0187,4,0.7388,0.5521,-0.0187,4,0.7952,0.5198,-0.0455,4,,,,,0.7602,0.5,-0.0488,3.6,0.7602,0.5,-0.0488,3.6,0.8134,0.5,-0.0874,3.2,,,,,,\n2026-10-08,0.7451,0.5287,0.0544,7,0.7451,0.5287,0.0544,7,0.7811,0.5412,0.0897,7,,,,,0.7611,0.5,-0.0397,4.1,0.7611,0.5,-0.0397,4.1,0.8098,0.5,-0.0756,3.9,,,,,,\n2026-10-09,0.7365,0.5603,0.0123,5,0.7365,0.5603,0.0123,5,0.7988,0.5265,0.0334,5,,,,,0.7589,0.5,-0.0463,3.7,0.7589,0.5,-0.0463,3.7,0.8142,0.5,-0.0838,3.4,,,,,,\n2026-10-12,0.7420,0.5356,-0.0401,3,0.7420,0.5356,-0.0401,3,0.7904,0.5377,-0.0712,4,,,,,0.7605,0.5,-0.0511,3.4,0.7605,0.5,-0.0511,3.4,0.8117,0.5,-0.0902,3.1,,,,,,\n2026-10-13,0.7397,0.5478,0.0276,6,0.7397,0.5478,0.0276,6,,,,,,,,,0.7593,0.5,-0.0429,3.9,0.7593,0.5,-0.0429,3.9,,,,,,,,,,\n2026-10-14,0.7376,0.5544,0.0465,7,0.7376,0.5544,0.0465,7,,,,,,,,,0.7600,0.5,-0.0405,4.0,0.7600,0.5,-0.0405,4.0,,,,,,,,,,\n2026-10-15,0.7433,0.5319,-0.0092,4,0.7433,0.5319,-0.0092,4,,,,,,,,,0.7608,0.5,-0.0476,3.6,0.7608,0.5,-0.0476,3.6,,,,,,,,,,\n2026-10-16,0.7401,0.5467,0.0218,6,0.7401,0.5467,0.0218,6,,,,,,,,,0.7596,0.5,-0.0441,3.8,0.7596,0.5,-0.0441,3.8,,,,,,,,,,\n"
                     }
                   }
                 }
@@ -658,7 +883,7 @@
             }
           },
           "400": {
-            "description": "Model without Report, or the other way round; a Report that is not one of the three; any other parameter, even a lowercase model; or either one given twice.",
+            "description": "Model without Report, or the other way round; a Report that is not one of the four; a Ticker with any Report but picks, or one that is not a stock's symbol; any other parameter, even a lowercase model; or any of them given twice.",
             "content": {
               "application/json": {
                 "schema": {
@@ -682,10 +907,10 @@
                 },
                 "examples": {
                   "together": {
-                    "summary": "Model without Report, or a Report that is not one of the three",
+                    "summary": "Model without Report, or a Report that is not one of the four",
                     "value": {
                       "report": {
-                        "error": "Model and Report go together, and Report is summary, history or track-record."
+                        "error": "Model and Report go together, and Report is summary, history, track-record or picks."
                       }
                     }
                   },
@@ -693,15 +918,31 @@
                     "summary": "Any other parameter, even a lowercase model",
                     "value": {
                       "report": {
-                        "error": "Model and Report are the only parameters."
+                        "error": "Model, Report and Ticker are the only parameters."
+                      }
+                    }
+                  },
+                  "ticker": {
+                    "summary": "Ticker alone, with Model alone, or with a Report other than picks",
+                    "value": {
+                      "report": {
+                        "error": "Ticker goes with Report=picks."
+                      }
+                    }
+                  },
+                  "symbol": {
+                    "summary": "A Ticker that is not a stock's symbol, as aapl or BRK/B",
+                    "value": {
+                      "report": {
+                        "error": "Ticker is a stock's symbol, like AAPL or BRK.B."
                       }
                     }
                   },
                   "twice": {
-                    "summary": "Model or Report given twice",
+                    "summary": "Model, Report or Ticker given twice",
                     "value": {
                       "report": {
-                        "error": "Model and Report may each be given once."
+                        "error": "Model, Report and Ticker may each be given once."
                       }
                     }
                   }
@@ -710,7 +951,7 @@
             }
           },
           "404": {
-            "description": "Model names no model in the listing.",
+            "description": "Model names no model in the listing; Report=picks names a model that has no picks, as every stock model; or a Ticker names a stock the model has no picks for.",
             "content": {
               "application/json": {
                 "schema": {
@@ -732,9 +973,30 @@
                     }
                   }
                 },
-                "example": {
-                  "report": {
-                    "error": "There is no model named nope."
+                "examples": {
+                  "model": {
+                    "summary": "No model has that name",
+                    "value": {
+                      "report": {
+                        "error": "There is no model named nope."
+                      }
+                    }
+                  },
+                  "picks": {
+                    "summary": "Report=picks, of a model with no picks",
+                    "value": {
+                      "report": {
+                        "error": "This model has no picks."
+                      }
+                    }
+                  },
+                  "stock": {
+                    "summary": "A Ticker the model has no picks for",
+                    "value": {
+                      "report": {
+                        "error": "No picks for that stock."
+                      }
+                    }
                   }
                 }
               }
@@ -775,7 +1037,7 @@
             }
           },
           "502": {
-            "description": "The listing or the report could not be read, or the report has not been published yet, even for a model the listing names.",
+            "description": "The listing or a report could not be read, or a summary, history or track record has not been published yet, even for a model the listing names.",
             "content": {
               "application/json": {
                 "schema": {
@@ -797,9 +1059,22 @@
                     }
                   }
                 },
-                "example": {
+                "examples": {
                   "report": {
-                    "error": "The track record of pt-gnn-5day could not be read."
+                    "summary": "A report that could not be read",
+                    "value": {
+                      "report": {
+                        "error": "The track record of pt-gnn-5day could not be read."
+                      }
+                    }
+                  },
+                  "picks": {
+                    "summary": "Picks that could not be read",
+                    "value": {
+                      "report": {
+                        "error": "The picks of pt-options could not be read."
+                      }
+                    }
                   }
                 }
               }

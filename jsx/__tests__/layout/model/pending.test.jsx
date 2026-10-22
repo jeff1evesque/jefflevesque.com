@@ -11,6 +11,8 @@ import {
     PendingChart,
     PendingGroup,
     PendingLines,
+    PendingPicker,
+    PendingPicks,
     PendingRow,
     PendingSummary,
     STAGGER,
@@ -123,6 +125,51 @@ describe('PendingGroup', () => {
         expect(group).toHaveAttribute('aria-hidden', 'true');
         expect(group.querySelectorAll('a, button, [tabindex]')).toHaveLength(0);
         group.querySelectorAll('input').forEach((input) => expect(input).toBeDisabled());
+    });
+
+    it('draws its list\'s score picker as its name over bars, under its heading, and names loss over its column (#279)', () => {
+        const { container } = render(<PendingGroup />);
+        const group = container.querySelector('.model-group');
+
+        expect([...group.children].map((part) => part.className)).toEqual(['model-group-head', 'model-controls model-group-controls', 'model-list']);
+        expect(group.querySelector('.model-group-controls .model-picker-pending')).not.toBeNull();
+        expect(group.querySelector('.model-list-head')).toHaveTextContent('Loss, last 20 days');
+    });
+});
+
+describe('PendingPicker (#279)', () => {
+    it('names the picker, and draws a bar in the outline of each of four buttons and of a phone\'s menu', () => {
+        const { container } = render(<PendingPicker />);
+        const picker = container.querySelector('.model-scores');
+
+        expect(picker).toHaveClass('model-picker-pending');
+        expect(picker).toHaveAttribute('aria-hidden', 'true');
+        expect(picker.querySelector('.model-control-label')).toHaveTextContent(/^Score$/);
+        expect(picker.querySelectorAll('.model-score-buttons > .model-score-pending > .graph-pending-bar')).toHaveLength(4);
+        expect(picker.querySelector('.model-score-menu .model-score-pending > .graph-pending-bar')).not.toBeNull();
+        expect(picker.querySelectorAll('button, select')).toHaveLength(0);
+    });
+
+    it('breathes each button\'s bar a beat after the one before it', () => {
+        const { container } = render(<PendingPicker />);
+
+        expect([...container.querySelectorAll('.model-score-buttons .graph-pending-bar')].map((bar) => bar.style.animationDelay))
+            .toEqual([0, 1, 2, 3].map((at) => `${at * STAGGER}ms`));
+    });
+});
+
+describe('PendingPicks (#279)', () => {
+    it('titles its card as the picks\' card, with bars for its line, the holds\' tabs and five rows, hidden from a screen reader', () => {
+        const { container } = render(<PendingPicks title='Tonight’s top 10' />);
+        const card = container.querySelector('.model-card');
+
+        expect(card).toHaveClass('model-picks');
+        expect(card).toHaveAttribute('aria-hidden', 'true');
+        expect(card.querySelector('h5')).toHaveTextContent(/^Tonight’s top 10$/);
+        expect(card.querySelectorAll('.model-card-sub .model-pending-line')).toHaveLength(1);
+        expect(card.querySelectorAll('.model-picks-tabs > .model-score-pending > .graph-pending-bar')).toHaveLength(3);
+        expect(card.querySelectorAll('.model-picks-pending > .model-pending-line')).toHaveLength(5);
+        expect(card.querySelectorAll('button, input')).toHaveLength(0);
     });
 });
 

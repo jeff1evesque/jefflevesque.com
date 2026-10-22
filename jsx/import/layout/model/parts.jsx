@@ -1,8 +1,8 @@
 /**
- * parts.jsx: what both model pages draw alike (#243): the score picker, a model's
- * status, its bell (#255), the marks a legend and a panel share, the panel under a
- * chart that holds a day's numbers (#251), and the table every chart can be read
- * as instead.
+ * parts.jsx: what both model pages draw alike (#243): the score picker, an options
+ * model's hold picker (#279), a model's status, its bell (#255), the marks a legend
+ * and a panel share, the panel under a chart that holds a day's numbers (#251), and
+ * the table every chart can be read as instead.
  *
  * Note: a series' color is only ever a mark's -- a line, a dot, a bar or a swatch
  *       -- and the words beside it are the page's own text. A name written in its
@@ -15,35 +15,35 @@ import { Link } from 'react-router-dom';
 import Tooltip from '@mui/material/Tooltip';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
-import { BASELINE_DASH, SCORES, SCORING_OPACITY, statusOf, statusLabel } from './scores.js';
+import { BASELINE_DASH, HOLDS, SCORES, SCORING_OPACITY, scoreOf, statusOf, statusLabel } from './scores.js';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 
-/**
- * the four scores, as buttons where there is room for them and a menu on a
- * phone, as /stream's rates are. Every chart on the page, and the list's
- * figures, follow the one picked.
- */
-export function ScorePicker({ score, onScore }) {
+//
+// a choice of a few, as buttons where there is room for them and a menu on a
+// phone, as /stream's rates are: `choices` are { key, label }, and `name` says
+// what is chosen, over the buttons and to a screen reader
+//
+function Choices({ className, name, choices, chosen, onChoose }) {
     return (
-        <div className='model-scores'>
-            <span className='model-control-label' aria-hidden='true'>Score</span>
-            <div className='model-score-buttons' role='group' aria-label='Score'>
-                {SCORES.map((each) => (
+        <div className={className}>
+            <span className='model-control-label' aria-hidden='true'>{name}</span>
+            <div className='model-score-buttons' role='group' aria-label={name}>
+                {choices.map((each) => (
                     <button
                         key={each.key}
                         type='button'
                         className='model-score'
-                        aria-pressed={each.key === score}
-                        onClick={() => onScore(each.key)}
+                        aria-pressed={each.key === chosen}
+                        onClick={() => onChoose(each.key)}
                     >
                         {each.label}
                     </button>
                 ))}
             </div>
             <label className='model-score-menu'>
-                <span className='visually-hidden'>Score</span>
-                <select value={score} onChange={(event) => onScore(event.target.value)}>
-                    {SCORES.map((each) => (
+                <span className='visually-hidden'>{name}</span>
+                <select value={chosen} onChange={(event) => onChoose(event.target.value)}>
+                    {choices.map((each) => (
                         <option key={each.key} value={each.key}>{each.label}</option>
                     ))}
                 </select>
@@ -52,9 +52,65 @@ export function ScorePicker({ score, onScore }) {
     );
 }
 
+Choices.propTypes = {
+    className: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    choices: PropTypes.arrayOf(PropTypes.shape({
+        key: PropTypes.string.isRequired,
+        label: PropTypes.string.isRequired,
+    })).isRequired,
+    chosen: PropTypes.string.isRequired,
+    onChoose: PropTypes.func.isRequired,
+};
+
+/**
+ * a task's scores, `offered` -- see scores.js's scoresFor (#279) -- the four
+ * stock scores unless it says otherwise. Every chart on the page, and the
+ * list's figures, follow the one picked.
+ */
+export function ScorePicker({ score, onScore, offered = SCORES.map((each) => each.key) }) {
+    return (
+        <Choices
+            className='model-scores'
+            name='Score'
+            choices={offered.map((key) => ({ key: key, label: scoreOf(key).label }))}
+            chosen={score}
+            onChoose={onScore}
+        />
+    );
+}
+
 ScorePicker.propTypes = {
     score: PropTypes.string.isRequired,
     onScore: PropTypes.func.isRequired,
+    offered: PropTypes.arrayOf(PropTypes.string),
+};
+
+/**
+ * how long an options model's picks are held, beside the score picker on its
+ * page (#279): the holds its track record has, `holds` -- see scores.js's
+ * holdsOf -- and the track record's chart follows the one picked. It hands a
+ * hold up as the number of days.
+ */
+export function HoldPicker({ hold, onHold, holds = HOLDS }) {
+    return (
+        <Choices
+            className='model-scores model-holds'
+            name='Hold'
+            choices={holds.map((each) => ({ key: String(each.days), label: each.label }))}
+            chosen={String(hold)}
+            onChoose={(days) => onHold(Number(days))}
+        />
+    );
+}
+
+HoldPicker.propTypes = {
+    hold: PropTypes.number.isRequired,
+    onHold: PropTypes.func.isRequired,
+    holds: PropTypes.arrayOf(PropTypes.shape({
+        days: PropTypes.number.isRequired,
+        label: PropTypes.string.isRequired,
+    })),
 };
 
 /**

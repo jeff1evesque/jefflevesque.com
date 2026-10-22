@@ -3,6 +3,13 @@
  * lists (#243): their 20-day track records on one chart, each beside its own
  * know-nothing baseline, dashed in its color (#263).
  *
+ * Models of different tasks are compared on a score of what each one's picks
+ * would have made, which both tasks name (#279): the top 10's gain, or how many
+ * of them won. The chart then has a picker of its own, of those scores alone,
+ * where with one task it follows that task's, and the line under its title says
+ * the trades are not alike. An options model is drawn on its 1-day hold's, as
+ * the listing scores it.
+ *
  * Each model is drawn in the color it was given when it was ticked, which it
  * keeps for as long as it stays ticked -- see ModelLayout.pick -- so unticking
  * one does not repaint the others. The legend names each in the page's own text
@@ -32,7 +39,7 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { Legend, Mark, NoBox, Numbers, Readout, axisStyle, usePanelDay } from './parts.jsx';
+import { Legend, Mark, NoBox, Numbers, Readout, ScorePicker, axisStyle, usePanelDay } from './parts.jsx';
 import {
     BASELINE_DASH,
     COMPARE_COLORS,
@@ -42,9 +49,18 @@ import {
     formatScore,
     formatTick,
     longDay,
+    scoreIn,
     scoreOf,
+    sharedScores,
     shortDay,
+    tradesOptions,
 } from './scores.js';
+
+//
+// how long the trades compared last, where a task of stocks is compared with
+// one of options (#279): a stock's top 10 is bought and sold the same day
+//
+const LENGTHS = 'These trades last different lengths: the stocks are held from 9:40 to 3:40 the same day, the options’ 1-day hold until 3:40 the next day. Options also swing far more than stocks.';
 
 //
 // the chart's height, in px, at every width: a phone's chart is as tall as a
@@ -82,13 +98,21 @@ function baselineOf(name) {
     return `${name}’s baseline`;
 }
 
-function CompareChart({ picks, records, score, task, onClear }) {
+function CompareChart({ picks, records, score, task, tasks = [task], onScore = null, onClear }) {
     const { theme } = useContext(ThemeModeContext);
     const colors = chartColors(theme);
     const names = picks.map((pick) => pick.model.name);
     const lower = scoreOf(score).lower;
     const waiting = picks.filter((pick) => records[pick.model.name] === undefined);
     const missing = picks.filter((pick) => records[pick.model.name] === null);
+
+    //
+    // models of more than one task (#279): what each predicts, the scores the
+    // chart can be picked on, and how long each one's trades last, where a task
+    // of stocks meets one of options
+    //
+    const across = tasks.length > 1;
+    const lengths = across && tasks.some(tradesOptions) && !tasks.every(tradesOptions);
 
     const held = {};
 
@@ -103,8 +127,8 @@ function CompareChart({ picks, records, score, task, onClear }) {
         picks.forEach((pick) => {
             const row = entry[pick.model.name];
 
-            point[`slot${pick.slot}`] = row ? row.average[score] : null;
-            point[`base${pick.slot}`] = row ? row.baseline_average[score] : null;
+            point[`slot${pick.slot}`] = row ? scoreIn(row.average, score) : null;
+            point[`base${pick.slot}`] = row ? scoreIn(row.baseline_average, score) : null;
         });
 
         return point;
@@ -124,11 +148,19 @@ function CompareChart({ picks, records, score, task, onClear }) {
             return null;
         }
 
+        //
+        // a model whose record has no column for the score, as a stock model's
+        // written before the top 10's had, comes after the rest (#279)
+        //
         const scored = picks
             .filter((pick) => entry[pick.model.name])
             .sort((a, b) => {
-                const x = entry[a.model.name].average[score];
-                const y = entry[b.model.name].average[score];
+                const x = scoreIn(entry[a.model.name].average, score);
+                const y = scoreIn(entry[b.model.name].average, score);
+
+                if (x === null || y === null) {
+                    return (x === null) - (y === null);
+                }
 
                 return lower ? x - y : y - x;
             });
@@ -143,15 +175,15 @@ function CompareChart({ picks, records, score, task, onClear }) {
                 key: pick.model.name,
                 mark: <Mark kind='line' color={COMPARE_COLORS[pick.slot]} />,
                 name: row.days < WINDOW ? `${pick.model.name} (${row.days} days)` : pick.model.name,
-                value: formatScore(row.average[score], score),
+                value: formatScore(scoreIn(row.average, score), score),
             };
         }).concat(scored
-            .filter((pick) => entry[pick.model.name].baseline_average[score] !== null)
+            .filter((pick) => scoreIn(entry[pick.model.name].baseline_average, score) !== null)
             .map((pick) => ({
                 key: `base-${pick.model.name}`,
                 mark: <Mark kind='dashed' color={COMPARE_COLORS[pick.slot]} />,
                 name: baselineOf(pick.model.name),
-                value: formatScore(entry[pick.model.name].baseline_average[score], score),
+                value: formatScore(scoreIn(entry[pick.model.name].baseline_average, score), score),
             })));
 
         const absent = picks
@@ -173,8 +205,16 @@ function CompareChart({ picks, records, score, task, onClear }) {
                     <h5>{`Comparing ${together(names)}`}</h5>
                     <button type='button' className='model-clear' onClick={onClear}>Clear</button>
                 </div>
+                {across && onScore
+                    ? (
+                        <div className='model-controls model-compare-controls'>
+                            <ScorePicker score={score} onScore={onScore} offered={sharedScores(tasks)} />
+                        </div>
+                    ) : null}
                 <p className='model-card-sub'>
-                    {`${task.name}, scored on the same days. Lines are averages of the last 20 days, and each model’s own know-nothing baseline is dashed in its color. Up is better`}
+                    {`${together(tasks.map((each) => each.name))}, scored on the same days. `}
+                    {lengths ? `${LENGTHS} ` : ''}
+                    {'Lines are averages of the last 20 days, and each model’s own know-nothing baseline is dashed in its color. Up is better'}
                     {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
                 </p>
                 <Legend
@@ -292,6 +332,16 @@ CompareChart.propTypes = {
     task: PropTypes.shape({
         name: PropTypes.string.isRequired,
     }).isRequired,
+    //
+    // every task the models compared predict, the first ticked's first (#279):
+    // its `task` alone unless they are of more than one, and then the way the
+    // chart's own picker picks the score they are compared on
+    //
+    tasks: PropTypes.arrayOf(PropTypes.shape({
+        name: PropTypes.string.isRequired,
+        scores: PropTypes.arrayOf(PropTypes.string),
+    })),
+    onScore: PropTypes.func,
     onClear: PropTypes.func.isRequired,
 };
 

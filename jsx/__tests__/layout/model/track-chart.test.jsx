@@ -16,7 +16,7 @@ import TrackChart, { DayDot, TakenDownTick, WentLiveTick, trackPoints } from '..
 import { chartColors } from '../../../import/layout/model/scores.js';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
-import { phoneScreen, pointAt, tapAt, trackOf, wideScreen } from '../../../test-support/model-fixtures.js';
+import { optionsTrackOf, phoneScreen, pointAt, tapAt, trackOf, wideScreen, withTop10 } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
     const onOther = props.onOther || jest.fn();
@@ -511,6 +511,83 @@ describe('the days whose score took the live version down (#263)', () => {
         expect(container.querySelector('.model-taken-down')).toBeNull();
         expect(screen.queryByText('Live version taken down')).toBeNull();
         expect(screen.queryByRole('columnheader', { name: 'Taken down' })).toBeNull();
+    });
+});
+
+describe('an options model\'s holds (#279)', () => {
+    afterEach(wideScreen);
+
+    //
+    // thirty days from Sep 1, the last four without their 5-day results and the
+    // last nineteen without their 20-day ones
+    //
+    const rows = optionsTrackOf(30);
+
+    function held(props = {}) {
+        return draw({ name: 'pt-options', rows: rows, score: 'loss', others: [], hold: 5, ...props });
+    }
+
+    it('read the hold\'s columns of the score, its own and its baseline\'s', () => {
+        const points = trackPoints('pt-options', rows, null, undefined, 'top10_gain', 5);
+
+        expect(points[0]).toMatchObject({ single: rows[0].score.top10_gain_5d, average: rows[0].average.top10_gain_5d });
+        expect(points[25].baseline).toBeCloseTo(rows[25].baseline_average.top10_gain_5d);
+    });
+
+    it('have no point on a day whose result on the hold is not in yet, though its 20-day average has days before it', () => {
+        const points = trackPoints('pt-options', rows, null, undefined, 'loss', 5);
+
+        expect(rows[29].average.loss_5d).not.toBeNull();
+        points.slice(26).forEach((point) => expect(point).toMatchObject({ single: null, average: null, baseline: null }));
+        expect(points[25].single).not.toBeNull();
+        expect(trackPoints('pt-options', rows, null, undefined, 'loss', 20).filter((point) => point.single !== null)).toHaveLength(11);
+    });
+
+    it('read the plain columns with no hold, as a stock model\'s are', () => {
+        const points = trackPoints('pt-options', rows, null, undefined, 'loss');
+
+        expect(points[29]).toMatchObject({ single: rows[29].score.loss, average: rows[29].average.loss });
+    });
+
+    it('draw another options model on the same hold, and a stock model on its own score, which has no holds', () => {
+        const theirs = optionsTrackOf(30, '2026-09-01', () => 0.9);
+        const stock = withTop10(trackOf(30));
+
+        expect(trackPoints('pt-options', rows, 'other', theirs, 'loss', 5)[3].other).toBe(theirs[3].average.loss_5d);
+        expect(trackPoints('pt-options', rows, 'pt-gnn', stock, 'top10_gain', 5)[3].other).toBe(stock[3].average.top10_gain);
+    });
+
+    it('draw a dot only for each day whose result is in', () => {
+        const { container } = held();
+
+        expect(container.querySelectorAll('.model-day-dot')).toHaveLength(26);
+    });
+
+    it('say each day is scored once each hold\'s sell day is in, and name the hold the chart and its table are on', async () => {
+        const { container } = held();
+
+        expect(screen.getByText(/^Each day’s real predictions, scored once each hold’s sell day is in\. Dots are single days/)).toBeInTheDocument();
+        expect(container.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringMatching(/^Loss on the 5-day hold of pt-options and the know-nothing baseline/));
+
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        expect(screen.getByRole('table', { name: 'Loss on the 5-day hold, track record' })).toBeInTheDocument();
+    });
+
+    it('open the panel on the latest day whose result is in, and say of a newer one that it is not in yet', () => {
+        const { container } = held();
+
+        expect(container.querySelector('.model-readout')).toHaveTextContent('Tue, Oct 6, 2026');
+
+        pointAt(container.querySelector('.recharts-wrapper'), 586);
+
+        expect(container.querySelector('.model-tip-foot')).toHaveTextContent('pt-options’s 5-day result for this day is not in yet');
+    });
+
+    it('leave a stock model\'s line and panel as they were', () => {
+        draw();
+
+        expect(screen.getByText(/^Each day’s real predictions, scored once that day’s prices are in\./)).toBeInTheDocument();
     });
 });
 
