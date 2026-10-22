@@ -1,14 +1,16 @@
 /**
  * model-row.jsx: one model in /model's list (#243): a box to tick it for the
  * comparison, its name, status, address and description, its bell, which leads to
- * its alarm page (#255), its latest 20-day score against the know-nothing baseline,
- * a trend line of that score, when its live version went live, and how many of its
- * nightly attempts did. A retired model has no bell. A model whose live version
- * the trainer took down for doing worse than the baseline says when, and which
- * check did it, in place of when it went live (#263).
+ * its alarm page (#255), when its live version went live, how many of its nightly
+ * attempts did, a trend line of its score, and last its latest 20-day score
+ * against the know-nothing baseline -- or, in a list that shows them, loss's three
+ * parts in place of it (#283). A retired model has no bell. A model whose live
+ * version the trainer took down for doing worse than the baseline says when, and
+ * which check did it, in place of when it went live (#263).
  *
  * The bell comes after the name, as a stream's comes after the stream's name on
- * /stream, so the two pages put it on one side (#259).
+ * /stream, so the two pages put it on one side (#259). The score comes last, as it
+ * does on a phone's card, so changing it moves nothing else (#283).
  *
  * A row across a wide screen, under the list's headings, and a card on a phone,
  * where each figure carries its own name instead -- see '_model.scss'. There the
@@ -29,8 +31,11 @@ import Tooltip from '@mui/material/Tooltip';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import InfoNote from '../../general/info-note.jsx';
 import { AlarmBell, StatusPill } from './parts.jsx';
+import { PendingBar } from '../graph/pending.jsx';
 import {
     COMPARE_COLORS,
+    DEFAULT_SCORE,
+    LOSS_PARTS,
     TREND_DAYS,
     WINDOW,
     betterBy,
@@ -39,6 +44,7 @@ import {
     formatGap,
     formatScore,
     liveKind,
+    lossParts,
     noteOf,
     scoreIn,
     scoreOf,
@@ -183,7 +189,80 @@ function gapText(gap, score) {
     );
 }
 
-function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false, task = undefined }) {
+//
+// how a part of loss stands against the baseline's, in fewer words than the
+// score's own line, since the three stand side by side: '▼ 0.013 worse'.
+// Compared as the two are printed, as lossParts compares them
+//
+function partGap(part) {
+    if (part.stands === 'level') {
+        return 'level';
+    }
+
+    const printed = (value) => Number(formatScore(value, DEFAULT_SCORE));
+    const gap = betterBy(printed(part.value), printed(part.baseline), DEFAULT_SCORE);
+
+    return (
+        <>
+            <span className='model-gap-arrow'>{part.stands === 'better' ? '▲' : '▼'}</span>
+            {` ${formatGap(gap, DEFAULT_SCORE)} ${part.stands}`}
+        </>
+    );
+}
+
+/**
+ * loss's three parts in place of its sum (#283): a cell each across a wide
+ * screen, under one heading -- see model.jsx -- and on a phone's card, or in a
+ * list too narrow for the three columns, a line each, naming its part. Each is
+ * the part's 20-day average, and how it stands against the baseline's, from the
+ * newest day of the model's track record, as its own page has them (#265). Bars
+ * while the record is on its way, and dashes where it could not be had or has
+ * no parts.
+ */
+export function PartCells({ model, rows, task = undefined }) {
+    const parts = Array.isArray(rows) && rows.length ? lossParts(rows[rows.length - 1]) : [];
+
+    return (
+        <div className='model-cell model-cell-parts'>
+            <InfoNote note={noteOf(DEFAULT_SCORE, task)} className='model-cell-label model-noted'>{scoreLabel(model, DEFAULT_SCORE)}</InfoNote>
+            <ul className='model-part-cells' aria-label='Loss, part by part'>
+                {LOSS_PARTS.map((each) => {
+                    const part = parts.find((one) => one.key === each.key);
+
+                    return (
+                        <li key={each.key} className='model-part-cell'>
+                            <span className='model-part-cell-name'>{each.label}</span>
+                            <span className='model-part-cell-value'>
+                                {rows === undefined ? <PendingBar width='2.5rem' /> : formatScore(part ? part.value : null, DEFAULT_SCORE)}
+                            </span>
+                            <span className={`model-gap model-gap-${part && part.stands ? part.stands : 'level'}`}>
+                                {part && part.stands ? partGap(part) : ''}
+                            </span>
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
+PartCells.propTypes = {
+    model: PropTypes.shape({
+        retired: PropTypes.string,
+        scored_days: PropTypes.number.isRequired,
+    }).isRequired,
+    //
+    // the model's track record: undefined while it is on its way, null where it
+    // could not be had
+    //
+    rows: PropTypes.array,
+    task: PropTypes.shape({
+        id: PropTypes.string.isRequired,
+        scores: PropTypes.arrayOf(PropTypes.string),
+    }),
+};
+
+function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false, task = undefined, parts = false }) {
     const status = statusOf(model);
     const live = liveCell(model, status);
     const value = scoreIn(model.score, score);
@@ -227,15 +306,6 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
             <div className='model-cell model-cell-alarm'>
                 <AlarmBell model={model} held={held} />
             </div>
-            <div className='model-cell model-cell-score'>
-                <InfoNote note={noteOf(score, task)} className='model-cell-label model-noted'>{scoreLabel(model, score)}</InfoNote>
-                <span className='model-score-value'>{formatScore(value, score)}</span>
-                <span className={`model-gap model-gap-${standing(gap, score)}`}>{gapText(gap, score)}</span>
-            </div>
-            <div className='model-cell model-cell-trend'>
-                <span className='model-cell-label'>{`Last ${TREND_DAYS} days`}</span>
-                <TrendLine name={model.name} rows={rows} axis={axis} score={score} />
-            </div>
             <div className='model-cell model-cell-live'>
                 <span className='model-cell-label'>Live version</span>
                 <span className='model-figure'>{live.figure}</span>
@@ -246,6 +316,19 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                 <span className='model-figure'>{`${model.attempts.went_live} of ${model.attempts.total}`}</span>
                 <span className='model-figure-detail'>attempts</span>
             </div>
+            <div className='model-cell model-cell-trend'>
+                <span className='model-cell-label'>{`Last ${TREND_DAYS} days`}</span>
+                <TrendLine name={model.name} rows={rows} axis={axis} score={score} />
+            </div>
+            {parts
+                ? <PartCells model={model} rows={rows} task={task} />
+                : (
+                    <div className='model-cell model-cell-score'>
+                        <InfoNote note={noteOf(score, task)} className='model-cell-label model-noted'>{scoreLabel(model, score)}</InfoNote>
+                        <span className='model-score-value'>{formatScore(value, score)}</span>
+                        <span className={`model-gap model-gap-${standing(gap, score)}`}>{gapText(gap, score)}</span>
+                    </div>
+                )}
         </div>
     );
 }
@@ -306,6 +389,11 @@ ModelRow.propTypes = {
         id: PropTypes.string.isRequired,
         scores: PropTypes.arrayOf(PropTypes.string),
     }),
+    //
+    // whether the list shows loss's three parts in place of its sum (#283) --
+    // see scores.js's showsParts
+    //
+    parts: PropTypes.bool,
 };
 
 export default ModelRow;
