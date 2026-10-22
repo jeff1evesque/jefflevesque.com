@@ -8,7 +8,7 @@
  *     knowledge-graph   read by /graph and /                   (the id, in the path)
  *                       its tables, read by /graph/retrieval   Day, Limit
  *                         and one path per question            Text, Uri, Symbol
- *     model             read by /model and /model/:model       Model, Report
+ *     model             read by /model and /model/:model       Model, Report, Ticker
  *     alarms            read by /stream/:stream/alarm          stream
  *                         and /model/:model/alarm              model
  *     account           read by both alarm pages, /stream,     (the stream or the
@@ -287,25 +287,38 @@ export function knowledgeGraphTablesUrl(operation, values = {}, base = ENDPOINTS
 }
 
 //
-// the two reports the model pages read of each model: one row per nightly
-// training attempt, and one row per day it predicted (#243). The api answers a
-// summary too, which no page asks for yet (#245).
+// the reports the model pages read of each model: one row per nightly training
+// attempt, and one row per day it predicted (#243), and an options model's
+// nightly picks (#279). The api answers a summary too, which no page asks for
+// yet (#245).
 //
-const MODEL_REPORTS = ['history', 'track-record'];
+const MODEL_REPORTS = ['history', 'track-record', 'picks'];
+
+//
+// a stock's symbol, as the api takes one with the picks (#279): AAPL, or BRK.B
+// for a share class
+//
+const TICKER = /^[A-Z]{1,5}(\.[A-Z])?$/;
 
 /**
  * the listing of models or, given a model from that listing and one of its
- * reports, that report (#243).
+ * reports, that report (#243). With the picks, `ticker` asks for one stock's
+ * options rather than each hold's top 10 (#279).
  *
  * Note: `Model` and `Report` go together. The api answers one without the other
  *       with a 400, so asking for either alone throws here rather than being
  *       sent, as an operation's unwanted value does for the tables. So does a
- *       report the api does not keep.
+ *       report the api does not keep, a ticker with any report but the picks,
+ *       and a ticker that is not a stock's symbol.
  *
  * Note: the name is sent as the listing gave it. Names are the api's, so this
  *       does not get to assume what is in one.
  */
-export function modelUrl(model = null, report = null, base = ENDPOINTS.model) {
+export function modelUrl(model = null, report = null, base = ENDPOINTS.model, ticker = null) {
+    if (ticker && report !== 'picks') {
+        throw new Error(`modelUrl: a Ticker goes with Report=picks, given '${report}'`);
+    }
+
     if (!model && !report) {
         return new URL(base);
     }
@@ -314,7 +327,11 @@ export function modelUrl(model = null, report = null, base = ENDPOINTS.model) {
         throw new Error(`modelUrl: a Model needs a Report of ${MODEL_REPORTS.join(' or ')}, given '${model}' and '${report}'`);
     }
 
-    return withParams(base, { Model: model, Report: report });
+    if (ticker && !TICKER.test(ticker)) {
+        throw new Error(`modelUrl: a Ticker is a stock's symbol, like AAPL or BRK.B, given '${ticker}'`);
+    }
+
+    return withParams(base, ticker ? { Model: model, Report: report, Ticker: ticker } : { Model: model, Report: report });
 }
 
 /**
@@ -382,4 +399,5 @@ export {
     PERFORMANCE_STREAMS,
     TABLES_VALUES,
     MODEL_REPORTS,
+    TICKER,
 };
