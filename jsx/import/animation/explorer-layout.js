@@ -97,6 +97,11 @@ const DRIFT_TURN = Math.PI * (3 - Math.sqrt(5));
 // precessing ellipse instead of a circle it retraces exactly
 const DRIFT_SKEW = 0.8;
 
+// the furthest the drift takes a node from home -- see DRIFT. Two nodes whose
+// homes are further apart than both radii and twice this never touch, however
+// their drifts line up. See spaceNodes.
+const DRIFT_REACH = 2 * Math.SQRT2 * DRIFT;
+
 const DEFAULT_HEIGHT = 600;
 
 /**
@@ -136,6 +141,47 @@ export function nodeRadius(width) {
 }
 
 /**
+ * move apart any two nodes the fit left near enough for the drift to draw one
+ * over the other, in the canvas's own pixels and inside the `pad` it kept clear.
+ *
+ * The layout keeps COLLIDE_GAP between nodes while it settles, but at its own
+ * scale, and the fit then shrinks it into the canvas -- on a phone, to about
+ * half. Measured on both graphs at 390px wide (#281), the closest two nodes
+ * settled 5px apart on the Training graph and 2px apart on the Retrieval graph,
+ * and over one cycle of the drift 8 pairs on the first and 16 on the second
+ * passed over one another.
+ *
+ * So each node is kept its radius plus DRIFT_REACH from every other: as far as
+ * it takes for two drifting nodes to stop short of each other. Only nodes nearer
+ * than that move, and a canvas with room to spare comes out exactly as it was
+ * fitted: from 1280px wide up, not one node on either graph moved.
+ *
+ * Note: collision alone, with nothing pulling a node back to where the fit put
+ *       it. A pull back moved the nodes hardly less, and held some pairs a
+ *       fraction short of the gap.
+ */
+export function spaceNodes(nodes, width, height, pad) {
+    // what the layout's own simulation left in them, which would move every node
+    nodes.forEach((node) => {
+        node.vx = 0;
+        node.vy = 0;
+    });
+
+    const simulation = d3.forceSimulation(nodes)
+        .force('collide', d3.forceCollide().radius((d) => d.r + DRIFT_REACH))
+        .stop();
+
+    for (let ticks = settleTicks(simulation); ticks > 0; ticks -= 1) {
+        simulation.tick();
+
+        nodes.forEach((node) => {
+            node.x = Math.min(Math.max(node.x, pad), width - pad);
+            node.y = Math.min(Math.max(node.y, pad), height - pad);
+        });
+    }
+}
+
+/**
  * lay a graph out the way /graph does, and hand back the simulation that did it.
  *
  * Every node carries its radius as `r` -- see nodeRadius. Links name their ends
@@ -151,10 +197,13 @@ export function nodeRadius(width) {
  * both, it settles round whatever it is drawn into, and the fit can only scale a
  * round graph until it touches the SHORT side -- on a phone held upright that
  * left the top and bottom third of the canvas empty.
+ *
+ * Once fitted, nodes too near one another are moved apart -- see spaceNodes.
  */
 export function settleLayout(nodes, links, width, height) {
     const small = width < medium_minWidth;
     const aspect = Math.min(Math.max(height / width, 1 / ASPECT_MOST), ASPECT_MOST);
+    const pad = FIT_PAD + nodeRadius(width);
 
     seedAround(nodes, width / 2, height / 2);
 
@@ -171,7 +220,8 @@ export function settleLayout(nodes, links, width, height) {
         .stop();
 
     simulation.tick(settleTicks(simulation));
-    fitLayout(nodes, width, height, FIT_PAD + nodeRadius(width), FIT_MOST, FIT_STRETCH);
+    fitLayout(nodes, width, height, pad, FIT_MOST, FIT_STRETCH);
+    spaceNodes(nodes, width, height, pad);
 
     return simulation;
 }
@@ -235,4 +285,4 @@ export function driftNodes(nodes, draw) {
     return () => cancelAnimationFrame(request);
 }
 
-export { NODE_RADIUS, NODE_RADIUS_SMALL, DRIFT, DRIFT_SPEED };
+export { NODE_RADIUS, NODE_RADIUS_SMALL, DRIFT, DRIFT_SPEED, DRIFT_REACH };
