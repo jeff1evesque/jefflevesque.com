@@ -3,9 +3,11 @@
  * its columns, the bell's among them (#255, #259) -- about the pill of a model
  * taken down (#263), about where loss's three parts go on a model's page (#265),
  * about the rows that page's three cards share (#267), about a phone's
- * controls, their dropdowns and the room around them (#272), and about a phone's
+ * controls, their dropdowns and the room around them (#272), about a phone's
  * card, the arrow before how a score stands, and what both pages hold while the
- * listing is on its way (#274), read out of the partial.
+ * listing is on its way (#274), and about loss's three parts in /model's list,
+ * the score last, and a list too narrow for its columns (#283), read out of the
+ * partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see which
  * column a cell lands in. A wide screen places a row's cells by their order, so
@@ -69,6 +71,13 @@ describe('a row of the list, on a wide screen', () => {
         expect(model).toBe('minmax(12rem, 2fr)');
         expect(bell).toBe('2.5rem');
     });
+
+    it('puts the live version, the attempts and the 60-day line after the bell, and the score last (#283)', () => {
+        const [, , , live, went, trend, score] = tracks(declared(grid, 'grid-template-columns'));
+
+        expect([live, went, trend]).toEqual(['8rem', '6rem', '140px']);
+        expect(score).toBe('minmax(9rem, 1fr)');
+    });
 });
 
 describe('the status pill of a model taken down (#263)', () => {
@@ -101,7 +110,7 @@ describe('a row on a phone, as a card', () => {
     it('keeps its bell at the top right, after the box that ticks it, on the name\'s line (#274)', () => {
         const [top] = declared(card, 'grid-template-areas').match(/'[^']*'/g);
 
-        expect(top).toBe('\'name name compare alarm\'');
+        expect(top).toBe('\'name name name compare alarm\'');
     });
 });
 
@@ -128,20 +137,35 @@ describe('a phone\'s card (#274)', () => {
         expect(declared(rule('.model-name-line', 'grid-area'), 'grid-area')).toBe('name');
         expect(declared(rule('.model-address', 'grid-area'), 'grid-area')).toBe('address');
         expect(declared(rule('.model-description', 'grid-area'), 'grid-area')).toBe('about');
-        expect(rows.slice(1, 3)).toEqual(['\'address address address address\'', '\'about about about about\'']);
+        expect(rows.slice(1, 3)).toEqual(['\'address address address address address\'', '\'about about about about about\'']);
     });
 
-    it('splits the figures in two even halves, the left never so wide that the trend line no longer fits', () => {
+    it('puts the live version, the attempts and the 60-day line in a row, the line at the right, and the score under them across the card (#283)', () => {
         //
-        // half the card less half the gap, where the right half had the box's
-        // and the bell's columns as well; and on a 320px phone, the card less the
-        // gap and the trend line's width
+        // each figure as wide as it needs, and the line in what is left. The
+        // score had shared a row with the line, over the other two
         //
-        expect(declared(card, 'column-gap')).toBe('1rem');
-        expect(declared(card, 'grid-template-columns'))
-            .toBe('min(50% - 0.5rem, 100% - 1rem - $model-trend-width) minmax(0, 1fr) auto auto');
+        const rows = declared(card, 'grid-template-areas').match(/'[^']*'/g);
+
+        expect(rows.slice(3)).toEqual(['\'live went trend trend trend\'', '\'score score score score score\'']);
+        expect(declared(card, 'grid-template-columns')).toBe('auto auto minmax(0, 1fr) auto auto');
+        expect(declared(card, 'column-gap')).toBe('0.75rem');
+        expect(declared(rule('.model-cell-trend', 'grid-area'), 'justify-self')).toBe('end');
         expect(declared(rule('.model-trend,.model-trend-pending,.model-trend-none', 'width'), 'width')).toBe('$model-trend-width');
         expect(source).toMatch(/\$model-trend-width: 132px;/);
+    });
+
+    it('rules the score off from the figures over it, whichever score it is (#283)', () => {
+        const score = rule('.model-cell-score,.model-list-parts .model-cell-parts', 'border-top');
+
+        expect(declared(score, 'border-top')).toBe('1px solid $gray-2');
+        expect(declared(score, 'padding-top')).toBe('0.6rem');
+        expect(declared(score, 'grid-area')).toBe('score');
+    });
+
+    it('puts the 60-day line under the other two figures, at the left, on a phone too narrow for the three side by side (#283)', () => {
+        expect(source).toMatch(/@media \(max-width: 374\.98px\) \{\s*\.model-row \{\s*grid-template-areas:[^;]*'live went went went went'\s*'trend trend trend trend trend'\s*'score score score score score';/);
+        expect(source).toMatch(/@media \(max-width: 374\.98px\) \{[^@]*\.model-cell-trend \{\s*justify-self: start;/);
     });
 
     it('keeps the model\'s lines together, and puts 0.6rem over each row of figures', () => {
@@ -371,5 +395,99 @@ describe('the pickers and the picks of #279', () => {
             expect(declared(rule('.model-card-title .model-picks-lookup', 'flex'), 'flex')).toBe('1 1 100%');
             expect(declared(rule('.model-picks-lookup input', 'flex'), 'flex')).toBe('1');
         });
+    });
+});
+
+describe('loss\'s three parts in /model\'s list (#283)', () => {
+    //
+    // every rule for `selector`, in the partial's order: a wide screen's, then a
+    // narrower list's, then the narrowest's, then a phone's
+    //
+    const rulesFor = (selector) => RULES.filter((each) => each.selectors.join() === selector);
+    const rule = (selector) => rulesFor(selector)[0];
+    const grids = rulesFor('.model-list-parts .model-list-head,.model-list-parts .model-row');
+
+    //
+    // the text of the container query that opens at `query`, up to the next one
+    //
+    const within = (query) => source.slice(source.indexOf(query), source.indexOf('@container', source.indexOf(query) + 1));
+
+    it('measure the list they are in, rather than the screen', () => {
+        expect(declared(rule('.model-list'), 'container-type')).toBe('inline-size');
+    });
+
+    it('take a column each, of a set width, after the 60-day line, so the headings and every row line up', () => {
+        //
+        // the headings and each row are grids of their own: columns sized to
+        // what each holds had left the rows' figures off their headings
+        //
+        const columns = tracks(declared(grids[0], 'grid-template-columns'));
+
+        expect(columns).toHaveLength(9);
+        expect(columns.slice(3, 6)).toEqual(['8rem', '6rem', '140px']);
+        expect(columns.slice(6)).toEqual(['6.5rem', '10rem', '7rem']);
+    });
+
+    it('span the three by subgrid, the score\'s heading centered over a rule across them, every heading on the parts\' names\' line', () => {
+        const spans = rule('.model-parts-head,.model-list-parts .model-cell-parts,.model-part-cells');
+        const heading = rulesFor('> .model-noted')[0];
+
+        expect(declared(spans, 'grid-column')).toBe('span 3');
+        expect(declared(spans, 'grid-template-columns')).toBe('subgrid');
+        expect(declared(heading, 'border-bottom')).toBe('1px solid $gray-3');
+        expect(declared(heading, 'grid-column')).toBe('1 / -1');
+        expect(declared(heading, 'text-align')).toBe('center');
+        expect(declared(rule('.model-list-parts .model-list-head'), 'align-items')).toBe('end');
+    });
+
+    it('keep each part\'s name on one line over its column', () => {
+        expect(declared(rulesFor('> span')[0], 'white-space')).toBe('nowrap');
+    });
+
+    it('name each part for a screen reader where the headings name them to the eye', () => {
+        const name = rule('.model-part-cell-name');
+
+        expect(declared(name, 'clip-path')).toBe('inset(50%)');
+        expect(declared(name, 'position')).toBe('absolute');
+        expect(declared(name, 'display')).toBeNull();
+    });
+
+    it('lay out as a phone\'s card\'s lines through one mixin, on a phone and in a narrower list', () => {
+        const lines = rulesFor('.model-part-cells').find((each) => declared(each, 'grid-template-columns') === 'minmax(0, 1fr) auto auto');
+
+        expect(source).toMatch(/@mixin model-part-lines \{/);
+        expect(source.match(/@include model-part-lines;/g)).toHaveLength(2);
+        expect(lines).toBeDefined();
+        expect(declared(rulesFor('.model-part-cell-name')[1], 'position')).toBe('static');
+    });
+
+    it('make a list under 72rem one column of lines, on a screen too wide for a phone\'s card, its heading still centered over its rule', () => {
+        //
+        // at 1280px wide with the filters open, each part's name had broken
+        // over three lines under its column
+        //
+        const narrower = within('@container (max-width: 72rem)');
+
+        expect(source).toMatch(/@media \(min-width: 768px\) \{\s*@container \(max-width: 72rem\) \{/);
+        expect(declared(grids[1], 'grid-template-columns')).toBe('4.5rem minmax(9rem, 1fr) 2.5rem 7rem 5rem 140px 19.5rem');
+        expect(narrower).toMatch(/\.model-parts-head \{\s*display: block;\s*grid-column: auto;\s*> \.model-noted \{\s*display: block;\s*\}\s*> span:not\(\.model-noted\) \{\s*display: none;/);
+        expect(narrower).toMatch(/@include model-part-lines;/);
+    });
+
+    it('drop the 60-day line from every list under 62rem, which ran past its column', () => {
+        //
+        // 90px past it from 992px to 1199px wide with the filters open, and the
+        // page scrolled sideways
+        //
+        const narrowest = within('@container (max-width: 62rem)');
+
+        expect(narrowest).toMatch(/\.model-head-trend,\s*\.model-cell-trend \{\s*display: none;/);
+        expect(narrowest).toMatch(/\.model-list-head,\s*\.model-row \{\s*grid-template-columns: 4\.5rem minmax\(12rem, 2fr\) 2\.5rem 8rem 6rem minmax\(9rem, 1fr\);/);
+        expect(declared(grids[2], 'grid-template-columns')).toBe('4.5rem minmax(9rem, 1fr) 2.5rem 7rem 5rem 19.5rem');
+    });
+
+    it('give way to a phone\'s card, whose areas place each cell', () => {
+        expect(grids).toHaveLength(3);
+        expect(declared(rule('.model-list-parts .model-row'), 'grid-template-columns')).toBe('auto auto minmax(0, 1fr) auto auto');
     });
 });
