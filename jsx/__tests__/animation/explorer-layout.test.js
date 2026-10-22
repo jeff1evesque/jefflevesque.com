@@ -11,10 +11,13 @@
 import {
     frameSize,
     nodeRadius,
+    spaceNodes,
     settleLayout,
     driftNodes,
     NODE_RADIUS,
     NODE_RADIUS_SMALL,
+    DRIFT_SPEED,
+    DRIFT_REACH,
 } from '../../import/animation/explorer-layout.js';
 import { medium_minWidth } from '../../import/general/breakpoints.js';
 
@@ -29,6 +32,52 @@ function graph(radius = NODE_RADIUS) {
     ];
 
     return { nodes: nodes, links: links };
+}
+
+//
+// four hubs of fourteen spokes each, every hub tied to the first: sixty nodes,
+// as many as the canvas draws, and as crowded on a phone as the real ones. At
+// 348 x 244 the fit alone leaves the nearest two 15.6px apart (#281)
+//
+function hubs() {
+    const nodes = [];
+    const links = [];
+
+    [0, 1, 2, 3].forEach((hub) => {
+        nodes.push({ id: `${hub}`, r: NODE_RADIUS_SMALL });
+
+        if (hub) {
+            links.push({ source: '0', target: `${hub}` });
+        }
+
+        for (let spoke = 0; spoke < 14; spoke += 1) {
+            nodes.push({ id: `${hub}.${spoke}`, r: NODE_RADIUS_SMALL });
+            links.push({ source: `${hub}`, target: `${hub}.${spoke}` });
+        }
+    });
+
+    return { nodes: nodes, links: links };
+}
+
+// how near the two nearest nodes are, center to center
+function nearest(nodes) {
+    let least = Infinity;
+
+    nodes.forEach((node, index) => {
+        nodes.slice(index + 1).forEach((other) => {
+            least = Math.min(least, Math.hypot(node.x - other.x, node.y - other.y));
+        });
+    });
+
+    return least;
+}
+
+//
+// how far apart two nodes of radius `r` have to rest for their drifts never to
+// meet, less a millionth of a pixel for the arithmetic
+//
+function clear(r) {
+    return 2 * (r + DRIFT_REACH) - 1e-6;
 }
 
 describe('nodeRadius', () => {
@@ -55,6 +104,57 @@ describe('frameSize', () => {
 
     it('takes a caller\'s own height over the frame\'s', () => {
         expect(frameSize({ clientWidth: 640, clientHeight: 480 }, 300).height).toBe(300);
+    });
+});
+
+describe('spaceNodes (#281)', () => {
+    it('moves apart two nodes nearer than their drifts can keep clear', () => {
+        const nodes = [{ x: 100, y: 100, r: 6 }, { x: 110, y: 100, r: 6 }];
+
+        spaceNodes(nodes, 400, 300, 26);
+
+        expect(nearest(nodes)).toBeGreaterThanOrEqual(clear(6));
+    });
+
+    it('leaves nodes with room to spare exactly where they were', () => {
+        const nodes = [{ x: 100, y: 100, r: 6 }, { x: 200, y: 150, r: 6 }, { x: 300, y: 100, r: 6 }];
+
+        spaceNodes(nodes, 400, 300, 26);
+
+        expect(nodes.map((node) => [node.x, node.y])).toEqual([[100, 100], [200, 150], [300, 100]]);
+    });
+
+    it('starts them at rest, whatever the layout\'s own simulation left them moving at', () => {
+        const nodes = [
+            { x: 100, y: 100, r: 6, vx: 40, vy: -40 },
+            { x: 300, y: 200, r: 6, vx: -40, vy: 40 },
+        ];
+
+        spaceNodes(nodes, 400, 300, 26);
+
+        expect(nodes.map((node) => [node.x, node.y])).toEqual([[100, 100], [300, 200]]);
+    });
+
+    it('keeps every node inside the margin the fit kept, however crowded its corner', () => {
+        //
+        // a dozen nodes heaped where the margin starts, which can only spread
+        // along the edges and inward
+        //
+        const nodes = Array.from({ length: 12 }, (_, index) => ({
+            x: 26 + (index % 4),
+            y: 26 + Math.floor(index / 4),
+            r: 6,
+        }));
+
+        spaceNodes(nodes, 400, 300, 26);
+
+        nodes.forEach((node) => {
+            expect(node.x).toBeGreaterThanOrEqual(26);
+            expect(node.x).toBeLessThanOrEqual(400 - 26);
+            expect(node.y).toBeGreaterThanOrEqual(26);
+            expect(node.y).toBeLessThanOrEqual(300 - 26);
+        });
+        expect(nearest(nodes)).toBeGreaterThanOrEqual(clear(6));
     });
 });
 
@@ -93,6 +193,20 @@ describe('settleLayout', () => {
         expect(simulation.alpha()).toBeLessThan(simulation.alphaMin());
         expect(simulation.find(nodes[0].x, nodes[0].y, 1)).toBe(nodes[0]);
     });
+
+    it('rests every two nodes far enough apart for their drifts never to meet, on a phone (#281)', () => {
+        const { nodes, links } = hubs();
+
+        settleLayout(nodes, links, 348, 244);
+
+        expect(nearest(nodes)).toBeGreaterThanOrEqual(clear(NODE_RADIUS_SMALL));
+        nodes.forEach((node) => {
+            expect(node.x).toBeGreaterThanOrEqual(20 + NODE_RADIUS_SMALL);
+            expect(node.x).toBeLessThanOrEqual(348 - 20 - NODE_RADIUS_SMALL);
+            expect(node.y).toBeGreaterThanOrEqual(20 + NODE_RADIUS_SMALL);
+            expect(node.y).toBeLessThanOrEqual(244 - 20 - NODE_RADIUS_SMALL);
+        });
+    });
 });
 
 describe('driftNodes', () => {
@@ -126,6 +240,40 @@ describe('driftNodes', () => {
     it('asks for nothing when there is nothing to move', () => {
         expect(driftNodes([], () => {})).toBeNull();
         expect(asked).not.toHaveBeenCalled();
+    });
+
+    it('never takes a node further from home than DRIFT_REACH, which spaceNodes keeps clear (#281)', () => {
+        let frame = null;
+
+        asked.mockImplementation((next) => {
+            frame = next;
+
+            return 7;
+        });
+
+        const { nodes, links } = graph();
+
+        settleLayout(nodes, links, 800, 500);
+
+        const homes = nodes.map((node) => [node.x, node.y]);
+        let furthest = 0;
+
+        driftNodes(nodes, () => {
+            nodes.forEach((node, index) => {
+                furthest = Math.max(furthest, Math.hypot(node.x - homes[index][0], node.y - homes[index][1]));
+            });
+        });
+
+        //
+        // one whole cycle: across at one turn and down at four fifths of one,
+        // the two back in step after ten half turns
+        //
+        for (let step = 0; step * DRIFT_SPEED < 10 * Math.PI; step += 1) {
+            frame();
+        }
+
+        expect(furthest).toBeGreaterThan(0);
+        expect(furthest).toBeLessThanOrEqual(DRIFT_REACH);
     });
 
     it('asks for nothing when the reader has asked for stillness', () => {
