@@ -36,9 +36,21 @@ import { MemoryRouter } from 'react-router-dom';
 import ModelLayout, { linkedCompare, writeCompare } from '../../import/layout/model.jsx';
 import { loadListing, loadReport } from '../../import/layout/model/source.js';
 import { listSubscriptions } from '../../import/general/account-api.js';
-import { COMPARE_COLORS, SCORES } from '../../import/layout/model/scores.js';
+import { COMPARE_COLORS, SCORES, noteOf } from '../../import/layout/model/scores.js';
 import { readLayout, writeLayout } from '../../import/general/layout-preference.js';
-import { behindOf, downModelOf, listingOf, modelOf, phoneScreen, trackOf, wideScreen } from '../../test-support/model-fixtures.js';
+import {
+    OPTIONS_TASK,
+    behindOf,
+    downModelOf,
+    listingOf,
+    modelOf,
+    optionsListingOf,
+    optionsTrackOf,
+    phoneScreen,
+    trackOf,
+    wideScreen,
+    withTop10,
+} from '../../test-support/model-fixtures.js';
 
 function deferred() {
     let resolve;
@@ -327,17 +339,17 @@ describe('the page before the listing', () => {
             expect(filters().querySelector('.model-filters-summary > .graph-pending-bar')).not.toHaveAttribute('style');
         });
 
-        it('draws the score picker and the sort, which work before the listing lands, and the hint', async () => {
-            const onScore = jest.fn();
+        it('draws the sort, which works before the listing lands, the hint, and the list\'s score picker as its name over bars (#279)', async () => {
+            await waiting();
 
-            await waiting({ onScore: onScore });
-
-            await userEvent.click(screen.getByRole('button', { name: 'Up/down AUC' }));
             await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'name');
 
-            expect(onScore).toHaveBeenCalledWith('auc_up');
+            const picker = document.querySelector('.model-group .model-picker-pending');
+
             expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('name');
             expect(screen.getByText('Tick two or three models that predict the same thing to compare them.')).toHaveClass('model-hint');
+            expect(picker.querySelector('.model-control-label')).toHaveTextContent('Score');
+            expect(screen.queryByRole('group', { name: 'Score' })).toBeNull();
         });
 
         it('draws two rows of bars under the list\'s headings, each with its box disabled and no bell', async () => {
@@ -459,7 +471,7 @@ describe('the lists', () => {
     it('heads the score\'s column with the score picked, and sorts by it', async () => {
         answer();
 
-        await open({ score: 'acc_up' });
+        await open({ scores: { direction: 'acc_up' } });
 
         expect(group('Next-day direction').querySelector('.model-list-head')).toHaveTextContent('Up/down accuracy, last 20 days');
         expect(namesIn('Next-day direction')).toEqual(['tables', 'pt-gnn', 'fresh']);
@@ -479,7 +491,7 @@ describe('the lists', () => {
     it('gives the score\'s heading the note of the score picked (#265)', async () => {
         answer();
 
-        await open({ score: 'auc_beats' });
+        await open({ scores: { direction: 'auc_beats' } });
 
         const heading = group('Next-day direction').querySelector('.model-list-head').children[3];
 
@@ -510,31 +522,33 @@ describe('the lists', () => {
         expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES[0].note);
     });
 
-    it('hands the score picked up, for both pages to show', async () => {
+    it('hands the score picked in a list up, with its task, for both pages to show (#279)', async () => {
         const onScore = jest.fn();
 
         answer();
         await open({ onScore: onScore });
 
-        await userEvent.click(screen.getByRole('button', { name: 'Beat-the-average AUC' }));
+        await userEvent.click(within(group('Next-day direction')).getByRole('button', { name: 'Beat-the-average AUC' }));
 
-        expect(onScore).toHaveBeenCalledWith('auc_beats');
+        expect(onScore).toHaveBeenCalledWith('direction', 'auc_beats');
     });
 });
 
 describe('the title', () => {
-    it('says what the models predict for each stock, what they read, and what the page shows, linking the graph and the data (#251, #277)', async () => {
+    it('says what the stock models and the options model predict, what they read, and what the pages show, linking the graph and the data (#251, #277, #279)', async () => {
         answer();
         await open();
 
         const lede = document.querySelector('.model-lede');
 
         expect(lede).toHaveTextContent(
-            'For each of the roughly 500 stocks in the S&P 500, these models predict three things about the next trading '
-            + 'day: the chance its price goes up, the chance it beats the average stock, and how far it moves. Each night '
-            + 'they read the day’s knowledge graph, built from the data this site collects. Once that day’s prices are in, '
-            + 'every prediction is graded against a guess that knows nothing, to show whether the data can predict the '
-            + 'market at all. This page shows those grades, not the predictions themselves.'
+            'For each of the roughly 500 stocks in the S&P 500, the stock models predict three things about the next trading '
+            + 'day: the chance its price goes up, the chance it beats the average stock, and how far it moves. The options '
+            + 'model predicts, for each of those stocks’ options, the chance it makes money if bought at 9:40 AM the next '
+            + 'trading day and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and sell '
+            + 'prices. Each night they read the day’s knowledge graph, built from the data this site collects. Once the '
+            + 'prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can '
+            + 'predict the market at all. This page shows those grades, and the options model’s own page its picks.'
         );
         expect(within(lede).getByRole('link', { name: 'knowledge graph' })).toHaveAttribute('href', '/graph');
         expect(within(lede).getByRole('link', { name: 'data this site collects' })).toHaveAttribute('href', '/stream');
@@ -853,6 +867,148 @@ describe('the filters, dragged and kept (#253)', () => {
         await open();
 
         expect(filters()).toHaveClass('model-filters-open');
+    });
+});
+
+describe('two tasks, from format 3 on (#279)', () => {
+    //
+    // a format 3 listing: the stock tasks with their top 10's, and pt-options of
+    // the options task, each model's track record with the columns its task has
+    //
+    function both(props = {}) {
+        answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(5) : withTop10(trackOf(5))));
+
+        return open(props);
+    }
+
+    const buttonsIn = (where) => within(within(where).getByRole('group', { name: 'Score' })).getAllByRole('button');
+    const pressedIn = (where) => buttonsIn(where).filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent);
+    const headingIn = (name) => group(name).querySelector('.model-list-head').children[3];
+
+    it('draws a list for each task, each under a score picker of its own task\'s scores', async () => {
+        await both();
+
+        expect(buttonsIn(group('Option picks')).map((button) => button.textContent)).toEqual(['Loss', 'Profit AUC', 'Top 10 gain', 'Top 10 wins']);
+        expect(buttonsIn(group('Next-day direction')).map((button) => button.textContent))
+            .toEqual(['Loss', 'Up/down AUC', 'Beat-the-average AUC', 'Up/down accuracy', 'Top 10 gain', 'Top 10 wins']);
+        expect(namesIn('Option picks')).toEqual(['pt-options']);
+        expect(screen.getByRole('button', { name: 'Option picks 1' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('changes nothing, and breaks nothing, where a score is picked with no store listening', async () => {
+        await both();
+        await userEvent.click(within(group('Option picks')).getByRole('button', { name: 'Top 10 gain' }));
+
+        expect(pressedIn(group('Option picks'))).toEqual(['Loss']);
+    });
+
+    it('hands up a score picked in the options list with its task, and leaves the stock list on its own', async () => {
+        const onScore = jest.fn();
+
+        await both({ onScore: onScore });
+        await userEvent.click(within(group('Option picks')).getByRole('button', { name: 'Top 10 gain' }));
+
+        expect(onScore).toHaveBeenCalledWith('option-picks', 'top10_gain');
+    });
+
+    it('shows each list on its own task\'s score, under its task\'s note', async () => {
+        await both({ scores: { 'option-picks': 'top10_gain' } });
+
+        expect(pressedIn(group('Option picks'))).toEqual(['Top 10 gain']);
+        expect(pressedIn(group('Next-day direction'))).toEqual(['Loss']);
+        expect(headingIn('Option picks')).toHaveTextContent('Top 10 gain, last 20 days');
+        expect(headingIn('Option picks')).toHaveAccessibleDescription(noteOf('top10_gain', OPTIONS_TASK));
+        expect(headingIn('Next-day direction')).toHaveTextContent('Loss, last 20 days');
+        expect(group('Option picks').querySelector('.model-score-value')).toHaveTextContent('3.10%');
+    });
+
+    it('leaves the stock list as it was: its headings, its rows and its figures', async () => {
+        await both();
+
+        expect([...group('Next-day direction').querySelector('.model-list-head').children].map((heading) => heading.textContent))
+            .toEqual(['Compare', 'Model', '', 'Loss, last 20 days', 'Last 60 days', 'Live version', 'Went live']);
+        expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
+        expect(group('Next-day direction').querySelector('.model-score-value')).toHaveTextContent('1.600');
+    });
+
+    it('lets a stock model and pt-options be ticked together on Top 10 gain, drawn each beside its own baseline', async () => {
+        const { container } = await both({ scores: { direction: 'top10_gain' } });
+
+        await userEvent.click(box('pt-gnn'));
+
+        expect(box('pt-options')).toBeEnabled();
+
+        await userEvent.click(box('pt-options'));
+
+        const chart = screen.getByRole('region', { name: 'Comparison' });
+
+        expect(within(chart).getByRole('heading', { name: 'Comparing pt-gnn and pt-options' })).toBeInTheDocument();
+        expect(container.querySelectorAll('.model-compare .recharts-line-curve')).toHaveLength(4);
+        expect(within(chart).getByText(/These trades last different lengths/)).toBeInTheDocument();
+        expect(window.location.search).toBe('?compare=pt-gnn,pt-options');
+    });
+
+    it('turns pt-options down beside a stock model on loss, as before', async () => {
+        await both();
+
+        await userEvent.click(box('pt-gnn'));
+
+        expect(box('pt-options')).toBeDisabled();
+    });
+
+    it('compares two tasks by a picker of its own of the scores they share, apart from the lists\' pickers', async () => {
+        await both({ scores: { direction: 'top10_gain' } });
+
+        await userEvent.click(box('pt-gnn'));
+        await userEvent.click(box('pt-options'));
+
+        const chart = screen.getByRole('region', { name: 'Comparison' });
+
+        expect(buttonsIn(chart).map((button) => button.textContent)).toEqual(['Top 10 gain', 'Top 10 wins']);
+
+        await userEvent.click(within(chart).getByRole('button', { name: 'Top 10 wins' }));
+
+        expect(chart.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringMatching(/^Top 10 wins, 20-day averages of pt-gnn and pt-options/));
+        expect(pressedIn(group('Next-day direction'))).toEqual(['Top 10 gain']);
+    });
+
+    it('ticks a third of either task on the score compared, and follows the list\'s picker again once one task is left', async () => {
+        await both({ scores: { direction: 'top10_gain' } });
+
+        await userEvent.click(box('pt-gnn'));
+        await userEvent.click(box('pt-options'));
+
+        expect(box('tables')).toBeEnabled();
+
+        await userEvent.click(box('pt-options'));
+        await userEvent.click(box('tables'));
+
+        const chart = screen.getByRole('region', { name: 'Comparison' });
+
+        expect(within(chart).queryByRole('group', { name: 'Score' })).toBeNull();
+        expect(chart.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringMatching(/^Top 10 gain, 20-day averages of pt-gnn and tables/));
+    });
+
+    it('reopens a comparison of two tasks from its address, on the first score they share', async () => {
+        at('/model?compare=pt-options,tables');
+
+        await both();
+
+        const chart = screen.getByRole('region', { name: 'Comparison' });
+
+        expect(box('pt-options')).toBeChecked();
+        expect(box('tables')).toBeChecked();
+        expect(pressedIn(chart)).toEqual(['Top 10 gain']);
+    });
+
+    it('reads an address of two tasks as what the tasks let it compare', () => {
+        const { models, tasks } = optionsListingOf();
+
+        expect(linkedCompare('?compare=pt-gnn,pt-options,beater', models, tasks).map((each) => each.name))
+            .toEqual(['pt-gnn', 'pt-options', 'beater']);
+        expect(linkedCompare('?compare=pt-gnn,pt-options', models).map((each) => each.name)).toEqual(['pt-gnn']);
+        expect(linkedCompare('?compare=pt-gnn,pt-options', listingOf().models.concat([models[4]]), listingOf().tasks).map((each) => each.name))
+            .toEqual(['pt-gnn']);
     });
 });
 
