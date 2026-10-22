@@ -39,6 +39,8 @@ import {
     formatGap,
     formatScore,
     liveKind,
+    noteOf,
+    scoreIn,
     scoreOf,
     shortDay,
     standing,
@@ -75,8 +77,8 @@ export function TrendLine({ name, rows, axis, score }) {
 
     const data = axis.map((day) => ({
         day: day,
-        value: byDay[day] ? byDay[day].average[score] : null,
-        baseline: byDay[day] ? byDay[day].baseline_average[score] : null,
+        value: byDay[day] ? scoreIn(byDay[day].average, score) : null,
+        baseline: byDay[day] ? scoreIn(byDay[day].baseline_average, score) : null,
     }));
 
     if (!data.some((point) => point.value !== null)) {
@@ -181,11 +183,11 @@ function gapText(gap, score) {
     );
 }
 
-function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false }) {
+function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false, task = undefined }) {
     const status = statusOf(model);
     const live = liveCell(model, status);
-    const value = model.score ? model.score[score] : null;
-    const gap = betterBy(value, model.baseline ? model.baseline[score] : null, score);
+    const value = scoreIn(model.score, score);
+    const gap = betterBy(value, scoreIn(model.baseline, score), score);
     const ticked = picked !== null;
     const address = `/model/${encodeURIComponent(model.name)}`;
 
@@ -226,7 +228,7 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                 <AlarmBell model={model} held={held} />
             </div>
             <div className='model-cell model-cell-score'>
-                <InfoNote note={scoreOf(score).note} className='model-cell-label model-noted'>{scoreLabel(model, score)}</InfoNote>
+                <InfoNote note={noteOf(score, task)} className='model-cell-label model-noted'>{scoreLabel(model, score)}</InfoNote>
                 <span className='model-score-value'>{formatScore(value, score)}</span>
                 <span className={`model-gap model-gap-${standing(gap, score)}`}>{gapText(gap, score)}</span>
             </div>
@@ -295,6 +297,15 @@ ModelRow.propTypes = {
     // whether the reader holds the model's alarm, which rings its bell
     //
     held: PropTypes.bool,
+    //
+    // the task it predicts, as the listing describes it, whose note on the
+    // score is the one the score's name carries (#279) -- see scores.js's
+    // noteOf
+    //
+    task: PropTypes.shape({
+        id: PropTypes.string.isRequired,
+        scores: PropTypes.arrayOf(PropTypes.string),
+    }),
 };
 
 export default ModelRow;
