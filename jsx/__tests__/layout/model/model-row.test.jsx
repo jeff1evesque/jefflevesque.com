@@ -13,7 +13,7 @@ import { MemoryRouter } from 'react-router-dom';
 import ModelRow, { TrendLine } from '../../../import/layout/model/model-row.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS, SCORES, noteOf, recentDays } from '../../../import/layout/model/scores.js';
-import { OPTIONS_TASK, downModelOf, modelOf, optionsModelOf, trackOf } from '../../../test-support/model-fixtures.js';
+import { OPTIONS_TASK, downModelOf, modelOf, olderTrackOf, optionsModelOf, trackOf } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
     const onPick = props.onPick || jest.fn();
@@ -265,11 +265,12 @@ describe('the bell (#255)', () => {
         expect(screen.queryByRole('link', { name: /^Alarm for/ })).toBeNull();
     });
 
-    it('comes after the model\'s name and before its score, as a stream\'s does on /stream (#259)', () => {
+    it('comes after the model\'s name and before its figures, as a stream\'s does on /stream (#259), the score last (#283)', () => {
         //
         // a wide screen places a row's cells by their order, into the columns
         // '_model.scss' gives them -- see stylesheet.test.js beside this one. It
-        // came last, at the far right, where /stream has a row's figures
+        // came last, at the far right, where /stream has a row's figures. The
+        // score came before the figures, where a phone's card has it after them
         //
         const { container } = draw();
         const cells = [...container.querySelectorAll('.model-row > .model-cell')];
@@ -278,11 +279,98 @@ describe('the bell (#255)', () => {
             'model-cell-compare',
             'model-cell-model',
             'model-cell-alarm',
-            'model-cell-score',
-            'model-cell-trend',
             'model-cell-live',
             'model-cell-went',
+            'model-cell-trend',
+            'model-cell-score',
         ]);
+    });
+});
+
+describe('loss\'s three parts, in place of its sum (#283)', () => {
+    //
+    // the newest day of trackOf(10): up or down 0.720 against the baseline's
+    // 0.700, beating the average stock 0.620 against 0.693, and the size of the
+    // move 0.269 against 0.267
+    //
+    const textsOf = (container, selector) => [...container.querySelectorAll(selector)].map((each) => each.textContent);
+
+    //
+    // a track record of one day, its parts' averages `parts` and the baseline's
+    // `baseline`
+    //
+    function dayOf(parts, baseline) {
+        return [{ day: '2026-09-01', days: 1, score: {}, baseline: {}, average: parts, baseline_average: baseline }];
+    }
+
+    it('stand in the score\'s place, each with its 20-day figure and how it stands against the baseline\'s', () => {
+        const { container } = draw({ parts: true });
+
+        expect(container.querySelector('.model-cell-score')).toBeNull();
+        expect(textsOf(container, '.model-part-cell-value')).toEqual(['0.720', '0.620', '0.269']);
+        expect(textsOf(container, '.model-part-cell .model-gap')).toEqual(['▼ 0.020 worse', '▲ 0.073 better', '▼ 0.002 worse']);
+        expect([...container.querySelectorAll('.model-part-cell .model-gap')].map((gap) => gap.classList[1]))
+            .toEqual(['model-gap-worse', 'model-gap-better', 'model-gap-worse']);
+        expect(textsOf(container, '.model-part-cell .model-gap-arrow')).toEqual(['▼', '▲', '▼']);
+    });
+
+    it('name each part, for a phone\'s card and a list too narrow for their columns', () => {
+        const { container } = draw({ parts: true });
+
+        expect(textsOf(container, '.model-part-cell-name')).toEqual(['Up or down', 'Beats the average stock', 'Size of the move']);
+    });
+
+    it('name the score over them on a phone\'s card, as its status reads it, with loss\'s note', () => {
+        const live = draw({ parts: true }).container.querySelector('.model-cell-parts .model-cell-label');
+        const fresh = draw({ parts: true, model: modelOf({ scored_days: 3 }) }).container.querySelector('.model-cell-parts .model-cell-label');
+
+        expect(live).toHaveTextContent('Loss, last 20 days');
+        expect(live).toHaveAccessibleDescription(noteOf('loss'));
+        expect(live).toHaveAttribute('tabindex', '0');
+        expect(fresh).toHaveTextContent('Loss, 3 days so far');
+    });
+
+    it('say level, with no arrow, for a part printed as the baseline\'s is', () => {
+        const rows = dayOf(
+            { up_log_loss: 0.7001, beats_log_loss: 0.693, move_pinball: 0.267 },
+            { up_log_loss: 0.7, beats_log_loss: 0.6932, move_pinball: 0.2671 },
+        );
+        const { container } = draw({ parts: true, rows: rows });
+
+        expect(textsOf(container, '.model-part-cell .model-gap')).toEqual(['level', 'level', 'level']);
+        expect(container.querySelector('.model-part-cell .model-gap-arrow')).toBeNull();
+    });
+
+    it('leave how a part stands unsaid where the baseline has none of it', () => {
+        const rows = dayOf({ up_log_loss: 0.72, beats_log_loss: 0.62, move_pinball: 0.27 }, {});
+        const { container } = draw({ parts: true, rows: rows });
+
+        expect(textsOf(container, '.model-part-cell-value')).toEqual(['0.720', '0.620', '0.270']);
+        expect(textsOf(container, '.model-part-cell .model-gap')).toEqual(['', '', '']);
+    });
+
+    it('hold a bar for each figure while the track record is on its way', () => {
+        const { container } = draw({ parts: true, rows: undefined });
+
+        expect(container.querySelectorAll('.model-part-cell-value > .graph-pending-bar')).toHaveLength(3);
+    });
+
+    it.each([
+        ['could not be had', null],
+        ['has no day yet', []],
+        ['has no columns for them', olderTrackOf(10)],
+    ])('print a dash for each where the track record %s', (_, rows) => {
+        const { container } = draw({ parts: true, rows: rows });
+
+        expect(textsOf(container, '.model-part-cell-value')).toEqual(['–', '–', '–']);
+        expect(textsOf(container, '.model-part-cell .model-gap')).toEqual(['', '', '']);
+    });
+
+    it('come last in the row, where the score comes', () => {
+        const { container } = draw({ parts: true });
+
+        expect([...container.querySelectorAll('.model-row > .model-cell')].map((cell) => cell.classList[1]).slice(-2))
+            .toEqual(['model-cell-trend', 'model-cell-parts']);
     });
 });
 
