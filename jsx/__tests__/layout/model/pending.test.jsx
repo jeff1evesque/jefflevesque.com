@@ -51,8 +51,10 @@ describe('PendingLines', () => {
 });
 
 describe('PendingRow', () => {
-    function row(score = 'loss', at = 0) {
-        return render(<PendingRow score={score} at={at} />).container.querySelector('.model-row');
+    function row(score = 'loss', at = 0, parts = false) {
+        const drawn = parts ? <PendingRow score={score} at={at} parts /> : <PendingRow score={score} at={at} />;
+
+        return render(drawn).container.querySelector('.model-row');
     }
 
     it('wears a row\'s classes, cell for cell, so a wide screen\'s grid and a phone\'s card lay it out as one', () => {
@@ -60,15 +62,28 @@ describe('PendingRow', () => {
             'model-cell model-cell-compare',
             'model-cell model-cell-model',
             'model-cell model-cell-alarm',
-            'model-cell model-cell-score',
-            'model-cell model-cell-trend',
             'model-cell model-cell-live',
             'model-cell model-cell-went',
+            'model-cell model-cell-trend',
+            'model-cell model-cell-score',
         ]);
     });
 
-    it('names its figures for a phone\'s card, the score as the one picked', () => {
-        expect(textsOf(row('auc_up'), '.model-cell-label')).toEqual(['Up/down AUC', 'Last 60 days', 'Live version', 'Went live']);
+    it('names its figures for a phone\'s card, the score as the one picked, last (#283)', () => {
+        expect(textsOf(row('auc_up'), '.model-cell-label')).toEqual(['Live version', 'Went live', 'Last 60 days', 'Up/down AUC']);
+    });
+
+    it('puts loss\'s three parts in the score\'s place with `parts`, each named over a bar for its figure and one for how it stands (#283)', () => {
+        const drawn = row('loss', 0, true);
+        const parts = [...drawn.querySelectorAll('.model-part-cell')];
+
+        expect(drawn.lastElementChild).toHaveClass('model-cell', 'model-cell-parts');
+        expect(drawn.querySelector('.model-cell-score')).toBeNull();
+        expect(textsOf(drawn, '.model-part-cell-name')).toEqual(['Up or down', 'Beats the average stock', 'Size of the move']);
+        parts.forEach((part) => {
+            expect(part.querySelector('.model-part-cell-value > .graph-pending-bar')).not.toBeNull();
+            expect(part.querySelector('.model-gap > .graph-pending-bar')).not.toBeNull();
+        });
     });
 
     it('draws its box disabled, and no bell, since a retired model has none', () => {
@@ -100,12 +115,25 @@ describe('PendingRow', () => {
 });
 
 describe('PendingGroup', () => {
-    it('heads two rows with the list\'s own headings, the score\'s as the one picked', () => {
+    it('heads two rows with the list\'s own headings, the score\'s as the one picked, last (#283)', () => {
         const { container } = render(<PendingGroup score='acc_up' />);
 
         expect([...container.querySelector('.model-list-head').children].map((heading) => heading.textContent))
-            .toEqual(['Compare', 'Model', '', 'Up/down accuracy, last 20 days', 'Last 60 days', 'Live version', 'Went live']);
-        expect(container.querySelectorAll('.model-row')).toHaveLength(2);
+            .toEqual(['Compare', 'Model', '', 'Live version', 'Went live', 'Last 60 days', 'Up/down accuracy, last 20 days']);
+        expect(container.querySelector('.model-list')).not.toHaveClass('model-list-parts');
+        expect(container.querySelectorAll('.model-row .model-cell-score')).toHaveLength(2);
+        expect(container.querySelector('.model-head-trend')).toHaveTextContent('Last 60 days');
+    });
+
+    it('draws loss as its three parts, as the first list, of stock models, opens on it (#283)', () => {
+        const { container } = render(<PendingGroup />);
+        const head = container.querySelector('.model-parts-head');
+
+        expect(container.querySelector('.model-list')).toHaveClass('model-list-parts');
+        expect(container.querySelector('.model-list-head').lastElementChild).toBe(head);
+        expect(textsOf(head, ':scope > span')).toEqual(['Loss, last 20 days', 'Up or down', 'Beats the average stock', 'Size of the move']);
+        expect(head.firstElementChild).toHaveClass('model-noted');
+        expect(container.querySelectorAll('.model-row .model-cell-parts')).toHaveLength(2);
     });
 
     it('draws the task\'s heading, its line and its count as bars', () => {
@@ -131,7 +159,7 @@ describe('PendingGroup', () => {
         const { container } = render(<PendingGroup />);
         const group = container.querySelector('.model-group');
 
-        expect([...group.children].map((part) => part.className)).toEqual(['model-group-head', 'model-controls model-group-controls', 'model-list']);
+        expect([...group.children].map((part) => part.className)).toEqual(['model-group-head', 'model-controls model-group-controls', 'model-list model-list-parts']);
         expect(group.querySelector('.model-group-controls .model-picker-pending')).not.toBeNull();
         expect(group.querySelector('.model-list-head')).toHaveTextContent('Loss, last 20 days');
     });
