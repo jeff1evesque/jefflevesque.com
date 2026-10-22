@@ -359,7 +359,7 @@ describe('the page before the listing', () => {
 
             expect(rows).toHaveLength(2);
             expect([...document.querySelector('.model-list-head').children].map((heading) => heading.textContent))
-                .toEqual(['Compare', 'Model', '', 'Loss, last 20 days', 'Last 60 days', 'Live version', 'Went live']);
+                .toEqual(['Compare', 'Model', '', 'Live version', 'Went live', 'Last 60 days', 'Loss, last 20 daysUp or downBeats the average stockSize of the move']);
             rows.forEach((row) => {
                 expect(row.querySelector('input[type="checkbox"]')).toBeDisabled();
                 expect(row.querySelector('.control-tray')).toBeNull();
@@ -477,15 +477,23 @@ describe('the lists', () => {
         expect(namesIn('Next-day direction')).toEqual(['tables', 'pt-gnn', 'fresh']);
     });
 
-    it('heads every column in a row\'s order, the bell\'s third with no name, after Model (#259)', async () => {
+    it('heads every column in a row\'s order, the bell\'s third with no name, after Model (#259), and the score last (#283)', async () => {
         answer();
 
-        await open();
+        await open({ scores: { direction: 'auc_up' } });
 
         const headings = [...group('Next-day direction').querySelector('.model-list-head').children]
             .map((heading) => heading.textContent);
 
-        expect(headings).toEqual(['Compare', 'Model', '', 'Loss, last 20 days', 'Last 60 days', 'Live version', 'Went live']);
+        expect(headings).toEqual(['Compare', 'Model', '', 'Live version', 'Went live', 'Last 60 days', 'Up/down AUC, last 20 days']);
+    });
+
+    it('marks the 60-day line\'s heading, so a list too narrow for the line drops the two together (#283)', async () => {
+        answer();
+
+        await open();
+
+        expect(group('Next-day direction').querySelector('.model-list-head').children[5]).toHaveClass('model-head-trend');
     });
 
     it('gives the score\'s heading the note of the score picked (#265)', async () => {
@@ -493,7 +501,7 @@ describe('the lists', () => {
 
         await open({ scores: { direction: 'auc_beats' } });
 
-        const heading = group('Next-day direction').querySelector('.model-list-head').children[3];
+        const heading = group('Next-day direction').querySelector('.model-list-head').children[6];
 
         expect(heading).toHaveTextContent('Beat-the-average AUC, last 20 days');
         expect(heading).toHaveAccessibleDescription(SCORES.find((score) => score.key === 'auc_beats').note);
@@ -507,19 +515,84 @@ describe('the lists', () => {
         //
         answer();
 
-        await open();
+        await open({ scores: { direction: 'acc_up' } });
 
         const head = group('Next-day direction').querySelector('.model-list-head');
-        const [compare, model, bell, score, trend, live, went] = [...head.children];
+        const [compare, model, bell, live, went, trend, score] = [...head.children];
 
         expect(head).not.toHaveAttribute('aria-hidden');
         expect(score).toHaveAttribute('tabindex', '0');
         expect(score).not.toHaveAttribute('aria-hidden');
-        [compare, model, bell, trend, live, went].forEach((heading) => expect(heading).toHaveAttribute('aria-hidden', 'true'));
+        [compare, model, bell, live, went, trend].forEach((heading) => expect(heading).toHaveAttribute('aria-hidden', 'true'));
 
         await userEvent.hover(score);
 
-        expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES[0].note);
+        expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES.find((each) => each.key === 'acc_up').note);
+    });
+
+    describe('on Loss, a list of stock models shows loss\'s three parts in its place (#283)', () => {
+        const partsHead = () => group('Next-day direction').querySelector('.model-parts-head');
+
+        it('heads them with the score\'s heading, and each with its own name', async () => {
+            answer();
+
+            await open();
+
+            expect(group('Next-day direction').querySelector('.model-list')).toHaveClass('model-list-parts');
+            expect(group('Next-day direction').querySelector('.model-list-head').lastElementChild).toBe(partsHead());
+            expect([...partsHead().children].map((heading) => heading.textContent))
+                .toEqual(['Loss, last 20 days', 'Up or down', 'Beats the average stock', 'Size of the move']);
+        });
+
+        it('lets the keyboard reach the score\'s heading over them, with loss\'s note, and hides their names', async () => {
+            answer();
+
+            await open();
+
+            const [note, ...names] = [...partsHead().children];
+
+            expect(partsHead()).not.toHaveAttribute('aria-hidden');
+            expect(note).toHaveAttribute('tabindex', '0');
+            expect(note).toHaveAccessibleDescription(SCORES[0].note);
+            names.forEach((name) => expect(name).toHaveAttribute('aria-hidden', 'true'));
+
+            await userEvent.hover(note);
+
+            expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES[0].note);
+        });
+
+        it('fills every row\'s parts from its track record, and no row shows the sum', async () => {
+            answer();
+
+            await open();
+
+            const rows = [...group('Next-day direction').querySelectorAll('.model-row')];
+
+            expect(rows).toHaveLength(3);
+            expect(group('Next-day direction').querySelector('.model-score-value')).toBeNull();
+            rows.forEach((row) => {
+                expect([...row.querySelectorAll('.model-part-cell-value')].map((value) => value.textContent)).toEqual(['0.720', '0.620', '0.268']);
+            });
+        });
+
+        it('still sorts by the sum, which decides what goes live', async () => {
+            answer();
+
+            await open();
+
+            expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
+        });
+
+        it('shows any other score as its one figure, and no parts', async () => {
+            answer();
+
+            await open({ scores: { direction: 'auc_up' } });
+
+            expect(group('Next-day direction').querySelector('.model-list')).not.toHaveClass('model-list-parts');
+            expect(partsHead()).toBeNull();
+            expect(group('Next-day direction').querySelector('.model-cell-parts')).toBeNull();
+            expect(group('Next-day direction').querySelector('.model-score-value')).toHaveTextContent('0.560');
+        });
     });
 
     it('hands the score picked in a list up, with its task, for both pages to show (#279)', async () => {
@@ -883,7 +956,7 @@ describe('two tasks, from format 3 on (#279)', () => {
 
     const buttonsIn = (where) => within(within(where).getByRole('group', { name: 'Score' })).getAllByRole('button');
     const pressedIn = (where) => buttonsIn(where).filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent);
-    const headingIn = (name) => group(name).querySelector('.model-list-head').children[3];
+    const headingIn = (name) => group(name).querySelector('.model-list-head').children[6];
 
     it('draws a list for each task, each under a score picker of its own task\'s scores', async () => {
         await both();
@@ -922,13 +995,23 @@ describe('two tasks, from format 3 on (#279)', () => {
         expect(group('Option picks').querySelector('.model-score-value')).toHaveTextContent('3.10%');
     });
 
-    it('leaves the stock list as it was: its headings, its rows and its figures', async () => {
+    it('leaves the stock list as it was: its headings, its rows, and on Loss, loss\'s parts (#283)', async () => {
         await both();
 
         expect([...group('Next-day direction').querySelector('.model-list-head').children].map((heading) => heading.textContent))
-            .toEqual(['Compare', 'Model', '', 'Loss, last 20 days', 'Last 60 days', 'Live version', 'Went live']);
+            .toEqual(['Compare', 'Model', '', 'Live version', 'Went live', 'Last 60 days', 'Loss, last 20 daysUp or downBeats the average stockSize of the move']);
         expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
-        expect(group('Next-day direction').querySelector('.model-score-value')).toHaveTextContent('1.600');
+        expect([...group('Next-day direction').querySelector('.model-row').querySelectorAll('.model-part-cell-value')].map((value) => value.textContent))
+            .toEqual(['0.720', '0.620', '0.268']);
+    });
+
+    it('keeps the options list on its one figure for Loss, which adds up other scores (#283)', async () => {
+        await both();
+
+        expect(group('Option picks').querySelector('.model-list')).not.toHaveClass('model-list-parts');
+        expect(group('Option picks').querySelector('.model-parts-head')).toBeNull();
+        expect(headingIn('Option picks')).toHaveTextContent(/^Loss, last 20 days$/);
+        expect(group('Option picks').querySelector('.model-score-value')).toHaveTextContent('0.840');
     });
 
     it('lets a stock model and pt-options be ticked together on Top 10 gain, drawn each beside its own baseline', async () => {

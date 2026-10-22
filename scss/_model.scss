@@ -611,14 +611,17 @@
 //
 // a row's columns, the same under the headings as in every row. The third is the
 // bell's (#255), as wide as its button and empty for a retired model: after the
-// model's name, as a /stream row's bell comes after the stream's name (#259)
+// model's name, as a /stream row's bell comes after the stream's name (#259).
+// Then the live version, how many attempts went live and the 60-day line, and
+// the score last, as a phone's card has them, so nothing moves when the score
+// picked is changed (#283)
 //
 .model-list-head,
 .model-row {
   align-items: center;
   column-gap: 1rem;
   display: grid;
-  grid-template-columns: 4.5rem minmax(12rem, 2fr) 2.5rem minmax(9rem, 1fr) 140px 8rem 6rem;
+  grid-template-columns: 4.5rem minmax(12rem, 2fr) 2.5rem 8rem 6rem 140px minmax(9rem, 1fr);
 }
 
 .model-list-head {
@@ -776,8 +779,184 @@
 }
 
 //
-// a trend line's box: model-row.jsx's TREND_WIDTH and TREND_HEIGHT. Its width
-// also bounds how wide a phone's card lets its first column of figures grow
+// a list that shows loss's three parts in place of its sum (#283): a column
+// each, under the score's heading, centered over a rule across the three, and
+// each column under its part's name, kept to one line. Set widths rather than
+// each column sized to what it holds, since the headings and every row are
+// grids of their own, and would size theirs apart. The list is what its
+// columns are measured against -- see the container queries below
+//
+.model-list {
+  container-type: inline-size;
+}
+
+.model-list-parts .model-list-head,
+.model-list-parts .model-row {
+  grid-template-columns: 4.5rem minmax(9rem, 1fr) 2.5rem 8rem 6rem 140px 6.5rem 10rem 7rem;
+}
+
+//
+// every heading on the line the parts' names stand on, under the score's
+//
+.model-list-parts .model-list-head {
+  align-items: end;
+}
+
+.model-parts-head,
+.model-list-parts .model-cell-parts,
+.model-part-cells {
+  display: grid;
+  grid-column: span 3;
+  grid-template-columns: subgrid;
+}
+
+.model-parts-head {
+  row-gap: 0.2rem;
+
+  > .model-noted {
+    border-bottom: 1px solid $gray-3;
+    grid-column: 1 / -1;
+    padding-bottom: 0.2rem;
+    text-align: center;
+  }
+
+  > span {
+    white-space: nowrap;
+  }
+}
+
+.model-part-cells {
+  grid-column: 1 / -1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.model-part-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+//
+// out of sight where the columns' headings name the parts, though still read
+// out, as the headings are hidden from a screen reader
+//
+.model-part-cell-name {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.model-part-cell-value {
+  color: $gray-9;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+//
+// the parts as a phone's card lays them out: a line each, the part's name at
+// the left, its figure and how it stands at the right, each in a column the
+// three lines share
+//
+@mixin model-part-lines {
+  .model-list-parts .model-cell-parts {
+    display: block;
+  }
+
+  .model-part-cells {
+    column-gap: 0.6rem;
+    font-size: 0.85rem;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    row-gap: 0.15rem;
+  }
+
+  .model-part-cell {
+    align-items: baseline;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+
+  .model-part-cell-name {
+    clip-path: none;
+    color: $gray-7;
+    height: auto;
+    overflow: visible;
+    position: static;
+    white-space: normal;
+    width: auto;
+  }
+
+  .model-part-cell-value {
+    font-size: 0.95rem;
+    text-align: right;
+  }
+}
+
+@media (min-width: 768px) {
+  //
+  // a list too narrow for the three columns with each name on one line, as at
+  // 1280px wide with the filters open: one column under the score's heading,
+  // still centered over its rule, and the parts in lines as a phone's card has
+  // them, each naming its part, where the names had broken over three lines
+  //
+  @container (max-width: 72rem) {
+    .model-list-parts .model-list-head,
+    .model-list-parts .model-row {
+      column-gap: 0.75rem;
+      grid-template-columns: 4.5rem minmax(9rem, 1fr) 2.5rem 7rem 5rem 140px 19.5rem;
+    }
+
+    .model-parts-head {
+      display: block;
+      grid-column: auto;
+
+      > .model-noted {
+        display: block;
+      }
+
+      > span:not(.model-noted) {
+        display: none;
+      }
+    }
+
+    .model-list-parts .model-cell-parts {
+      grid-column: auto;
+    }
+
+    @include model-part-lines;
+  }
+
+  //
+  // a list too narrow for the 60-day line as well, as from 992px to 1199px wide
+  // with the filters open: every list without it, where the list had run 90px
+  // past its column and the page had scrolled sideways
+  //
+  @container (max-width: 62rem) {
+    .model-list-head,
+    .model-row {
+      grid-template-columns: 4.5rem minmax(12rem, 2fr) 2.5rem 8rem 6rem minmax(9rem, 1fr);
+    }
+
+    .model-list-parts .model-list-head,
+    .model-list-parts .model-row {
+      grid-template-columns: 4.5rem minmax(9rem, 1fr) 2.5rem 7rem 5rem 19.5rem;
+    }
+
+    .model-head-trend,
+    .model-cell-trend {
+      display: none;
+    }
+  }
+}
+
+//
+// a trend line's box: model-row.jsx's TREND_WIDTH and TREND_HEIGHT
 //
 $model-trend-width: 132px;
 
@@ -1704,24 +1883,25 @@ $model-trend-width: 132px;
   // The model's cell gives up its own box, so its name's line keeps beside the
   // box and the bell, and its address and description run the card's whole
   // width under them: they stopped at the box's column, and left the card's
-  // right side empty (#274). The figures split the card in two even halves,
-  // where the right one had the box's and the bell's columns as well -- but
-  // the left never so wide that the trend line no longer fits beside it, as on
-  // a 320px phone. 1rem inside the card's edge, where 0.75rem crowded it. The
-  // model's lines keep their own spacing, so 0.6rem goes over each row of
-  // figures rather than between every row
+  // right side empty (#274). 1rem inside the card's edge, where 0.75rem crowded
+  // it. The model's lines keep their own spacing, so 0.6rem goes over each row
+  // of figures rather than between every row.
+  //
+  // Under them, the live version, how many attempts went live and the 60-day
+  // line in one row, each as wide as it needs and the line at the right, and
+  // under those, across the card, the score (#283)
   //
   .model-row {
     border: 1px solid $gray-2;
     border-radius: 8px;
-    column-gap: 1rem;
+    column-gap: 0.75rem;
     grid-template-areas:
-      'name name compare alarm'
-      'address address address address'
-      'about about about about'
-      'score trend trend trend'
-      'live went went went';
-    grid-template-columns: min(50% - 0.5rem, 100% - 1rem - $model-trend-width) minmax(0, 1fr) auto auto;
+      'name name name compare alarm'
+      'address address address address address'
+      'about about about about about'
+      'live went trend trend trend'
+      'score score score score score';
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
     margin-top: 0.6rem;
     padding: 1rem;
   }
@@ -1754,9 +1934,52 @@ $model-trend-width: 132px;
   }
 
   .model-cell-score { grid-area: score; }
-  .model-cell-trend { grid-area: trend; }
+  .model-cell-trend { grid-area: trend; justify-self: end; }
   .model-cell-live { grid-area: live; }
   .model-cell-went { grid-area: went; }
+
+  //
+  // the score under a light rule, so the figures over it and the score read as
+  // two parts of the card (#283), and loss's parts a line each, across the card.
+  // A wide screen's grid for them gives way to the card's
+  //
+  .model-list-parts .model-row {
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  }
+
+  @include model-part-lines;
+
+  .model-cell-score,
+  .model-list-parts .model-cell-parts {
+    border-top: 1px solid $gray-2;
+    grid-area: score;
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+  }
+
+  .model-part-cells {
+    margin-top: 0.15rem;
+  }
+
+  //
+  // too narrow for the live version, the attempts and the 60-day line side by
+  // side, as on a 320px phone: the line under the other two
+  //
+  @media (max-width: 374.98px) {
+    .model-row {
+      grid-template-areas:
+        'name name name compare alarm'
+        'address address address address address'
+        'about about about about about'
+        'live went went went went'
+        'trend trend trend trend trend'
+        'score score score score score';
+    }
+
+    .model-cell-trend {
+      justify-self: start;
+    }
+  }
 
   .model-cell-label {
     color: $gray-6;
