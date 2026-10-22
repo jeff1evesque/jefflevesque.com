@@ -12,7 +12,7 @@ import { setStockSplitProp } from '../../import/redux/action/article.jsx';
 import { setHide } from '../../import/redux/action/hide.jsx';
 import { setLoginState } from '../../import/redux/action/login.jsx';
 import setLogoutState from '../../import/redux/action/logout.jsx';
-import { setModelScore } from '../../import/redux/action/model.jsx';
+import { setModelHold, setModelScore } from '../../import/redux/action/model.jsx';
 import { setContentType, setLayout, setSpinner } from '../../import/redux/action/page.jsx';
 import { setParsedCsv } from '../../import/redux/action/parseCsv.jsx';
 
@@ -222,11 +222,21 @@ describe('setParsedCsv', () => {
 });
 
 describe('setModelScore (#243)', () => {
-    it('carries the score it is handed', () => {
-        expect(setModelScore('auc_up')).toEqual({ type: 'SET-MODEL-SCORE', score: 'auc_up' });
+    it('carries the task and the score it is handed (#279)', () => {
+        expect(setModelScore('direction', 'auc_up')).toEqual({ type: 'SET-MODEL-SCORE', task: 'direction', score: 'auc_up' });
     });
 
     it('is what the model reducer takes', () => {
-        expect(model(undefined, setModelScore('acc_up'))).toEqual({ score: 'acc_up' });
+        expect(model(undefined, setModelScore('direction', 'acc_up'))).toEqual({ scores: { direction: 'acc_up' }, hold: 1 });
+    });
+});
+
+describe('setModelHold (#279)', () => {
+    it('carries the hold it is handed', () => {
+        expect(setModelHold(5)).toEqual({ type: 'SET-MODEL-HOLD', hold: 5 });
+    });
+
+    it('is what the model reducer takes', () => {
+        expect(model(undefined, setModelHold(20))).toEqual({ scores: {}, hold: 20 });
     });
 });
