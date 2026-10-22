@@ -252,6 +252,209 @@ export function ownBaselines() {
     };
 }
 
+//
+// what a format 3 listing adds (#279): each task's scores, the stock tasks' with
+// the top 10's two after their four, and a task of options
+//
+export const STOCK_SCORES = ['loss', 'auc_up', 'auc_beats', 'acc_up', 'top10_gain', 'top10_wins'];
+
+export const OPTIONS_TASK = {
+    id: 'option-picks',
+    name: 'Option picks',
+    description: 'For each S&P 500 option, the chance it makes money held 1, 5 or 20 trading days.',
+    scores: ['loss', 'profit_auc', 'top10_gain', 'top10_wins'],
+};
+
+//
+// the stock scores an options model has none of, as the listing gives them:
+// null, as the four are required
+//
+const NO_STOCK = { auc_up: null, auc_beats: null, acc_up: null };
+
+/**
+ * how close each of an options model's checks is to taking its live version
+ * down: the three checks for each hold, each day 2 of 5 on the 1-day hold and
+ * none in a row on the rest, the 20-day hold's not yet.
+ */
+export function holdsBehindOf(each = 2) {
+    return [1, 5, 20].reduce((checks, hold) => checks.concat([
+        { days: 1, in_a_row: hold === 1 ? each : 0, limit: 5, hold: hold },
+        { days: 5, in_a_row: hold === 20 ? null : 0, limit: 10, hold: hold },
+        { days: 20, in_a_row: hold === 1 ? 0 : null, limit: 5, hold: hold },
+    ]), []);
+}
+
+/**
+ * an options model as a format 3 listing holds it (#279): loss and its own
+ * three, and every check on each hold.
+ */
+export function optionsModelOf(overrides = {}) {
+    return modelOf({
+        name: 'pt-options',
+        task: OPTIONS_TASK.id,
+        description: 'Reads the day’s options beside the Training graph',
+        started: '2026-09-01',
+        scored_days: 30,
+        live: { since: '2026-10-14', kind: 'nightly' },
+        attempts: { total: 30, went_live: 3 },
+        score: { loss: 0.84, ...NO_STOCK, ...NO_PARTS, profit_auc: 0.55, top10_gain: 0.031, top10_wins: 6.2 },
+        baseline: { loss: 0.88, ...NO_STOCK, ...NO_PARTS, profit_auc: 0.5, top10_gain: -0.042, top10_wins: 4.1 },
+        behind: holdsBehindOf(),
+        ...overrides,
+    });
+}
+
+/**
+ * a format 3 listing (#279): the stock tasks naming their scores, the stock
+ * models with their top 10's, and the options task with pt-options. `models`,
+ * where given, takes the models' place.
+ */
+export function optionsListingOf(models = null) {
+    const top = (model, gain, wins) => ({
+        ...model,
+        score: { ...model.score, top10_gain: gain, top10_wins: wins },
+        baseline: { ...model.baseline, top10_gain: 0.0003, top10_wins: 5.1 },
+    });
+    const stocks = listingOf().models.map((model, at) => top(model, 0.0012 - at * 0.0002, 5.6 - at * 0.1));
+
+    return {
+        format_version: 3,
+        tasks: TASKS.map((task) => ({ ...task, scores: STOCK_SCORES.slice() })).concat([{ ...OPTIONS_TASK, scores: OPTIONS_TASK.scores.slice() }]),
+        models: models || stocks.concat([optionsModelOf()]),
+    };
+}
+
+//
+// an options model's scores on a day whose loss is `loss`, the same on each of
+// its holds, as `<score>` and each `<score>_1d`, `_5d` and `_20d` -- but a hold
+// whose result is not in yet, which is null
+//
+function optionsScoresAt(loss, gain, held = { 1: true, 5: true, 20: true }) {
+    const plain = { loss: loss, profit_auc: 1.39 - loss, top10_gain: gain, top10_wins: 6 + gain * 10 };
+    const scores = { ...plain, ...NO_STOCK, ...NO_PARTS };
+
+    [1, 5, 20].forEach((hold) => {
+        Object.keys(plain).forEach((key) => {
+            scores[`${key}_${hold}d`] = held[hold] ? plain[key] : null;
+        });
+    });
+
+    return scores;
+}
+
+//
+// each score's mean over `recent`, the days that have one, as the worker takes
+// it: none where no day does
+//
+function meanOf(recent, field) {
+    const average = {};
+
+    Object.keys(recent[recent.length - 1][field]).forEach((key) => {
+        const values = recent.map((row) => row[field][key]).filter((value) => value !== null);
+
+        average[key] = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+    });
+
+    return average;
+}
+
+/**
+ * an options model's track record (#279), its averages worked out as the worker
+ * works them: every day's 1-day hold in, its last 4 days' 5-day results not yet,
+ * and its last 19 days' 20-day results not yet. `loss(at)` is each day's loss on
+ * every hold, `gain(at)` its top 10's gain, and the baseline's are 0.88 and -4%.
+ */
+export function optionsTrackOf(count = 30, from = '2026-09-01', loss = (at) => 0.84 + (at % 3) * 0.01, gain = (at) => 0.03 + (at % 2) * 0.002) {
+    const rows = weekdays(count, from).map((day, at) => {
+        const held = { 1: true, 5: at < count - 4, 20: at < count - 19 };
+
+        return {
+            day: day,
+            score: optionsScoresAt(loss(at), gain(at), held),
+            baseline: optionsScoresAt(0.88, -0.04, held),
+            down_days: null,
+            down_in_a_row: null,
+        };
+    });
+
+    rows.forEach((row, at) => {
+        const recent = rows.slice(Math.max(0, at - 19), at + 1);
+
+        row.days = recent.length;
+        row.average = meanOf(recent, 'score');
+        row.baseline_average = meanOf(recent, 'baseline');
+    });
+
+    return rows;
+}
+
+/**
+ * a stock model's track record with the top 10's columns a format 3 one has
+ * (#279): each day's gain `gain`, and 5.5 of 10 that won, against a random
+ * pick's 0.03% and 5.1, in its scores and its averages alike.
+ */
+export function withTop10(rows, gain = 0.0012) {
+    const top = (scores, value, wins) => ({ ...scores, top10_gain: value, top10_wins: wins });
+
+    return rows.map((row) => ({
+        ...row,
+        score: top(row.score, gain, 5.5),
+        baseline: top(row.baseline, 0.0003, 5.1),
+        average: top(row.average, gain, 5.5),
+        baseline_average: top(row.baseline_average, 0.0003, 5.1),
+    }));
+}
+
+/**
+ * an options model's history: one night per weekday from `from`, each scored on
+ * its own scores, as historyOf's are on the stock scores.
+ */
+export function optionsHistoryOf(count = 5, from = '2026-10-01') {
+    const scores = (loss) => ({ loss: loss, ...NO_STOCK, ...NO_PARTS, profit_auc: 1.39 - loss, top10_gain: 0.03, top10_wins: 6.3 });
+
+    return historyOf(count, {}, from).map((night, at) => ({
+        ...night,
+        attempt: scores(0.85 + at * 0.001),
+        live: scores(0.84),
+        baseline: scores(0.88),
+    }));
+}
+
+/**
+ * an options model's picks as the worker hands them (#279): `count` for each of
+ * `holds`, best first, made on the night of 2026-10-21 -- or, given `ticker`,
+ * that stock's alone.
+ */
+export function picksOf(holds = [1, 5, 20], count = 10, ticker = null) {
+    const TICKERS = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'BRK.B', 'JPM', 'XOM', 'UNH'];
+    const sellOn = { 1: '2026-10-23', 5: '2026-10-29', 20: '2026-11-19' };
+
+    return holds.flatMap((hold) => Array.from({ length: count }, (unused, at) => {
+        const stock = ticker || TICKERS[at % TICKERS.length];
+        const put = at % 3 === 2;
+
+        return {
+            day: '2026-10-21',
+            hold: hold,
+            rank: at + 1,
+            ticker: stock,
+            contract: `${stock.replace('.', '')}  261120${put ? 'P' : 'C'}00${String(200 + at * 5).padStart(3, '0')}000`,
+            call_put: put ? 'put' : 'call',
+            strike: 200 + at * 5,
+            expiry: '2026-11-20',
+            buy_on: '2026-10-22',
+            sell_on: sellOn[hold],
+            last_bid: 4.1 + at * 0.05,
+            last_ask: 4.35 + at * 0.05,
+            chance: 0.62 - at * 0.01,
+            usual_chance: 0.48,
+            gain_low: -0.35,
+            gain_middle: 0.12 - at * 0.005,
+            gain_high: 0.8,
+        };
+    }));
+}
+
 /**
  * the recharts module with its ResponsiveContainer given a size, as
  * line-chart.test.jsx does it: under jsdom every element measures 0x0, and
