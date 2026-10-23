@@ -22,7 +22,15 @@ import getBlsDistribution from '../../import/general/get-data/distribution/bls.j
 import getSecCompanyFactsDistribution from '../../import/general/get-data/distribution/sec-companyfacts.js';
 import { getGraphListing, getGraphById } from '../../import/general/get-graph-schema.js';
 import { getTableDays, getTableDay } from '../../import/general/get-graph-tables.js';
-import { buildDay, graphSources, sourceTypes, outsideGraph } from '../../import/layout/graph/source.js';
+import {
+    DAYS as RETRIEVAL,
+    DAY_DETAILS,
+    buildDay,
+    graphSources,
+    sourceTypes,
+    outsideGraph,
+    when,
+} from '../../import/layout/graph/source.js';
 import filterSchema from '../../import/animation/filter-schema.js';
 import { sourceNamespace } from '../../import/animation/encoding.js';
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
@@ -377,6 +385,8 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
         expect(listed).toEqual(days.example.report.rows.map((row) => ({
             day: row.day,
             run: typeof row.run === 'string' ? row.run : null,
+            tables_started: typeof row.tables_started === 'string' ? row.tables_started : null,
+            tables_finished: typeof row.tables_finished === 'string' ? row.tables_finished : null,
             published: typeof row.published === 'string' ? row.published : null,
             sources: Array.isArray(row.sources) ? row.sources : null,
         })));
@@ -384,6 +394,26 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
             expect({ day: row.day, run: typeof row.run, published: typeof row.published })
                 .toEqual({ day: row.day, run: 'string', published: 'string' });
         });
+    });
+
+    it('documents when each day\'s tables were written, as the Started and Finished rows read it', async () => {
+        //
+        // the Retrieval graph's Started and Finished rows read these, and a day
+        // published before the builder recorded them carries both as null, which
+        // the page shows as 'n/a'. A documented row that left them out would
+        // document an answer the api no longer gives
+        //
+        answering(days.example);
+
+        const { choices } = await RETRIEVAL.list();
+        const read = (label, choice) => DAY_DETAILS.find((row) => row.label === label).read(choice);
+
+        days.example.report.rows.forEach((row) => {
+            expect({ day: row.day, documented: 'tables_started' in row && 'tables_finished' in row })
+                .toEqual({ day: row.day, documented: true });
+        });
+        expect(choices.map((choice) => [choice.id, read('Started', choice), read('Finished', choice)]))
+            .toEqual(days.example.report.rows.map((row) => [row.day, when(row.tables_started), when(row.tables_finished)]));
     });
 
     it('documents each day\'s sources, null for the days published before the builder recorded them', async () => {
