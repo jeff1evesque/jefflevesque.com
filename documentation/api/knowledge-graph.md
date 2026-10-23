@@ -72,7 +72,7 @@ Each build in `graphs` carries:
 | `label` | how the build reads in a list |
 | `dataset`, `variant` | which data went in, and how it was built |
 | `period` | the partition the build was published under, as `YYYY-MM`. **Not a window over its data** — see below |
-| `run`, `built` | when the build ran and when it finished, in UTC |
+| `run`, `built` | when the build's run started, and when the build itself started, in UTC. A schema from `1.10` says when the build finished, in `build_metadata.build_finished_timestamp` — see below |
 | `nodes`, `edges` | every node and every edge in the build |
 | `sources` | every source the build's run read. **Not always the sources in its graph** — see below |
 | `schema_version` | the version of the build's schema, which says which fields the build carries |
@@ -89,7 +89,7 @@ Each build in `graphs` carries:
 | `edge_types` | keyed by an opaque label, each naming its `src_type`, `relation` and `dst_type`, with its `count` and its `origin`: `raw`, `enrichment` or `unification` |
 | `summary` | totals: `total_node_types`, `total_edge_types`, `total_nodes`, `total_edges` |
 | `version` | the schema's version, which says which fields the rest of it carries |
-| `build_metadata` | how the build was made. `/graph` reads one field of it, `sources_in_graph`, from version `1.4`. Another, `day`, from version `1.5`, reaches `/graph` through the listing |
+| `build_metadata` | how the build was made. `/graph` reads two fields of it: `sources_in_graph`, from version `1.4`, and `build_finished_timestamp`, from version `1.10`. Another, `day`, from version `1.5`, reaches `/graph` through the listing |
 | `relation_groups` | carried through; the application does not read it |
 
 **Every `unification` edge published so far is an `owl:sameAs`**, joining two nodes that
@@ -137,6 +137,14 @@ a Features column of its node table, and where a build's types store two or more
 numbers, its Build details read the Variant as Multi-D, with a note pointing to that
 column. Below `1.7` a build says nothing of its types' widths, and `/graph` shows its
 `variant` as before.
+
+**From schema `1.10`, a build says when it finished**, as
+`build_metadata.build_finished_timestamp`, once its graph is saved. The listing's `built`
+is when the build started, the builder's `build_timestamp`, and keeps its name. `/graph`'s
+Build details show the two as Started and Finished, and Finished waits for the schema, as
+Sources does. Below `1.10` a build records no finish, and Finished reads n/a. `1.10` is
+the first version with two digits after the point, so compare `version` a part at a
+time: as text, or as one number, it comes out below `1.9`.
 
 **`period` is a partition key, not a window over the data.** Builds are published under
 a partition -- `YYYY-MM`, nested year then month -- and an `id` is selected from within
@@ -187,7 +195,7 @@ answer — it was asked and nothing matched.
 
 | Path | Takes | Answers |
 |---|---|---|
-| `tables/days` | nothing | every published day, newest first, with the `run` that published it, when it was `published`, and the `sources` its tables hold: the days the rest may name |
+| `tables/days` | nothing | every published day, newest first, with the `run` that published it, when that run began and finished writing the day's tables, `tables_started` and `tables_finished`, when it began uploading them, `published`, and the `sources` its tables hold: the days the rest may name |
 | `tables/node-types` | `Day` | one row per node type that day: its `count` of nodes, its `entities` — the nodes that carry text, and so can be found by name — and its `facts`, the values held about them |
 | `tables/edge-types` | optionally `Day` | the relation catalog: which links exist between which node types, how many of each, and whether each came from a source or was derived |
 | `tables/find` | `Text`, optionally `Day` | entities whose text matches, as a case-insensitive substring |
@@ -196,18 +204,21 @@ answer — it was asked and nothing matched.
 | `tables/quotes` | `Symbol`, `Day` | one stock's snapshots that day, oldest first — about 19, every 20 minutes from 9:40 AM to 3:40 PM Eastern |
 | `tables/last-quotes` | `Day` | every stock's last snapshot that day, one row each |
 
-**A day says which run published it.** Each `days` row carries a `run`, written as the
-listing writes a build's, and it is the `run` of the build that holds the day: 2026-09-24
-names the run of 2026-09-25 at 05:00 UTC, whose build the Training Graph names by
-2026-09-24. `published` is when the day finished publishing, which is when it became
-readable, not when its tables were written: nothing records that. Either is `null` for a
-day that does not say.
+**A day says which run published it, and when.** Each `days` row carries a `run`,
+written as the listing writes a build's, and it is the `run` of the build that holds the
+day: 2026-09-24 names the run of 2026-09-25 at 05:00 UTC, whose build the Training Graph
+names by 2026-09-24. `tables_started` and `tables_finished` are when that run began and
+finished writing the day's tables, which it does before it builds the day's graph.
+`published` is when it began uploading the day, after its build's upload: not when the
+tables were written, and not when the day became readable, which nothing records. Any of
+them is `null` for a day that does not say, and `tables_started` and `tables_finished` are
+`null` for every day published before the builder recorded them.
 
 **A day says which sources its tables hold.** `sources` is the list the builder records
 as it publishes a day: every source its run read, and each feed it reads into a table of
 its own, such as `stock-split` for the day's stock splits. It is a list of names, sorted,
 and it is `null` for a day published before the builder recorded it. A day is never
-published again, so neither `sources` nor `run` nor `published` ever changes.
+published again, so nothing its `days` row says ever changes.
 
 **`Limit`** is taken by every path but `days`, which takes nothing at all. It is 100
 when left out and 1000 at most, and a larger one is refused with a `400` rather than
@@ -254,10 +265,12 @@ most of what is drawn takes the place of the lightest type drawn, so the canvas 
 draws sixty: on 2026-10-02, `market_enrichment_EquitySector` takes an `eci` series'
 place.
 
-Its Day details put the day's **Run** and **Published** directly under the Day, read
-from `days`, so the three are on screen with the picker, above the totals that arrive a
-round trip later. `/graph`'s Build details put a build's Run and Built in the same place,
-under its Day, and the Run is the one `/graph` shows for the build of the same day.
+Its Day details put the day's **Run** directly under the Day, then **Started** and
+**Finished**, when that run wrote the day's tables, and **Published**, all read from
+`days`, so the five are on screen with the picker, above the totals that arrive a round
+trip later. `/graph`'s Build details put a build's Run, Started and Finished in the same
+places, under its Day, and the Run is the one `/graph` shows for the build of the same
+day. A day published before the builder recorded its tables' times reads n/a for both.
 
 **A day's node types are named by the day's predicates.** A `node-types` row carries no
 ontology term, and a type's name can leave its source out: `jolts_Industry` is a type of
@@ -274,7 +287,7 @@ those days' types under `jolts`. Their `market_quotes` types are named `market-q
 the one flat vocabulary their builds' uris name, where a later day's are `market/quotes`.
 
 Its Day details carry **Sources** directly under Published, where `/graph`'s Build details
-carry theirs under Built: the day's `sources` from `days`, so a source the builder adds
+carry theirs under Finished: the day's `sources` from `days`, so a source the builder adds
 to the tables, or stops reading, comes and goes with no change to the page. A day whose
 `sources` is `null` lists the sources the day's vocabularies are filed under instead,
 `bls, market, noaa, sec` on every day from 2026-09-21, which is what the run that
