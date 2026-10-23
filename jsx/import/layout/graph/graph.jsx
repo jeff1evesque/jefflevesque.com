@@ -59,8 +59,8 @@
  *       and their controls -- is on screen at its own size from the first
  *       paint, holding a placeholder, and the data fills those in. See
  *       pending.jsx, and note that the page arrives in two pieces: the listing
- *       answers the picker and all of the build panel but its Sources and
- *       Variant rows, and only those rows, the legend, the canvas and the
+ *       answers the picker and all of the build panel but its Finished, Sources
+ *       and Variant rows, and only those rows, the legend, the canvas and the
  *       tables are waiting on the schema behind it.
  */
 
@@ -1050,7 +1050,7 @@ class GraphLayout extends Component {
      *
      * Two rules of visibly different lengths, starting level and stopping in
      * different places, is what frames the graph otherwise -- the build panel is
-     * eight label/value rows and the legend is a namespace grid plus three edge
+     * nine label/value rows and the legend is a namespace grid plus three edge
      * origins, and they are never the same height by accident.
      *
      * The measurement is of what each column HOLDS: from the top of its panel
@@ -1335,19 +1335,21 @@ class GraphLayout extends Component {
     //       and fifty. The label said the second over the first, which made the
     //       canvas look like it was missing all but sixty of ten million.
     //
-    // Note: Sources and Variant wait for the schema as well -- see graphSources
-    //       and buildVariant. Each holds its place with the bar the whole
-    //       panel's stand-in draws in that row. Once there is no schema coming,
-    //       Sources reads 'n/a' and Variant the listing's name.
+    // Note: Finished, Sources and Variant wait for the schema as well -- see
+    //       buildFinished, graphSources and buildVariant. Each holds its place
+    //       with the bar the whole panel's stand-in draws in that row. Once there
+    //       is no schema coming, Finished and Sources read 'n/a' and Variant the
+    //       listing's name.
     //
     // Note: Day does not wait. It is the day the listing's entry names, or, for
     //       a build too old to name one, the day list() read off the published
     //       days before handing the choice over -- the day the picker shows.
     //       See buildDay in source.js.
     //
-    // Note: a DAY's panel is the same panel with other rows, and every one of
-    //       them but the day itself is totalled from the day's rows -- so all
-    //       of those wait the way Sources does. See DAY_DETAILS in source.js.
+    // Note: a DAY's panel is the same panel with other rows. The day, its run
+    //       and its times come with the picker, and every other row is totalled
+    //       from the day's rows, or read off them -- so all of those wait the
+    //       way Sources does. See DAY_DETAILS in source.js.
     //
     // Note: a row marked `pair` shares its line with its partner where the
     //       column has room for two, which is every row below Sources: a day's
@@ -1396,8 +1398,8 @@ class GraphLayout extends Component {
      * Note: which matters, because the two columns stop waiting a whole round
      *       trip apart. The build panel is drawn from the LISTING, so it fills
      *       in at the first response, while the legend is waiting on the schema
-     *       behind it. The panel's Sources and Variant rows wait with the
-     *       legend, and hold their own places meanwhile -- see details.
+     *       behind it. The panel's Finished, Sources and Variant rows wait with
+     *       the legend, and hold their own places meanwhile -- see details.
      */
     pending(key) {
         if (!this.state.loading) {

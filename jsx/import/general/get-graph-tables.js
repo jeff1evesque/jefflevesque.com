@@ -5,7 +5,7 @@
  * Three calls, because a caller picks a day from a listing rather than naming
  * one, and a day's picture is two questions asked side by side:
  *
- *     GET <tables>/days                                -> { report: { rows: [{ day, run, published, sources }, ...] } }
+ *     GET <tables>/days                                -> { report: { rows: [{ day, run, tables_started, tables_finished, published, sources }, ...] } }
  *     GET <tables>/node-types?Day=<day>&Limit=1000     -> { report: { rows: [{ node_type, count, entities, facts }, ...] } }
  *     GET <tables>/edge-types?Day=<day>&Limit=1000     -> { report: { rows: [{ src_type, relation, dst_type, count, origin, ... }] } }
  *
@@ -248,10 +248,18 @@ function sourcesOf(value) {
         : null;
 }
 
+//
+// a time as the api writes it, or null for anything that is not a string
+//
+function timeOf(value) {
+    return typeof value === 'string' ? value : null;
+}
+
 /**
- * every published day, newest first, as { day, run, published, sources }: the
- * day as 'YYYY-MM-DD', the run that published it, when that finished publishing,
- * and every source its tables hold.
+ * every published day, newest first, as { day, run, tables_started,
+ * tables_finished, published, sources }: the day as 'YYYY-MM-DD', the run that
+ * published it, when that run began and finished writing the day's tables, when
+ * it began uploading them, and every source its tables hold.
  *
  * Resolves to the list, which may be empty, or to null if it cannot be had.
  *
@@ -262,6 +270,10 @@ function sourcesOf(value) {
  * Note: `run` and `published` are null unless they are strings. A day's rows
  *       carried neither before the api said where each day came from, and one
  *       that still says nothing is read as a build's missing run is: 'n/a'.
+ *
+ * Note: `tables_started` and `tables_finished` are null unless they are strings,
+ *       the same way. A day published before the builder recorded them says
+ *       nothing of either, and never will: a day is not published again.
  *
  * Note: `sources` is null unless it is a list of names. The builder records them
  *       for a day as it publishes it, a day published before it did says
@@ -275,8 +287,10 @@ export function getTableDays(base = TABLES) {
             .filter((row) => row && typeof row.day === 'string' && DAY.test(row.day))
             .map((row) => ({
                 day: row.day,
-                run: typeof row.run === 'string' ? row.run : null,
-                published: typeof row.published === 'string' ? row.published : null,
+                run: timeOf(row.run),
+                tables_started: timeOf(row.tables_started),
+                tables_finished: timeOf(row.tables_finished),
+                published: timeOf(row.published),
                 sources: sourcesOf(row.sources),
             })))
         .catch((e) => logged(`${base}/days`, e));

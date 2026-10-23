@@ -21,7 +21,7 @@
  * page around underneath the reader.
  *
  * Note: nothing here invents a value. The build panel's stand-in carries the
- *       row LABELS, which are the same eight whatever build loads, and leaves
+ *       row LABELS, which are the same nine whatever build loads, and leaves
  *       every value blank; a placeholder that guessed '10.4M' would be a wrong
  *       answer on screen rather than an honest wait.
  *
@@ -109,25 +109,25 @@ PendingPicker.propTypes = {
 };
 
 //
-// what each of the build panel's eight values roughly measures, in the order
-// the panel lists them: a day, two timestamps, a source list, two counts, a
+// what each of the build panel's nine values roughly measures, in the order
+// the panel lists them: a day, three timestamps, a source list, two counts, a
 // dataset name and a variant.
 //
 // Note: by position, so this follows DETAILS in source.js row for row. Out of
-//       step, every bar takes another row's width: when Run and Built moved
+//       step, every bar takes another row's width: when the run's times moved
 //       up under Day, a list left as it was would have drawn them as counts,
 //       and the Sources row, which waits for the schema, as a timestamp.
 //
-const DETAIL_WIDTHS = ['6rem', '9rem', '9rem', '7rem', '4.5rem', '5.5rem', '6rem', '3.5rem'];
+const DETAIL_WIDTHS = ['6rem', '9rem', '9rem', '9rem', '7rem', '4.5rem', '5.5rem', '6rem', '3.5rem'];
 
 /**
  * one of the build panel's values that has not arrived, by its row.
  *
  * The whole panel's stand-in draws one of these in every row. The real panel
- * draws one in its Sources and Variant rows alone, which wait for the schema a
- * round trip after the rest of the panel has filled in from the listing -- see
- * graphSources and buildVariant in source.js -- so each row keeps the bar it had
- * rather than changing size twice.
+ * draws one in its Finished, Sources and Variant rows alone, which wait for the
+ * schema a round trip after the rest of the panel has filled in from the listing
+ * -- see buildFinished, graphSources and buildVariant in source.js -- so each row
+ * keeps the bar it had rather than changing size twice.
  *
  * Note: `width` is for a panel whose values are not the build panel's. A day's
  *       rows are a date and four totals, and each says what it measures -- see
