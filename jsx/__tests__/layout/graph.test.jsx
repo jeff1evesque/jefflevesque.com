@@ -203,6 +203,17 @@ function saying(version, in_graph = ['bls']) {
 }
 
 //
+// when BUILD_A finished, written the way the builder writes its times, and a
+// schema at `version` whose build_metadata says so. A 1.10 build says it; one
+// before it does not.
+//
+const FINISHED = '2026-09-15T08:12:44.218507+00:00';
+
+function finishing(version, finished = FINISHED) {
+    return { ...schemaOf(4), version: version, build_metadata: { build_finished_timestamp: finished } };
+}
+
+//
 // where the router is, so a test can read the address the picker moved to.
 //
 // Note: a span, not the <output> the Retrieval graph's suite uses. An <output> is
@@ -456,9 +467,10 @@ describe('while the build is still on its way', () => {
     it('fills the build panel a round trip before the legend', async () => {
         //
         // the two columns are waiting on different requests. Everything the
-        // build panel says but its Sources row is in the LISTING; the legend
-        // needs the schema behind it. A page holding both until the last
-        // response arrived would be sitting on an answer it already had.
+        // build panel says but its Finished, Sources and Variant rows is in the
+        // LISTING; the legend needs the schema behind it. A page holding both
+        // until the last response arrived would be sitting on an answer it
+        // already had.
         //
         getGraphById.mockReturnValue(new Promise(() => {}));
 
@@ -480,12 +492,12 @@ describe('while the build is still on its way', () => {
         await setup();
 
         expect(detail('Sources')).toBe('');
-        expect(document.querySelectorAll('.graph-panel-build .graph-pending-bar')).toHaveLength(2);
+        expect(document.querySelectorAll('.graph-panel-build .graph-pending-bar')).toHaveLength(3);
     });
 
     it('holds the Variant row\'s place until the schema says whether the build is Multi-D', async () => {
         //
-        // the other row that waits (#237). The listing's '1024d', put up in the
+        // another row that waits (#237). The listing's '1024d', put up in the
         // meantime, would change to Multi-D under the reader
         //
         getGraphById.mockReturnValue(new Promise(() => {}));
@@ -496,18 +508,33 @@ describe('while the build is still on its way', () => {
         expect(detail('Dataset')).toBe('all-sources');
     });
 
+    it('holds the Finished row\'s place until the schema says when the build finished', async () => {
+        //
+        // only a schema of 1.10 or later says. An 'n/a' put up in the meantime
+        // would change to a time under the reader when one of those landed
+        //
+        getGraphById.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect(detail('Finished')).toBe('');
+        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
+    });
+
     it('draws each row\'s stand-in at that row\'s own width', async () => {
         //
         // the stand-in takes its widths by position, so a row that moves has to
-        // take its width with it. Run and Built are timestamps, and Sources a
-        // list of names -- drawn at any other width, each would change size when
-        // the listing landed.
+        // take its width with it. Run, Started and Finished are timestamps, and
+        // Sources a list of names -- drawn at any other width, each would change
+        // size when the listing landed.
         //
         getGraphListing.mockReturnValue(new Promise(() => {}));
 
         await setup();
 
-        expect(barWidths()).toMatchObject({ Day: '6rem', Run: '9rem', Built: '9rem', Sources: '7rem' });
+        expect(barWidths()).toMatchObject({
+            Day: '6rem', Run: '9rem', Started: '9rem', Finished: '9rem', Sources: '7rem',
+        });
     });
 
     it('pairs and rules the same rows the build panel will', async () => {
@@ -526,12 +553,12 @@ describe('while the build is still on its way', () => {
         expect(labels('.graph-details-ruled')).toEqual(['Sources']);
     });
 
-    it('keeps the Sources and Variant rows\' bars those widths while the schema is on its way', async () => {
+    it('keeps the Finished, Sources and Variant rows\' bars those widths while the schema is on its way', async () => {
         getGraphById.mockReturnValue(new Promise(() => {}));
 
         await setup();
 
-        expect(barWidths()).toEqual({ Sources: '7rem', Variant: '3.5rem' });
+        expect(barWidths()).toEqual({ Finished: '9rem', Sources: '7rem', Variant: '3.5rem' });
     });
 
     it('stands in for a legend of about the size the build will need', async () => {
@@ -984,18 +1011,93 @@ describe('the build details', () => {
         expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
     });
 
-    it('puts when the build ran and when it finished directly under its day', async () => {
+    it('puts when its run started, and when the build started and finished, directly under its day', async () => {
         //
-        // the three dates together, where the Retrieval graph's panel has its
+        // the four dates together, where the Retrieval graph's panel has its
         // own: one day shows the same Run on both pages, and a reader lines the
         // two up by it.
         //
+        getGraphById.mockResolvedValue(finishing('1.10'));
+
         await setup();
 
-        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 3).map((dt) => dt.textContent))
-            .toEqual(['Day', 'Run', 'Built']);
+        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 5).map((dt) => dt.textContent))
+            .toEqual(['Day', 'Run', 'Started', 'Finished', 'Sources']);
         expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
-        expect(detail('Built')).toBe('2026-09-15 06:37 UTC');
+        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
+        expect(detail('Finished')).toBe('2026-09-15 08:12 UTC');
+    });
+
+    //
+    // the listing's `built` is the builder's build_timestamp, which it stamps as
+    // the build begins, and the row that read it was called Built, which read as
+    // the finish. From schema 1.10 a build says when it finished as well, in
+    // build_metadata.build_finished_timestamp.
+    //
+    it('reads Started off the listing\'s built, and calls no row Built', async () => {
+        await setup();
+
+        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
+        expect(detail('Built')).toBeUndefined();
+    });
+
+    it.each(['1.10', '1.11', '2.0'])('reads Finished off a %s schema', async (version) => {
+        //
+        // compared a part at a time. As text or as one float, 1.10 comes out
+        // below 1.9.
+        //
+        getGraphById.mockResolvedValue(finishing(version));
+
+        await setup();
+
+        expect(detail('Finished')).toBe('2026-09-15 08:12 UTC');
+    });
+
+    it('reads n/a for Finished on a 1.9 build, whatever its schema holds', async () => {
+        //
+        // the version says what a field means, as it does for Sources. Below
+        // 1.10 the builder records no finish.
+        //
+        getGraphById.mockResolvedValue(finishing('1.9'));
+
+        await setup();
+
+        expect(detail('Finished')).toBe('n/a');
+        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
+    });
+
+    it('reads n/a for Finished on a 1.10 build that carries no metadata, rather than failing', async () => {
+        getGraphById.mockResolvedValue({ ...schemaOf(4), version: '1.10' });
+
+        await setup();
+
+        expect(detail('Finished')).toBe('n/a');
+        expect(explorer()).toBeTruthy();
+    });
+
+    it('reads n/a for Finished on a build that could not be loaded, and keeps Started', async () => {
+        //
+        // with no schema there is no finish to read. Started is the listing's,
+        // and stays.
+        //
+        getGraphById.mockResolvedValue(null);
+
+        await setup();
+
+        expect(detail('Finished')).toBe('n/a');
+        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
+    });
+
+    it('reads Finished again for another build', async () => {
+        getGraphById.mockResolvedValue(finishing('1.10'));
+
+        await setup();
+
+        getGraphById.mockResolvedValue(finishing('1.9'));
+
+        await chooseBuild('build-b');
+
+        expect(detail('Finished')).toBe('n/a');
     });
 
     it('reads the same day off the published days for a build too old to record one', async () => {
@@ -1139,7 +1241,7 @@ describe('the build details', () => {
 
         expect(detail('Period')).toBeUndefined();
         expect([...document.querySelectorAll('.graph-details-row dt')].map(d => d.textContent))
-            .toEqual(['Day', 'Run', 'Built', 'Sources', 'Nodes', 'Edges', 'Dataset', 'Variant']);
+            .toEqual(['Day', 'Run', 'Started', 'Finished', 'Sources', 'Nodes', 'Edges', 'Dataset', 'Variant']);
     });
 
     it('pairs what the build holds, Nodes beside Edges and Dataset beside Variant', async () => {
@@ -1156,7 +1258,7 @@ describe('the build details', () => {
             .map((row) => row.querySelector('dt').textContent);
 
         expect(labels(true)).toEqual(['Nodes', 'Edges', 'Dataset', 'Variant']);
-        expect(labels(false)).toEqual(['Day', 'Run', 'Built', 'Sources']);
+        expect(labels(false)).toEqual(['Day', 'Run', 'Started', 'Finished', 'Sources']);
     });
 
     it('rules off Sources from what the build holds, where the day panel rules off its own', async () => {
@@ -1171,10 +1273,13 @@ describe('the build details', () => {
     });
 
     it('marks the run and build times as UTC', async () => {
+        getGraphById.mockResolvedValue(finishing('1.10'));
+
         await setup();
 
         expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
-        expect(detail('Built')).toBe('2026-09-15 06:37 UTC');
+        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
+        expect(detail('Finished')).toBe('2026-09-15 08:12 UTC');
     });
 
     it('does not claim a zone for a time published without one', async () => {
@@ -1182,11 +1287,13 @@ describe('the build details', () => {
             default: 'build-a',
             graphs: [{ ...BUILD_A, run: '2026-09-15T05:00:43', built: null }],
         });
+        getGraphById.mockResolvedValue(finishing('1.10', '2026-09-15T08:12:44'));
 
         await setup();
 
         expect(detail('Run')).toBe('2026-09-15 05:00');
-        expect(detail('Built')).toBe('n/a');
+        expect(detail('Started')).toBe('n/a');
+        expect(detail('Finished')).toBe('2026-09-15 08:12');
     });
 
     it('reads n/a for a total the listing did not carry', async () => {
