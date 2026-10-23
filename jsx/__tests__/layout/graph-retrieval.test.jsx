@@ -7,9 +7,10 @@
  *
  *   - what the picker offers: the published days, newest first, with the newest
  *     the default and a day the tables no longer list falling back to it
- *   - how a day is loaded, and what its details panel says about it -- the day and
- *     the run that published it come with the picker, and every other row is
- *     totalled from the day's own rows, or read off them, and waits for them
+ *   - how a day is loaded, and what its details panel says about it -- the day,
+ *     the run that published it and the times that run recorded come with the
+ *     picker, and every other row is totalled from the day's own rows, or read
+ *     off them, and waits for them
  *   - which types the canvas draws: a day weighed by its node count is its own
  *     build again, so it is weighed by what can be found by name
  *   - what the legend calls them: a day's types carry no uri, so the namespace
@@ -75,12 +76,23 @@ import { readLayout } from '../../import/general/layout-preference.js';
 //
 // the published days as getTableDays answers them: each with the run that
 // published it, which is the run of the build that holds the day, and when that
-// finished.
+// run began uploading it. They were published before the builder recorded when
+// it wrote a day's tables, and say nothing of that.
 //
 const DAYS = [
     { day: '2026-09-23', run: '2026-09-24T05:00:42Z', published: '2026-09-24T06:41:18Z' },
     { day: '2026-09-22', run: '2026-09-23T05:00:25Z', published: '2026-09-23T06:43:55Z' },
     { day: '2026-09-21', run: '2026-09-22T05:00:25Z', published: '2026-09-22T06:40:12Z' },
+];
+
+//
+// the same days, the newest as one published after the builder recorded those
+// times would be: when its run began and finished writing the day's tables,
+// after the run started and before its upload did
+//
+const TIMED = [
+    { ...DAYS[0], tables_started: '2026-09-24T05:03:12Z', tables_finished: '2026-09-24T05:41:57Z' },
+    ...DAYS.slice(1),
 ];
 
 //
@@ -349,8 +361,23 @@ describe('the day details', () => {
 
         expect([...document.querySelectorAll('.graph-details-row dt')].map((dt) => dt.textContent))
             .toEqual([
-                'Day', 'Run', 'Published', 'Sources', 'Entities', 'Facts', 'Node types', 'Nodes', 'Edge types', 'Edges',
+                'Day', 'Run', 'Started', 'Finished', 'Published', 'Sources',
+                'Entities', 'Facts', 'Node types', 'Nodes', 'Edge types', 'Edges',
             ]);
+    });
+
+    it('stands in for each of the day\'s times at the width of a timestamp', async () => {
+        //
+        // the build panel's own times are drawn at that width, and so are these
+        //
+        getTableDays.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        const widths = Object.fromEntries([...document.querySelectorAll('.graph-details-row')]
+            .map((row) => [row.querySelector('dt').textContent, row.querySelector('.graph-pending-bar').style.width]));
+
+        expect(widths).toMatchObject({ Run: '9rem', Started: '9rem', Finished: '9rem', Published: '9rem' });
     });
 
     //
@@ -369,7 +396,7 @@ describe('the day details', () => {
             .map((row) => row.querySelector('dt').textContent);
 
         expect(labels(true)).toEqual(['Entities', 'Facts', 'Node types', 'Nodes', 'Edge types', 'Edges']);
-        expect(labels(false)).toEqual(['Day', 'Run', 'Published', 'Sources']);
+        expect(labels(false)).toEqual(['Day', 'Run', 'Started', 'Finished', 'Published', 'Sources']);
     });
 
     it('rules off Sources, where the rows that take a line each give way to the pairs', async () => {
@@ -546,59 +573,91 @@ describe('the day details', () => {
 
     //
     // the two graphs of one day are one run's work. The build panel on the
-    // Training graph says when its build ran and finished; the day panel says
-    // which run published the day, and when that finished.
+    // Training graph says when its run started, and when its build started and
+    // finished; the day panel says which run published the day, when that run
+    // began and finished writing the day's tables, and when it began uploading
+    // them.
     //
-    it('follows the day with the run that published it, and when that finished', async () => {
+    it('follows the day with the run that published it, when it wrote the tables, and when it uploaded them', async () => {
         //
-        // directly under the Day, where the Training graph's panel has its
-        // build's Run and Built: one day shows the same Run on both pages.
+        // Run directly under the Day, and Started and Finished under it, where
+        // the Training graph's panel has its own build's: one day shows the
+        // same Run on both pages.
+        //
+        getTableDays.mockResolvedValue(TIMED);
+
+        await setup();
+
+        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 6).map((dt) => dt.textContent))
+            .toEqual(['Day', 'Run', 'Started', 'Finished', 'Published', 'Sources']);
+        expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
+        expect(detail('Started')).toBe('2026-09-24 05:03 UTC');
+        expect(detail('Finished')).toBe('2026-09-24 05:41 UTC');
+        expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
+    });
+
+    it('reads n/a for Started and Finished on a day published before the builder recorded them', async () => {
+        //
+        // such a day's row says nothing of either, and never will: a day is not
+        // published again. The rows stay, so the panel is the same height on
+        // every day.
         //
         await setup();
 
-        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 3).map((dt) => dt.textContent))
-            .toEqual(['Day', 'Run', 'Published']);
+        expect(detail('Started')).toBe('n/a');
+        expect(detail('Finished')).toBe('n/a');
         expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
         expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
     });
 
-    it('reads both off the days, above the totals still on their way', async () => {
+    it('reads all four off the days, above the totals still on their way', async () => {
         //
-        // they come with the picker, as a build's Run and Built come with the
+        // they come with the picker, as a build's Run and Started come with the
         // listing -- not a round trip later, with the totals. So what is filled
         // in is one block at the top of the panel, and what waits is the block
         // below it.
         //
+        getTableDays.mockResolvedValue(TIMED);
         getTableDay.mockReturnValue(new Promise(() => {}));
 
         await setup();
 
         expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
+        expect(detail('Started')).toBe('2026-09-24 05:03 UTC');
+        expect(detail('Finished')).toBe('2026-09-24 05:41 UTC');
         expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
         expect([...document.querySelectorAll('.graph-details-row')]
             .map((row) => Boolean(row.querySelector('.graph-pending-bar'))))
-            .toEqual([false, false, false, true, true, true, true, true, true, true]);
+            .toEqual([false, false, false, false, false, true, true, true, true, true, true, true]);
     });
 
     it('follows the picker to another day', async () => {
+        getTableDays.mockResolvedValue(TIMED);
+
         await setup();
 
         await chooseDay('2026-09-21');
 
         expect(detail('Run')).toBe('2026-09-22 05:00 UTC');
+        expect(detail('Started')).toBe('n/a');
+        expect(detail('Finished')).toBe('n/a');
         expect(detail('Published')).toBe('2026-09-22 06:40 UTC');
     });
 
-    it('reads n/a for both when the days say nothing of them', async () => {
+    it('reads n/a for all four when the days say nothing of them', async () => {
         //
         // every day's row carried only the day before the api said where each
         // came from. The rest of the panel is as it was.
         //
-        getTableDays.mockResolvedValue(DAYS.map((row) => ({ day: row.day, run: null, published: null })));
+        getTableDays.mockResolvedValue(DAYS.map((row) => ({
+            day: row.day, run: null, tables_started: null, tables_finished: null, published: null,
+        })));
 
         await setup();
 
         expect(detail('Run')).toBe('n/a');
+        expect(detail('Started')).toBe('n/a');
+        expect(detail('Finished')).toBe('n/a');
         expect(detail('Published')).toBe('n/a');
         expect(detail('Day')).toBe('2026-09-23');
         expect(detail('Entities')).toBe('4,934');
