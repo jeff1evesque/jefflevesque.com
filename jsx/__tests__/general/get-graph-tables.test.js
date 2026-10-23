@@ -110,17 +110,27 @@ describe('the requests', () => {
 describe('the published days', () => {
     //
     // two days as the api answers them: each names the run that published it,
-    // when that finished, and the sources its tables hold -- the newer one as
-    // the builder recorded them, the older one published before it did.
+    // when that run began and finished writing the day's tables, when it began
+    // uploading them, and the sources its tables hold -- the newer one as the
+    // builder recorded them, the older one published before it did.
     //
     const PUBLISHED = [
         {
             day: '2026-09-23',
             run: '2026-09-24T05:00:42Z',
+            tables_started: '2026-09-24T05:03:12Z',
+            tables_finished: '2026-09-24T05:41:57Z',
             published: '2026-09-24T06:41:18Z',
             sources: ['bls', 'market', 'noaa', 'sec', 'stock-split'],
         },
-        { day: '2026-09-22', run: '2026-09-23T05:00:25Z', published: '2026-09-23T06:43:55Z', sources: null },
+        {
+            day: '2026-09-22',
+            run: '2026-09-23T05:00:25Z',
+            tables_started: null,
+            tables_finished: null,
+            published: '2026-09-23T06:43:55Z',
+            sources: null,
+        },
     ];
 
     it('answers them newest first, as the api lists them', async () => {
@@ -131,7 +141,7 @@ describe('the published days', () => {
         expect(days.map((row) => row.day)).toEqual(['2026-09-23', '2026-09-22']);
     });
 
-    it('keeps the run that published each day, when that finished, and the sources its tables hold', async () => {
+    it('keeps the run that published each day, the times it recorded, and the sources its tables hold', async () => {
         answering({ days: () => ok(PUBLISHED) });
 
         await expect(getTableDays()).resolves.toEqual(PUBLISHED);
@@ -139,16 +149,22 @@ describe('the published days', () => {
 
     it.each([
         ['missing', {}],
-        ['null', { run: null, published: null }],
-        ['not a string', { run: 20260924050042, published: { at: '06:41' } }],
-    ])('reads a run and a published that are %s as null', async (_, fields) => {
+        ['null', { run: null, tables_started: null, tables_finished: null, published: null }],
+        ['not a string', {
+            run: 20260924050042, tables_started: 1, tables_finished: ['05:41'], published: { at: '06:41' },
+        }],
+    ])('reads times that are %s as null', async (_, fields) => {
         //
-        // every day's row carried neither before the api said where a day came
-        // from. The page reads null as a build's missing run, 'n/a'.
+        // every day's row carried none of them before the api said where a day
+        // came from, and a day published before the builder recorded when it
+        // wrote the tables says nothing of that. The page reads null as a
+        // build's missing run, 'n/a'.
         //
         answering({ days: () => ok([{ day: '2026-09-23', ...fields }]) });
 
-        await expect(getTableDays()).resolves.toEqual([{ day: '2026-09-23', run: null, published: null, sources: null }]);
+        await expect(getTableDays()).resolves.toEqual([{
+            day: '2026-09-23', run: null, tables_started: null, tables_finished: null, published: null, sources: null,
+        }]);
     });
 
     it.each([
