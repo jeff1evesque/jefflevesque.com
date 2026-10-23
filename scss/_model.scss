@@ -62,6 +62,56 @@
   color: $gray-7;
 }
 
+//
+// the intro folded on a phone (#287): its first two lines, the second ending in
+// '... More' over its last words, which fade into the page under it, and all of
+// it once More is tapped, ending in 'Less'. Clamped rather than cut, so the whole
+// text is still in the page for a screen reader, and two lines at any phone's
+// width. A wide screen shows all of it, and neither button
+//
+.model-lede-toggle {
+  background: none;
+  border: 0;
+  color: $blue-hyperlink;
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+  margin: 0;
+  padding: 0;
+}
+
+.model-lede-dots {
+  color: $gray-7;
+}
+
+@media (max-width: 767.98px) {
+  .model-lede-fold {
+    position: relative;
+  }
+
+  .model-lede-folded .model-lede {
+    -webkit-box-orient: vertical;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .model-lede-more {
+    background: linear-gradient(to right, transparent, $white-1 1.75rem);
+    bottom: 0;
+    padding-left: 2rem;
+    position: absolute;
+    right: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .model-lede-toggle {
+    display: none;
+  }
+}
+
 .model-status {
   color: $gray-7;
   margin: 1rem 0;
@@ -583,6 +633,15 @@
 //
 .model-group {
   margin-top: 0.5rem;
+}
+
+//
+// and each after the first further from the one over it (#287), so its heading
+// does not read as one more row of that list: 42px between them, '.model-main's
+// 1rem gap and this, where 21px was
+//
+.model-group + .model-group {
+  margin-top: 2rem;
 }
 
 .model-group-head {

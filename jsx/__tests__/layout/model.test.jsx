@@ -628,6 +628,74 @@ describe('the title', () => {
     });
 });
 
+describe('the intro on a phone (#287)', () => {
+    afterEach(wideScreen);
+
+    const fold = () => document.querySelector('.model-lede-fold');
+    const more = () => screen.getByRole('button', { name: 'More' });
+    const less = () => screen.getByRole('button', { name: 'Less' });
+
+    it('starts folded, More after it, its whole text still in the page', async () => {
+        phoneScreen();
+        answer();
+        await open();
+
+        expect(fold()).toHaveClass('model-lede-folded');
+        expect(more()).toHaveAttribute('aria-expanded', 'false');
+        expect(more()).toHaveAttribute('aria-controls', 'model-lede');
+        expect(screen.queryByRole('button', { name: 'Less' })).toBeNull();
+        expect(document.querySelector('#model-lede')).toHaveTextContent(/own page its picks\.$/);
+    });
+
+    it('opens on More, ending in Less, and folds again on Less', async () => {
+        phoneScreen();
+        answer();
+        await open();
+
+        await userEvent.click(more());
+
+        expect(fold()).toHaveClass('model-lede-open');
+        expect(less()).toHaveAttribute('aria-expanded', 'true');
+        expect(document.querySelector('#model-lede')).toContainElement(less());
+        expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
+
+        await userEvent.click(less());
+
+        expect(fold()).toHaveClass('model-lede-folded');
+        expect(more()).toBeInTheDocument();
+    });
+
+    it('keeps the choice for the next visit, beside the filters\' band', async () => {
+        phoneScreen();
+        answer();
+
+        const { unmount } = await open();
+
+        await userEvent.click(more());
+
+        expect(readLayout('model', 'narrow').fold).toEqual({ filters: true, intro: false });
+
+        unmount();
+        answer();
+        await open();
+
+        expect(fold()).toHaveClass('model-lede-open');
+
+        await userEvent.click(less());
+
+        expect(readLayout('model', 'narrow').fold).toEqual({ filters: true, intro: true });
+    });
+
+    it('starts open where this browser kept it open', async () => {
+        phoneScreen();
+        writeLayout('model', 'narrow', { fold: { intro: false } });
+        answer();
+        await open();
+
+        expect(fold()).toHaveClass('model-lede-open');
+    });
+});
+
 describe('the filters', () => {
     afterEach(wideScreen);
 
@@ -932,7 +1000,8 @@ describe('the filters, dragged and kept (#253)', () => {
 
         await userEvent.click(within(filters()).getByRole('button', { name: 'Filters 4 models' }));
 
-        expect(readLayout('model', 'narrow').fold).toEqual({ filters: false });
+        // the intro's fold is kept beside it, on a phone alone (#287)
+        expect(readLayout('model', 'narrow').fold).toEqual({ filters: false, intro: true });
         expect(readLayout('model', 'wide').fold).toEqual({});
 
         unmount();

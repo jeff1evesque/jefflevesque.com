@@ -6,6 +6,9 @@
  * options model predicts for each of its options (#279), what they read, linking
  * the knowledge graph and the data it is built from (#251), and that the page
  * shows how the predictions are graded, and the options model's page its picks.
+ * On a phone they fold to their first two lines, which a 'More' at the end of the
+ * second opens and a 'Less' at their own end folds again, kept for the next visit
+ * as the filters' band is (#287).
  * One list per task -- what a model predicts -- beside a column of filters, by
  * task and by status, which folds to a rail as /graph's columns do and is a
  * folded band on a phone (#251). Every row carries the model's live version, how
@@ -214,11 +217,16 @@ class ModelLayout extends Component {
             // its own width, and folded on a phone until its band is tapped
             filters_open: phone ? kept.fold.filters === false : kept.fold.filters !== true,
             filters_width: kept.size.filters >= FILTERS_MIN && kept.size.filters <= FILTERS_MAX ? kept.size.filters : null,
+            // whether the intro is open past the two lines a phone folds it to
+            // (#287): as this browser kept it, and otherwise folded. A wide
+            // screen shows all of it either way -- see '.model-lede-fold'
+            intro_open: phone && kept.fold.intro === false,
         };
 
         this.pick = this.pick.bind(this);
         this.clear = this.clear.bind(this);
         this.toggleFilters = this.toggleFilters.bind(this);
+        this.toggleIntro = this.toggleIntro.bind(this);
         this.startDrag = this.startDrag.bind(this);
         this.onDrag = this.onDrag.bind(this);
         this.releaseDrag = this.releaseDrag.bind(this);
@@ -277,19 +285,31 @@ class ModelLayout extends Component {
 
     //
     // how the filters' column is arranged, kept for the next visit: folded or
-    // open, and the width it was dragged to
+    // open, and the width it was dragged to. On a phone, whether the intro is
+    // folded too (#287). It folds on a phone alone, so a wide screen keeps no
+    // word of it
     //
     saveLayout() {
-        const { filters_open, filters_width } = this.state;
+        const { filters_open, filters_width, intro_open } = this.state;
+        const phone = isPhone();
+        const fold = { filters: !filters_open };
 
-        writeLayout(LAYOUT, isPhone() ? 'narrow' : 'wide', {
-            fold: { filters: !filters_open },
+        if (phone) {
+            fold.intro = !intro_open;
+        }
+
+        writeLayout(LAYOUT, phone ? 'narrow' : 'wide', {
+            fold: fold,
             size: filters_width ? { filters: filters_width } : {},
         });
     }
 
     toggleFilters() {
         this.setState((state) => ({ filters_open: !state.filters_open }), () => this.saveLayout());
+    }
+
+    toggleIntro() {
+        this.setState((state) => ({ intro_open: !state.intro_open }), () => this.saveLayout());
     }
 
     //
@@ -788,8 +808,30 @@ class ModelLayout extends Component {
         ));
     }
 
+    //
+    // the button that folds or opens the intro on a phone (#287): 'More' over the
+    // end of its second line while it is folded, and 'Less' at its own end while
+    // it is open. Neither shows on a wide screen, which never folds it -- see
+    // '.model-lede-fold' in '_model.scss'
+    //
+    introToggle() {
+        const { intro_open } = this.state;
+
+        return (
+            <button
+                type='button'
+                className={`model-lede-toggle ${intro_open ? 'model-lede-less' : 'model-lede-more'}`}
+                aria-expanded={intro_open}
+                aria-controls='model-lede'
+                onClick={this.toggleIntro}
+            >
+                {intro_open ? 'Less' : <><span className='model-lede-dots' aria-hidden='true'>…</span> More</>}
+            </button>
+        );
+    }
+
     render() {
-        const { listing } = this.state;
+        const { listing, intro_open } = this.state;
         let count = '';
 
         if (listing === null || (listing && !listing.models.length)) {
@@ -808,13 +850,18 @@ class ModelLayout extends Component {
                             <h4>Models</h4>
                             <span className='model-count'>{listing === undefined ? <PendingBar width='1rem' /> : count}</span>
                         </div>
-                        <span className='model-lede'>
-                            {'For each of the roughly 500 stocks in the S&P 500, the stock models predict three things about the next trading day: the chance its price goes up, the chance it beats the average stock, and how far it moves. The options model predicts, for each of those stocks’ options, the chance it makes money if bought at 9:40 AM the next trading day and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and sell prices. Each night they read the day’s '}
-                            <Link to='/graph'>knowledge graph</Link>
-                            {', built from the '}
-                            <Link to='/stream'>data this site collects</Link>
-                            {'. Once the prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all. This page shows those grades, and the options model’s own page its picks.'}
-                        </span>
+                        <div className={`model-lede-fold ${intro_open ? 'model-lede-open' : 'model-lede-folded'}`}>
+                            <span className='model-lede' id='model-lede'>
+                                {'For each of the roughly 500 stocks in the S&P 500, the stock models predict three things about the next trading day: the chance its price goes up, the chance it beats the average stock, and how far it moves. The options model predicts, for each of those stocks’ options, the chance it makes money if bought at 9:40 AM the next trading day and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and sell prices. Each night they read the day’s '}
+                                <Link to='/graph'>knowledge graph</Link>
+                                {', built from the '}
+                                <Link to='/stream'>data this site collects</Link>
+                                {'. Once the prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all. This page shows those grades, and the options model’s own page its picks.'}
+                                {intro_open ? ' ' : null}
+                                {intro_open ? this.introToggle() : null}
+                            </span>
+                            {intro_open ? null : this.introToggle()}
+                        </div>
                     </div>
                     {this.body()}
                 </div>
