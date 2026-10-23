@@ -440,6 +440,37 @@ describe('knowledge-graph.json, the two lists a night adds to (#269)', () => {
     });
 });
 
+describe('knowledge-graph.json, when each graph started and finished (#285)', () => {
+    const paths = documentOf('knowledge-graph').paths;
+    const media = (route) => paths[route].get.responses['200'].content['application/json'];
+    const build = media('/knowledge-graph').schema.properties.report.properties.graphs.items.properties;
+    const metadata = media('/knowledge-graph/{graph}').schema.properties.report.properties.build_metadata.properties;
+    const day = media('/knowledge-graph/tables/days').schema.properties.report.properties.rows.items;
+    const ROW = ['day', 'run', 'tables_started', 'tables_finished', 'published', 'sources'];
+
+    it('says the listing\'s built is when the build started, and that a schema from 1.10 says when it finished', () => {
+        expect(build.built.description).toMatch(/^When the build started, in UTC/);
+        expect(build.built.description).toContain('build_metadata.build_finished_timestamp');
+        expect(metadata.build_finished_timestamp.type).toBe('string');
+        expect(metadata.build_finished_timestamp.description).toMatch(/From schema version 1\.10, and absent before it/);
+    });
+
+    it('documents when each day\'s tables were written, between its run and when its upload started', () => {
+        expect(Object.keys(day.properties)).toEqual(ROW);
+        ['tables_started', 'tables_finished'].forEach((field) => {
+            expect({ field, type: day.properties[field].type }).toEqual({ field, type: ['string', 'null'] });
+        });
+        expect(day.required).toEqual(['day']);
+        expect(day.properties.published.description).toMatch(/^When the run began uploading the day/);
+    });
+
+    it('shows both on every documented day', () => {
+        media('/knowledge-graph/tables/days').example.report.rows.forEach((row) => {
+            expect({ day: row.day, fields: Object.keys(row) }).toEqual({ day: row.day, fields: ROW });
+        });
+    });
+});
+
 describe('the guard itself', () => {
     it('rejects an example that does not match', () => {
         //
