@@ -617,6 +617,15 @@ export function tickGap(phone) {
 }
 
 /**
+ * how wide the values' axis at a chart's left is, in px: narrower on a phone
+ * (#300), where 56px of a 330px chart set the plot well in from the card's edge.
+ * Wide enough for 'better' and '8 min' either way.
+ */
+export function axisWidth(phone) {
+    return phone ? 40 : 56;
+}
+
+/**
  * what an axis of these charts is drawn in: the page's grid and muted gray,
  * and no ticks standing off it.
  */

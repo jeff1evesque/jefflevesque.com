@@ -1,7 +1,8 @@
 /**
  * model-row.jsx: one model in /model's list (#243), laid out as #300 lays a
- * row out: its name and status, with its address and description under them,
- * then its latest score -- over the listing's `average_days` (#293), against the
+ * row out: its name and status, with its description under them -- and not its
+ * page's address, which only puzzled a reader (#300) -- then its latest score --
+ * over the listing's `average_days` (#293), against the
  * know-nothing baseline -- or, in a list that shows them, loss's three parts in
  * place of it (#283), then a trend line of its score, and last when its live
  * version went live and how many of its nightly attempts did. The box that ticks
@@ -39,7 +40,7 @@ import Tooltip from '@mui/material/Tooltip';
 import { isMobile } from 'react-device-detect';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import InfoNote from '../../general/info-note.jsx';
-import { AlarmBell, Mark, StatusPill, gapWords, partGap } from './parts.jsx';
+import { AlarmBell, Mark, StatusPill, gapWords, partGap, usePhone } from './parts.jsx';
 import { PendingBar } from '../graph/pending.jsx';
 import {
     BASELINE_DASH,
@@ -72,11 +73,13 @@ import {
 
 //
 // the trend line's size, in px: as wide as the room its row gives it, and 44px
-// tall, as #300 lays it out. TREND_WIDTH where the room cannot be
-// measured, as under jsdom
+// tall, as #300 lays it out, or 56px across a phone's card, where it is the
+// card's whole width (#300). TREND_WIDTH where the room cannot be measured, as
+// under jsdom
 //
 const TREND_WIDTH = 132;
 const TREND_HEIGHT = 44;
+const TREND_HEIGHT_PHONE = 56;
 
 //
 // how far above the line's top the box of the day under the pointer stands, in
@@ -153,6 +156,7 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW, hold = null 
     const colors = chartColors(theme);
     const [box, width] = useTrendWidth();
     const [tapped, setTapped] = useState(null);
+    const phone = usePhone();
 
     if (rows === undefined) {
         return <span className='model-trend-pending' aria-label='Loading the trend' />;
@@ -244,7 +248,7 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW, hold = null 
         >
             <LineChart
                 width={width}
-                height={TREND_HEIGHT}
+                height={phone ? TREND_HEIGHT_PHONE : TREND_HEIGHT}
                 data={data}
                 margin={{ top: 4, right: 4, bottom: 4, left: 4 }}
                 onClick={isMobile ? tap : undefined}
@@ -461,7 +465,6 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                     <StatusPill model={model} />
                     <AlarmBell model={model} held={held} />
                 </div>
-                <span className='model-address'>{address}</span>
                 {model.description ? <p className='model-description'>{model.description}</p> : null}
                 {tradesOptions(task) && status !== 'retired' && status !== 'down'
                     ? <Link className='model-picks-link' to={`${address}/picks`}>See its picks &rsaquo;</Link>

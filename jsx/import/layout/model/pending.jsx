@@ -88,8 +88,8 @@ export function PendingPicker() {
 /**
  * one of /model's rows, or a phone's card, before the listing says whose, laid
  * out as #300 lays a row out: a bar for its name and its status over
- * its address and lines for its description, then bars for its score, the trend
- * line's place, and when it went live. The box that ticks it is drawn disabled, and there is
+ * lines for its description, then bars for its score, the trend line's span
+ * and its place, and when it went live. The box that ticks it is drawn disabled, and there is
  * no bell, since a retired model has none. With `parts`, loss's three parts
  * stand in the score's place, each named over a bar, as a row of a list that
  * shows them has them (#283).
@@ -109,9 +109,6 @@ export function PendingRow({ at, parts = false }) {
                     <PendingBar width='5.5rem' delay={delay(0)} />
                     <PendingBar width='5rem' delay={delay(1)} />
                 </div>
-                <span className='model-address'>
-                    <PendingBar width='8rem' delay={delay(2)} />
-                </span>
                 <p className='model-description'>
                     <PendingLines widths={['17rem', '9rem']} delay={delay(3)} />
                 </p>

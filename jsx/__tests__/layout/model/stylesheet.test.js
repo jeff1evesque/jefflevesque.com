@@ -157,7 +157,7 @@ describe('a list of /model, as #300 lays one out', () => {
 
         expect(declared(span, 'font-size')).toBe('13px');
         expect(declared(span, 'color')).toBe('$gray-6');
-        expect(declared(ruleOf('.model-cell-trend', 'gap'), 'gap')).toBe('2px');
+        expect(declared(ruleOf('.model-cell-trend', 'gap'), 'gap')).toBe('6px');
     });
 
     it('has no headings over its rows, nor a grid of columns for them', () => {
@@ -165,12 +165,12 @@ describe('a list of /model, as #300 lays one out', () => {
         expect(source).not.toMatch(/@container \(max-width: (72|62)rem\)/);
     });
 
-    it('names a model at 15px, over its address at 13px and its description in a 14px gray', () => {
+    it('names a model at 15px, over its description in a 14px gray, and no address between them (#300)', () => {
         const description = ruleOf('.model-description', 'margin');
 
         expect(declared(ruleOf('.model-name', 'font-weight'), 'font-size')).toBe('15px');
         expect(rulesOf('.model-name').map((each) => declared(each, 'font-size'))).toEqual(['15px', '15px']);
-        expect(declared(ruleOf('.model-address', 'color'), 'font-size')).toBe('13px');
+        expect(source).not.toMatch(/model-address/);
         expect(declared(description, 'font-size')).toBe('14px');
         expect(declared(description, 'color')).toBe('$gray-6');
     });
@@ -331,8 +331,13 @@ describe('/model on a phone, as #300 lays it out (#274)', () => {
         expect(declared(ruleOf('.model-since-went::before', 'content'), 'content')).toBe('\' · \'');
     });
 
-    it('draws the trend line across the card by a wide row\'s rule, with none of its own', () => {
-        expect(rulesOf('.model-trend,.model-trend-pending,.model-trend-none')).toHaveLength(1);
+    it('draws the trend line across the card 56px tall, a little taller than a wide row\'s 44px (#300)', () => {
+        expect(rulesOf('.model-trend,.model-trend-pending,.model-trend-none').map((each) => declared(each, 'height'))).toEqual(['44px', '56px']);
+        expect(rulesOf('.model-trend-none').map((each) => declared(each, 'line-height')).filter(Boolean)).toEqual(['44px', '56px']);
+    });
+
+    it('stands the box that ticks a model level with its name, status and bell, one row across the card\'s top (#300)', () => {
+        expect(source).toMatch(/\.model-cell-compare \{ grid-area: compare; align-self: start; height: 2\.75rem; \}/);
     });
 
     it('lays a narrower phone\'s card out as a wider one\'s (#300)', () => {
@@ -611,11 +616,31 @@ describe('a model\'s own page, as #300 lays it out', () => {
     });
 
     describe('on a phone', () => {
-        it('draws the three figures as boxes 8px apart, a name over its value at its left, on a light tint', () => {
+        it('sets the charts 40px in, at their values\' axis, and the attempts\' headings and lines over them with them (#300)', () => {
+            expect(declared(rule('.model-page .model-card-minor,.model-page .model-attempts > .model-card-sub'), 'margin-left')).toBe('40px');
+        });
+
+        it('lays a legend out in two columns, which way the axis runs on a line of its own (#300)', () => {
+            const legend = rulesOf('.model-page .model-legend').find((each) => declared(each, 'display') === 'grid');
+
+            expect(declared(legend, 'grid-template-columns')).toBe('repeat(2, minmax(0, 1fr))');
+            expect(declared(legend, 'gap')).toBe('6px 12px');
+            expect(declared(rule('.model-page .model-legend-note'), 'grid-column')).toBe('1 / -1');
+        });
+
+        it('rules each line of the attempts\' panel off from the one before, so a line that wraps reads as one (#300)', () => {
+            const line = rule('.model-attempt-panel > span + span');
+
+            expect(declared(line, 'border-top')).toBe('1px solid $gray-2');
+            expect(declared(line, 'padding-top')).toBe('6px');
+        });
+
+        it('draws the three figures as boxes 8px apart, a name over its value in the middle, on a light tint (#300)', () => {
             const box = rule('.model-summary-boxes .stream-focus-figure');
 
             expect(declared(rule('.model-summary-boxes .stream-focus-figures'), 'gap')).toBe('8px');
-            expect(declared(box, 'align-items')).toBe('flex-start');
+            expect(declared(box, 'align-items')).toBe('center');
+            expect(declared(box, 'text-align')).toBe('center');
             expect(declared(box, 'background-color')).toBe('color-mix(in srgb, $gray-1 60%, $white-1)');
             expect(declared(box, 'border')).toBe('0');
             expect(declared(box, 'border-radius')).toBe('8px');

@@ -55,7 +55,7 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { FoldTitle, Legend, NoBox, Numbers, axisNote, axisStyle, tickGap, useFolds, usePanelDay } from './parts.jsx';
+import { FoldTitle, Legend, NoBox, Numbers, axisNote, axisStyle, axisWidth, tickGap, useFolds, usePanelDay } from './parts.jsx';
 import {
     HELD_OUT,
     PAGE_DASH,
@@ -414,7 +414,7 @@ function AttemptsChart({ rows, score, held = false }) {
                         <CartesianGrid stroke={colors.grid} vertical={false} />
                         <XAxis dataKey='day' {...nightAxis('attempts')} />
                         <YAxis
-                            width={56}
+                            width={axisWidth(panel.phone)}
                             domain={['auto', 'auto']}
                             reversed={lower}
                             tickFormatter={(value) => formatTick(value, score)}
@@ -449,7 +449,7 @@ function AttemptsChart({ rows, score, held = false }) {
                         <CartesianGrid stroke={colors.grid} vertical={false} />
                         <XAxis dataKey='day' {...nightAxis('gap')} />
                         <YAxis
-                            width={56}
+                            width={axisWidth(panel.phone)}
                             domain={[-reach, reach]}
                             ticks={[-reach, 0, reach]}
                             interval={0}
@@ -487,7 +487,7 @@ function AttemptsChart({ rows, score, held = false }) {
                                     <CartesianGrid stroke={colors.grid} vertical={false} />
                                     <XAxis dataKey='day' {...nightAxis('took')} />
                                     <YAxis
-                                        width={56}
+                                        width={axisWidth(panel.phone)}
                                         allowDecimals={false}
                                         interval={0}
                                         tickFormatter={(value) => (value ? `${value} ${unit.label}` : '0')}

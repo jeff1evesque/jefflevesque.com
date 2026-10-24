@@ -69,11 +69,12 @@ const sinceOf = (container) => [...container.querySelectorAll('.model-cell-since
 const cellsOf = (container) => [...container.querySelectorAll('.model-row > .model-cell')].map((cell) => cell.classList[1]);
 
 describe('a row', () => {
-    it('links the model\'s name to its page, and prints its address and description', () => {
+    it('links the model\'s name to its page, and prints its description with no address over it (#300)', () => {
         draw();
 
         expect(screen.getByRole('link', { name: 'pt-gnn' })).toHaveAttribute('href', '/model/pt-gnn');
-        expect(screen.getByText('/model/pt-gnn')).toHaveClass('model-address');
+        expect(screen.queryByText('/model/pt-gnn')).toBeNull();
+        expect(document.querySelector('.model-address')).toBeNull();
         expect(screen.getByText('A graph model of the market')).toBeInTheDocument();
     });
 

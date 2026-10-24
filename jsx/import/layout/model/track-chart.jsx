@@ -47,7 +47,7 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { FAINT_OPACITY, FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisNote, axisStyle, tickGap, useFolds, usePanelDay } from './parts.jsx';
+import { FAINT_OPACITY, FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisNote, axisStyle, axisWidth, tickGap, useFolds, usePanelDay } from './parts.jsx';
 import {
     COMBINED,
     COMPARE_COLORS,
@@ -434,7 +434,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                                 <CartesianGrid stroke={colors.grid} vertical={false} />
                                 <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={tickGap(panel.phone)} {...axisStyle(colors)} />
                                 <YAxis
-                                    width={56}
+                                    width={axisWidth(panel.phone)}
                                     domain={['auto', 'auto']}
                                     reversed={lower}
                                     tickFormatter={(value) => formatTick(value, score)}

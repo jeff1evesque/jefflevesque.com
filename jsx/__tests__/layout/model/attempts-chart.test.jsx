@@ -419,6 +419,20 @@ describe('the chart', () => {
     });
 });
 
+describe('the values\' axis (#300)', () => {
+    afterEach(() => wideScreen());
+
+    const leftOf = (container) => Number(container.querySelector(`${ATTEMPTS} .recharts-cartesian-grid-horizontal line`).getAttribute('x1'));
+
+    it('sets the charts 56px in on a wide screen, and 40px in on a phone, where 56px set them well in from the card\'s edge', () => {
+        expect(leftOf(draw({ rows: timedHistoryOf() }).container)).toBe(56);
+
+        phoneScreen();
+
+        expect(leftOf(draw({ rows: timedHistoryOf() }).container)).toBe(40);
+    });
+});
+
 describe('the nights\' axis (#300)', () => {
     // a fold is kept, as a reader's is: none is left for the cases after these
     beforeEach(() => window.localStorage.clear());
@@ -707,8 +721,9 @@ describe('the panel (#300)', () => {
 
         const { container } = draw({ rows: timedHistoryOf() });
 
-        tapAt(container.querySelector(`${TOOK} .recharts-wrapper`), 430);
-        tapAt(container.querySelector(`${ATTEMPTS} .recharts-wrapper`), 110);
+        // a phone's charts start 40px in, at their values' axis (#300)
+        tapAt(container.querySelector(`${TOOK} .recharts-wrapper`), 414);
+        tapAt(container.querySelector(`${ATTEMPTS} .recharts-wrapper`), 94);
 
         expect(container.querySelectorAll('.model-attempt-panel')).toHaveLength(1);
         expect(panelOf(container).firstChild).toHaveTextContent('Oct 12 · nightly update');

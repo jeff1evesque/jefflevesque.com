@@ -834,8 +834,12 @@
   grid-area: score;
 }
 
+//
+// the line 6px under what it spans, so its highest day never touches the words
+// (#300)
+//
 .model-cell-trend {
-  gap: 2px;
+  gap: 6px;
   grid-area: trend;
 }
 
@@ -944,12 +948,6 @@
 .model-name {
   font-size: 15px;
   font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.model-address {
-  color: $gray-6;
-  font-size: 13px;
   overflow-wrap: anywhere;
 }
 
@@ -2869,7 +2867,12 @@
   }
 
   .model-cell-model { grid-area: model; }
-  .model-cell-compare { grid-area: compare; align-self: start; height: 1.75rem; }
+  //
+  // the box that ticks a model as tall as its name's line, which the bell's
+  // finger-wide button sets, so the box stands level with the name, its status
+  // and its bell, one row across the card's top (#300)
+  //
+  .model-cell-compare { grid-area: compare; align-self: start; height: 2.75rem; }
   .model-cell-score,
   .model-cell-parts { grid-area: score; }
   .model-cell-trend { grid-area: trend; }
@@ -2983,6 +2986,58 @@
     font-size: 22px;
   }
 
+  //
+  // a phone's trend line 56px tall across its card (#300) -- model-row.jsx's
+  // TREND_HEIGHT_PHONE
+  //
+  .model-trend,
+  .model-trend-pending,
+  .model-trend-none {
+    height: 56px;
+  }
+
+  .model-trend-none {
+    line-height: 56px;
+  }
+
+  //
+  // a phone's charts set in 40px from the card's edge, as narrow as their
+  // values' axis there -- parts.jsx's axisWidth -- and the attempts' headings
+  // and lines over their charts with them (#300)
+  //
+  .model-page .model-card-minor,
+  .model-page .model-attempts > .model-card-sub {
+    margin-left: 40px;
+  }
+
+  //
+  // a phone's legends in two columns, each mark over the one under it, and
+  // which way the axis runs on a line of its own: wrapped as room allowed, they
+  // read as clutter (#300)
+  //
+  .model-page .model-legend {
+    display: grid;
+    gap: 6px 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .model-page .model-legend-note {
+    grid-column: 1 / -1;
+  }
+
+  //
+  // the attempts' panel a line each on a phone, a light rule between them, so a
+  // line that wraps reads as one (#300)
+  //
+  .model-attempt-panel {
+    gap: 6px;
+  }
+
+  .model-attempt-panel > span + span {
+    border-top: 1px solid $gray-2;
+    padding-top: 6px;
+  }
+
   .model-summary-cards {
     display: none;
   }
@@ -2993,21 +3048,23 @@
 
   //
   // a model's three figures as #300 lays them out on a phone: three boxes 8px
-  // apart, each a name over its value at its left on a light tint, the score's
-  // washed in the charts' blue where it is better than the baseline and in
-  // their red where it is worse, every value in the figures' ink
+  // apart, each a name over its value in its middle on a light tint, so the room
+  // round them reads the same on every side, the score's washed in the charts'
+  // blue where it is better than the baseline and in their red where it is
+  // worse, every value in the figures' ink
   //
   .model-summary-boxes .stream-focus-figures {
     gap: 8px;
   }
 
   .model-summary-boxes .stream-focus-figure {
-    align-items: flex-start;
+    align-items: center;
     background-color: color-mix(in srgb, $gray-1 60%, $white-1);
     border: 0;
     border-radius: 8px;
     gap: 4px;
     padding: 10px;
+    text-align: center;
   }
 
   .model-summary-boxes .stream-focus-figure:has(.stream-focus-figure-good) {

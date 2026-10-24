@@ -26,6 +26,7 @@ import {
     TipBox,
     axisNote,
     axisStyle,
+    axisWidth,
     gapWords,
     isPhone,
     partGap,
@@ -228,6 +229,13 @@ describe('tickGap (#300)', () => {
     it('stands a phone\'s days further apart, so a narrow chart names fewer', () => {
         expect(tickGap(false)).toBe(24);
         expect(tickGap(true)).toBe(40);
+    });
+});
+
+describe('axisWidth (#300)', () => {
+    it('sets a phone\'s charts 40px in from the card\'s edge, and a wider screen\'s 56px', () => {
+        expect(axisWidth(true)).toBe(40);
+        expect(axisWidth(false)).toBe(56);
     });
 });
 
