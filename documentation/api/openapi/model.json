@@ -58,7 +58,7 @@
                       "anyOf": [
                         {
                           "type": "object",
-                          "description": "Asked with no parameters: every task, every model with its latest scores, and from 2026-10-15 on, format_version.",
+                          "description": "Asked with no parameters: every task, every model with its latest scores, from 2026-10-15 on, format_version, and from format 4, average_days.",
                           "required": [
                             "tasks",
                             "models"
@@ -67,7 +67,12 @@
                             "format_version": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. 2: a model's down and behind, and a track record's down_days and down_in_a_row. 3: a task's scores; the top 10's scores, profit_auc and an options model's track record's hold columns; the hold of down and of each check in behind; and the picks. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
+                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. 2: a model's down and behind, and a track record's down_days and down_in_a_row. 3: a task's scores; the top 10's scores, profit_auc and an options model's track record's hold columns; the hold of down and of each check in behind; and the picks. 4: the listing's average_days. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
+                            },
+                            "average_days": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "description": "From format 4: how many of a model's latest scored days its score and baseline average, and how many it needs before it is no longer New. A listing before format 4 has none, and both are 20."
                             },
                             "tasks": {
                               "type": "array",
@@ -191,7 +196,7 @@
                                       "object",
                                       "null"
                                     ],
-                                    "description": "Each score averaged over the last 20 rows of its track record, or all of them while it has fewer. Null while it has none. The four stock scores are always there, null where the task does not have them, and the rest where it does. An options model's are its 1-day hold's.",
+                                    "description": "Each score averaged over the last average_days rows of its track record, or all of them while it has fewer. Null while it has none. The four stock scores are always there, null where the task does not have them, and the rest where it does. An options model's are its 1-day hold's.",
                                     "required": [
                                       "loss",
                                       "auc_up",
