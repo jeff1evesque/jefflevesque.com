@@ -694,14 +694,17 @@
 //
 // a list per task, as #300 lays one out: a rule over it, its task's
 // name and how many models it has over what they predict, its pickers, the
-// line saying what the hold is, then its rows in a box of their own
+// line saying what the hold is, then its rows in a box of their own. 22px over
+// its rule, as #300 sets its sections apart: 8px here and the column's own
+// 14px gap -- see '.model-main' -- where 22px of its own and the gap had left
+// 36px under the line over the lists
 //
 .model-group {
   border-top: 1px solid $gray-2;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  margin-top: 22px;
+  margin-top: 8px;
   padding-top: 18px;
 
   > .model-hold-line {
@@ -853,6 +856,27 @@
       '. trend'
       '. since';
     grid-template-columns: auto minmax(0, 1fr);
+  }
+}
+
+//
+// a row on one line where its list has room for it, as #300 lays a row out:
+// the box that ticks it, the model, its score, its trend line and when its live
+// version went live, side by side, the model twice a figure's share. A list of
+// loss's three parts needs more room for them than one of a score has: as wide
+// as the filters folded leave it on a computer
+//
+@container (min-width: 880px) {
+  .model-list:not(.model-list-parts) .model-row {
+    grid-template-areas: 'compare model score trend since';
+    grid-template-columns: auto minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@container (min-width: 1150px) {
+  .model-list-parts .model-row {
+    grid-template-areas: 'compare model score trend since';
+    grid-template-columns: auto minmax(0, 2fr) minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 
@@ -2942,6 +2966,28 @@
   //
   .model-page .model-heading h4 {
     font-size: 22px;
+  }
+
+  //
+  // a phone's trend line further from what is over it (#300): 12px under the
+  // span over it, and that 16px under the score or loss's parts, where 6px and
+  // 8px had it crowding them
+  //
+  .model-cell-trend {
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  //
+  // a card of a list of scores, as Option picks is, split by a light rule over
+  // its score and another over its trend line, 10px over what each is over, as
+  // loss's parts are ruled off on a card of stocks (#300): with none, the card
+  // ran together
+  //
+  .model-list:not(.model-list-parts) .model-cell-score,
+  .model-list:not(.model-list-parts) .model-cell-trend {
+    border-top: 1px solid $gray-1;
+    padding-top: 10px;
   }
 
   //

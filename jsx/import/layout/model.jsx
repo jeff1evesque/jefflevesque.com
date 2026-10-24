@@ -73,6 +73,7 @@ import {
     averageDays,
     chosenScore,
     compareBlocked,
+    emptyHolds,
     heldOut,
     holdsAmong,
     listLine,
@@ -451,15 +452,20 @@ class ModelLayout extends Component {
     // that trades options, its three, whose scores each row reads from its
     // model's track record, as the model's own page does (#279). And the one it
     // is on: the one picked for the task, where it is offered, and the first
-    // otherwise, 1 day
+    // otherwise, 1 day. A hold none of its models has a result on yet, `empty`,
+    // is offered grayed out until one comes in -- see scores.js's emptyHolds
     //
     holdFor(task) {
-        const listed = holdsAmong(this.state.listing.models.filter((model) => model.task === task.id));
+        const models = this.state.listing.models.filter((model) => model.task === task.id);
+        const listed = holdsAmong(models);
         const holds = !listed.length && tradesOptions(task) ? HOLDS : listed;
+        const empty = holds.slice(1).map((each) => each.days).filter((days) => (
+            models.every((model) => emptyHolds(model, this.state.records[model.name], holds).includes(days))
+        ));
         const picked = this.props.holds[task.id];
-        const offered = holds.some((each) => each.days === picked);
+        const offered = holds.some((each) => each.days === picked) && !empty.includes(picked);
 
-        return { holds: holds, hold: offered ? picked : (holds.length ? holds[0].days : null) };
+        return { holds: holds, hold: offered ? picked : (holds.length ? holds[0].days : null), empty: empty };
     }
 
     //
@@ -743,7 +749,7 @@ class ModelLayout extends Component {
                 return null;
             }
 
-            const { holds, hold } = this.holdFor(task);
+            const { holds, hold, empty } = this.holdFor(task);
             const score = this.scoreFor(task);
             const parts = showsParts(score, task);
 
@@ -762,7 +768,7 @@ class ModelLayout extends Component {
                             offered={scoresFor(task)}
                             disabled={heldOut(task, hold)}
                         />
-                        {holds.length ? <HoldPicker hold={hold} onHold={(key) => onHold(task.id, key)} holds={holds} /> : null}
+                        {holds.length ? <HoldPicker hold={hold} onHold={(key) => onHold(task.id, key)} holds={holds} disabled={empty} /> : null}
                     </div>
                     {holds.length ? <p className='model-hold-line'>{listLine(task, hold)}</p> : null}
                     <div className={parts ? 'model-list model-list-parts' : 'model-list'}>

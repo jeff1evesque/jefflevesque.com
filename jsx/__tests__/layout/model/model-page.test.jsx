@@ -1717,15 +1717,44 @@ describe('an options model (#279)', () => {
         });
 
         it.each([
-            [5, 3, 'No 5-day results yet: each one comes in 6 trading days after its prediction.'],
-            [20, 15, 'No 20-day results yet: each one comes in 21 trading days after its prediction.'],
-        ])('say why the %s-day hold has nothing to draw, where no day\'s result is in yet, under a title naming it (#300)', async (hold, days, said) => {
+            [5, 3, '5 days'],
+            [20, 15, '20 days'],
+        ])('gray out the %s-day hold where no day\'s result is in yet, and stay on the 1-day hold (#300)', async (hold, days, label) => {
             options({ track: optionsTrackOf(days) });
             await open('pt-options', { hold: hold });
 
-            expect(screen.getByText(said)).toHaveClass('model-track-none');
+            expect(screen.getByRole('button', { name: label })).toBeDisabled();
+            expect(pressed('Hold')).toEqual(['1 day']);
+            expect(trackOn()).toMatch(/^Loss on the 1-day hold of pt-options/);
+            expect(document.querySelector('.model-track-none')).toBeNull();
+        });
+
+        it('offer a hold once the track record has a day\'s result on it, and gray out one with none, in the buttons and the phone\'s menu (#300)', async () => {
+            options({ track: optionsTrackOf(15) });
+            await open('pt-options');
+
+            expect(picker('Hold').map((button) => button.disabled)).toEqual([false, false, true]);
+            expect([...document.querySelectorAll('.model-holds option:disabled')].map((option) => option.textContent)).toEqual(['20 days']);
+        });
+
+        it('gray out every hold but the first while the track record is on its way (#300)', async () => {
+            loadListing.mockResolvedValue(optionsListingOf());
+            loadReport.mockReturnValue(new Promise(() => {}));
+            await open('pt-options', { hold: 5 });
+
+            expect(picker('Hold').map((button) => button.disabled)).toEqual([false, true, true]);
+            expect(pressed('Hold')).toEqual(['1 day']);
+        });
+
+        it('say why a hold has nothing to draw of a score whose columns on it have no day yet, under a title naming it (#300)', async () => {
+            const track = optionsTrackOf(30).map((row) => ({ ...row, score: { ...row.score, top10_gain_5d: null } }));
+
+            options({ track: track });
+            await open('pt-options', { hold: 5, scores: { 'option-picks': 'top10_gain' } });
+
+            expect(screen.getByText('No 5-day results yet: each one comes in 6 trading days after its prediction.')).toHaveClass('model-track-none');
             expect(document.querySelector('.model-track .model-chart')).toBeNull();
-            expect(within(document.querySelector('.model-track')).getByRole('heading', { name: `Track record, ${hold}-day hold: Loss` })).toBeInTheDocument();
+            expect(within(document.querySelector('.model-track')).getByRole('heading', { name: 'Track record, 5-day hold: Top 10 gain' })).toBeInTheDocument();
         });
 
         it('offer the holds the track record has columns for, on the first where the one handed is none of them', async () => {
@@ -1937,8 +1966,9 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
 
         it('hands the hold picked up, Combined by its name', async () => {
             const onHold = jest.fn();
+            const track = heldTrackOf(30, { twenty: 30 });
 
-            held();
+            held({ listing: heldListingOf([heldModelOf({}, track)]), track: track });
             await open('tables-gnn', { onHold: onHold });
             await userEvent.click(screen.getByRole('button', { name: 'Combined' }));
             await userEvent.click(screen.getByRole('button', { name: '20 days' }));
@@ -2016,23 +2046,54 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
             expect(stat('Loss, 5-day hold, 10 days so far')).toBeInTheDocument();
         });
 
-        it('says a hold with no day scored yet has none, and when its first result comes in, on the card and in place of the chart', async () => {
+        it('grays out a hold with no day scored yet, and Combined with it, and stays on 1 day (#300)', async () => {
             held();
             await open('tables-gnn', { hold: 20 });
 
-            const card = stat('Loss, 20-day hold');
+            expect(picker('Hold').filter((button) => button.disabled).map((button) => button.textContent)).toEqual(['20 days', 'Combined']);
+            expect(pressed('Hold')).toEqual(['1 day']);
+            expect(stat('Loss, 1-day hold, last 20 days')).toBeInTheDocument();
+            expect(document.querySelector('.model-track-none')).toBeNull();
+        });
 
+        it('offers a hold once the listing gives a day on it (#300)', async () => {
+            const track = heldTrackOf(30, { twenty: 30 });
+
+            held({ listing: heldListingOf([heldModelOf({}, track)]), track: track });
+            await open('tables-gnn', { hold: 20 });
+
+            expect(picker('Hold').filter((button) => button.disabled)).toEqual([]);
+            expect(pressed('Hold')).toEqual(['20 days']);
+        });
+
+        it('says a model with no day scored yet has none on its 1-day hold, and when its first result comes in (#300)', async () => {
+            const none = { days: 0, score: null, baseline: null };
+            const model = heldModelOf({ scored_days: 0, score: null, baseline: null, holds: { '1d': none, '5d': none, '20d': none, combined: none } });
+
+            held({ listing: heldListingOf([model]), track: [] });
+            await open('tables-gnn');
+
+            const card = stat('Loss, 1-day hold');
+
+            expect(pressed('Hold')).toEqual(['1 day']);
             expect(card.querySelector('.model-stat-value')).toHaveTextContent('–');
-            expect(card.querySelector('.model-stat-detail')).toHaveTextContent('No 20-day results yet: each one comes in 21 trading days after its prediction.');
+            expect(card.querySelector('.model-stat-detail')).toHaveTextContent('No 1-day results yet: each one comes in the next trading day.');
             expect(rowsOf(card)).toContainEqual(['Scored days on this hold', 'none yet']);
+        });
+
+        it('says in place of the chart when a hold\'s results come in, where the track record has no day on a hold the listing gives, under a title naming it', async () => {
+            const listed = heldTrackOf(30, { twenty: 30 });
+
+            held({ listing: heldListingOf([heldModelOf({}, listed)]), track: heldTrackOf(30) });
+            await open('tables-gnn', { hold: 20 });
+
             expect(document.querySelector('.model-track .model-chart')).toBeNull();
             expect(document.querySelector('.model-track .model-track-none')).toHaveTextContent('No 20-day results yet: each one comes in 21 trading days after its prediction.');
             expect(within(document.querySelector('.model-track')).getByRole('heading', { name: 'Track record, 20-day hold: Loss' })).toBeInTheDocument();
-            expect(screen.getAllByText('No 20-day results yet: each one comes in 21 trading days after its prediction.')).toHaveLength(3);
         });
 
         it('folds the track record\'s card on a hold with no results, as it folds the chart\'s', async () => {
-            held();
+            held({ listing: heldListingOf([heldModelOf({}, heldTrackOf(30, { twenty: 30 }))]), track: heldTrackOf(30) });
             await open('tables-gnn', { hold: 20 });
 
             await userEvent.click(within(document.querySelector('.model-track')).getByRole('button', { name: 'Track record, 20-day hold: Loss' }));
@@ -2058,16 +2119,28 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
         });
 
         it('carries the note of the score on the hold: on Combined, loss averages the day\'s three', async () => {
-            held({ track: heldTrackOf(30, { twenty: 30 }) });
+            const track = heldTrackOf(30, { twenty: 30 });
+
+            held({ listing: heldListingOf([heldModelOf({}, track)]), track: track });
             await open('tables-gnn', { hold: 'combined' });
 
-            expect(within(stat('Loss, combined')).getByText('Loss, combined')).toHaveAccessibleDescription(noteOf('loss', { scores: ['loss'] }, 'combined'));
+            expect(within(stat('Loss, combined, last 20 days')).getByText('Loss, combined, last 20 days')).toHaveAccessibleDescription(noteOf('loss', { scores: ['loss'] }, 'combined'));
         });
     });
 
     describe('Combined', () => {
+        //
+        // a record with 20-day results, and so combined scores, and a listing
+        // giving them, so Combined can be picked
+        //
+        function combined() {
+            const track = heldTrackOf(30, { twenty: 30 });
+
+            held({ listing: heldListingOf([heldModelOf({}, track)]), track: track });
+        }
+
         it('offers the top 10\'s two disabled, in the buttons and the phone\'s menu', async () => {
-            held();
+            combined();
             await open('tables-gnn', { hold: 'combined' });
 
             expect(picker('Score').filter((button) => button.disabled).map((button) => button.textContent)).toEqual(['Top 10 gain', 'Top 10 wins']);
@@ -2078,11 +2151,11 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
         it('shows loss where a top 10\'s score is picked, and leaves the score picked as it was', async () => {
             const onScore = jest.fn();
 
-            held();
+            combined();
             await open('tables-gnn', { hold: 'combined', scores: { direction: 'top10_gain' }, onScore: onScore });
 
             expect(pressed('Score')).toEqual(['Loss']);
-            expect(stat('Loss, combined')).toBeInTheDocument();
+            expect(stat('Loss, combined, last 20 days')).toBeInTheDocument();
             expect(onScore).not.toHaveBeenCalled();
         });
 
@@ -2503,13 +2576,14 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
         });
 
         it('says a hold with no results yet, under the boxes, in place of how it stands', async () => {
-            phoneScreen();
-            held();
-            await open('tables-gnn', { hold: 'combined' });
+            const none = { days: 0, score: null, baseline: null };
 
-            expect(document.querySelector('.model-score-line')).toHaveTextContent(
-                /^No combined scores yet: each one comes in with its day’s 20-day result, 21 trading days after its prediction\.$/,
-            );
+            phoneScreen();
+            held({ listing: heldListingOf([heldModelOf({ scored_days: 0, score: null, baseline: null, holds: { '1d': none, '5d': none, '20d': none, combined: none } })]), track: [] });
+            await open('tables-gnn');
+
+            expect(document.querySelector('.model-score-line')).toHaveTextContent(/^No 1-day results yet: each one comes in the next trading day\.$/);
+            expect([...document.querySelectorAll('.model-holds option:disabled')].map((option) => option.textContent)).toEqual(['5 days', '20 days', 'Combined']);
         });
     });
 

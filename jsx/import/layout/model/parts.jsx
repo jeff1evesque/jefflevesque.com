@@ -112,9 +112,11 @@ ScorePicker.propTypes = {
  * how long a model's picks are held, beside the score picker (#279): the holds
  * it has, `holds` -- see scores.js's holdsOf and listedHolds -- an options
  * model's three, and from format 5 a stock model's and Combined (#300). It
- * hands a hold up as its number of days, or as COMBINED.
+ * hands a hold up as its number of days, or as COMBINED. Those `disabled` have
+ * no result yet, and are offered grayed out until one comes in (#300) -- see
+ * scores.js's emptyHolds.
  */
-export function HoldPicker({ hold, onHold, holds = HOLDS }) {
+export function HoldPicker({ hold, onHold, holds = HOLDS, disabled = [] }) {
     return (
         <Choices
             className='model-scores model-holds'
@@ -122,6 +124,7 @@ export function HoldPicker({ hold, onHold, holds = HOLDS }) {
             choices={holds.map((each) => ({ key: String(each.days), label: each.label }))}
             chosen={String(hold)}
             onChoose={(key) => onHold(key === COMBINED ? COMBINED : Number(key))}
+            disabled={disabled.map(String)}
         />
     );
 }
@@ -133,6 +136,7 @@ HoldPicker.propTypes = {
         days: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]).isRequired,
         label: PropTypes.string.isRequired,
     })),
+    disabled: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])])),
 };
 
 /**
