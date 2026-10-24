@@ -1,16 +1,11 @@
 /**
  * model.jsx: /model, every model trained each night and how it scores (#243).
  *
- * Under its title, five sentences say what the stock models predict for each
- * S&P 500 stock -- the three things their loss scores (#277) -- and what the
- * options model predicts for each of its options (#279), what they read, linking
- * the knowledge graph and the data it is built from (#251), and that the page
- * shows how the predictions are graded, and that an options model's picks are on
- * a page of their own, for signed-in readers (#290), which each options model's
- * row links to.
- * On a phone they fold to their first two lines, which a 'More' at the end of the
- * second opens and a 'Less' at their own end folds again, kept for the next visit
- * as the filters' band is (#287).
+ * What the models predict, what they read, and how they're graded against the
+ * baseline are on the docs' page on the models, which an icon leads to (#296):
+ * /stream's docs icon, at the right end of the Sort row on a computer, and of the
+ * title's row on a phone. It took the place of five sentences under the title,
+ * which a phone folded behind a 'More' (#287).
  * One list per task -- what a model predicts -- beside a column of filters, by
  * task and by status, which folds to a rail as /graph's columns do and is a
  * folded band on a phone (#251). Every row carries the model's live version, how
@@ -50,9 +45,10 @@
 
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { Link } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
+import Tooltip from '@mui/material/Tooltip';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import ErrorFallback from '../formatter/boundary-error.jsx';
 import InfoNote from '../general/info-note.jsx';
 import ModelRow from './model/model-row.jsx';
@@ -62,6 +58,7 @@ import { PendingGroup, STAGGER } from './model/pending.jsx';
 import { PendingBar } from './graph/pending.jsx';
 import { readLayout, writeLayout } from '../general/layout-preference.js';
 import { listSubscriptions } from '../general/account-api.js';
+import { GUIDES } from '../general/api-url.js';
 import { loadListing, loadReport } from './model/source.js';
 import {
     LOSS_PARTS,
@@ -172,6 +169,34 @@ const FILTERS_FOLD = 48;
 //
 const HINT = 'Tick two or three models that predict the same thing to compare them.';
 
+/**
+ * the docs' page on the models (#296), as /stream links its api's docs: the page
+ * icon in the docs links' gray, named in its tooltip and to a screen reader, and
+ * opened in a new tab, so the lists stay as the reader arranged them. `size` is
+ * mui's: 'large' on the Sort row of a computer, and 'medium' on a phone's title
+ * row, the two sizes /stream's icon is drawn at -- see '_model.scss', which
+ * shows each on its own screens.
+ */
+export function DocsLink({ size }) {
+    return (
+        <Tooltip title='How the models work'>
+            <a
+                className='api-link'
+                href={GUIDES.models}
+                target='_blank'
+                rel='noopener noreferrer'
+                aria-label='How the models work'
+            >
+                <DescriptionOutlinedIcon fontSize={size} />
+            </a>
+        </Tooltip>
+    );
+}
+
+DocsLink.propTypes = {
+    size: PropTypes.oneOf(['medium', 'large']).isRequired,
+};
+
 class ModelLayout extends Component {
     static propTypes = {
         //
@@ -222,16 +247,11 @@ class ModelLayout extends Component {
             // its own width, and folded on a phone until its band is tapped
             filters_open: phone ? kept.fold.filters === false : kept.fold.filters !== true,
             filters_width: kept.size.filters >= FILTERS_MIN && kept.size.filters <= FILTERS_MAX ? kept.size.filters : null,
-            // whether the intro is open past the two lines a phone folds it to
-            // (#287): as this browser kept it, and otherwise folded. A wide
-            // screen shows all of it either way -- see '.model-lede-fold'
-            intro_open: phone && kept.fold.intro === false,
         };
 
         this.pick = this.pick.bind(this);
         this.clear = this.clear.bind(this);
         this.toggleFilters = this.toggleFilters.bind(this);
-        this.toggleIntro = this.toggleIntro.bind(this);
         this.startDrag = this.startDrag.bind(this);
         this.onDrag = this.onDrag.bind(this);
         this.releaseDrag = this.releaseDrag.bind(this);
@@ -290,31 +310,20 @@ class ModelLayout extends Component {
 
     //
     // how the filters' column is arranged, kept for the next visit: folded or
-    // open, and the width it was dragged to. On a phone, whether the intro is
-    // folded too (#287). It folds on a phone alone, so a wide screen keeps no
-    // word of it
+    // open, and the width it was dragged to. The intro's fold is no longer kept
+    // (#296): there is no intro to fold
     //
     saveLayout() {
-        const { filters_open, filters_width, intro_open } = this.state;
-        const phone = isPhone();
-        const fold = { filters: !filters_open };
+        const { filters_open, filters_width } = this.state;
 
-        if (phone) {
-            fold.intro = !intro_open;
-        }
-
-        writeLayout(LAYOUT, phone ? 'narrow' : 'wide', {
-            fold: fold,
+        writeLayout(LAYOUT, isPhone() ? 'narrow' : 'wide', {
+            fold: { filters: !filters_open },
             size: filters_width ? { filters: filters_width } : {},
         });
     }
 
     toggleFilters() {
         this.setState((state) => ({ filters_open: !state.filters_open }), () => this.saveLayout());
-    }
-
-    toggleIntro() {
-        this.setState((state) => ({ intro_open: !state.intro_open }), () => this.saveLayout());
     }
 
     //
@@ -736,7 +745,8 @@ class ModelLayout extends Component {
     //
     // the sort, which needs nothing from the listing, so it is drawn while it
     // is on its way as well. Each list has its own score picker (#279), of the
-    // scores the listing says its task has
+    // scores the listing says its task has. On a computer, the docs' page on the
+    // models at the row's right end (#296)
     //
     controls() {
         return (
@@ -753,6 +763,9 @@ class ModelLayout extends Component {
                         ))}
                     </select>
                 </label>
+                <div className='api-links model-controls-docs'>
+                    <DocsLink size='large' />
+                </div>
             </div>
         );
     }
@@ -817,30 +830,8 @@ class ModelLayout extends Component {
         ));
     }
 
-    //
-    // the button that folds or opens the intro on a phone (#287): 'More' over the
-    // end of its second line while it is folded, and 'Less' at its own end while
-    // it is open. Neither shows on a wide screen, which never folds it -- see
-    // '.model-lede-fold' in '_model.scss'
-    //
-    introToggle() {
-        const { intro_open } = this.state;
-
-        return (
-            <button
-                type='button'
-                className={`model-lede-toggle ${intro_open ? 'model-lede-less' : 'model-lede-more'}`}
-                aria-expanded={intro_open}
-                aria-controls='model-lede'
-                onClick={this.toggleIntro}
-            >
-                {intro_open ? 'Less' : <><span className='model-lede-dots' aria-hidden='true'>…</span> More</>}
-            </button>
-        );
-    }
-
     render() {
-        const { listing, intro_open } = this.state;
+        const { listing } = this.state;
         let count = '';
 
         if (listing === null || (listing && !listing.models.length)) {
@@ -858,18 +849,9 @@ class ModelLayout extends Component {
                         <div className='model-heading'>
                             <h4>Models</h4>
                             <span className='model-count'>{listing === undefined ? <PendingBar width='1rem' /> : count}</span>
-                        </div>
-                        <div className={`model-lede-fold ${intro_open ? 'model-lede-open' : 'model-lede-folded'}`}>
-                            <span className='model-lede' id='model-lede'>
-                                {'For each of the roughly 500 stocks in the S&P 500, the stock models predict three things about the next trading day: the chance its price goes up, the chance it beats the average stock, and how far it moves. The options model predicts, for each of those stocks’ options, the chance it makes money if bought at 9:40 AM the next trading day and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and sell prices. Each night they read the day’s '}
-                                <Link to='/graph'>knowledge graph</Link>
-                                {', built from the '}
-                                <Link to='/stream'>data this site collects</Link>
-                                {'. Once the prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all. This page shows those grades. An options model’s picks are on a page of their own, for signed-in readers.'}
-                                {intro_open ? ' ' : null}
-                                {intro_open ? this.introToggle() : null}
-                            </span>
-                            {intro_open ? null : this.introToggle()}
+                            <div className='api-links model-heading-docs'>
+                                <DocsLink size='medium' />
+                            </div>
                         </div>
                     </div>
                     {this.body()}
