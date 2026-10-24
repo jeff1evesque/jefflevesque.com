@@ -5,6 +5,19 @@
  *       so recharts draws it for real under jsdom without a size given to it.
  */
 
+//
+// whether the page is on a phone, as react-device-detect reads it from the user
+// agent: a computer's unless a case says otherwise (#296)
+//
+let mockMobile = false;
+
+jest.mock('react-device-detect', () => ({
+    ...jest.requireActual('react-device-detect'),
+    get isMobile() {
+        return mockMobile;
+    },
+}));
+
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -12,8 +25,8 @@ import { MemoryRouter } from 'react-router-dom';
 
 import ModelRow, { TrendLine } from '../../../import/layout/model/model-row.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
-import { COMPARE_COLORS, SCORES, noteOf, recentDays } from '../../../import/layout/model/scores.js';
-import { OPTIONS_TASK, downModelOf, modelOf, olderTrackOf, optionsModelOf, trackOf } from '../../../test-support/model-fixtures.js';
+import { COMPARE_COLORS, SCORES, formatScore, noteOf, recentDays, shortDay } from '../../../import/layout/model/scores.js';
+import { OPTIONS_TASK, downModelOf, modelOf, olderTrackOf, optionsModelOf, pointAt, trackOf } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
     const onPick = props.onPick || jest.fn();
@@ -454,5 +467,89 @@ describe('TrendLine', () => {
         const { container } = trend({ rows: null });
 
         expect(container.querySelector('.model-trend-none')).toHaveAttribute('title', 'Could not be loaded');
+    });
+
+    describe('the day under the pointer, on a computer (#296)', () => {
+        afterEach(() => {
+            mockMobile = false;
+        });
+
+        //
+        // the line's last day is at its right end: 132px wide, less its 4px margin
+        //
+        const pointAtLastDay = (container) => pointAt(container.querySelector('.recharts-wrapper'), 128, 18);
+
+        it('shows a box of the day, the score and the baseline\'s, each after its line\'s mark', () => {
+            const rows = trackOf(10);
+            const last = rows[rows.length - 1];
+            const { container } = trend({ rows: rows });
+
+            pointAtLastDay(container);
+
+            const tip = container.querySelector('.model-trend-tip');
+            const named = [...tip.querySelectorAll('.model-tip-row')].map((row) => [
+                row.querySelector('.model-tip-name').textContent,
+                row.querySelector('.model-tip-value').textContent,
+            ]);
+
+            expect(tip).toHaveClass('model-tip');
+            expect(tip.querySelector('.model-tip-title')).toHaveTextContent(shortDay(last.day));
+            expect(named).toEqual([
+                ['Loss', formatScore(last.average.loss, 'loss')],
+                ['Baseline', formatScore(last.baseline_average.loss, 'loss')],
+            ]);
+            expect(tip.querySelectorAll('.model-mark')).toHaveLength(2);
+        });
+
+        it('names the score picked', () => {
+            const rows = trackOf(10);
+            const { container } = trend({ rows: rows, score: 'auc_up' });
+
+            pointAtLastDay(container);
+
+            expect(container.querySelector('.model-trend-tip .model-tip-name')).toHaveTextContent('Up/down AUC');
+        });
+
+        it('puts a dot on each line at the day', () => {
+            const { container } = trend({ rows: trackOf(10) });
+
+            pointAtLastDay(container);
+
+            expect(container.querySelectorAll('.recharts-active-dot')).toHaveLength(2);
+        });
+
+        it('shows no box on a day the model has no score', () => {
+            //
+            // the axis runs ten days, and this record only its first five
+            //
+            const { container } = trend({ rows: trackOf(5) });
+
+            pointAtLastDay(container);
+
+            expect(container.querySelector('.model-trend-tip')).toBeNull();
+        });
+
+        it('leaves out the baseline\'s row on a day it has none', () => {
+            const rows = trackOf(10);
+
+            rows[rows.length - 1].baseline_average = {};
+
+            const { container } = trend({ rows: rows });
+
+            pointAtLastDay(container);
+
+            expect([...container.querySelectorAll('.model-trend-tip .model-tip-name')].map((name) => name.textContent)).toEqual(['Loss']);
+        });
+
+        it('shows no box and no dot on a phone, which has no pointer', () => {
+            mockMobile = true;
+
+            const { container } = trend({ rows: trackOf(10) });
+
+            pointAtLastDay(container);
+
+            expect(container.querySelector('.model-trend-tip')).toBeNull();
+            expect(container.querySelectorAll('.recharts-active-dot')).toHaveLength(0);
+        });
     });
 });
