@@ -562,6 +562,10 @@
   overflow: hidden;
 }
 
+//
+// 34px tall (#300): the buttons are drawn only where there is a pointer's room
+// for them, a phone having its menus in their place, 44px tall for a finger
+//
 .model-score {
   background-color: $white-1;
   border: 0;
@@ -571,8 +575,8 @@
   cursor: pointer;
   font: inherit;
   font-size: 14px;
-  min-height: 44px;
-  padding: 10px 14px;
+  min-height: 34px;
+  padding: 6px 14px;
 
   &:last-child {
     border-right: 0;
@@ -604,7 +608,7 @@
 }
 
 .model-holds .model-score {
-  padding: 10px 16px;
+  padding: 6px 16px;
 }
 
 .model-score-menu {

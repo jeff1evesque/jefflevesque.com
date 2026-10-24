@@ -216,7 +216,7 @@ describe('the pickers, as #300 lays them out', () => {
         expect(declared(ruleOf('> .model-control-label', 'font-size'), 'font-size')).toBe('12px');
     });
 
-    it('join a picker\'s buttons in one box with a rule between each, each 44px tall', () => {
+    it('join a picker\'s buttons in one box with a rule between each, each 34px tall, a phone\'s menus 44px in their place (#300)', () => {
         const [box] = rulesOf('.model-score-buttons');
         const button = whole('.model-score');
 
@@ -225,10 +225,10 @@ describe('the pickers, as #300 lays them out', () => {
         expect(declared(box, 'overflow')).toBe('hidden');
         expect(declared(button, 'border-radius')).toBe('0');
         expect(declared(button, 'border-right')).toBe('1px solid $gray-3');
-        expect(declared(button, 'min-height')).toBe('44px');
-        expect(declared(button, 'padding')).toBe('10px 14px');
+        expect(declared(button, 'min-height')).toBe('34px');
+        expect(declared(button, 'padding')).toBe('6px 14px');
         expect(button.body).toMatch(/&:last-child \{\s*border-right: 0;/);
-        expect(declared(ruleOf('.model-holds .model-score', 'padding'), 'padding')).toBe('10px 16px');
+        expect(declared(ruleOf('.model-holds .model-score', 'padding'), 'padding')).toBe('6px 16px');
     });
 
     it('fill the one picked in the page\'s dark gray, and fade one that can\'t be picked', () => {
