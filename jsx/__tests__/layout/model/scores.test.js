@@ -76,6 +76,7 @@ import {
     scoreOf,
     scoreOnHold,
     scoresFor,
+    emptyHolds,
     scoresAt,
     scoresOn,
     sharedScores,
@@ -928,6 +929,25 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
         expect(scoresOn(model)).toEqual(scoresOn(model, null));
         expect(scoresOn(modelOf(), 5)).toEqual({ score: modelOf().score, baseline: modelOf().baseline, days: 30, hold: null });
         expect(scoresOn(modelOf({ holds: { '1d': model.holds['1d'] } }), 5).hold).toBeNull();
+    });
+
+    it('find the holds a model has no result on yet: a listed hold with no day scored, never the first (#300)', () => {
+        const model = heldModelOf();
+        const holds = HOLDS.concat([COMBINED_HOLD]);
+
+        expect(emptyHolds(model, undefined, holds)).toEqual([20, COMBINED]);
+        expect(emptyHolds({ ...model, holds: { ...model.holds, '1d': { ...model.holds['1d'], days: 0 } } }, undefined, holds)).toEqual([20, COMBINED]);
+    });
+
+    it('read the holds the listing gives none of from the track record, every one past the first while it is on its way (#300)', () => {
+        const model = modelOf({ name: 'pt-options', task: 'option-picks' });
+
+        expect(emptyHolds(model, undefined, HOLDS)).toEqual([5, 20]);
+        expect(emptyHolds(model, null, HOLDS)).toEqual([5, 20]);
+        expect(emptyHolds(model, optionsTrackOf(5), HOLDS)).toEqual([20]);
+        expect(emptyHolds(model, optionsTrackOf(30), HOLDS)).toEqual([]);
+        expect(emptyHolds(model, trackOf(10), HOLDS)).toEqual([5, 20]);
+        expect(emptyHolds(model, undefined, [])).toEqual([]);
     });
 
     it('read an options model\'s scores on a longer hold from its track record where the listing gives none, before format 5', () => {

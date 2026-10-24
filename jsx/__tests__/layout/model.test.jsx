@@ -45,9 +45,11 @@ import {
     heldListingOf,
     heldModelOf,
     heldTrackOf,
+    holdsFrom,
     listingOf,
     modelOf,
     optionsListingOf,
+    optionsModelOf,
     optionsTrackOf,
     phoneScreen,
     trackOf,
@@ -1419,7 +1421,27 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
         return open(props);
     }
 
+    //
+    // the same, a little later: each stock model's oldest ten days with their
+    // 20-day results in, and Combined's with them, so every hold has a result
+    //
+    function allIn(props = {}) {
+        const track = (name) => heldTrackOf(30, name === 'pt-gnn' ? { twenty: 10, ...BEHIND } : { twenty: 10 });
+
+        answer(
+            heldListingOf([
+                heldModelOf({}, track('tables-gnn')),
+                heldModelOf({ name: 'pt-gnn', description: 'A graph model of the market' }, track('pt-gnn')),
+                optionsModelOf({ holds: holdsFrom(optionsTrackOf(30), OPTIONS_TASK.scores) }),
+            ]),
+            (name) => (name === 'pt-options' ? optionsTrackOf(30) : track(name)),
+        );
+
+        return open(props);
+    }
+
     const buttons = (name, picker) => within(within(group(name)).getByRole('group', { name: picker })).getAllByRole('button');
+    const offIn = (name, picker) => buttons(name, picker).filter((button) => button.disabled).map((button) => button.textContent);
     const pressedIn = (name, picker) => buttons(name, picker).filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent);
     const rowOf = (name) => screen.getByRole('link', { name: name }).closest('.model-row');
 
@@ -1452,7 +1474,7 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
     it('hands the hold picked up with its task', async () => {
         const onHold = jest.fn();
 
-        await held({ onHold: onHold });
+        await allIn({ onHold: onHold });
         await userEvent.click(within(group('Next-day direction')).getByRole('button', { name: 'Combined' }));
         await userEvent.click(within(group('Option picks')).getByRole('button', { name: '20 days' }));
 
@@ -1484,7 +1506,7 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
     });
 
     it('leaves the other task\'s list on its own hold', async () => {
-        await held({ holds: { direction: 20 } });
+        await allIn({ holds: { direction: 20 } });
 
         expect(pressedIn('Next-day direction', 'Hold')).toEqual(['20 days']);
         expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
@@ -1497,12 +1519,41 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
     });
 
     it('disables the top 10\'s two on Combined, and shows loss for one picked', async () => {
-        await held({ holds: { direction: 'combined' }, scores: { direction: 'top10_wins' } });
+        await allIn({ holds: { direction: 'combined' }, scores: { direction: 'top10_wins' } });
 
         expect(buttons('Next-day direction', 'Score').filter((button) => button.disabled).map((button) => button.textContent))
             .toEqual(['Top 10 gain', 'Top 10 wins']);
         expect(pressedIn('Next-day direction', 'Score')).toEqual(['Loss']);
         expect(buttons('Option picks', 'Score').some((button) => button.disabled)).toBe(false);
+    });
+
+    it('grays out a hold no model of the list has a result on yet, in the buttons and a phone\'s menu', async () => {
+        await held();
+
+        const menu = [...group('Next-day direction').querySelectorAll('.model-score-menu select')]
+            .find((select) => select.parentNode.textContent.startsWith('Hold'));
+
+        expect(offIn('Next-day direction', 'Hold')).toEqual(['20 days', 'Combined']);
+        expect(offIn('Option picks', 'Hold')).toEqual([]);
+        expect([...menu.options].filter((option) => option.disabled).map((option) => option.textContent)).toEqual(['20 days', 'Combined']);
+    });
+
+    it('offers a hold once a model of the list has a result on it', async () => {
+        await allIn();
+
+        expect(offIn('Next-day direction', 'Hold')).toEqual([]);
+    });
+
+    it('stays on 1 day where the hold picked has no result yet, and hands nothing up for a click on it', async () => {
+        const onHold = jest.fn();
+
+        await held({ holds: { direction: 'combined' }, onHold: onHold });
+        await userEvent.click(within(group('Next-day direction')).getByRole('button', { name: '20 days' }));
+
+        expect(pressedIn('Next-day direction', 'Hold')).toEqual(['1 day']);
+        expect(group('Next-day direction').querySelector('.model-hold-line')).toHaveTextContent(/^1-day hold: /);
+        expect(rowOf('tables-gnn').querySelector('.model-cell-parts .model-parts-note')).toHaveTextContent(/, last 20 days$/);
+        expect(onHold).not.toHaveBeenCalled();
     });
 
     it('sorts each list by its models\' scores on the hold, and by name where none has one yet', async () => {
@@ -1562,21 +1613,68 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
             expect(daysIn()).toHaveTextContent(`${scored(20).length} days so far`);
         });
 
-        it('holds bars in a row\'s figures on a longer hold while its track record is on its way', async () => {
+        //
+        // a second options model beside pt-options, whose track record `record`
+        // answers with: on its way, or none at all
+        //
+        function twoOptions(record, props = {}) {
+            const listing = optionsListingOf();
+
+            listing.models = listing.models.concat([optionsModelOf({ name: 'tables-options' })]);
+            loadListing.mockResolvedValue(listing);
+            loadReport.mockImplementation((name) => {
+                if (name === 'tables-options') {
+                    return record;
+                }
+
+                return Promise.resolve(name === 'pt-options' ? optionsTrackOf(30) : withTop10(trackOf(5)));
+            });
+
+            return open(props);
+        }
+
+        const otherRow = () => rowOf('tables-options');
+
+        it('grays out the longer holds and stays on 1 day while its models\' track records are on their way, and offers them once one is in', async () => {
+            const record = deferred();
+
             loadListing.mockResolvedValue(optionsListingOf());
-            loadReport.mockImplementation((name) => (name === 'pt-options' ? new Promise(() => {}) : Promise.resolve(withTop10(trackOf(5)))));
+            loadReport.mockImplementation((name) => (name === 'pt-options' ? record.promise : Promise.resolve(withTop10(trackOf(5)))));
             await open({ holds: { 'option-picks': 5 } });
 
-            expect(valueIn().querySelector('.graph-pending-bar')).not.toBeNull();
-            expect(daysIn().querySelector('.graph-pending-bar')).not.toBeNull();
+            expect(offIn('Option picks', 'Hold')).toEqual(['5 days', '20 days']);
+            expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
+            expect(valueIn()).toHaveTextContent(formatScore(optionsListingOf().models.find((model) => model.name === 'pt-options').score.loss, 'loss'));
+
+            await act(async () => record.resolve(optionsTrackOf(30)));
+
+            expect(offIn('Option picks', 'Hold')).toEqual([]);
+            expect(pressedIn('Option picks', 'Hold')).toEqual(['5 days']);
         });
 
-        it('shows a dash where the track record could not be had', async () => {
+        it('grays out the longer holds where its one model\'s track record could not be had', async () => {
             answer(optionsListingOf(), (name) => (name === 'pt-options' ? null : withTop10(trackOf(5))));
             await open({ holds: { 'option-picks': 5 } });
 
-            expect(valueIn()).toHaveTextContent('–');
-            expect(daysIn()).toHaveTextContent('no scored days yet');
+            expect(offIn('Option picks', 'Hold')).toEqual(['5 days', '20 days']);
+            expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
+        });
+
+        it('holds bars in a row\'s figures on a longer hold while its track record is on its way, where another\'s is in', async () => {
+            await twoOptions(new Promise(() => {}), { holds: { 'option-picks': 5 } });
+
+            expect(pressedIn('Option picks', 'Hold')).toEqual(['5 days']);
+            expect(otherRow().querySelector('.model-score-value .graph-pending-bar')).not.toBeNull();
+            expect(otherRow().querySelector('.model-score-days .graph-pending-bar')).not.toBeNull();
+            expect(valueIn().querySelector('.graph-pending-bar')).toBeNull();
+        });
+
+        it('shows a dash on a longer hold where a model\'s track record could not be had, where another\'s is in', async () => {
+            await twoOptions(Promise.resolve(null), { holds: { 'option-picks': 5 } });
+
+            expect(pressedIn('Option picks', 'Hold')).toEqual(['5 days']);
+            expect(otherRow().querySelector('.model-score-value')).toHaveTextContent('–');
+            expect(otherRow().querySelector('.model-score-days')).toHaveTextContent('no scored days yet');
         });
     });
 

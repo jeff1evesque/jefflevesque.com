@@ -464,6 +464,25 @@ export function scoresOn(model, hold = null) {
 }
 
 /**
+ * the holds of `holds` a model has no result on yet (#300), which a picker
+ * offers grayed out until one comes in: on a hold the listing gives, one it has
+ * scored no day on, and otherwise one its track record, `rows`, has no day on --
+ * or every one while the record is on its way. Never the first, which a page
+ * opens on.
+ */
+export function emptyHolds(model, rows, holds) {
+    return holds.slice(1).map((each) => each.days).filter((days) => {
+        const listed = model.holds ? model.holds[holdKey(days)] : null;
+
+        if (listed) {
+            return !listed.days;
+        }
+
+        return !Array.isArray(rows) || !rows.some((row) => scoreIn(row.score, columnOf(DEFAULT_SCORE, days)) !== null);
+    });
+}
+
+/**
  * a model's scores on a hold in /model's list (#300): the listing's, as
  * scoresOn gives them, or where the listing gives none on a hold past the
  * first -- an options model's before format 5 -- its track record's, `rows`:

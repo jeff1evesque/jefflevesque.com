@@ -93,6 +93,7 @@ import {
     chosenScore,
     columnOf,
     comesInLine,
+    emptyHolds,
     formatDuration,
     formatGap,
     formatScore,
@@ -1102,7 +1103,10 @@ class ModelPage extends Component {
     // so the picker is there while the track record is on its way. Otherwise
     // those its track record has columns for (#279), and while it is on its way,
     // the three for a task that trades options, so the picker does not arrive
-    // after the page has
+    // after the page has.
+    //
+    // A hold with no result yet, `empty`, is offered grayed out until one comes
+    // in, and the page stays on the first (#300) -- see scores.js's emptyHolds
     //
     holds(model, task) {
         const { track } = this.state;
@@ -1113,9 +1117,10 @@ class ModelPage extends Component {
             holds = track === undefined && tradesOptions(task) ? HOLDS : holdsOf(track);
         }
 
-        const hold = holds.some((each) => each.days === this.props.hold) ? this.props.hold : null;
+        const empty = emptyHolds(model, track, holds);
+        const hold = holds.some((each) => each.days === this.props.hold) && !empty.includes(this.props.hold) ? this.props.hold : null;
 
-        return { holds: holds, hold: hold || (holds.length ? holds[0].days : null) };
+        return { holds: holds, hold: hold || (holds.length ? holds[0].days : null), empty: empty };
     }
 
     //
@@ -1266,7 +1271,7 @@ class ModelPage extends Component {
                         offered={scoresFor(task)}
                         disabled={heldOut(task, holds.hold)}
                     />
-                    {holds.holds.length ? <HoldPicker hold={holds.hold} onHold={onHold} holds={holds.holds} /> : null}
+                    {holds.holds.length ? <HoldPicker hold={holds.hold} onHold={onHold} holds={holds.holds} disabled={holds.empty} /> : null}
                 </div>
                 {stock ? <p className='model-hold-line'>{holdLine(task, holds.hold)}</p> : null}
                 {this.summary(model, task, score, holds.hold)}

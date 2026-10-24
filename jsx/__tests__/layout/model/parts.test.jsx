@@ -126,6 +126,22 @@ describe('HoldPicker (#279)', () => {
         expect(document.querySelector('.model-holds')).toHaveClass('model-scores');
     });
 
+    it('grays out the holds it is handed as having no result yet, in its buttons and a phone\'s menu (#300)', () => {
+        render(<HoldPicker hold={1} onHold={() => {}} disabled={[5, 20]} />);
+
+        const buttons = within(screen.getByRole('group', { name: 'Hold' })).getAllByRole('button');
+        const options = [...document.querySelectorAll('.model-score-menu option')];
+
+        expect(buttons.map((button) => button.disabled)).toEqual([false, true, true]);
+        expect(options.map((option) => option.disabled)).toEqual([false, true, true]);
+    });
+
+    it('grays out nothing where it is handed no hold without a result', () => {
+        render(<HoldPicker hold={1} onHold={() => {}} />);
+
+        expect(within(screen.getByRole('group', { name: 'Hold' })).getAllByRole('button').some((button) => button.disabled)).toBe(false);
+    });
+
     it('hands up the hold picked, as its days, from a button or a phone\'s menu', async () => {
         const onHold = jest.fn();
 

@@ -81,7 +81,8 @@ describe('a list of /model, as #300 lays one out', () => {
         expect(declared(group, 'display')).toBe('flex');
         expect(declared(group, 'flex-direction')).toBe('column');
         expect(declared(group, 'gap')).toBe('14px');
-        expect(declared(group, 'margin-top')).toBe('22px');
+        expect(declared(group, 'margin-top')).toBe('8px');
+        expect(declared(ruleOf('.model-main', 'gap'), 'gap')).toBe('1rem');
         expect(declared(group, 'padding-top')).toBe('18px');
         expect(group.body).toMatch(/> \.model-hold-line \{\s*margin: -4px 0 0;/);
     });
@@ -150,6 +151,16 @@ describe('a list of /model, as #300 lays one out', () => {
         expect(narrow).not.toBeNull();
         expect(declared({ body: narrow[1] }, 'grid-template-areas')).toBe('\'compare model\' \'. score\' \'. trend\' \'. since\'');
         expect(declared({ body: narrow[1] }, 'grid-template-columns')).toBe('auto minmax(0, 1fr)');
+    });
+
+    it('lays a row on one line where its list has room, as #300 does, a list of loss\'s parts needing more of it (#300)', () => {
+        const scores = source.match(/@container \(min-width: 880px\) \{\s*\.model-list:not\(\.model-list-parts\) \.model-row \{([^}]*)\}/);
+        const parts = source.match(/@container \(min-width: 1150px\) \{\s*\.model-list-parts \.model-row \{([^}]*)\}/);
+
+        expect(declared({ body: scores[1] }, 'grid-template-areas')).toBe('\'compare model score trend since\'');
+        expect(declared({ body: scores[1] }, 'grid-template-columns')).toBe('auto minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)');
+        expect(declared({ body: parts[1] }, 'grid-template-areas')).toBe('\'compare model score trend since\'');
+        expect(declared({ body: parts[1] }, 'grid-template-columns')).toBe('auto minmax(0, 2fr) minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr)');
     });
 
     it('says over each trend line what it spans, in a 13px gray (#300)', () => {
@@ -334,6 +345,20 @@ describe('/model on a phone, as #300 lays it out (#274)', () => {
     it('draws the trend line across the card 56px tall, a little taller than a wide row\'s 44px (#300)', () => {
         expect(rulesOf('.model-trend,.model-trend-pending,.model-trend-none').map((each) => declared(each, 'height'))).toEqual(['44px', '56px']);
         expect(rulesOf('.model-trend-none').map((each) => declared(each, 'line-height')).filter(Boolean)).toEqual(['44px', '56px']);
+    });
+
+    it('sets the trend line 12px under its span, and the span 16px under the score, where they had crowded it (#300)', () => {
+        const trend = rulesOf('.model-cell-trend').find((each) => declared(each, 'margin-top'));
+
+        expect(declared(trend, 'gap')).toBe('12px');
+        expect(declared(trend, 'margin-top')).toBe('8px');
+    });
+
+    it('rules a card of scores off over its score and over its trend line, as loss\'s parts are on a card of stocks (#300)', () => {
+        const rule = RULES.find((each) => each.selectors.join() === '.model-list:not(.model-list-parts) .model-cell-score,.model-list:not(.model-list-parts) .model-cell-trend');
+
+        expect(declared(rule, 'border-top')).toBe('1px solid $gray-1');
+        expect(declared(rule, 'padding-top')).toBe('10px');
     });
 
     it('stands the box that ticks a model level with its name, status and bell, one row across the card\'s top (#300)', () => {
