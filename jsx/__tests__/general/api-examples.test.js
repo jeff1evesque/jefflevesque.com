@@ -29,7 +29,7 @@ import {
     graphSources,
     sourceTypes,
     outsideGraph,
-    when,
+    whenRange,
 } from '../../import/layout/graph/source.js';
 import filterSchema from '../../import/animation/filter-schema.js';
 import { sourceNamespace } from '../../import/animation/encoding.js';
@@ -396,12 +396,13 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
         });
     });
 
-    it('documents when each day\'s tables were written, as the Started and Finished rows read it', async () => {
+    it('documents when each day\'s tables were written, as the Processing data row reads it', async () => {
         //
-        // the Retrieval graph's Started and Finished rows read these, and a day
-        // published before the builder recorded them carries both as null, which
-        // the page shows as 'n/a'. A documented row that left them out would
-        // document an answer the api no longer gives
+        // the Retrieval graph's Processing data row runs from a day's run to when
+        // its tables were finished (#289), and a day published before the builder
+        // recorded them carries both table times as null, which the page shows as
+        // a range ending 'n/a'. A documented row that left them out would document
+        // an answer the api no longer gives
         //
         answering(days.example);
 
@@ -412,8 +413,8 @@ describe('knowledge graph tables, as the Retrieval graph loads a day', () => {
             expect({ day: row.day, documented: 'tables_started' in row && 'tables_finished' in row })
                 .toEqual({ day: row.day, documented: true });
         });
-        expect(choices.map((choice) => [choice.id, read('Started', choice), read('Finished', choice)]))
-            .toEqual(days.example.report.rows.map((row) => [row.day, when(row.tables_started), when(row.tables_finished)]));
+        expect(choices.map((choice) => [choice.id, read('Processing data', choice)]))
+            .toEqual(days.example.report.rows.map((row) => [row.day, whenRange(row.run, row.tables_finished)]));
     });
 
     it('documents each day\'s sources, null for the days published before the builder recorded them', async () => {
