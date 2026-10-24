@@ -210,7 +210,7 @@ describe('the model pages (#243)', () => {
 
         expect(screen.getByRole('heading', { name: 'tables' })).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Each attempt against the live version' })).toBeInTheDocument();
-        expect(loadReport).toHaveBeenCalledWith('tables', 'history');
+        expect(loadReport).toHaveBeenCalledWith('tables', 'history', 20);
     });
 
     it('says a name that is not a model is not found, on the model\'s page', async () => {
