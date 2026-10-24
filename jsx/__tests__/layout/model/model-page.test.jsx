@@ -60,6 +60,7 @@ import {
     optionsTrackOf,
     timedHistoryOf,
     trackOf,
+    withAverageDays,
     withTop10,
 } from '../../../test-support/model-fixtures.js';
 
@@ -423,8 +424,8 @@ describe('the model', () => {
 
         await open();
 
-        expect(loadReport).toHaveBeenCalledWith('pt-gnn', 'history');
-        expect(loadReport).toHaveBeenCalledWith('pt-gnn', 'track-record');
+        expect(loadReport).toHaveBeenCalledWith('pt-gnn', 'history', 20);
+        expect(loadReport).toHaveBeenCalledWith('pt-gnn', 'track-record', 20);
     });
 
     it('draws its two charts once both are in', async () => {
@@ -529,6 +530,67 @@ describe('the summary', () => {
 
         expect(stat('Loss, last 20 days').querySelector('.model-stat-value')).toHaveTextContent('–');
         expect(stat('Loss, last 20 days').querySelectorAll('.model-stat-detail')).toHaveLength(1);
+    });
+});
+
+describe('a listing that says how many scored days its models\' scores average, from format 4 (#293)', () => {
+    //
+    // pt-gnn with 25 scored days, New over 30 and Live over 20, beside tables
+    //
+    const over = (days, models = [modelOf({ scored_days: 25 }), modelOf({ name: 'tables', scored_days: 40 })]) => withAverageDays(listingOf(models), days);
+
+    function stat(label) {
+        const cards = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-cards');
+
+        return within(cards).getByText(label).closest('.model-stat');
+    }
+
+    it('asks for both reports with them, and for another model\'s track record', async () => {
+        answer({ listing: over(30) });
+        await open();
+
+        expect(loadReport).toHaveBeenCalledWith('pt-gnn', 'history', 30);
+        expect(loadReport).toHaveBeenCalledWith('pt-gnn', 'track-record', 30);
+
+        await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Compare with' }), 'tables');
+
+        expect(loadReport).toHaveBeenLastCalledWith('tables', 'track-record', 30);
+    });
+
+    it('keeps the model New until it has that many, its pill counting to them, and its score so far', async () => {
+        answer({ listing: over(30) });
+        await open();
+
+        expect(document.querySelector('.model-heading .model-pill')).toHaveTextContent(/^New · day 25 of 30$/);
+        expect(stat('Loss, 25 days so far')).toHaveTextContent('1.600');
+    });
+
+    it('names the score by them once the model has that many', async () => {
+        answer({ listing: over(20) });
+        const twenty = await open();
+
+        expect(document.querySelector('.model-heading .model-pill')).toHaveTextContent(/^Live$/);
+        expect(stat('Loss, last 20 days')).toBeInTheDocument();
+        twenty.unmount();
+
+        answer({ listing: over(10) });
+        await open('tables');
+
+        expect(stat('Loss, last 10 days')).toBeInTheDocument();
+    });
+
+    it('says them in the track record\'s line, its panel and its table', async () => {
+        answer({ listing: over(30), track: trackOf(5) });
+        await open();
+
+        const track = screen.getByRole('region', { name: 'Track record' });
+
+        await userEvent.click(within(track).getByRole('button', { name: 'Show the numbers' }));
+
+        expect(track.querySelector('.model-card-sub')).toHaveTextContent('lines are averages of the last 30 days');
+        expect(within(track).getByText('Know-nothing baseline, 30 days')).toBeInTheDocument();
+        expect(within(within(track).getByRole('table')).getAllByRole('columnheader').map((cell) => cell.textContent))
+            .toEqual(['Day', 'This day', '30 days', 'Baseline, 30 days']);
     });
 });
 
@@ -1182,7 +1244,7 @@ describe('another model beside the track record', () => {
 
         await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Compare with' }), 'tables');
 
-        expect(loadReport).toHaveBeenLastCalledWith('tables', 'track-record');
+        expect(loadReport).toHaveBeenLastCalledWith('tables', 'track-record', 20);
         expect(within(legendOfTrack()).getByText('tables')).toHaveClass('model-legend-name');
     });
 
@@ -1486,7 +1548,7 @@ describe('an options model (#279)', () => {
 
             await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Compare with' }), 'pt-gnn');
 
-            expect(loadReport).toHaveBeenLastCalledWith('pt-gnn', 'track-record');
+            expect(loadReport).toHaveBeenLastCalledWith('pt-gnn', 'track-record', 20);
             expect(trackOn()).toMatch(/of pt-options and pt-gnn/);
 
             await act(async () => {
@@ -1534,6 +1596,6 @@ describe('the route', () => {
         });
 
         expect(screen.getByRole('heading', { name: 'tables' })).toBeInTheDocument();
-        expect(loadReport).toHaveBeenCalledWith('tables', 'history');
+        expect(loadReport).toHaveBeenCalledWith('tables', 'history', 20);
     });
 });
