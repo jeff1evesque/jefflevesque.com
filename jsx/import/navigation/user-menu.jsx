@@ -1,6 +1,12 @@
 /**
  * user-menu.jsx: menu for logged-in, and anonymous users.
  *
+ * The menu under a signed-in reader's name links to each options model's picks,
+ * under an "Option picks" heading (#290): one item for every options model the
+ * model api's listing has that is still trained, by its name, so one added or
+ * retired comes or goes on its own. The picks are for signed-in readers, and this
+ * menu is drawn only for them.
+ *
  * Note: this script implements jsx (reactjs) syntax.
  */
 
@@ -15,6 +21,24 @@ import { HomeBrand } from './menu-items/home.jsx';
 import ThemeToggle from './theme-toggle.jsx';
 import setLogoutState from '../redux/action/logout.jsx';
 import { breakpoints } from '../general/breakpoints.js';
+import { loadListing } from '../layout/model/source.js';
+import { statusOf, tradesOptions } from '../layout/model/scores.js';
+
+/**
+ * the options models whose picks the menu links to (#290): every one the listing
+ * has that is still trained, by name. None where the listing could not be had.
+ */
+export function pickModels(listing) {
+    if (!listing) {
+        return [];
+    }
+
+    return listing.models
+        .filter((model) => statusOf(model) !== 'retired'
+            && tradesOptions(listing.tasks.find((task) => task.id === model.task) || { id: model.task }))
+        .map((model) => model.name)
+        .sort();
+}
 
 class UserMenu extends Component {
     // prob validation: static method, similar to class A {}; A.b = {};
@@ -41,12 +65,56 @@ class UserMenu extends Component {
         super(props);
         this.state = {
             ajax_done_error: null,
-            ajax_fail_error: null
+            ajax_fail_error: null,
+            // the options models whose picks the menu links to (#290): none
+            // until the listing names them
+            pick_models: [],
         };
 
       // bind allows 'this' object reference
         this.handleClick = this.handleClick.bind(this);
         this.render = this.render.bind(this);
+    }
+
+    componentDidMount() {
+        this.alive = true;
+
+        //
+        // the options models, for the links to their picks (#290): asked once,
+        // when the menu is first drawn
+        //
+        loadListing().then((listing) => {
+            if (this.alive) {
+                this.setState({ pick_models: pickModels(listing) });
+            }
+        });
+    }
+
+    componentWillUnmount() {
+        this.alive = false;
+    }
+
+    //
+    // the links to each options model's picks (#290), under their heading and
+    // after a rule, and on a phone's menu, which has no rule before signing out,
+    // `closed` with one after them too. Nothing until the listing names one
+    //
+    optionPicks(closed = false) {
+        const names = this.state.pick_models;
+
+        if (!names.length) {
+            return null;
+        }
+
+        return [
+            <NavDropdown.Divider key='picks-rule' />,
+            <NavDropdown.Header key='picks-heading'>Option picks</NavDropdown.Header>,
+        ].concat(
+            names.map((name) => (
+                <NavDropdown.Item key={`picks-${name}`} href={`/model/${encodeURIComponent(name)}/picks`}>{name}</NavDropdown.Item>
+            )),
+            closed ? [<NavDropdown.Divider key='picks-end' />] : [],
+        );
     }
 
     async handleClick(event) {
@@ -119,6 +187,7 @@ class UserMenu extends Component {
                         <NavDropdown.Divider />
                         <NavDropdown.Item href={`/${user}`}>My Profile</NavDropdown.Item>
                         <NavDropdown.Item href={`/${user}/settings`}>Account Settings</NavDropdown.Item>
+                        {this.optionPicks()}
                         <NavDropdown.Divider />
                         <NavDropdown.Item
                             onClick={this.handleClick}
@@ -155,6 +224,7 @@ class UserMenu extends Component {
                     <NavDropdown id='basic-nav-dropdown' title={title}>
                         <NavDropdown.Item href={`/${user}`}>My Profile</NavDropdown.Item>
                         <NavDropdown.Item href={`/${user}/settings`}>Account Settings</NavDropdown.Item>
+                        {this.optionPicks(true)}
                         <NavDropdown.Item
                             onClick={this.handleClick}
                             href='/logout'
