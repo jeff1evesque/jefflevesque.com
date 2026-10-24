@@ -21,7 +21,9 @@ import {
     SCORING_OPACITY,
     STATUSES,
     TRADE_SCORES,
+    WINDOW,
     alignDays,
+    averageDays,
     behindLine,
     behindRows,
     betterBy,
@@ -305,9 +307,11 @@ describe('a model\'s status', () => {
         expect(statusOf(modelOf({ scored_days: 20 }))).toBe('live');
     });
 
-    it('says how many days a new model has', () => {
-        expect(statusLabel(modelOf({ scored_days: 6 }))).toBe('New · 6 days');
-        expect(statusLabel(modelOf({ scored_days: 1 }))).toBe('New · 1 day');
+    it('says how far a new model is through the days it needs, and only New before its first (#293)', () => {
+        expect(statusLabel(modelOf({ scored_days: 6 }))).toBe('New · day 6 of 20');
+        expect(statusLabel(modelOf({ scored_days: 1 }))).toBe('New · day 1 of 20');
+        expect(statusLabel(modelOf({ scored_days: 19 }))).toBe('New · day 19 of 20');
+        expect(statusLabel(modelOf({ scored_days: 0 }))).toBe('New');
         expect(statusLabel(modelOf())).toBe('Live');
         expect(statusLabel(modelOf({ retired: '2026-10-01' }))).toBe('Retired');
     });
@@ -317,6 +321,42 @@ describe('a model\'s status', () => {
         expect(liveKind('nightly')).toBe('nightly update');
         expect(liveKind('weekly')).toBe('weekly retrain');
         expect(liveKind(null)).toBe('');
+    });
+});
+
+describe('the days a model\'s scores average (#293)', () => {
+    it('are the listing\'s average_days, which the worker gives the listing and every model', () => {
+        expect(averageDays(modelOf({ average_days: 30 }))).toBe(30);
+        expect(averageDays({ ...listingOf(), average_days: 1 })).toBe(1);
+    });
+
+    it('are 20 for a model or a listing without them, as before format 4, and for one that is not a whole number of 1 or more', () => {
+        expect(WINDOW).toBe(20);
+        expect(averageDays(modelOf())).toBe(20);
+        expect(averageDays(listingOf())).toBe(20);
+        expect(averageDays(null)).toBe(20);
+        expect(averageDays(undefined)).toBe(20);
+        [0, -5, 2.5, '30', null, NaN, Infinity].forEach((days) => {
+            expect(averageDays(modelOf({ average_days: days }))).toBe(20);
+        });
+    });
+
+    it('decide when a model stops being New', () => {
+        expect(statusOf(modelOf({ average_days: 30, scored_days: 25 }))).toBe('new');
+        expect(statusOf(modelOf({ average_days: 30, scored_days: 29 }))).toBe('new');
+        expect(statusOf(modelOf({ average_days: 30, scored_days: 30 }))).toBe('live');
+        expect(statusOf(modelOf({ average_days: 5, scored_days: 6 }))).toBe('live');
+    });
+
+    it('are what a New model\'s pill counts to', () => {
+        expect(statusLabel(modelOf({ average_days: 30, scored_days: 25 }))).toBe('New · day 25 of 30');
+        expect(statusLabel(modelOf({ average_days: 30, scored_days: 0 }))).toBe('New');
+        expect(statusLabel(modelOf({ average_days: 30, scored_days: 30 }))).toBe('Live');
+    });
+
+    it('do not say whether a model is down or retired: those come first, whatever its days', () => {
+        expect(statusLabel(downModelOf({ average_days: 30, scored_days: 4 }))).toBe('Behind baseline');
+        expect(statusLabel(modelOf({ average_days: 30, scored_days: 4, retired: '2026-10-01' }))).toBe('Retired');
     });
 });
 
