@@ -49,6 +49,7 @@ import {
     phoneScreen,
     trackOf,
     wideScreen,
+    withAverageDays,
     withTop10,
 } from '../../test-support/model-fixtures.js';
 
@@ -430,14 +431,83 @@ describe('the lists', () => {
         expect(group('Beat the average').querySelector('.model-group-detail')).toBeNull();
     });
 
-    it('asks for each model\'s track record, for its trend line', async () => {
+    it('asks for each model\'s track record, for its trend line, averaged over 20 days where the listing does not say (#293)', async () => {
         answer();
 
         await open();
 
         expect(loadReport.mock.calls.map((call) => call.join(' '))).toEqual([
-            'pt-gnn track-record', 'tables track-record', 'fresh track-record', 'beater track-record',
+            'pt-gnn track-record 20', 'tables track-record 20', 'fresh track-record 20', 'beater track-record 20',
         ]);
+    });
+
+    describe('a listing that says how many scored days its models\' scores average, from format 4 (#293)', () => {
+        //
+        // the listing's models, pt-gnn with 25 scored days: Live over 20, and
+        // New over 30
+        //
+        const over = (days) => withAverageDays(listingOf([
+            modelOf({ scored_days: 25 }),
+            modelOf({ name: 'tables', scored_days: 40, score: { loss: 1.62, auc_up: 0.54, auc_beats: 0.52, acc_up: 0.55 } }),
+            modelOf({ name: 'fresh', scored_days: 0, score: null, baseline: null, live: { since: '2026-10-22', kind: 'first' } }),
+        ]), days);
+
+        it('asks for each track record averaged over that many', async () => {
+            answer(over(30));
+
+            await open();
+
+            expect(loadReport.mock.calls.map((call) => call.join(' '))).toEqual([
+                'pt-gnn track-record 30', 'tables track-record 30', 'fresh track-record 30',
+            ]);
+        });
+
+        it('heads the score\'s column with them, and names the trend lines by them', async () => {
+            answer(over(30));
+
+            await open();
+
+            expect([...group('Next-day direction').querySelector('.model-parts-head').children][0]).toHaveTextContent(/^Loss, last 30 days$/);
+            expect(screen.getByRole('img', { name: 'pt-gnn\'s 30-day Loss, over the last 60 days' })).toBeInTheDocument();
+        });
+
+        it('keeps a model New until it has that many scored days, its pill counting to them, and only New before its first', async () => {
+            answer(over(30));
+
+            await open();
+
+            const pill = (name) => screen.getByRole('link', { name: name }).parentNode.querySelector('.model-pill');
+
+            expect(pill('pt-gnn')).toHaveTextContent(/^New · day 25 of 30$/);
+            expect(pill('tables')).toHaveTextContent(/^Live$/);
+            expect(pill('fresh')).toHaveTextContent(/^New$/);
+        });
+
+        it('counts the statuses in the filters by them', async () => {
+            const count = (name) => screen.getByRole('button', { name: new RegExp(`^${name}`) }).querySelector('.model-filter-count').textContent;
+
+            answer(over(30));
+            const thirty = await open();
+
+            expect([count('Live'), count('New')]).toEqual(['1', '2']);
+            thirty.unmount();
+
+            answer(over(20));
+            await open();
+
+            expect([count('Live'), count('New')]).toEqual(['2', '1']);
+        });
+
+        it('says them under the comparison\'s title', async () => {
+            answer(over(30));
+            await open();
+
+            await userEvent.click(box('pt-gnn'));
+            await userEvent.click(box('tables'));
+
+            expect(screen.getByRole('region', { name: 'Comparison' }).querySelector('.model-card-sub'))
+                .toHaveTextContent('Lines are averages of the last 30 days');
+        });
     });
 
     it('draws a trend line once a record is in, and passes over one that could not be had', async () => {

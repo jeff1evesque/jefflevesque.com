@@ -2,9 +2,10 @@
  * track-chart.jsx: a model's track record, on its own page (#243): each day it
  * predicted, scored once that day's prices were in.
  *
- * Each day's score is a faint dot, and the 20-day average of them a line, beside
- * the know-nothing baseline's. A menu adds another model of the same task, as
- * its own 20-day line, so the two can be read against each other on the days
+ * Each day's score is a faint dot, and the average of them a line, beside the
+ * know-nothing baseline's, over as many scored days as the listing's
+ * `average_days` (#293). A menu adds another model of the same task, as its own
+ * average's line, so the two can be read against each other on the days
  * both were scored -- or of another task, on a score of what each one's picks
  * would have made (#279). A short tick at the foot of the chart marks each night a
  * new version went live, read from the model's history, so a step in the line
@@ -18,7 +19,7 @@
  * or line yet. Another model drawn beside it is drawn on the same hold where it
  * has holds, and on its own scores where it has none, as a stock model.
  *
- * Note: the baseline is the model's own, its record's 20-day average (#263).
+ * Note: the baseline is the model's own, its record's average (#263).
  *       Each model's track record carries the baseline's scores on its own
  *       days, and they differ from one record to the next -- on 2026-10-15 the
  *       baseline's loss was 1.733 in tables-gnn's and 1.702 in pt-gnn's -- and
@@ -148,15 +149,15 @@ export function TakenDownTick(props) {
 TakenDownTick.propTypes = WentLiveTick.propTypes;
 
 /**
- * each day as the chart draws it: the model's score that day and its 20-day
- * average, the 20-day average of its own baseline, the other model's average
- * where one is added, and the check a day's score set off where it took the
- * live version down (#263). A day only the other model was scored on has no
- * dot and no line of this model's.
+ * each day as the chart draws it: the model's score that day and its average,
+ * the average of its own baseline, the other model's average where one is
+ * added, and the check a day's score set off where it took the live version
+ * down (#263). A day only the other model was scored on has no dot and no line
+ * of this model's.
  *
  * With a `hold` (#279), each is the hold's column of the score, and a day whose
- * hold's result is not in yet has none of them: its 20-day average would be of
- * the days before it alone. The other model's is the hold's too, where its
+ * hold's result is not in yet has none of them: its average would be of the
+ * days before it alone. The other model's is the hold's too, where its
  * record has the hold, and its score's own where it does not.
  */
 export function trackPoints(name, rows, other, otherRows, score, hold = null) {
@@ -186,7 +187,7 @@ export function trackPoints(name, rows, other, otherRows, score, hold = null) {
     });
 }
 
-function TrackChart({ name, rows, score, others, other, otherRows, onOther, wentLive = [], hold = null }) {
+function TrackChart({ name, rows, score, others, other, otherRows, onOther, wentLive = [], hold = null, days = WINDOW }) {
     const { theme } = useContext(ThemeModeContext);
     const colors = chartColors(theme);
     const lower = scoreOf(score).lower;
@@ -240,18 +241,18 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                 {
                     key: 'average',
                     mark: <Mark kind='line' color={colors.live} />,
-                    name: point.days < WINDOW ? `This model, ${point.days} days` : 'This model, 20 days',
+                    name: `This model, ${point.days < days ? point.days : days} days`,
                     value: formatScore(point.average, score),
                 },
             );
         }
 
         if (shown && point.other !== null) {
-            tipRows.push({ key: 'other', mark: <Mark kind='line' color={OTHER_COLOR} />, name: `${shown}, 20 days`, value: formatScore(point.other, score) });
+            tipRows.push({ key: 'other', mark: <Mark kind='line' color={OTHER_COLOR} />, name: `${shown}, ${days} days`, value: formatScore(point.other, score) });
         }
 
         if (point.baseline !== null) {
-            tipRows.push({ key: 'baseline', mark: <Mark kind='dashed' color={colors.baseline} />, name: 'Know-nothing baseline, 20 days', value: formatScore(point.baseline, score) });
+            tipRows.push({ key: 'baseline', mark: <Mark kind='dashed' color={colors.baseline} />, name: `Know-nothing baseline, ${days} days`, value: formatScore(point.baseline, score) });
         }
 
         //
@@ -301,7 +302,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                             {hold
                                 ? 'Each day’s real predictions, scored once each hold’s sell day is in. '
                                 : 'Each day’s real predictions, scored once that day’s prices are in. '}
-                            {'Dots are single days, and lines are averages of the last 20 days. Up is better'}
+                            {`Dots are single days, and lines are averages of the last ${days} days. Up is better`}
                             {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
                         </p>
                         <Legend
@@ -324,7 +325,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                     <div
                         className='model-chart'
                         role='img'
-                        aria-label={`${label}${onHold} of ${name}${shown ? ` and ${shown}` : ''} and the know-nothing baseline, as averages of the last 20 days, with single days as dots. The numbers are in the table below.`}
+                        aria-label={`${label}${onHold} of ${name}${shown ? ` and ${shown}` : ''} and the know-nothing baseline, as averages of the last ${days} days, with single days as dots. The numbers are in the table below.`}
                     >
                         <ResponsiveContainer width='100%' height={HEIGHT}>
                             <ComposedChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
@@ -371,9 +372,9 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                         columns={[
                             { key: 'day', label: 'Day', text: true },
                             { key: 'single', label: 'This day' },
-                            { key: 'average', label: '20 days' },
-                            ...(shown ? [{ key: 'other', label: `${shown}, 20 days` }] : []),
-                            { key: 'baseline', label: 'Baseline, 20 days' },
+                            { key: 'average', label: `${days} days` },
+                            ...(shown ? [{ key: 'other', label: `${shown}, ${days} days` }] : []),
+                            { key: 'baseline', label: `Baseline, ${days} days` },
                             ...(ticks.length ? [{ key: 'went', label: 'New version', text: true }] : []),
                             ...(downs.length ? [{ key: 'down', label: 'Taken down', text: true }] : []),
                         ]}
@@ -422,6 +423,11 @@ TrackChart.propTypes = {
     // for a model with no holds (#279)
     //
     hold: PropTypes.number,
+    //
+    // how many scored days each day's average takes in: the listing's
+    // `average_days` (#293)
+    //
+    days: PropTypes.number,
 };
 
 export default TrackChart;

@@ -6,28 +6,31 @@
  *                     with its latest scores, and which layout every model report
  *                     follows (#248). From format 2 on, whether the trainer took a
  *                     model's live version down for doing worse than the baseline,
- *                     and how close each of its checks is to doing so (#263)
+ *                     and how close each of its checks is to doing so (#263). From
+ *                     format 4, how many scored days a model's scores average
+ *                     (#293)
  *     history         a model's csv, one row per nightly training attempt: the
  *                     attempt's scores, the live version's and the know-nothing
  *                     baseline's, on the same held-out days, and from 2026-10-15
  *                     on, when the attempt started and how long it took
  *     track-record    a model's csv, one row per day it predicted, written once
  *                     that day is scored: its scores and the baseline's, with each
- *                     day's 20-day averages worked out here. From format 2 on, the
- *                     check that took the live version down, on the day whose
- *                     score set it off (#263)
+ *                     day's averages worked out here, over the days it is sent
+ *                     with. From format 2 on, the check that took the live version
+ *                     down, on the day whose score set it off (#263)
  *
  *     option-picks    an options model's csv of its nightly picks (#279): each
  *                     hold's top 10, or one stock's options best first, up to
  *                     100 for each hold
  *
- * It is handed { kind, report, name } -- `report` as the api's envelope held it --
- * and answers the same kind and name with what the pages draw: `tasks`, `models`
- * and `format_version` for the listing, `rows` for a report. Each is null where
- * the report is not the shape the api documents, which the page shows as a report
- * it could not load. A report with no rows yet answers none, which is not a failure: a model
- * is listed before its first day is scored. Picks with no rows are, as there is
- * nothing to show of them.
+ * It is handed { kind, report, name, average_days } -- `report` as the api's
+ * envelope held it, and `average_days` the listing's, for a track record -- and
+ * answers the same kind and name with what the pages draw: `tasks`, `models`,
+ * `format_version` and `average_days` for the listing, `rows` for a report. Each
+ * is null where the report is not the shape the api documents, which the page
+ * shows as a report it could not load. A report with no rows yet answers none,
+ * which is not a failure: a model is listed before its first day is scored. Picks
+ * with no rows are, as there is nothing to show of them.
  *
  * Every set of scores carries the three loss adds up beside the four (#265) --
  * see PARTS. A history and a track record give them; the listing does not, and
@@ -40,11 +43,11 @@
  * live version taken down, and each check, which hold it was where the model
  * has holds.
  *
- * The 20-day average is taken over a model's own scored DAYS, not the calendar. A
+ * A day's average is taken over a model's own scored DAYS, not the calendar. A
  * day it was not running -- before it started, after it retired, a night the
  * trainer did not run -- has no row, so it neither counts as a zero nor shortens
- * the window: the average of a day is of the 20 rows ending at it, or every row
- * so far while there are fewer.
+ * the window: the average of a day is of the rows ending at it, as many as the
+ * listing's `average_days`, or every row so far while there are fewer.
  *
  * Note: everything this needs is written inside the exported function. A worker
  *       is built from the function's TEXT -- see web-worker.js -- so a helper
@@ -94,7 +97,8 @@ export default () => {
     });
 
     //
-    // how many of a model's scored days an average takes in
+    // how many of a model's scored days an average takes in, where the listing
+    // does not say: before format 4, which gives it as `average_days` (#293)
     //
     const WINDOW = 20;
 
@@ -158,6 +162,18 @@ export default () => {
     //
     function wholeOf(value, least) {
         return typeof value === 'number' && isFinite(value) && Math.round(value) === value && value >= least ? value : null;
+    }
+
+    //
+    // how many of a model's scored days its scores average, and how many it has
+    // to have before it is no longer New, from format 4 on (#293): the listing's
+    // `average_days`, a whole number of at least 1, or WINDOW, as the trainer
+    // averaged before it said
+    //
+    function averageDaysOf(value) {
+        const days = wholeOf(value, 1);
+
+        return days === null ? WINDOW : days;
     }
 
     //
@@ -359,13 +375,15 @@ export default () => {
     // tasks they name, in the listing's order. A task a model names that the
     // listing does not describe is named by its id, after the rest; one no model
     // names is left out, having nothing to list. A task keeps the scores it names
-    // from format 3 on (#279)
+    // from format 3 on (#279). Every model carries the listing's `average_days`
+    // (#293), so whatever has a model has its number
     //
     function listing(report) {
         if (!isRecord(report) || !Array.isArray(report.models)) {
             return null;
         }
 
+        const averageDays = averageDaysOf(report.average_days);
         const models = [];
         const seen = {};
 
@@ -392,6 +410,7 @@ export default () => {
                 started: dayOf(entry.started),
                 retired: dayOf(entry.retired),
                 scored_days: countOf(entry.scored_days),
+                average_days: averageDays,
                 live: {
                     since: dayOf(live.since),
                     kind: LIVE_KINDS.indexOf(live.kind) >= 0 ? live.kind : null,
@@ -439,6 +458,7 @@ export default () => {
             }),
             models: models,
             format_version: formatOf(report.format_version),
+            average_days: averageDays,
         };
     }
 
@@ -469,15 +489,16 @@ export default () => {
     }
 
     //
-    // the track record: every scored day, with the 20-day averages ending at it,
-    // the model's and the baseline's, and how many days they take in.
+    // the track record: every scored day, with the averages ending at it, the
+    // model's and the baseline's, over `averageDays` days -- the listing's
+    // `average_days` (#293) -- and how many days they take in.
     //
     // From format 2 on, the day whose score set off a check that took the live
     // version down says which check, as the listing's `down` does (#263). Every
     // other day's cells are empty, and a track record written before the columns
     // has none: either way, each is null
     //
-    function trackRecord(csv) {
+    function trackRecord(csv, averageDays) {
         const rows = byDay(rowsOf(csv), function (row, day) {
             return {
                 day: day,
@@ -489,7 +510,7 @@ export default () => {
         });
 
         rows.forEach(function (row, at) {
-            const recent = rows.slice(Math.max(0, at - WINDOW + 1), at + 1);
+            const recent = rows.slice(Math.max(0, at - averageDays + 1), at + 1);
 
             row.days = recent.length;
             row.average = averageOf(recent, 'score');
@@ -561,10 +582,11 @@ export default () => {
             answer.tasks = read ? read.tasks : null;
             answer.models = read ? read.models : null;
             answer.format_version = read ? read.format_version : null;
+            answer.average_days = read ? read.average_days : null;
         } else if (asked.kind === 'history') {
             answer.rows = typeof csv === 'string' ? history(csv) : null;
         } else if (asked.kind === 'track-record') {
-            answer.rows = typeof csv === 'string' ? trackRecord(csv) : null;
+            answer.rows = typeof csv === 'string' ? trackRecord(csv, averageDaysOf(asked.average_days)) : null;
         } else if (asked.kind === 'option-picks') {
             answer.rows = typeof csv === 'string' ? optionPicks(csv) : null;
         } else {

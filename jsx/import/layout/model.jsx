@@ -15,7 +15,8 @@
  * task and by status, which folds to a rail as /graph's columns do and is a
  * folded band on a phone (#251). Every row carries the model's live version, how
  * many of its attempts went live, a trend line of its score, and last its latest
- * 20-day score against the know-nothing baseline; see model/model-row.jsx. Each
+ * score against the know-nothing baseline, over as many scored days as the
+ * listing's `average_days` (#293); see model/model-row.jsx. Each
  * list has a score picker of its own, of the scores its task has (#279), which
  * chooses what its rows and their trend lines show, and is shared with each of
  * its models' own pages -- see redux/container/model.jsx -- and a sort menu
@@ -67,6 +68,7 @@ import {
     SORTS,
     STATUSES,
     TREND_DAYS,
+    averageDays,
     chosenScore,
     compareBlocked,
     noteOf,
@@ -194,7 +196,8 @@ class ModelLayout extends Component {
 
         this.state = {
             // the listing: undefined while it is on its way, null where it
-            // could not be had, and { tasks, models } once it is in
+            // could not be had, and { tasks, models, average_days } once it
+            // is in
             listing: undefined,
             // each model's track record by name, once it is in: its rows, or
             // null where it could not be had. A name not here is on its way
@@ -355,8 +358,12 @@ class ModelLayout extends Component {
         this.saveLayout();
     }
 
+    //
+    // a model's track record, averaged over the listing's days (#293): asked
+    // for once the listing is in
+    //
     loadRecord(name) {
-        loadReport(name, 'track-record').then((rows) => {
+        loadReport(name, 'track-record', averageDays(this.state.listing)).then((rows) => {
             if (this.alive) {
                 this.setState((state) => ({ records: { ...state.records, [name]: rows } }));
             }
@@ -660,7 +667,7 @@ class ModelLayout extends Component {
             const parts = showsParts(score, task);
             const scoreHead = (
                 <InfoNote note={noteOf(score, task)} className='model-noted'>
-                    {`${scoreOf(score).label}, last 20 days`}
+                    {`${scoreOf(score).label}, last ${averageDays(listing)} days`}
                 </InfoNote>
             );
 

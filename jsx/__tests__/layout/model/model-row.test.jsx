@@ -108,6 +108,21 @@ describe('a row', () => {
         expect(retired.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, last 20 days before retiring');
     });
 
+    it('names the score\'s figure by the days the listing says its scores average, from format 4 (#293)', () => {
+        const label = (model) => draw({ model: model }).container.querySelector('.model-cell-score .model-cell-label');
+
+        expect(label(modelOf({ average_days: 30 }))).toHaveTextContent(/^Loss, last 30 days$/);
+        expect(label(modelOf({ average_days: 30, scored_days: 25 }))).toHaveTextContent(/^Loss, 25 days so far$/);
+        expect(label(modelOf({ average_days: 30, retired: '2026-10-01' }))).toHaveTextContent(/^Loss, last 30 days before retiring$/);
+        expect(label(modelOf({ average_days: 10, scored_days: 12 }))).toHaveTextContent(/^Loss, last 10 days$/);
+    });
+
+    it('names its trend line by those days (#293)', () => {
+        draw({ model: modelOf({ average_days: 30 }) });
+
+        expect(screen.getByRole('img', { name: 'pt-gnn\'s 30-day Loss, over the last 60 days' })).toBeInTheDocument();
+    });
+
     it.each(SCORES.map((score) => [score.key, score.note]))('names the score\'s figure on a phone\'s card with %s\'s note (#265)', (key, note) => {
         const { container } = draw({ score: key });
         const label = container.querySelector('.model-cell-score .model-cell-label');
@@ -351,6 +366,12 @@ describe('loss\'s three parts, in place of its sum (#283)', () => {
         expect(fresh).toHaveTextContent('Loss, 3 days so far');
     });
 
+    it('name the score over them by the days the listing says its scores average (#293)', () => {
+        const over = draw({ parts: true, model: modelOf({ average_days: 30 }) }).container.querySelector('.model-cell-parts .model-cell-label');
+
+        expect(over).toHaveTextContent(/^Loss, last 30 days$/);
+    });
+
     it('say level, with no arrow, for a part printed as the baseline\'s is', () => {
         const rows = dayOf(
             { up_log_loss: 0.7001, beats_log_loss: 0.693, move_pinball: 0.267 },
@@ -409,6 +430,12 @@ describe('TrendLine', () => {
 
         expect(screen.getByRole('img', { name: 'pt-gnn\'s 20-day Loss, over the last 60 days' })).toBeInTheDocument();
         expect(container.querySelectorAll('.recharts-line')).toHaveLength(2);
+    });
+
+    it('is named by the days it is handed, the listing\'s average_days (#293)', () => {
+        trend({ days: 30 });
+
+        expect(screen.getByRole('img', { name: 'pt-gnn\'s 30-day Loss, over the last 60 days' })).toBeInTheDocument();
     });
 
     it('holds a place while the record is on its way', () => {

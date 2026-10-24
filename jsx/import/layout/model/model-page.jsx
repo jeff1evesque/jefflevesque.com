@@ -3,8 +3,9 @@
  *
  * Under the model's name, its status and what it predicts: the score picker
  * /model shares -- see redux/container/model.jsx -- and three figures: when its
- * live version went live, how many of its nightly attempts did, and its 20-day
- * score beside the baseline's and where it stands among the models of its task.
+ * live version went live, how many of its nightly attempts did, and its score,
+ * over the listing's `average_days` (#293), beside the baseline's and where it
+ * stands among the models of its task.
  * The score's name carries a note on what it measures, and while Loss is picked,
  * the three scores it adds up are under it (#265). On a wide screen, each figure
  * has rows of what it is made of: how the live version came to be live and how
@@ -62,7 +63,7 @@ import {
     DEFAULT_HOLD,
     DEFAULT_SCORE,
     HOLDS,
-    WINDOW,
+    averageDays,
     behindLine,
     behindRows,
     betterBy,
@@ -337,7 +338,7 @@ const PART_STANDS = {
 
 /**
  * the three scores loss adds up (#265), under the score's figure while Loss is
- * picked: each part's 20-day average, and how it stands against the baseline's
+ * picked: each part's average, and how it stands against the baseline's
  * beside the baseline's own -- 'Up or down 0.723 worse than baseline 0.713'.
  *
  * `parts` are lossParts' of the track record's newest day, over the same days as
@@ -433,8 +434,10 @@ class ModelPage extends Component {
             this.setState({ listing: listing });
 
             if (listing && this.model(listing)) {
+                const days = averageDays(this.model(listing));
+
                 ['history', 'track'].forEach((field) => {
-                    loadReport(this.props.name, field === 'track' ? 'track-record' : field).then((rows) => {
+                    loadReport(this.props.name, field === 'track' ? 'track-record' : field, days).then((rows) => {
                         if (this.alive) {
                             this.setState({ [field]: rows });
                         }
@@ -478,7 +481,7 @@ class ModelPage extends Component {
             return;
         }
 
-        loadReport(name, 'track-record').then((rows) => {
+        loadReport(name, 'track-record', averageDays(this.state.listing)).then((rows) => {
             if (this.alive && this.state.other === name) {
                 this.setState({ other_rows: rows });
             }
@@ -503,12 +506,13 @@ class ModelPage extends Component {
         const place = placeAmong(model, listing.models, task, score);
 
         //
-        // so far, for a model with fewer than 20 scored days: a new one, or one
-        // taken down before it had them (#263)
+        // so far, for a model with fewer scored days than its scores average
+        // (#293): a new one, or one taken down before it had them (#263)
         //
-        const scoreName = status !== 'retired' && model.scored_days < WINDOW
+        const days = averageDays(model);
+        const scoreName = status !== 'retired' && model.scored_days < days
             ? `${scoreOf(score).label}, ${model.scored_days} ${model.scored_days === 1 ? 'day' : 'days'} so far`
-            : `${scoreOf(score).label}, last ${WINDOW} days`;
+            : `${scoreOf(score).label}, last ${days} days`;
 
         //
         // what a model taken down does until it goes live again, and how close
@@ -714,6 +718,7 @@ class ModelPage extends Component {
                 name={model.name}
                 rows={track}
                 score={score}
+                days={averageDays(model)}
                 hold={hold}
                 others={others}
                 other={offered}

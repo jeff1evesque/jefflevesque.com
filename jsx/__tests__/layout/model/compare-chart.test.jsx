@@ -150,6 +150,44 @@ describe('the comparison', () => {
     });
 });
 
+describe('the days each line averages, the listing\'s average_days (#293)', () => {
+    //
+    // the two models of a listing of `days`, and records whose days each count
+    // every row so far, up to `days`, as the worker counts them
+    //
+    const over = (days) => [{ model: { ...ptGnn, average_days: days }, slot: 0 }, { model: { ...tables, average_days: days }, slot: 2 }];
+    const counted = (count, days) => trackOf(count).map((row, at) => ({ ...row, days: Math.min(at + 1, days) }));
+
+    it('are said under the title, to a screen reader, and in the table\'s name', async () => {
+        const { container } = draw({ picks: over(30) });
+
+        expect(screen.getByText(/Lines are averages of the last 30 days, and each model’s own know-nothing baseline/)).toBeInTheDocument();
+        expect(container.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringMatching(/^Loss, 30-day averages of pt-gnn and tables/));
+
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        expect(screen.getByRole('table', { name: 'Loss, 30-day averages' })).toBeInTheDocument();
+    });
+
+    it('name a model in the panel by its own days while it has fewer, and by its name alone once it has them', () => {
+        const filling = draw({ picks: over(30), records: { 'pt-gnn': counted(25, 30), tables: counted(25, 30) } }).container;
+
+        expect([...filling.querySelectorAll('.model-tip-name')].map((name) => name.textContent).slice(0, 2))
+            .toEqual(expect.arrayContaining(['pt-gnn (25 days)', 'tables (25 days)']));
+
+        const full = draw({ picks: over(10), records: { 'pt-gnn': counted(25, 10), tables: counted(25, 10) } }).container;
+
+        expect([...full.querySelectorAll('.model-tip-name')].map((name) => name.textContent).slice(0, 2))
+            .toEqual(expect.arrayContaining(['pt-gnn', 'tables']));
+    });
+
+    it('are 20 for models without them, as before format 4', () => {
+        draw();
+
+        expect(screen.getByText(/Lines are averages of the last 20 days/)).toBeInTheDocument();
+    });
+});
+
 describe('a record that is not in', () => {
     it('says the records are loading while any is on its way, and draws nothing yet', () => {
         const { container } = draw({ records: { 'pt-gnn': trackOf(3) } });

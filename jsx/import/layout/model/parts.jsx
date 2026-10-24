@@ -114,8 +114,9 @@ HoldPicker.propTypes = {
 };
 
 /**
- * a model's status: Live, New with its days so far, Behind baseline while its
- * live version is down (#263), or Retired.
+ * a model's status: Live, New with how far it is through the days it needs,
+ * 'New · day 5 of 20' (#293), Behind baseline while its live version is down
+ * (#263), or Retired.
  */
 export function StatusPill({ model }) {
     return (
@@ -130,6 +131,7 @@ StatusPill.propTypes = {
     model: PropTypes.shape({
         retired: PropTypes.string,
         scored_days: PropTypes.number.isRequired,
+        average_days: PropTypes.number,
         down: PropTypes.object,
     }).isRequired,
 };
@@ -191,7 +193,7 @@ AlarmBell.propTypes = {
  * one mark, as a legend or a panel draws it beside its words -- the same shape,
  * size and stroke as the chart draws it, so the two look alike:
  *
- *     line      a line, as a 20-day average or the live version is drawn
+ *     line      a line, as an average or the live version is drawn
  *     dashed    the know-nothing baseline's dashed line
  *     dot       a filled dot: a nightly attempt that went live
  *     ring      a hollow dot: a nightly attempt kept back

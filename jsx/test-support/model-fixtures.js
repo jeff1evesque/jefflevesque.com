@@ -80,6 +80,18 @@ export function downModelOf(overrides = {}) {
 }
 
 /**
+ * a listing as the worker hands one from format 4 on (#293): its `average_days`,
+ * how many scored days its models' scores average, and every model carrying it.
+ */
+export function withAverageDays(listing, days) {
+    return {
+        ...listing,
+        average_days: days,
+        models: listing.models.map((model) => ({ ...model, average_days: days })),
+    };
+}
+
+/**
  * the listing: three models of one task, and one of another. With a `format`,
  * it gives that format_version, as the trainer writes one from 2026-10-15 on
  * (#248); without, it gives none, as a listing before then did.

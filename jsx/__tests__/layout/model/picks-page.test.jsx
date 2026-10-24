@@ -62,6 +62,7 @@ import {
     optionsModelOf,
     optionsTrackOf,
     picksOf,
+    withAverageDays,
 } from '../../../test-support/model-fixtures.js';
 
 function deferred() {
@@ -197,7 +198,7 @@ describe('signed in', () => {
 
         expect(loadOptionPicks).toHaveBeenCalledTimes(1);
         expect(loadOptionPicks).toHaveBeenCalledWith('pt-options');
-        expect(loadReport).toHaveBeenCalledWith('pt-options', 'track-record');
+        expect(loadReport).toHaveBeenCalledWith('pt-options', 'track-record', 20);
     });
 
     it('leads back to the model\'s page, under the heading and its status', async () => {
@@ -296,6 +297,34 @@ describe('signed in', () => {
             'None yetA pick held 20 days is scored once it’s sold, 21 trading days after the day it was made.',
         );
         expect(card('How its top 10 has done').querySelector('.model-picks-strip')).toBeNull();
+    });
+
+    it('takes in as many of the hold\'s scored days as the listing\'s average_days, from format 4 (#293)', async () => {
+        answer({ listing: withAverageDays(optionsListingOf(), 25) });
+        await open();
+
+        const record = card('How its top 10 has done');
+
+        expect(loadReport).toHaveBeenCalledWith('pt-options', 'track-record', 25);
+        expect(record.querySelectorAll('.model-picks-strip-day')).toHaveLength(25);
+        expect(record.querySelector('.model-picks-strip-key')).toHaveTextContent('the last 25 of 30 scored days');
+    });
+
+    it('counts the hold\'s scored days so far while it has fewer than the listing\'s average_days (#293)', async () => {
+        answer({ listing: withAverageDays(optionsListingOf(), 30) });
+        await open();
+
+        const record = card('How its top 10 has done');
+
+        expect(record.querySelectorAll('.model-picks-strip-day')).toHaveLength(30);
+        expect(record.querySelector('.model-picks-strip-key')).toHaveTextContent('30 days scored so far');
+    });
+
+    it('takes in the listing\'s days on the page of a model taken down too (#293)', async () => {
+        answer({ listing: withAverageDays(listingWith({ down: { since: '2026-10-16', days: 1, in_a_row: 5, hold: 1 } }), 10) });
+        await open();
+
+        expect(card('How its top 10 has done').querySelector('.model-picks-strip-key')).toHaveTextContent('the last 10 of 30 scored days');
     });
 
     it('waits on the record as bars, and says so where it could not be had', async () => {
@@ -857,6 +886,17 @@ describe('the words', () => {
         expect(record.random_gain).toBeCloseTo(-0.04, 10);
         expect(recordOf(optionsTrackOf(10), 20)).toBeNull();
         expect(recordOf(null, 1)).toBeNull();
+    });
+
+    it('find a hold\'s record over as many of its last scored days as they are asked to (#293)', () => {
+        const record = recordOf(optionsTrackOf(30), 5, 10);
+
+        expect(record.scored).toBe(26);
+        expect(record.count).toBe(10);
+        expect(record.days).toHaveLength(10);
+        expect(record.days[0].day).toBe(optionsTrackOf(30)[16].day);
+        expect(recordOf(optionsTrackOf(30), 5).count).toBe(20);
+        expect(recordOf(optionsTrackOf(30), 1, 40).days).toHaveLength(30);
     });
 
     it('call a buy day past once today in New York is after it', () => {

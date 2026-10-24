@@ -2,8 +2,9 @@
  * model-row.jsx: one model in /model's list (#243): a box to tick it for the
  * comparison, its name, status, address and description, its bell, which leads to
  * its alarm page (#255), when its live version went live, how many of its nightly
- * attempts did, a trend line of its score, and last its latest 20-day score
- * against the know-nothing baseline -- or, in a list that shows them, loss's three
+ * attempts did, a trend line of its score, and last its latest score, over the
+ * listing's `average_days` (#293), against the know-nothing baseline -- or, in a
+ * list that shows them, loss's three
  * parts in place of it (#283). A retired model has no bell. A model whose live
  * version the trainer took down for doing worse than the baseline says when, and
  * which check did it, in place of when it went live (#263). An options model still
@@ -41,6 +42,7 @@ import {
     LOSS_PARTS,
     TREND_DAYS,
     WINDOW,
+    averageDays,
     betterBy,
     chartColors,
     checkWords,
@@ -66,12 +68,14 @@ const TREND_WIDTH = 132;
 const TREND_HEIGHT = 36;
 
 /**
- * a model's 20-day score over the days on `axis`, beside the baseline's.
+ * a model's average score over the days on `axis`, beside the baseline's: each
+ * day's average of its last `days` scored days, the listing's `average_days`
+ * (#293).
  *
  * `rows` is the model's track record: undefined while it is on its way, null
  * where it could not be had.
  */
-export function TrendLine({ name, rows, axis, score }) {
+export function TrendLine({ name, rows, axis, score, days = WINDOW }) {
     const { theme } = useContext(ThemeModeContext);
     const colors = chartColors(theme);
 
@@ -103,7 +107,7 @@ export function TrendLine({ name, rows, axis, score }) {
         <span
             className='model-trend'
             role='img'
-            aria-label={`${name}'s 20-day ${scoreOf(score).label}, over the last ${TREND_DAYS} days`}
+            aria-label={`${name}'s ${days}-day ${scoreOf(score).label}, over the last ${TREND_DAYS} days`}
         >
             <LineChart width={TREND_WIDTH} height={TREND_HEIGHT} data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
                 <XAxis dataKey='day' hide />
@@ -132,24 +136,30 @@ TrendLine.propTypes = {
     rows: PropTypes.array,
     axis: PropTypes.arrayOf(PropTypes.string).isRequired,
     score: PropTypes.string.isRequired,
+    //
+    // how many scored days each day's average takes in: the listing's
+    // `average_days` (#293)
+    //
+    days: PropTypes.number,
 };
 
 //
 // what the score's figure is called on a phone's card, where there are no
-// headings: over the last 20 days, before it retired for a retired one, and so
-// far for one with fewer than 20 scored days -- a new model, or one taken down
-// before it had them (#263)
+// headings: over the last of the days its scores average (#293), before it
+// retired for a retired one, and so far for one with fewer scored days than that
+// -- a new model, or one taken down before it had them (#263)
 //
 function scoreLabel(model, score) {
     const label = scoreOf(score).label;
+    const days = averageDays(model);
 
     if (statusOf(model) === 'retired') {
-        return `${label}, last 20 days before retiring`;
+        return `${label}, last ${days} days before retiring`;
     }
 
-    return model.scored_days < WINDOW
+    return model.scored_days < days
         ? `${label}, ${model.scored_days} ${model.scored_days === 1 ? 'day' : 'days'} so far`
-        : `${label}, last 20 days`;
+        : `${label}, last ${days} days`;
 }
 
 //
@@ -218,7 +228,7 @@ function partGap(part) {
  * loss's three parts in place of its sum (#283): a cell each across a wide
  * screen, under one heading -- see model.jsx -- and on a phone's card, or in a
  * list too narrow for the three columns, a line each, naming its part. Each is
- * the part's 20-day average, and how it stands against the baseline's, from the
+ * the part's average, and how it stands against the baseline's, from the
  * newest day of the model's track record, as its own page has them (#265). Bars
  * while the record is on its way, and dashes where it could not be had or has
  * no parts.
@@ -325,7 +335,7 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
             </div>
             <div className='model-cell model-cell-trend'>
                 <span className='model-cell-label'>{`Last ${TREND_DAYS} days`}</span>
-                <TrendLine name={model.name} rows={rows} axis={axis} score={score} />
+                <TrendLine name={model.name} rows={rows} axis={axis} score={score} days={averageDays(model)} />
             </div>
             {parts
                 ? <PartCells model={model} rows={rows} task={task} />
@@ -347,6 +357,10 @@ ModelRow.propTypes = {
         description: PropTypes.string,
         retired: PropTypes.string,
         scored_days: PropTypes.number.isRequired,
+        //
+        // how many scored days its scores average, the listing's (#293)
+        //
+        average_days: PropTypes.number,
         live: PropTypes.shape({
             since: PropTypes.string,
             kind: PropTypes.string,

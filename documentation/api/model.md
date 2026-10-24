@@ -100,6 +100,9 @@ track record. The listing carries only `loss`.
 ## Response: the listing
 
 `report` is an object of `tasks` and `models`, and from 2026-10-15 on, `format_version`.
+From format 4 it also has `average_days`: how many of a model's latest scored days its
+`score` and `baseline` average, and how many it needs before it is no longer New. A
+listing before format 4 has none, and both are 20.
 
 A **task** is what a model predicts, and `/model` draws one list per task, in the
 listing's order: `id`, the name a model gives it; `name`; `description`, one line on
@@ -115,10 +118,10 @@ A **model** has:
 | `description` | one line about it |
 | `started` | the first day it predicted, as `YYYY-MM-DD` |
 | `retired` | the day it stopped being trained, or `null` while it still is |
-| `scored_days` | the rows of its track record. Under 20, the model is New |
+| `scored_days` | the rows of its track record. Under `average_days`, the model is New |
 | `live` | the version making its predictions: `since`, the night it went live, and `kind`, `first` while its first version is still live, or `nightly` or `weekly` for the update or retrain that made it. For a retired model, or one whose live version was taken down, the last version that predicted |
 | `attempts` | the rows of its history: `total`, and `went_live`, those that replaced the live version |
-| `score` | each score averaged over the last 20 rows of its track record, or all of them while it has fewer; `null` while it has none. `loss`, `auc_up`, `auc_beats` and `acc_up` are always there, `null` where its task has none of them, and from format 3 `profit_auc`, `top10_gain` and `top10_wins` where it has them. An options model's are its 1-day hold's |
+| `score` | each score averaged over the last `average_days` rows of its track record, or all of them while it has fewer; `null` while it has none. `loss`, `auc_up`, `auc_beats` and `acc_up` are always there, `null` where its task has none of them, and from format 3 `profit_auc`, `top10_gain` and `top10_wins` where it has them. An options model's are its 1-day hold's |
 | `baseline` | the baseline's scores averaged over the same days |
 | `down` | `null` while its live version is live. Otherwise `since`, the night it was taken down, and the check that did it: `days`, 1 for each scored day on its own or 5 or 20 for an average over its latest scored days, and `in_a_row`, how many scored days in a row it was worse. From format 3, `hold`: for an options model, the hold the check ran on, in trading days |
 | `behind` | one entry per check, as of the newest scored day: `days`; `in_a_row`, how many scored days in a row it has been worse, or `null` until it has enough days; and `limit`, the count that takes the live version down. From format 3, `hold`, as in `down`: an options model has every check for each hold |
@@ -137,6 +140,7 @@ without it is format 0.
 | 1 | a history's `started`, `training_seconds` and `total_seconds` |
 | 2 | a model's `down` and `behind`, and a track record's `down_days` and `down_in_a_row` |
 | 3 | a task's `scores`; `top10_gain` and `top10_wins`, and an options model's `profit_auc` and its track record's columns for each hold; the `hold` of `down` and of each check in `behind`; and the picks |
+| 4 | the listing's `average_days` |
 
 It goes up with any change to the reports' keys or columns, or to what a value means,
 added columns included. A listing is published after every model's reports, so its
@@ -187,10 +191,10 @@ each score again as `<score>_1d`, `<score>_5d` and `<score>_20d`, and the baseli
 written once its 1-day hold's sell day is in, and its 5 and 20-day columns are empty
 until theirs are: 6 and 21 trading days after the day it was predicted.
 
-The pages work out each day's 20-day average themselves, over the model's own last 20
-rows, so a day it was not running neither counts nor shortens the window. Loss's three
-parts are averaged over the same rows, so on a model's page they add up to its 20-day
-loss.
+The pages work out each day's average themselves, over the model's own last
+`average_days` rows, so a day it was not running neither counts nor shortens the window.
+Loss's three parts are averaged over the same rows, so on a model's page they add up to
+its average loss.
 
 An empty cell is a score the day does not have, and is left out of an average rather
 than read as zero.
@@ -267,7 +271,7 @@ for a model the listing names. A 404 means only that no model has that name.
   which makes no request at all while signed out.
 - Read in a web worker,
   [`jsx/import/worker/model/report.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/worker/model/report.js),
-  which also works out each day's 20-day averages.
+  which also works out each day's averages, over the listing's `average_days`.
 
 ## Try it
 

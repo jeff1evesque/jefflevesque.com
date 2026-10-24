@@ -28,7 +28,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { PendingBar } from '../graph/pending.jsx';
-import { DEFAULT_SCORE, LOSS_PARTS, TREND_DAYS, scoreOf } from './scores.js';
+import { DEFAULT_SCORE, LOSS_PARTS, TREND_DAYS, WINDOW, scoreOf } from './scores.js';
 
 //
 // how far apart, in milliseconds, two neighboring bars breathe -- /graph's own
@@ -180,11 +180,13 @@ PendingRow.propTypes = {
  * /model's list before the listing names its task and its models: the task's
  * heading, its score picker (#279), the list's own column headings, and two
  * rows. On loss, as its three parts (#283): a list opens on loss, and the first
- * list is of stock models, whose list shows them.
+ * list is of stock models, whose list shows them. The score's heading names the
+ * days a listing averages where it does not say, WINDOW: the listing that says
+ * otherwise is not in yet (#293).
  */
 export function PendingGroup({ score = DEFAULT_SCORE }) {
     const parts = score === DEFAULT_SCORE;
-    const scoreName = `${scoreOf(score).label}, last 20 days`;
+    const scoreName = `${scoreOf(score).label}, last ${WINDOW} days`;
 
     return (
         <section className='model-group' aria-hidden='true'>
