@@ -562,6 +562,10 @@
   overflow: hidden;
 }
 
+//
+// 34px tall (#300): the buttons are drawn only where there is a pointer's room
+// for them, a phone having its menus in their place, 44px tall for a finger
+//
 .model-score {
   background-color: $white-1;
   border: 0;
@@ -571,8 +575,8 @@
   cursor: pointer;
   font: inherit;
   font-size: 14px;
-  min-height: 44px;
-  padding: 10px 14px;
+  min-height: 34px;
+  padding: 6px 14px;
 
   &:last-child {
     border-right: 0;
@@ -604,7 +608,7 @@
 }
 
 .model-holds .model-score {
-  padding: 10px 16px;
+  padding: 6px 16px;
 }
 
 .model-score-menu {
@@ -729,9 +733,13 @@
   flex-wrap: wrap;
   gap: 4px 12px;
 
+  //
+  // a step under the page's title and about the menu's size, so it heads its
+  // list rather than the page (#300): at 20px it stood as large as the title
+  //
   h5 {
     color: $gray-9;
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 600;
     margin: 0;
   }
@@ -762,14 +770,16 @@
 }
 
 //
-// a list's rows in a box, a light rule between them, each row its parts side by
-// side as room allows: the model, its score -- or loss's parts -- its trend
-// line, and when its live version went live, each wrapping under the one before
-// where the list is too narrow for them, as #300's do
+// a list's rows in a box, a light rule between them, each row on two lines
+// whose parts stand one over another: the box that ticks it, the model, and its
+// score or loss's parts, then under the model its trend line, and under the
+// score when its live version went live. Wrapped as room allowed, the second
+// line's parts had stood wherever they fell, past the box that ticks a row
 //
 .model-list {
   border: 1px solid $gray-2;
   border-radius: 8px;
+  container-type: inline-size;
   overflow: hidden;
 }
 
@@ -777,10 +787,14 @@
   align-items: center;
   background-color: $white-1;
   border-bottom: 1px solid $gray-1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
+  column-gap: 24px;
+  display: grid;
+  grid-template-areas:
+    'compare model score'
+    '. trend since';
+  grid-template-columns: auto minmax(0, 2fr) minmax(0, 3fr);
   padding: 14px 16px;
+  row-gap: 12px;
 
   &:last-child {
     border-bottom: 0;
@@ -800,34 +814,60 @@
 
 .model-cell-compare {
   align-items: center;
-  flex: none;
   flex-direction: row;
   gap: 0.5rem;
+  grid-area: compare;
 }
 
 .model-cell-model {
-  flex: 2 1 240px;
   gap: 4px;
+  grid-area: model;
 }
 
 .model-cell-score {
-  flex: 1 1 170px;
   gap: 2px;
+  grid-area: score;
 }
 
 .model-cell-parts {
-  flex: 3 1 440px;
   gap: 6px;
+  grid-area: score;
 }
 
 .model-cell-trend {
-  flex: 1 1 170px;
+  gap: 2px;
+  grid-area: trend;
 }
 
 .model-cell-since {
-  flex: 1 1 160px;
   font-size: 14px;
   gap: 2px;
+  grid-area: since;
+}
+
+//
+// what a row's trend line spans, over it (#300): '20-day average, Oct 12 –
+// Oct 23'
+//
+.model-trend-span {
+  color: $gray-6;
+  font-size: 13px;
+}
+
+//
+// a list too narrow for a row's score beside its model, as with the filters
+// open on a small screen: everything after the box that ticks it under the
+// model, one over another, each still at the model's left edge
+//
+@container (max-width: 680px) {
+  .model-row {
+    grid-template-areas:
+      'compare model'
+      '. score'
+      '. trend'
+      '. since';
+    grid-template-columns: auto minmax(0, 1fr);
+  }
 }
 
 //
@@ -896,8 +936,13 @@
   }
 }
 
+//
+// a model's name, and its row's figures below, a step over the 14px of the rest
+// of the row and the filters beside it (#300): at 17px and 18 to 20px they stood
+// larger than the menu over the page
+//
 .model-name {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -921,7 +966,7 @@
 //
 .model-score-value {
   color: $gray-9;
-  font-size: 20px;
+  font-size: 16px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -982,13 +1027,16 @@
 
 //
 // loss's three parts in place of its sum (#283), as #300 lays them out: a
-// line over them saying what they add up to, and a column each, its
-// name over its figure over how it stands. A phone's card lays them out a line
-// each -- see below
+// line over them saying what they add up to, over a rule as wide as the three,
+// as #283 drew it, so the line reads as theirs, and a column each, its name over
+// its figure over how it stands. A phone's card lays them out a line each --
+// see below
 //
 .model-parts-note {
+  border-bottom: 1px solid $gray-3;
   color: $gray-6;
   font-size: 13px;
+  padding-bottom: 4px;
   text-align: center;
 }
 
@@ -1015,7 +1063,7 @@
 
 .model-part-cell-value {
   color: $gray-9;
-  font-size: 18px;
+  font-size: 16px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -2768,7 +2816,7 @@
   }
 
   .model-group-head h5 {
-    font-size: 19px;
+    font-size: 17px;
   }
 
   .model-group-detail,
@@ -2827,7 +2875,7 @@
   .model-cell-trend { grid-area: trend; }
 
   .model-name {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .model-description {
@@ -2846,7 +2894,7 @@
   }
 
   .model-score-value {
-    font-size: 18px;
+    font-size: 16px;
     grid-area: value;
   }
 
@@ -2924,6 +2972,15 @@
 
   .model-page .model-card {
     padding: 12px;
+  }
+
+  //
+  // a model's name at 22px on a phone, about /model's title, so its status and
+  // its bell stay on its line: at 28px, 'tables-options' and 'New · day 4 of 20'
+  // left the bell no room on a 390px phone (#300)
+  //
+  .model-page .model-heading h4 {
+    font-size: 22px;
   }
 
   .model-summary-cards {

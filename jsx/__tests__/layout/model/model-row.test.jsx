@@ -25,7 +25,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
-import ModelRow, { PartCells, TrendLine } from '../../../import/layout/model/model-row.jsx';
+import ModelRow, { PartCells, TrendLine, trendSpan } from '../../../import/layout/model/model-row.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS, SCORES, chartColors, formatScore, noteOf, recentDays, shortDay } from '../../../import/layout/model/scores.js';
 import { STOCK_SCORES, heldModelOf, heldTrackOf, tapAt } from '../../../test-support/model-fixtures.js';
@@ -150,7 +150,7 @@ describe('a row', () => {
     it('names its trend line by those days (#293)', () => {
         draw({ model: modelOf({ average_days: 30 }) });
 
-        expect(screen.getByRole('img', { name: 'pt-gnn\'s 30-day Loss, over the last 60 days' })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /^pt-gnn's Loss, 30-day average, \w{3} \d+ – \w{3} \d+$/ })).toBeInTheDocument();
     });
 
     it.each(SCORES.map((score) => [score.key, score.note]))('gives the days under the figure %s\'s note (#265)', (key, note) => {
@@ -459,6 +459,53 @@ describe('loss\'s three parts, in place of its sum (#283)', () => {
     });
 });
 
+describe('trendSpan (#300)', () => {
+    it('says the average each point is, and the first and last days of the axis', () => {
+        expect(trendSpan(['2026-10-12', '2026-10-13', '2026-10-23'], 20)).toBe('20-day average, Oct 12 – Oct 23');
+        expect(trendSpan(['2026-10-12', '2026-10-23'], 30)).toBe('30-day average, Oct 12 – Oct 23');
+    });
+
+    it('names one day once, where the axis has no other', () => {
+        expect(trendSpan(['2026-10-12'], 20)).toBe('20-day average, Oct 12');
+    });
+
+    it('averages 20 days where it is handed no number, and says nothing of an axis with no day', () => {
+        expect(trendSpan(['2026-10-12', '2026-10-23'])).toBe('20-day average, Oct 12 – Oct 23');
+        expect(trendSpan([], 20)).toBe('');
+    });
+});
+
+describe('a row\'s trend line, under what it spans (#300)', () => {
+    const axis = recentDays({ a: trackOf(10) });
+    const spanOf = (container) => container.querySelector('.model-cell-trend > .model-trend-span');
+
+    it('says over the line the average each point is, and the days the axis runs over', () => {
+        const { container } = draw();
+
+        expect(spanOf(container)).toHaveTextContent(`20-day average, ${shortDay(axis[0])} – ${shortDay(axis[axis.length - 1])}`);
+        expect(spanOf(container).nextElementSibling).toHaveClass('model-trend');
+    });
+
+    it('names the average by the listing\'s average_days (#293)', () => {
+        const { container } = draw({ model: modelOf({ average_days: 30 }) });
+
+        expect(spanOf(container)).toHaveTextContent(/^30-day average, /);
+    });
+
+    it('says the span while the record is on its way, since every row shares the axis', () => {
+        const { container } = draw({ rows: undefined });
+
+        expect(spanOf(container)).toHaveTextContent(/^20-day average, /);
+        expect(container.querySelector('.model-cell-trend .model-trend-pending')).toBeInTheDocument();
+    });
+
+    it('says nothing over the line while no record has a day on the axis', () => {
+        const { container } = draw({ axis: [] });
+
+        expect(spanOf(container)).toBeNull();
+    });
+});
+
 describe('TrendLine', () => {
     function trend(props) {
         return render(
@@ -471,7 +518,7 @@ describe('TrendLine', () => {
     it('draws the 20-day score and the baseline\'s on the shared axis', () => {
         const { container } = trend();
 
-        expect(screen.getByRole('img', { name: 'pt-gnn\'s 20-day Loss, over the last 60 days' })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /^pt-gnn's Loss, 20-day average, \w{3} \d+ – \w{3} \d+$/ })).toBeInTheDocument();
         expect(container.querySelectorAll('.recharts-line')).toHaveLength(2);
     });
 
@@ -490,7 +537,7 @@ describe('TrendLine', () => {
     it('is named by the days it is handed, the listing\'s average_days (#293)', () => {
         trend({ days: 30 });
 
-        expect(screen.getByRole('img', { name: 'pt-gnn\'s 30-day Loss, over the last 60 days' })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /^pt-gnn's Loss, 30-day average, \w{3} \d+ – \w{3} \d+$/ })).toBeInTheDocument();
     });
 
     it('holds a place while the record is on its way', () => {
@@ -682,7 +729,7 @@ describe('a row on a hold, from format 5 on (#300)', () => {
     it('draws its trend line on the hold, named with it', () => {
         on(5);
 
-        expect(screen.getByRole('img', { name: 'tables-gnn\'s 20-day Loss, 5-day hold, over the last 60 days' })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /^tables-gnn's Loss, 5-day hold, 20-day average, \w{3} \d+ – \w{3} \d+$/ })).toBeInTheDocument();
     });
 
     it('says when a live version was taken down on its hold, and why', () => {
@@ -743,7 +790,7 @@ describe('TrendLine on a hold (#300)', () => {
         at(container, 128);
 
         expect(container.querySelector('.model-trend-tip .model-tip-name')).toHaveTextContent('Loss, combined');
-        expect(screen.getByRole('img', { name: 'tables-gnn\'s 20-day Loss, combined, over the last 60 days' })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /^tables-gnn's Loss, combined, 20-day average, \w{3} \d+ – \w{3} \d+$/ })).toBeInTheDocument();
     });
 
     it('draws a record without the hold\'s columns on its plain scores, as one before format 5', () => {
@@ -757,7 +804,7 @@ describe('TrendLine on a hold (#300)', () => {
     it('names the 1-day hold no more than a list before format 5 does', () => {
         trend({ hold: 1 });
 
-        expect(screen.getByRole('img', { name: 'tables-gnn\'s 20-day Loss, over the last 60 days' })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /^tables-gnn's Loss, 20-day average, \w{3} \d+ – \w{3} \d+$/ })).toBeInTheDocument();
     });
 
     describe('on a phone, the day tapped', () => {
