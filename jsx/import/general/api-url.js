@@ -8,7 +8,8 @@
  *     knowledge-graph   read by /graph and /                   (the id, in the path)
  *                       its tables, read by /graph/retrieval   Day, Limit
  *                         and one path per question            Text, Uri, Symbol
- *     model             read by /model and /model/:model       Model, Report, Ticker
+ *     model             read by /model and /model/:model       Model, Report
+ *                       its picks, read by /model/:model/picks Model, Report, Ticker
  *     alarms            read by /stream/:stream/alarm          stream
  *                         and /model/:model/alarm              model
  *     account           read by both alarm pages, /stream,     (the stream or the
@@ -18,7 +19,9 @@
  * The account api is the one that is not public. It answers only a signed-in
  * reader, whose ID token each request carries -- see account-api.js -- so its base
  * is under '/v1/private' rather than beside the others in ENDPOINTS. The list of
- * alarms that can be subscribed to is the same for everyone, and is public.
+ * alarms that can be subscribed to is the same for everyone, and is public. The
+ * model api has a private path too (#290): an options model's picks, which it
+ * serves to a signed-in reader alone.
  *
  * The knowledge graph has two shapes. It answers what a build IS on two paths
  * taking their id in the path, and what the published tables CONTAIN on more, one
@@ -69,6 +72,13 @@ const ENDPOINTS = {
 // see the note above.
 //
 const NOTIFICATIONS = 'https://api.jefflevesque.com/v1/private/notifications';
+
+//
+// the model api's private path (#290): an options model's picks, which it serves
+// only to a signed-in reader, as the account api serves a reader's own data. Apart
+// from ENDPOINTS for the same reason.
+//
+const MODEL_PICKS = 'https://api.jefflevesque.com/v1/private/model';
 
 //
 // the documentation site, and each api's reference page on it. Moving the site is
@@ -287,12 +297,13 @@ export function knowledgeGraphTablesUrl(operation, values = {}, base = ENDPOINTS
 }
 
 //
-// the reports the model pages read of each model: one row per nightly training
-// attempt, and one row per day it predicted (#243), and an options model's
-// nightly picks (#279). The api answers a summary too, which no page asks for
-// yet (#245).
+// the reports the model pages read of each model on the public path: one row per
+// nightly training attempt, and one row per day it predicted (#243). The api
+// answers a summary too, which no page asks for yet (#245). An options model's
+// picks are on the private path, for a signed-in reader alone -- see modelPicksUrl
+// (#290)
 //
-const MODEL_REPORTS = ['history', 'track-record', 'picks'];
+const MODEL_REPORTS = ['history', 'track-record'];
 
 //
 // a stock's symbol, as the api takes one with the picks (#279): AAPL, or BRK.B
@@ -302,23 +313,18 @@ const TICKER = /^[A-Z]{1,5}(\.[A-Z])?$/;
 
 /**
  * the listing of models or, given a model from that listing and one of its
- * reports, that report (#243). With the picks, `ticker` asks for one stock's
- * options rather than each hold's top 10 (#279).
+ * reports, that report (#243).
  *
  * Note: `Model` and `Report` go together. The api answers one without the other
  *       with a 400, so asking for either alone throws here rather than being
  *       sent, as an operation's unwanted value does for the tables. So does a
- *       report the api does not keep, a ticker with any report but the picks,
- *       and a ticker that is not a stock's symbol.
+ *       report the api does not keep, and the picks, which the public path no
+ *       longer answers (#290).
  *
  * Note: the name is sent as the listing gave it. Names are the api's, so this
  *       does not get to assume what is in one.
  */
-export function modelUrl(model = null, report = null, base = ENDPOINTS.model, ticker = null) {
-    if (ticker && report !== 'picks') {
-        throw new Error(`modelUrl: a Ticker goes with Report=picks, given '${report}'`);
-    }
-
+export function modelUrl(model = null, report = null, base = ENDPOINTS.model) {
     if (!model && !report) {
         return new URL(base);
     }
@@ -327,11 +333,28 @@ export function modelUrl(model = null, report = null, base = ENDPOINTS.model, ti
         throw new Error(`modelUrl: a Model needs a Report of ${MODEL_REPORTS.join(' or ')}, given '${model}' and '${report}'`);
     }
 
-    if (ticker && !TICKER.test(ticker)) {
-        throw new Error(`modelUrl: a Ticker is a stock's symbol, like AAPL or BRK.B, given '${ticker}'`);
+    return withParams(base, { Model: model, Report: report });
+}
+
+/**
+ * an options model's picks, on the model api's private path (#290): each hold's
+ * top 10 or, with `ticker`, one stock's options, best first. Asked as the
+ * signed-in reader, whose ID token the request carries -- see account-api.js.
+ *
+ * Note: a model, and a ticker that is a stock's symbol, or none. Anything else
+ *       throws here rather than being sent, as modelUrl refuses what the api
+ *       would answer with a 400.
+ */
+export function modelPicksUrl(model, ticker = null, base = MODEL_PICKS) {
+    if (!model) {
+        throw new Error(`modelPicksUrl: the picks are a model's, given '${model}'`);
     }
 
-    return withParams(base, ticker ? { Model: model, Report: report, Ticker: ticker } : { Model: model, Report: report });
+    if (ticker && !TICKER.test(ticker)) {
+        throw new Error(`modelPicksUrl: a Ticker is a stock's symbol, like AAPL or BRK.B, given '${ticker}'`);
+    }
+
+    return withParams(base, ticker ? { Model: model, Report: 'picks', Ticker: ticker } : { Model: model, Report: 'picks' });
 }
 
 /**
@@ -392,6 +415,7 @@ export {
     API,
     ENDPOINTS,
     NOTIFICATIONS,
+    MODEL_PICKS,
     DOCUMENTATION,
     API_DOCS,
     TERMS,
