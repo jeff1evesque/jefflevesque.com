@@ -58,6 +58,7 @@ import {
     statusOf,
     takenDown,
     tradesOptions,
+    trainedOn,
     newYorkToday,
     weekDay,
 } from '../../../import/layout/model/scores.js';
@@ -389,6 +390,27 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         expect(checkWords({ days: 5, in_a_row: null })).toBe('its 5-day average was worse than the baseline’s');
     });
 
+    it('says why a take-down no check did was made, from format 4 (#295)', () => {
+        expect(checkWords({ reason: 'not_ahead', days: null, in_a_row: null })).toBe('it went live without beating the baseline');
+        expect(checkWords({ reason: 'track_record', days: null, in_a_row: null })).toBe('its track record showed nothing better than the baseline');
+        expect(checkWords({ reason: 'track_record', days: null, in_a_row: null, hold: 5 })).toBe('its track record showed nothing better than the baseline');
+    });
+
+    it('words a take-down for doing worse as every one before format 4, and one whose check it cannot read without it (#295)', () => {
+        expect(checkWords({ reason: 'worse', days: 1, in_a_row: 5 })).toBe('worse than the baseline 5 scored days in a row');
+        expect(checkWords({ reason: 'worse', days: null, in_a_row: 5 })).toBe('worse than the baseline 5 days in a row');
+        expect(checkWords({ reason: 'worse', days: null, in_a_row: null })).toBe('worse than the baseline');
+        expect(checkWords({ reason: 'worse', days: null, in_a_row: null, hold: 5 })).toBe('the 5-day hold did worse than the baseline');
+    });
+
+    it('never says null, whatever a take-down leaves out (#295)', () => {
+        ['worse', 'not_ahead', 'track_record'].forEach((reason) => {
+            [{}, { days: null }, { in_a_row: null }, { days: null, in_a_row: null, hold: null }].forEach((counts) => {
+                expect(checkWords({ reason: reason, ...counts })).not.toMatch(/null|undefined|NaN/);
+            });
+        });
+    });
+
     it('says how many days in a row each check has been worse, of how many take a version down', () => {
         expect(behindLine(behindOf()))
             .toBe('Days in a row worse than the baseline: each day 4 of 5, 5-day average 0 of 10, 20-day average not yet.');
@@ -410,6 +432,26 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         ]);
         expect(behindRows([])).toEqual([]);
         expect(behindRows(undefined)).toEqual([]);
+    });
+});
+
+describe('trainedOn, what a live version learned from (#295)', () => {
+    const DAYS = { training: 7, stopping: 3, first: '2026-10-05', last: '2026-10-19' };
+
+    it('says the days it trained on, and the first and last of every day it read', () => {
+        expect(trainedOn({ since: '2026-10-23', kind: 'first', days: DAYS })).toBe('7 days, Oct 5 to Oct 19');
+    });
+
+    it('says one day as a day, and a first day that is its last once', () => {
+        expect(trainedOn({ days: { ...DAYS, training: 1 } })).toBe('1 day, Oct 5 to Oct 19');
+        expect(trainedOn({ days: { ...DAYS, training: 1, first: '2026-10-19' } })).toBe('1 day, Oct 19');
+    });
+
+    it('says nothing where the listing gives none, as before format 4', () => {
+        expect(trainedOn({ since: '2026-10-23', kind: 'first', days: null })).toBe('');
+        expect(trainedOn({ since: '2026-10-23', kind: 'first' })).toBe('');
+        expect(trainedOn(null)).toBe('');
+        expect(trainedOn(undefined)).toBe('');
     });
 });
 
