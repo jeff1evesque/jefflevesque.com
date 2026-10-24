@@ -608,7 +608,7 @@ describe('the lists', () => {
 });
 
 describe('the title', () => {
-    it('says what the stock models and the options model predict, what they read, and what the pages show, linking the graph and the data (#251, #277, #279)', async () => {
+    it('says what the stock models and the options model predict, what they read, and what the pages show, linking the graph and the data (#251, #277, #279, #290)', async () => {
         answer();
         await open();
 
@@ -621,7 +621,8 @@ describe('the title', () => {
             + 'trading day and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and sell '
             + 'prices. Each night they read the day’s knowledge graph, built from the data this site collects. Once the '
             + 'prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can '
-            + 'predict the market at all. This page shows those grades, and the options model’s own page its picks.'
+            + 'predict the market at all. This page shows those grades. An options model’s picks are on a page of their '
+            + 'own, for signed-in readers.'
         );
         expect(within(lede).getByRole('link', { name: 'knowledge graph' })).toHaveAttribute('href', '/graph');
         expect(within(lede).getByRole('link', { name: 'data this site collects' })).toHaveAttribute('href', '/stream');
@@ -644,7 +645,7 @@ describe('the intro on a phone (#287)', () => {
         expect(more()).toHaveAttribute('aria-expanded', 'false');
         expect(more()).toHaveAttribute('aria-controls', 'model-lede');
         expect(screen.queryByRole('button', { name: 'Less' })).toBeNull();
-        expect(document.querySelector('#model-lede')).toHaveTextContent(/own page its picks\.$/);
+        expect(document.querySelector('#model-lede')).toHaveTextContent(/a page of their own, for signed-in readers\.$/);
     });
 
     it('opens on More, ending in Less, and folds again on Less', async () => {
@@ -1035,6 +1036,28 @@ describe('two tasks, from format 3 on (#279)', () => {
             .toEqual(['Loss', 'Up/down AUC', 'Beat-the-average AUC', 'Up/down accuracy', 'Top 10 gain', 'Top 10 wins']);
         expect(namesIn('Option picks')).toEqual(['pt-options']);
         expect(screen.getByRole('button', { name: 'Option picks 1' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('links each options model to its picks under its description, and no stock model (#290)', async () => {
+        await both();
+
+        const link = within(group('Option picks')).getByRole('link', { name: 'See its picks ›' });
+
+        expect(link).toHaveAttribute('href', '/model/pt-options/picks');
+        expect(link.previousElementSibling).toHaveClass('model-description');
+        expect(within(group('Next-day direction')).queryByRole('link', { name: 'See its picks ›' })).toBeNull();
+    });
+
+    it('links no retired options model to picks it no longer makes (#290)', async () => {
+        const listing = optionsListingOf();
+
+        answer(
+            { ...listing, models: listing.models.map((model) => (model.name === 'pt-options' ? { ...model, retired: '2026-10-19' } : model)) },
+            (name) => (name === 'pt-options' ? optionsTrackOf(5) : withTop10(trackOf(5))),
+        );
+        await open();
+
+        expect(screen.queryByRole('link', { name: 'See its picks ›' })).toBeNull();
     });
 
     it('changes nothing, and breaks nothing, where a score is picked with no store listening', async () => {
