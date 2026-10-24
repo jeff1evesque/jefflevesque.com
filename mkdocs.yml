@@ -138,6 +138,7 @@ nav:
   - Home: index.md
   - Guides:
       - Alarms: guide/alarms.md
+      - Models: guide/models.md
   - APIs:
       - Overview: api/index.md
       - Performance: api/performance.md
