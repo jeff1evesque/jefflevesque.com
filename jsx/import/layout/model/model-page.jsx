@@ -28,9 +28,10 @@
  * The score picker offers the scores the model's task has (#279). An options
  * model's page has a hold picker beside it, which the track record follows --
  * the attempts are scored on the plain scores, which decide what goes live --
- * its checks say which hold each is of, and after the charts are its picks: see
- * option-picks.jsx. On a score of what each model's picks would have made, the
- * track record's menu offers the models of other tasks too.
+ * and its checks say which hold each is of. Its picks are on a page of their
+ * own, for signed-in readers, and nothing here shows or asks for them: see
+ * picks-page.jsx (#290). On a score of what each model's picks would have made,
+ * the track record's menu offers the models of other tasks too.
  *
  * The listing says who the model is; its history and its track record are asked
  * for once the listing names it. A name the listing does not hold is a model
@@ -52,7 +53,6 @@ import FigureBoxes from '../../general/figure-boxes.jsx';
 import InfoNote from '../../general/info-note.jsx';
 import AttemptsChart, { HEIGHT as ATTEMPTS_HEIGHT, TITLE as ATTEMPTS_TITLE } from './attempts-chart.jsx';
 import TrackChart, { HEIGHT as TRACK_HEIGHT, TITLE as TRACK_TITLE } from './track-chart.jsx';
-import OptionPicks from './option-picks.jsx';
 import { AlarmBell, HoldPicker, ScorePicker, StatusPill, modelsHeld } from './parts.jsx';
 import { loadListing, loadReport } from './source.js';
 import { PendingChart, PendingLines, PendingPicker, PendingSummary, STAGGER } from './pending.jsx';
@@ -800,7 +800,6 @@ class ModelPage extends Component {
                     ? <AttemptsChart rows={history} score={score} />
                     : <p className='model-status model-status-empty'>No nightly attempts yet.</p>))}
                 {this.report(track, 'track record', TRACK_CARD, () => this.trackRecord(model, score, holds))}
-                {tradesOptions(task) ? <OptionPicks name={model.name} /> : null}
             </>
         );
     }
