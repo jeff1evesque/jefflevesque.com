@@ -56,6 +56,8 @@ import {
     statusOf,
     takenDown,
     tradesOptions,
+    newYorkToday,
+    weekDay,
 } from '../../../import/layout/model/scores.js';
 import { colors_categorical, themeColors } from '../../../import/general/colors.js';
 import {
@@ -257,6 +259,20 @@ describe('how long an attempt took, and when it started (#247)', () => {
         [null, '', 'soon', '2026-10-16', '2026-10-16T07:58:10', '2026-13-45T07:58:10Z', 1792137490].forEach((value) => {
             expect(formatStarted(value)).toBe('');
         });
+    });
+
+    it('names an options model\'s days with their weekdays, the same day in every zone (#290)', () => {
+        expect(weekDay('2026-10-20')).toBe('Tue, Oct 20');
+        expect(weekDay('2026-11-19')).toBe('Thu, Nov 19');
+        expect(weekDay(null)).toBe('');
+    });
+
+    it('takes today as New York has it, in summer and in winter, wherever the reader is (#290)', () => {
+        expect(newYorkToday(new Date('2026-10-23T03:30:00Z'))).toBe('2026-10-22');
+        expect(newYorkToday(new Date('2026-10-23T04:30:00Z'))).toBe('2026-10-23');
+        expect(newYorkToday(new Date('2026-12-01T04:30:00Z'))).toBe('2026-11-30');
+        expect(newYorkToday(new Date('2026-12-01T05:30:00Z'))).toBe('2026-12-01');
+        expect(newYorkToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
 });
 
