@@ -15,8 +15,9 @@
  *     When                the day of the data the picks were made from, the day
  *                         they are bought at 9:40 AM and the hold's sell day at
  *                         3:40 PM, which every pick of a hold shares
- *     its record          how the hold's top 10 has done over its last 20 scored
- *                         days, beside a random pick, from the track record
+ *     its record          how the hold's top 10 has done over its last scored
+ *                         days, as many as the listing's `average_days` (#293),
+ *                         beside a random pick, from the track record
  *     the picks           the hold's top 10, or a stock looked up, as a table, and
  *                         on a phone a card each -- see '_model.scss'
  *     how to read them    a section that folds by its title, kept per browser
@@ -50,6 +51,7 @@ import {
     DEFAULT_HOLD,
     HOLDS,
     WINDOW,
+    averageDays,
     checkWords,
     columnOf,
     holdsOf,
@@ -214,14 +216,16 @@ function meanOf(values) {
 }
 
 /**
- * how a hold's top 10 has done (#290), from a track record: the hold's last 20
- * scored days -- each a day that has its top 10's gain -- each day's gain, how
- * many of the 10 made money, and a random pick's gain, and over those days the
- * top 10's average gain and wins, each beside a random pick's: the baseline's,
- * the average of everything the model could have picked. `scored` is how many
- * days the hold has scored in all. Null for a hold with none scored yet.
+ * how a hold's top 10 has done (#290), from a track record: the hold's last
+ * `count` scored days, the listing's `average_days` (#293) -- each a day that has
+ * its top 10's gain -- each day's gain, how many of the 10 made money, and a
+ * random pick's gain, and over those days the top 10's average gain and wins,
+ * each beside a random pick's: the baseline's, the average of everything the
+ * model could have picked. `scored` is how many days the hold has scored in all,
+ * and `count` how many the record takes in at most. Null for a hold with none
+ * scored yet.
  */
-export function recordOf(track, hold) {
+export function recordOf(track, hold, count = WINDOW) {
     const gain = columnOf('top10_gain', hold);
     const wins = columnOf('top10_wins', hold);
     const scored = (Array.isArray(track) ? track : []).filter((row) => scoreIn(row.score, gain) !== null);
@@ -230,10 +234,11 @@ export function recordOf(track, hold) {
         return null;
     }
 
-    const days = scored.slice(-WINDOW);
+    const days = scored.slice(-count);
 
     return {
         scored: scored.length,
+        count: count,
         days: days.map((row) => ({
             day: row.day,
             gain: scoreIn(row.score, gain),
@@ -456,8 +461,8 @@ function RecordBars({ record }) {
     const above = (value) => (value / extent) * HALF;
     const first = record.days[0].day;
     const last = record.days[record.days.length - 1].day;
-    const count = record.scored > WINDOW
-        ? `the last ${WINDOW} of ${record.scored} scored days`
+    const count = record.scored > record.count
+        ? `the last ${record.count} of ${record.scored} scored days`
         : `${record.scored} ${record.scored === 1 ? 'day' : 'days'} scored so far`;
 
     return (
@@ -516,6 +521,7 @@ function RecordBars({ record }) {
 RecordBars.propTypes = {
     record: PropTypes.shape({
         scored: PropTypes.number.isRequired,
+        count: PropTypes.number.isRequired,
         days: PropTypes.arrayOf(PropTypes.object).isRequired,
     }).isRequired,
 };
@@ -523,13 +529,14 @@ RecordBars.propTypes = {
 /**
  * the card of how a hold's top 10 has done (#290), from the model's track record:
  * undefined while it is on its way, null where it could not be had. Over the
- * hold's last 20 scored days, the top 10's average gain and how many of the 10
- * made money, each beside a random pick's, then a bar for each day. A hold with
- * no day scored yet says when its first is.
+ * hold's last `days` scored days, the listing's `average_days` (#293), the top
+ * 10's average gain and how many of the 10 made money, each beside a random
+ * pick's, then a bar for each day. A hold with no day scored yet says when its
+ * first is.
  */
-export function RecordCard({ track, hold, wide = false }) {
+export function RecordCard({ track, hold, wide = false, days = WINDOW }) {
     const label = holdLabel(hold);
-    const record = Array.isArray(track) ? recordOf(track, hold) : null;
+    const record = Array.isArray(track) ? recordOf(track, hold, days) : null;
     let head = null;
     let body = null;
 
@@ -577,6 +584,11 @@ RecordCard.propTypes = {
     track: PropTypes.array,
     hold: PropTypes.number.isRequired,
     wide: PropTypes.bool,
+    //
+    // how many of the hold's latest scored days the record takes in: the
+    // listing's `average_days` (#293)
+    //
+    days: PropTypes.number,
 };
 
 /**
@@ -705,7 +717,7 @@ function PicksPage({ name, hold = DEFAULT_HOLD, onHold = () => {} }) {
             return;
         }
 
-        loadReport(name, 'track-record').then((rows) => {
+        loadReport(name, 'track-record', averageDays(model)).then((rows) => {
             if (alive.current) {
                 setTrack(rows);
             }
@@ -871,7 +883,7 @@ function PicksPage({ name, hold = DEFAULT_HOLD, onHold = () => {} }) {
                 <Message id='model-picks-down' title={`No picks while ${model.name} is down`}>
                     {`${model.name} was taken down on ${shortDay(model.down.since)}: ${checkWords(model.down)}. It makes no picks until a new version beats the baseline on the days it was tested on.`}
                 </Message>
-                <RecordCard track={track} hold={chosen} wide />
+                <RecordCard track={track} hold={chosen} days={averageDays(model)} wide />
             </>
         );
     }
@@ -937,7 +949,7 @@ function PicksPage({ name, hold = DEFAULT_HOLD, onHold = () => {} }) {
                 ) : null}
             <div className='model-picks-summary'>
                 <WhenCard rows={night} />
-                <RecordCard track={track} hold={chosen} />
+                <RecordCard track={track} hold={chosen} days={averageDays(model)} />
             </div>
             <section className='model-card model-picks' aria-labelledby='model-picks-title'>
                 <div className='model-card-head'>
