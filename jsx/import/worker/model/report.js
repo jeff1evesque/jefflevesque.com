@@ -9,7 +9,8 @@
  *                     and how close each of its checks is to doing so (#263). From
  *                     format 4, how many scored days a model's scores average
  *                     (#293), why a live version was taken down, and what it
- *                     learned from (#295)
+ *                     learned from (#295). From format 5, each model's scores on
+ *                     each of its holds (#300)
  *     history         a model's csv, one row per nightly training attempt: the
  *                     attempt's scores, the live version's and the know-nothing
  *                     baseline's, on the same held-out days, and from 2026-10-15
@@ -18,7 +19,8 @@
  *                     that day is scored: its scores and the baseline's, with each
  *                     day's averages worked out here, over the days it is sent
  *                     with. From format 2 on, the check that took the live version
- *                     down, on the day whose score set it off (#263)
+ *                     down, on the day whose score set it off (#263), and the hold
+ *                     it ran on where the model has holds (#300)
  *
  *     option-picks    an options model's csv of its nightly picks (#279): each
  *                     hold's top 10, or one stock's options best first, up to
@@ -42,13 +44,19 @@
  * model's for each hold it is held. Only where it gives them, so a report before
  * them reads exactly as it did. A task says which scores its models have, and a
  * live version taken down, and each check, which hold it was where the model
- * has holds.
+ * has holds. From format 5 a stock model has holds too, and its three averaged,
+ * Combined (#300), and the listing gives each model's scores on each of them.
  *
  * A day's average is taken over a model's own scored DAYS, not the calendar. A
  * day it was not running -- before it started, after it retired, a night the
  * trainer did not run -- has no row, so it neither counts as a zero nor shortens
  * the window: the average of a day is of the rows ending at it, as many as the
  * listing's `average_days`, or every row so far while there are fewer.
+ *
+ * A hold's columns are averaged over the hold's own scored days, as the trainer
+ * averages them (#300): a day's 5-day result is in 6 trading days after it, so
+ * the newest rows of a longer hold are always empty, and its average over the
+ * record's last 20 rows was of 15 days, or of none.
  *
  * Note: everything this needs is written inside the exported function. A worker
  *       is built from the function's TEXT -- see web-worker.js -- so a helper
@@ -83,19 +91,44 @@ export default () => {
     const READ = SCORES.concat(PARTS);
 
     //
+    // the endings of a hold's columns (#279): its picks held 1, 5 or 20 trading
+    // days, and from format 5 a stock model's three holds averaged (#300)
+    //
+    const HOLDS = ['_1d', '_5d', '_20d'];
+    const COMBINED = '_combined';
+    const HOLD_ENDS = HOLDS.concat([COMBINED]);
+
+    //
     // the scores a set carries only where the report gives them (#279): an
     // options model's chance of making money ranked against what did, and every
     // model's top 10 -- the average gain of each night's 10 best picks, and how
     // many of them made money. An options model gives its four scores again for
-    // each hold, 1, 5 and 20 trading days, as `<score>_1d`, `_5d` and `_20d`
+    // each hold, 1, 5 and 20 trading days, as `<score>_1d`, `_5d` and `_20d`.
     //
-    const MORE = ['profit_auc', 'top10_gain', 'top10_wins'];
+    // From format 5 a stock model gives every one of its scores for each hold
+    // too, loss's three parts among them, and the four and the parts again as
+    // `<score>_combined` (#300): the average of the day's 1, 5 and 20-day ones.
+    // The top 10 has none of those, a 20-day gain and a 1-day gain not being the
+    // same kind of number
+    //
+    const TRADES = ['profit_auc', 'top10_gain', 'top10_wins'];
+    const MORE = TRADES.slice();
 
-    ['_1d', '_5d', '_20d'].forEach(function (hold) {
-        ['loss', 'profit_auc', 'top10_gain', 'top10_wins'].forEach(function (score) {
+    HOLDS.forEach(function (hold) {
+        READ.concat(TRADES).forEach(function (score) {
             MORE.push(score + hold);
         });
     });
+
+    READ.forEach(function (score) {
+        MORE.push(score + COMBINED);
+    });
+
+    //
+    // the keys the listing gives each hold's scores under, from format 5 on
+    // (#300) -- see holdScoresOf
+    //
+    const HOLD_KEYS = ['1d', '5d', '20d', 'combined'];
 
     //
     // how many of a model's scored days an average takes in, where the listing
@@ -344,6 +377,35 @@ export default () => {
     }
 
     //
+    // a model's scores on each of its holds, from format 5 on (#300): `days`, how
+    // many scored days the hold has, and `score` and `baseline`, its scores
+    // averaged over its own latest `average_days` of them, each read as the
+    // listing's own are, or null before the first. Only the holds the listing
+    // gives, under HOLD_KEYS, and none for one before format 5, which gives none
+    //
+    function holdScoresOf(value) {
+        if (!isRecord(value)) {
+            return null;
+        }
+
+        const holds = {};
+
+        HOLD_KEYS.forEach(function (key) {
+            const hold = value[key];
+
+            if (isRecord(hold)) {
+                holds[key] = {
+                    days: countOf(hold.days),
+                    score: isRecord(hold.score) ? scoresOf(hold.score, '') : null,
+                    baseline: isRecord(hold.baseline) ? scoresOf(hold.baseline, '') : null,
+                };
+            }
+        });
+
+        return Object.keys(holds).length ? holds : null;
+    }
+
+    //
     // a csv's rows, each an object keyed by the header
     //
     function rowsOf(csv) {
@@ -419,7 +481,8 @@ export default () => {
     // listing does not describe is named by its id, after the rest; one no model
     // names is left out, having nothing to list. A task keeps the scores it names
     // from format 3 on (#279). Every model carries the listing's `average_days`
-    // (#293), so whatever has a model has its number
+    // (#293), so whatever has a model has its number, and from format 5 its
+    // scores on each hold, where the listing gives them (#300)
     //
     function listing(report) {
         if (!isRecord(report) || !Array.isArray(report.models)) {
@@ -444,9 +507,11 @@ export default () => {
 
             const live = isRecord(entry.live) ? entry.live : {};
             const attempts = isRecord(entry.attempts) ? entry.attempts : {};
+            const holds = holdScoresOf(entry.holds);
 
             seen[name] = true;
-            models.push({
+
+            const model = {
                 name: name,
                 task: task,
                 description: textOf(entry.description),
@@ -467,7 +532,13 @@ export default () => {
                 baseline: isRecord(entry.baseline) ? scoresOf(entry.baseline, '') : null,
                 down: downOf(entry.down),
                 behind: behindOf(entry.behind),
-            });
+            };
+
+            if (holds) {
+                model.holds = holds;
+            }
+
+            models.push(model);
         });
 
         const named = {};
@@ -533,12 +604,68 @@ export default () => {
     }
 
     //
+    // whether a column's name ends as a hold's do, '_5d' or '_combined'
+    //
+    function endsWith(name, end) {
+        return name.slice(-end.length) === end;
+    }
+
+    //
+    // the endings of the holds a track record has columns for (#279): none for
+    // one before format 3, nor for a stock model's before format 5 (#300). Every
+    // row of one report carries the same scores, its header's
+    //
+    function holdsIn(rows) {
+        const names = rows.length ? Object.keys(rows[0].score) : [];
+
+        return HOLD_ENDS.filter(function (end) {
+            return names.some(function (name) { return endsWith(name, end); });
+        });
+    }
+
+    //
+    // whether a day has a hold's result in yet: a number in any of its columns
+    //
+    function hasHold(row, end) {
+        return Object.keys(row.score).some(function (name) {
+            return endsWith(name, end) && row.score[name] !== null;
+        });
+    }
+
+    //
+    // each of a hold's columns in `average`, averaged over `days`, the hold's own
+    // latest scored days, in place of averageOf's over the record's latest rows
+    // (#300). Where none has the hold yet, each is null
+    //
+    function averageHold(days, field, end, average) {
+        Object.keys(average).forEach(function (name) {
+            if (!endsWith(name, end)) {
+                return;
+            }
+
+            const values = days
+                .map(function (row) { return row[field][name]; })
+                .filter(function (value) { return value !== null; });
+
+            average[name] = values.length
+                ? values.reduce(function (sum, value) { return sum + value; }, 0) / values.length
+                : null;
+        });
+    }
+
+    //
     // the track record: every scored day, with the averages ending at it, the
     // model's and the baseline's, over `averageDays` days -- the listing's
     // `average_days` (#293) -- and how many days they take in.
     //
+    // A hold's columns are averaged over its own latest `averageDays` scored days
+    // up to the day, as the trainer averages them, and `hold_days` says how many
+    // each hold's take in, keyed as the listing's `holds` are, `5d` or `combined`
+    // (#300). A record with no hold's columns has none.
+    //
     // From format 2 on, the day whose score set off a check that took the live
-    // version down says which check, as the listing's `down` does (#263). Every
+    // version down says which check, as the listing's `down` does (#263), and from
+    // format 3 the hold whose scores set it off, for a model that has holds. Every
     // other day's cells are empty, and a track record written before the columns
     // has none: either way, each is null
     //
@@ -550,7 +677,18 @@ export default () => {
                 baseline: scoresOf(row, 'baseline_'),
                 down_days: wholeCellOf(row.down_days),
                 down_in_a_row: wholeCellOf(row.down_in_a_row),
+                down_hold: wholeCellOf(row.down_hold),
             };
+        });
+
+        //
+        // the days each hold has its result on so far, oldest first
+        //
+        const ends = holdsIn(rows);
+        const held = {};
+
+        ends.forEach(function (end) {
+            held[end] = [];
         });
 
         rows.forEach(function (row, at) {
@@ -559,6 +697,24 @@ export default () => {
             row.days = recent.length;
             row.average = averageOf(recent, 'score');
             row.baseline_average = averageOf(recent, 'baseline');
+
+            if (!ends.length) {
+                return;
+            }
+
+            row.hold_days = {};
+
+            ends.forEach(function (end) {
+                if (hasHold(row, end)) {
+                    held[end].push(row);
+                }
+
+                const latest = held[end].slice(-averageDays);
+
+                averageHold(latest, 'score', end, row.average);
+                averageHold(latest, 'baseline', end, row.baseline_average);
+                row.hold_days[end.slice(1)] = latest.length;
+            });
         });
 
         return rows;

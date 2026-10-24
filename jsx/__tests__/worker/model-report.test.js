@@ -935,10 +935,30 @@ describe('an options model, and every model\'s top 10, from format 3 on (#279)',
     it('drops a column whose name it does not know, as it always has', () => {
         const [row] = run({
             kind: 'track-record',
-            report: csv(['day', 'loss', 'loss_2d', 'acc_up_5d', 'top10_gain_1d'], [['2026-10-12', 0.8, 0.7, 0.5, 0.01]]),
+            report: csv(['day', 'loss', 'loss_2d', 'share_up_5d', 'top10_gain_combined', 'top10_gain_1d'], [['2026-10-12', 0.8, 0.7, 0.5, 0.01, 0.01]]),
         }).rows;
 
         expect(Object.keys(row.score).sort()).toEqual([...SCORES, ...PARTS, 'top10_gain_1d'].sort());
+    });
+
+    it('averages each hold over its own days, and says how many, an options model\'s as a stock model\'s (#300)', () => {
+        const rows = run({
+            kind: 'track-record',
+            average_days: 2,
+            report: csv(header, [
+                optionsDay('2026-10-12', 0.8),
+                optionsDay('2026-10-13', 0.9),
+                optionsDay('2026-10-14', 0.7, { _1d: true, _5d: false, _20d: false }),
+            ]),
+        }).rows;
+
+        //
+        // the last two days are the 13th's and the 14th's, but the 5-day hold's
+        // last two with a result are the 12th's and the 13th's
+        //
+        expect(rows[2].average.loss).toBeCloseTo(0.8);
+        expect(rows[2].average.loss_5d).toBeCloseTo(0.85);
+        expect(rows[2].hold_days).toEqual({ '1d': 2, '5d': 2, '20d': 0 });
     });
 
     it('reads the top 10 in a stock model\'s history, under each prefix', () => {
@@ -1067,6 +1087,292 @@ describe('an options model, and every model\'s top 10, from format 3 on (#279)',
             ['not text', { rows: [] }],
         ])('gives none for picks %s', (name, report) => {
             expect(run({ kind: 'option-picks', report: report }).rows).toBeNull();
+        });
+    });
+});
+
+describe('a stock model\'s holds and Combined, from format 5 on (#300)', () => {
+    //
+    // a stock model's scores, in the order the trainer writes them, its top 10's
+    // among them, and the ones Combined has: every one but the top 10's
+    //
+    const STOCK = [...SCORES, 'top10_gain', 'top10_wins', ...PARTS];
+    const COMBINED = [...SCORES, ...PARTS];
+    const ENDS = ['_1d', '_5d', '_20d'];
+
+    //
+    // a format 5 track record: today's columns, the 1-day hold's, then each
+    // hold's again under its ending, with how many stocks it scored and their
+    // average gain, which the pages do not read, then Combined's
+    //
+    const named = (scores) => [...scores, ...scores.map((score) => `baseline_${score}`)];
+    const header = [
+        'day', 'version', 'stocks', 'all_gain', 'down_days', 'down_in_a_row', 'down_hold',
+        ...named(STOCK),
+        ...ENDS.flatMap((end) => ['stocks', 'all_gain', ...named(STOCK)].map((name) => `${name}${end}`)),
+        ...named(COMBINED).map((name) => `${name}_combined`),
+    ];
+
+    //
+    // a hold's scores on a day its loss is `loss`, as `scores` lists them: loss's
+    // parts add up to it, and the rest are fixed
+    //
+    const scoresAt = (scores, loss) => scores.map((score) => ({
+        loss: loss,
+        auc_up: 0.55,
+        auc_beats: 0.52,
+        acc_up: 0.53,
+        top10_gain: 0.0012,
+        top10_wins: 5.5,
+        up_log_loss: 0.7,
+        beats_log_loss: 0.69,
+        move_pinball: loss - 1.39,
+    })[score]);
+
+    //
+    // a day whose 1, 5 and 20-day losses are `losses`, each hold's null until its
+    // result is in, and the baseline's 1.66 on each. Combined is in with the
+    // 20-day result, the average of the three
+    //
+    function heldDay(day, losses, down = ['', '', '']) {
+        const hold = (end) => (losses[end] === null
+            ? Array(2 + 2 * STOCK.length).fill('')
+            : [503, 0.001, ...scoresAt(STOCK, losses[end]), ...scoresAt(STOCK, 1.66)]);
+        const combined = losses._20d === null
+            ? Array(2 * COMBINED.length).fill('')
+            : [...scoresAt(COMBINED, (losses._1d + losses._5d + losses._20d) / 3), ...scoresAt(COMBINED, 1.66)];
+
+        return [day, '20261019_pt-gnn', 503, 0.001, ...down, ...scoresAt(STOCK, losses._1d), ...scoresAt(STOCK, 1.66), ...ENDS.flatMap(hold), ...combined];
+    }
+
+    //
+    // `count` weekdays from 2026-09-01, as the track record's own cases count them
+    //
+    function weekdays(count) {
+        const days = [];
+        const at = new Date('2026-09-01T12:00:00Z');
+
+        while (days.length < count) {
+            if (at.getUTCDay() !== 0 && at.getUTCDay() !== 6) {
+                days.push(at.toISOString().slice(0, 10));
+            }
+
+            at.setUTCDate(at.getUTCDate() + 1);
+        }
+
+        return days;
+    }
+
+    //
+    // `count` days, the 1-day loss 1 to `count`, the 5-day loss 101 on, and the
+    // 20-day 201 on, each hold in on the days `in5` and `in20` say
+    //
+    function recordOf(count, in5, in20, averageDays = undefined) {
+        const asked = {
+            kind: 'track-record',
+            report: csv(header, weekdays(count).map((day, at) => heldDay(day, {
+                _1d: at + 1,
+                _5d: in5(at) ? 101 + at : null,
+                _20d: in20(at) ? 201 + at : null,
+            }))),
+        };
+
+        if (averageDays !== undefined) {
+            asked.average_days = averageDays;
+        }
+
+        return run(asked).rows;
+    }
+
+    const mean = (values) => values.reduce((total, value) => total + value, 0) / values.length;
+    const from = (first, last) => [...Array(last - first + 1).keys()].map((at) => first + at);
+
+    it('reads each hold\'s scores, loss\'s parts among them, and Combined\'s, the model\'s and the baseline\'s', () => {
+        const [row] = run({ kind: 'track-record', report: csv(header, [heldDay('2026-10-12', { _1d: 1.6, _5d: 1.7, _20d: 1.8 })]) }).rows;
+
+        expect(row.score).toMatchObject({
+            loss: 1.6,
+            loss_1d: 1.6,
+            loss_5d: 1.7,
+            loss_20d: 1.8,
+            auc_up_5d: 0.55,
+            auc_beats_20d: 0.52,
+            acc_up_1d: 0.53,
+            top10_gain_5d: 0.0012,
+            top10_wins_20d: 5.5,
+            up_log_loss_5d: 0.7,
+            beats_log_loss_20d: 0.69,
+            auc_up_combined: 0.55,
+            up_log_loss_combined: 0.7,
+        });
+        expect(row.score.loss_combined).toBeCloseTo(1.7);
+        expect(row.score.move_pinball_20d).toBeCloseTo(0.41);
+        expect(row.baseline).toMatchObject({ loss_5d: 1.66, loss_combined: 1.66, auc_up_20d: 0.55, up_log_loss_1d: 0.7 });
+    });
+
+    it('reads no top 10 for Combined, and none of a hold\'s stocks or gain, which the pages do not draw', () => {
+        const [row] = run({ kind: 'track-record', report: csv(header, [heldDay('2026-10-12', { _1d: 1.6, _5d: 1.7, _20d: 1.8 })]) }).rows;
+
+        expect(row.score).not.toHaveProperty('top10_gain_combined');
+        expect(row.score).not.toHaveProperty('stocks_5d');
+        expect(row.score).not.toHaveProperty('all_gain_5d');
+    });
+
+    it('averages each hold over its own latest 20 days with a result, not over the record\'s last 20 rows', () => {
+        //
+        // 25 days, the 5-day result in for the first 20: the record's last 20 rows
+        // are its 6th to its 25th, and only 15 of them have a 5-day result
+        //
+        const rows = recordOf(25, (at) => at < 20, (at) => at < 5);
+        const last = rows[24];
+
+        expect(last.days).toBe(20);
+        expect(last.average.loss).toBeCloseTo(mean(from(6, 25)));
+        expect(last.average.loss_1d).toBeCloseTo(mean(from(6, 25)));
+        expect(last.average.loss_5d).toBeCloseTo(mean(from(101, 120)));
+        expect(last.average.loss_20d).toBeCloseTo(mean(from(201, 205)));
+        expect(last.hold_days).toEqual({ '1d': 20, '5d': 20, '20d': 5, combined: 5 });
+    });
+
+    it('averages each hold over every day with a result so far, while it has fewer, as of each day', () => {
+        const rows = recordOf(10, (at) => at < 6, (at) => at < 2);
+
+        expect(rows[3].average.loss_5d).toBeCloseTo(mean(from(101, 104)));
+        expect(rows[3].hold_days).toEqual({ '1d': 4, '5d': 4, '20d': 2, combined: 2 });
+        expect(rows[9].average.loss_5d).toBeCloseTo(mean(from(101, 106)));
+        expect(rows[9].hold_days['5d']).toBe(6);
+    });
+
+    it('averages each hold over the days the listing says, from format 4 on (#293)', () => {
+        const rows = recordOf(25, (at) => at < 20, () => true, 3);
+
+        expect(rows[24].average.loss).toBeCloseTo(24);
+        expect(rows[24].average.loss_5d).toBeCloseTo(119);
+        expect(rows[24].hold_days).toEqual({ '1d': 3, '5d': 3, '20d': 3, combined: 3 });
+    });
+
+    it('averages a hold no day has a result for yet to nothing, over no days', () => {
+        const rows = recordOf(8, (at) => at < 3, () => false);
+        const last = rows[7];
+
+        expect(last.average.loss_20d).toBeNull();
+        expect(last.average.top10_gain_20d).toBeNull();
+        expect(last.average.loss_combined).toBeNull();
+        expect(last.baseline_average.loss_combined).toBeNull();
+        expect(last.hold_days).toEqual({ '1d': 8, '5d': 3, '20d': 0, combined: 0 });
+    });
+
+    it('averages a hold\'s parts and its baseline over the same days as its loss, so the parts add up to it', () => {
+        const rows = recordOf(25, (at) => at < 20, (at) => at < 5);
+        const last = rows[24];
+        const parts = (average, end) => PARTS.reduce((total, part) => total + average[`${part}${end}`], 0);
+
+        ['_1d', '_5d', '_20d', '_combined'].forEach((end) => {
+            expect(parts(last.average, end)).toBeCloseTo(last.average[`loss${end}`], 10);
+            expect(parts(last.baseline_average, end)).toBeCloseTo(last.baseline_average[`loss${end}`], 10);
+        });
+        expect(last.baseline_average.loss_5d).toBeCloseTo(1.66);
+    });
+
+    it('reads the hold whose scores set a take-down off, and none on every other day', () => {
+        const rows = run({
+            kind: 'track-record',
+            report: csv(header, [
+                heldDay('2026-10-15', { _1d: 1.7, _5d: 1.8, _20d: null }),
+                heldDay('2026-10-16', { _1d: 1.7, _5d: 1.8, _20d: null }, [1, 5, 5]),
+            ]),
+        }).rows;
+
+        expect(rows[0]).toMatchObject({ down_days: null, down_in_a_row: null, down_hold: null });
+        expect(rows[1]).toMatchObject({ down_days: 1, down_in_a_row: 5, down_hold: 5 });
+    });
+
+    it('reads a record before format 5 as it did: no hold, no hold_days and no down_hold', () => {
+        const [row] = run({
+            kind: 'track-record',
+            report: csv([...TRACK_HEADER, 'down_days', 'down_in_a_row'], [[...trackRow('2026-10-15', 1.8), 1, 5]]),
+        }).rows;
+
+        expect(row).not.toHaveProperty('hold_days');
+        expect(row.down_hold).toBeNull();
+        expect(Object.keys(row.score).sort()).toEqual([...SCORES, ...PARTS].sort());
+    });
+
+    describe('in the listing', () => {
+        //
+        // a format 5 stock model's holds: the 1-day hold's scores, the listing's
+        // own, the 5-day hold's over its 15 days so far, and the 20-day hold and
+        // Combined with none yet
+        //
+        const ONE = { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54, top10_gain: 0.0014, top10_wins: 5.6 };
+        const BASE = { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52, top10_gain: 0.0003, top10_wins: 5.1 };
+        const HOLDS = {
+            '1d': { days: 30, score: ONE, baseline: BASE },
+            '5d': { days: 15, score: { ...ONE, loss: 1.65, top10_gain: 0.004 }, baseline: { ...BASE, top10_gain: 0.001 } },
+            '20d': { days: 0, score: null, baseline: null },
+            combined: { days: 0, score: null, baseline: null },
+        };
+
+        const read = (holds) => run({ kind: 'list', report: { format_version: 5, ...listingOf([entry({ holds: holds })]) } }).models[0];
+
+        it('reads each hold\'s days and scores, as the listing\'s own scores are read', () => {
+            expect(read(HOLDS).holds).toEqual({
+                '1d': { days: 30, score: { ...ONE, ...NO_PARTS }, baseline: { ...BASE, ...NO_PARTS } },
+                '5d': { days: 15, score: { ...ONE, loss: 1.65, top10_gain: 0.004, ...NO_PARTS }, baseline: { ...BASE, top10_gain: 0.001, ...NO_PARTS } },
+                '20d': { days: 0, score: null, baseline: null },
+                combined: { days: 0, score: null, baseline: null },
+            });
+        });
+
+        it('reads Combined\'s scores, which have no top 10', () => {
+            const holds = read({ combined: { days: 3, score: { loss: 1.64, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.54 }, baseline: BASE } }).holds;
+
+            expect(holds.combined.score).toEqual({ loss: 1.64, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.54, ...NO_PARTS });
+            expect(holds.combined.score).not.toHaveProperty('top10_gain');
+        });
+
+        it('reads an options model\'s three holds', () => {
+            const score = { loss: 0.84, auc_up: null, auc_beats: null, acc_up: null, profit_auc: 0.55, top10_gain: 0.031, top10_wins: 6.2 };
+            const holds = read({ '1d': { days: 9, score: score, baseline: score }, '5d': { days: 4, score: score, baseline: score }, '20d': { days: 0, score: null, baseline: null } }).holds;
+
+            expect(Object.keys(holds)).toEqual(['1d', '5d', '20d']);
+            expect(holds['5d']).toMatchObject({ days: 4, score: { profit_auc: 0.55, top10_wins: 6.2 } });
+        });
+
+        it('reads a listing before format 5, which gives none, as it did: no holds at all', () => {
+            const model = run({ kind: 'list', report: listingOf([entry()]) }).models[0];
+
+            expect(model).not.toHaveProperty('holds');
+        });
+
+        it('passes over a hold it does not know and one that is not an object, and reads what it cannot as none', () => {
+            expect(read({ '2d': HOLDS['5d'], '5d': 'soon', combined: { days: 'some', score: 'high', baseline: [1, 2] } }).holds)
+                .toEqual({ combined: { days: 0, score: null, baseline: null } });
+        });
+
+        it.each([
+            ['not an object', 'all three'],
+            ['a list', [HOLDS['1d']]],
+            ['null', null],
+            ['an object of no hold it knows', { '2d': HOLDS['5d'], one: HOLDS['1d'] }],
+        ])('reads holds that are %s as none', (name, holds) => {
+            expect(read(holds)).not.toHaveProperty('holds');
+        });
+
+        it('keeps the hold of a stock model\'s take-down, and of each check, as an options model\'s', () => {
+            const model = run({
+                kind: 'list',
+                report: {
+                    format_version: 5,
+                    ...listingOf([entry({
+                        down: { since: '2026-11-12', reason: 'track_record', days: null, in_a_row: null, hold: 20 },
+                        behind: [{ days: 1, in_a_row: 2, limit: 5, hold: 1 }, { days: 1, in_a_row: null, limit: 5, hold: 20 }],
+                    })]),
+                },
+            }).models[0];
+
+            expect(model.down).toEqual({ since: '2026-11-12', reason: 'track_record', days: null, in_a_row: null, hold: 20 });
+            expect(model.behind).toEqual([{ days: 1, in_a_row: 2, limit: 5, hold: 1 }, { days: 1, in_a_row: null, limit: 5, hold: 20 }]);
         });
     });
 });
@@ -1210,6 +1516,35 @@ describe('the worker as the bundle builds it', () => {
                 kind: 'track-record',
                 average_days: 2,
                 report: csv(TRACK_HEADER, [trackRow('2026-10-12', 1.6), trackRow('2026-10-13', 1.8), trackRow('2026-10-14', 1.7)]),
+            },
+            {
+                kind: 'track-record',
+                average_days: 2,
+                report: [
+                    'day,down_days,down_in_a_row,down_hold,loss,loss_1d,loss_5d,up_log_loss_5d,loss_20d,loss_combined,auc_up_combined,baseline_loss_5d,baseline_loss_combined',
+                    '2026-10-12,,,,1.6,1.6,1.7,0.7,1.8,1.7,0.55,1.66,1.66',
+                    '2026-10-13,,,,1.62,1.62,1.71,0.71,,,,1.66,',
+                    '2026-10-14,1,5,5,1.64,1.64,,,,,,,',
+                ].join('\n'),
+            },
+            {
+                kind: 'list',
+                report: {
+                    format_version: 5,
+                    average_days: 20,
+                    models: [
+                        entry({
+                            holds: {
+                                '1d': { days: 30, score: { loss: 1.6, top10_gain: 0.001 }, baseline: { loss: 1.66 } },
+                                '5d': { days: 15, score: { loss: 1.65 }, baseline: 'x' },
+                                combined: { days: 0, score: null, baseline: null },
+                                '2d': { days: 4 },
+                            },
+                            down: { since: '2026-11-12', reason: 'track_record', days: null, in_a_row: null, hold: 20 },
+                        }),
+                        entry({ name: 'b', holds: 'all' }),
+                    ],
+                },
             },
         ];
 
