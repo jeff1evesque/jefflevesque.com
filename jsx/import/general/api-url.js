@@ -94,6 +94,14 @@ const API_DOCS = {
 };
 
 //
+// the documentation's guides, for readers rather than callers: what the models
+// predict and how they're graded, linked from /model in place of its intro (#296)
+//
+const GUIDES = {
+    models: `${DOCUMENTATION}/guide/models/`,
+};
+
+//
 // the terms a reader accepts by subscribing to an alarm, as a page of the
 // documentation: linked from every page's footer (#202). The text is
 // notice-terms.jsx's, and a test holds the two alike
@@ -418,6 +426,7 @@ export {
     MODEL_PICKS,
     DOCUMENTATION,
     API_DOCS,
+    GUIDES,
     TERMS,
     DATASETS,
     PERFORMANCE_STREAMS,
