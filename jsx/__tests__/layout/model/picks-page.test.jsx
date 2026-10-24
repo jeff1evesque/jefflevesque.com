@@ -542,6 +542,16 @@ describe('where there are no picks to show', () => {
         expect(screen.queryByRole('table')).toBeNull();
     });
 
+    it('says why a model was taken down where no check did it, from format 4 (#295)', async () => {
+        answer({ listing: listingWith({ down: { since: '2026-10-23', reason: 'not_ahead', days: null, in_a_row: null } }) });
+        await open();
+
+        expect(screen.getByRole('region', { name: 'No picks while pt-options is down' })).toHaveTextContent(
+            'pt-options was taken down on Oct 23: it went live without beating the baseline. It makes no picks until a new version beats the baseline on the days it was tested on.',
+        );
+        expect(loadOptionPicks).not.toHaveBeenCalled();
+    });
+
     it('offers no hold to a model taken down until its track record says which it has', async () => {
         answer({ listing: listingWith({ down: { since: '2026-10-16', days: 1, in_a_row: 5, hold: 1 } }) });
         loadReport.mockReturnValue(new Promise(() => {}));
