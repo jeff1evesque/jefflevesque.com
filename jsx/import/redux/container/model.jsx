@@ -1,12 +1,14 @@
 /**
- * model.jsx: redux store for the model pages (#243): /model, and each model's
- * own page at /model/:model.
+ * model.jsx: redux store for the model pages (#243): /model, each model's own
+ * page at /model/:model, and an options model's picks at /model/:model/picks
+ * (#290).
  *
- * The two share the score their charts and figures show for each task (#279),
- * so a score picked for a task on one is the score the other opens on for it.
- * A model's own page keeps the hold it shows an options model's track record
- * by, too. That is all the store holds for them: everything else either page
- * shows comes from the model api.
+ * The first two share the score their charts and figures show for each task
+ * (#279), so a score picked for a task on one is the score the other opens on
+ * for it. A model's own page keeps the hold it shows an options model's track
+ * record by, too, and its picks page shares it: a hold picked on either is the
+ * one the other opens on. That is all the store holds for them: everything else
+ * the pages show comes from the model api.
  *
  * Note: this script implements jsx (reactjs) syntax.
  *
@@ -18,6 +20,7 @@
 import { connect } from 'react-redux';
 import ModelLayout from '../../layout/model.jsx';
 import ModelPageRoute from '../../layout/model/model-page.jsx';
+import PicksPageRoute from '../../layout/model/picks-page.jsx';
 import { setModelHold, setModelScore } from '../action/model.jsx';
 import { DEFAULT_HOLD } from '../../layout/model/scores.js';
 
@@ -27,6 +30,11 @@ import { DEFAULT_HOLD } from '../../layout/model/scores.js';
 //
 const scoresOf = (state) => (state && state.model && state.model.scores ? state.model.scores : {});
 
+//
+// the hold picked, which an options model's page and its picks page share
+//
+const holdOf = (state) => (state && state.model && state.model.hold ? state.model.hold : DEFAULT_HOLD);
+
 // transforms redux state tree to react properties
 const mapStateToProps = (state) => ({
     scores: scoresOf(state),
@@ -34,7 +42,15 @@ const mapStateToProps = (state) => ({
 
 const mapPageStateToProps = (state) => ({
     scores: scoresOf(state),
-    hold: state && state.model && state.model.hold ? state.model.hold : DEFAULT_HOLD,
+    hold: holdOf(state),
+});
+
+const mapPicksStateToProps = (state) => ({
+    hold: holdOf(state),
+});
+
+const mapPicksDispatchToProps = (dispatch) => ({
+    onHold: (hold) => dispatch(setModelHold(hold)),
 });
 
 const mapDispatchToProps = (dispatch) => ({
@@ -57,9 +73,15 @@ const ModelPageState = connect(
     mapPageDispatchToProps
 )(ModelPageRoute)
 
+const ModelPicksState = connect(
+    mapPicksStateToProps,
+    mapPicksDispatchToProps
+)(PicksPageRoute)
+
 // indicate which class can be exported, and instantiated via 'require'
 export default ModelLayoutState
 
 export {
-    ModelPageState
+    ModelPageState,
+    ModelPicksState
 }
