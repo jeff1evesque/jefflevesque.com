@@ -537,7 +537,8 @@ describe('model, as /model and /model/:model read it (#243)', () => {
         const down = listing.models.filter((model) => model.down);
 
         expect(down.map((model) => model.name)).toEqual(['tables-gnn-5day']);
-        expect(down[0].down).toEqual({ since: '2026-10-16', days: 1, in_a_row: 5 });
+        // a listing before format 4 gives no reason, and every take-down was for doing worse (#295)
+        expect(down[0].down).toEqual({ since: '2026-10-16', reason: 'worse', days: 1, in_a_row: 5 });
         listing.models.forEach((model) => {
             const holds = [...new Set(model.behind.map((check) => check.hold || null))];
 
