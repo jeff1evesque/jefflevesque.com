@@ -3,7 +3,7 @@
   "info": {
     "title": "Model",
     "version": "v1",
-    "description": "The models trained every night, and how each one scores: every nightly attempt to better it, and every day it predicted. Read by /model and /model/<name>. Scores, and for an options model, its nightly picks: nothing here says how a model is built."
+    "description": "The models trained every night, and how each one scores: every nightly attempt to better it, and every day it predicted. Read by /model and /model/<name>. Scores alone: an options model's nightly picks are served to signed-in readers, on /v1/private/model, as the Model API page says. Nothing here says how a model is built."
   },
   "servers": [
     {
@@ -14,8 +14,8 @@
     "/model": {
       "get": {
         "operationId": "getModel",
-        "summary": "The models, or one model's summary, history, track record or picks",
-        "description": "Five calls on one path. With no parameters, the listing, as JSON. With a Model from the listing and a Report, one of that model's reports: summary, its summary, as JSON; or history, one row per nightly attempt, track-record, one row per day it predicted, or picks, an options model's nightly picks, each as a CSV string with a header row. Model and Report go together: either alone is a 400. Ticker goes with Report=picks alone, and asks for one stock's options.",
+        "summary": "The models, or one model's summary, history or track record",
+        "description": "Four calls on one path. With no parameters, the listing, as JSON. With a Model from the listing and a Report, one of that model's reports: summary, its summary, as JSON; or history, one row per nightly attempt, or track-record, one row per day it predicted, each as a CSV string with a header row. Model and Report go together: either alone is a 400. Report=picks is a 403 here: an options model's picks are for signed-in readers, on /v1/private/model.",
         "parameters": [
           {
             "name": "Model",
@@ -31,33 +31,21 @@
             "name": "Report",
             "in": "query",
             "required": false,
-            "description": "Which of the model's reports: summary, its summary, as JSON; history, one row per nightly attempt; track-record, one row per day it predicted; or picks, an options model's nightly picks. Asked with Model.",
+            "description": "Which of the model's reports: summary, its summary, as JSON; history, one row per nightly attempt; or track-record, one row per day it predicted. Asked with Model.",
             "schema": {
               "type": "string",
               "enum": [
                 "summary",
                 "history",
-                "track-record",
-                "picks"
+                "track-record"
               ]
             },
             "example": "track-record"
-          },
-          {
-            "name": "Ticker",
-            "in": "query",
-            "required": false,
-            "description": "A stock's symbol, as AAPL, or BRK.B for a share class -- not BRK/B. Only with Report=picks: that stock's options, best first, up to 100 for each hold, rather than each hold's top 10.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[A-Z]{1,5}(\\.[A-Z])?$"
-            },
-            "example": "AAPL"
           }
         ],
         "responses": {
           "200": {
-            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history, track-record or picks, a CSV string with a header row, oldest row first, and the picks best first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; started, when the attempt began, in UTC with its offset, e.g. 2026-10-16T07:58:10+00:00; training_seconds, the time spent training, reading the days included, to one decimal; total_seconds, from started until the attempt's scores are known, so its training and then scoring the held-out days for the attempt and for the live version, to one decimal; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>. started, training_seconds and total_seconds are empty for attempts made before 2026-10-15.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row. From format 2, down_days and down_in_a_row: the check that took the live version down, on the day whose score set it off, and empty on every other row. While a model is down it predicts nothing, so its track record has no rows until a new version goes live. From format 3, an options model's track record has a set of columns for each hold, each score again as <score>_1d, <score>_5d and <score>_20d, and the baseline's as baseline_<score>_1d and so on. Its plain columns repeat the 1-day hold's. A day's 5 and 20-day columns are empty until those holds' sell days are in, 6 and 21 trading days after the day.\n\npicks, an options model's picks, made each night: with no Ticker, the top 10 options for each hold; with Ticker, that stock's options, best first, up to 100 for each hold. One row per option: day, the day the picks were made from; hold, 1, 5 or 20, the trading days it is held; rank, 1 for the best of its hold; ticker, its stock, e.g. BRK.B; contract, the option's contract name, which holds spaces but never a comma; call_put, call or put; strike, in dollars; expiry, the day it expires; buy_on, the day it is bought, at 9:40 AM; sell_on, the day it is sold, at 3:40 PM; last_bid and last_ask, its last quotes, in dollars; chance, the chance it makes money, bought at the ask and sold at the bid; usual_chance, the usual chance for options like it; and gain_low, gain_middle and gain_high, the gain the model guesses, low, middle and high, as a share of the price paid: 0.12 is 12%. Each hold's rows are ranked by how far chance is above usual_chance. Days are YYYY-MM-DD.\n\nThe scores are each task's: from format 3 the listing's tasks name them, and a task that names none has the four of the stock models, loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's. Loss is three scores added up for a stock model, each lower-is-better, which a history and a track record carry under every prefix they carry a score under: up_log_loss, the log loss of whether each stock went up; beats_log_loss, the log loss of whether it beat the average stock; and move_pinball, the pinball loss of the size of its move. A coin flip scores 0.693 on each of the first two. The listing carries only loss.\n\nFrom format 3 a stock model also has top10_gain, the average gain of each night's top 10, the 10 stocks it is surest will go up, bought at the 9:40 AM ask and sold at the 3:40 PM bid the same day, as a share of what they cost; and top10_wins, how many of each night's top 10 made money, 0 to 10. An options model has loss, which adds up, for each hold that is on, the log loss of its chance and the pinball loss of its gain; profit_auc, how well its chance ranks the options that made money above the ones that didn't, where 0.5 is a coin flip; and top10_gain and top10_wins, of each hold's 10 best options, bought at the 9:40 AM ask and sold at the 3:40 PM bid on the sell day. The baseline's top10_gain and top10_wins are those of everything the model could have picked: what a random pick got.",
+            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history or track-record, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; started, when the attempt began, in UTC with its offset, e.g. 2026-10-16T07:58:10+00:00; training_seconds, the time spent training, reading the days included, to one decimal; total_seconds, from started until the attempt's scores are known, so its training and then scoring the held-out days for the attempt and for the live version, to one decimal; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>. started, training_seconds and total_seconds are empty for attempts made before 2026-10-15.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row. From format 2, down_days and down_in_a_row: the check that took the live version down, on the day whose score set it off, and empty on every other row. While a model is down it predicts nothing, so its track record has no rows until a new version goes live. From format 3, an options model's track record has a set of columns for each hold, each score again as <score>_1d, <score>_5d and <score>_20d, and the baseline's as baseline_<score>_1d and so on. Its plain columns repeat the 1-day hold's. A day's 5 and 20-day columns are empty until those holds' sell days are in, 6 and 21 trading days after the day.\n\nThe scores are each task's: from format 3 the listing's tasks name them, and a task that names none has the four of the stock models, loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's. Loss is three scores added up for a stock model, each lower-is-better, which a history and a track record carry under every prefix they carry a score under: up_log_loss, the log loss of whether each stock went up; beats_log_loss, the log loss of whether it beat the average stock; and move_pinball, the pinball loss of the size of its move. A coin flip scores 0.693 on each of the first two. The listing carries only loss.\n\nFrom format 3 a stock model also has top10_gain, the average gain of each night's top 10, the 10 stocks it is surest will go up, bought at the 9:40 AM ask and sold at the 3:40 PM bid the same day, as a share of what they cost; and top10_wins, how many of each night's top 10 made money, 0 to 10. An options model has loss, which adds up, for each hold that is on, the log loss of its chance and the pinball loss of its gain; profit_auc, how well its chance ranks the options that made money above the ones that didn't, where 0.5 is a coin flip; and top10_gain and top10_wins, of each hold's 10 best options, bought at the 9:40 AM ask and sold at the 3:40 PM bid on the sell day. The baseline's top10_gain and top10_wins are those of everything the model could have picked: what a random pick got.",
             "content": {
               "application/json": {
                 "schema": {
@@ -409,7 +397,7 @@
                         },
                         {
                           "type": "string",
-                          "description": "Asked with Model and Report=history, track-record or picks: the report, as a CSV string with a header row."
+                          "description": "Asked with Model and Report=history or track-record: the report, as a CSV string with a header row."
                         }
                       ]
                     }
@@ -866,12 +854,6 @@
                       "report": "day,loss,auc_up,auc_beats,acc_up,top10_gain,top10_wins,up_log_loss,beats_log_loss,move_pinball,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up,baseline_top10_gain,baseline_top10_wins,baseline_up_log_loss,baseline_beats_log_loss,baseline_move_pinball,down_days,down_in_a_row\n2026-10-06,1.6582,0.5214,0.5103,0.5427,0.0021,6,0.7033,0.6925,0.2624,1.6650,0.5,0.5,0.5368,-0.0004,4.6,0.7005,0.6931,0.2714,,\n2026-10-07,1.6497,0.5361,0.5188,0.5129,-0.0008,4,0.6999,0.6899,0.2599,1.6611,0.5,0.5,0.4970,-0.0011,4.1,0.6986,0.6931,0.2694,,\n2026-10-08,1.6710,0.4982,0.5031,0.5785,0.0035,7,0.7084,0.6963,0.2663,1.6693,0.5,0.5,0.5865,0.0006,5.2,0.7026,0.6931,0.2736,,\n2026-10-09,1.6423,0.5447,0.5262,0.4652,0.0012,5,0.6969,0.6877,0.2577,1.6589,0.5,0.5,0.4473,-0.0002,4.7,0.6974,0.6931,0.2684,,\n2026-10-12,1.6538,0.5296,0.5145,0.6123,-0.0015,4,0.7015,0.6911,0.2612,1.6627,0.5,0.5,0.6044,-0.0009,4.3,0.6994,0.6931,0.2702,,\n2026-10-13,1.6561,0.5243,0.5121,0.5318,0.0027,6,0.7024,0.6918,0.2619,1.6633,0.5,0.5,0.5276,0.0003,5.0,0.6996,0.6931,0.2706,,\n2026-10-14,1.6472,0.5389,0.5197,0.5561,0.0009,5,0.6989,0.6892,0.2591,1.6602,0.5,0.5,0.5490,-0.0005,4.5,0.6981,0.6931,0.2690,,\n2026-10-15,1.6601,0.5168,0.5089,0.4907,0.0018,6,0.7040,0.6930,0.2631,1.6655,0.5,0.5,0.4851,-0.0001,4.8,0.7008,0.6931,0.2716,,\n"
                     }
                   },
-                  "picks": {
-                    "summary": "Model=pt-options&Report=picks: tonight's top 10 for each hold, made from Oct 20",
-                    "value": {
-                      "report": "day,hold,rank,ticker,contract,call_put,strike,expiry,buy_on,sell_on,last_bid,last_ask,chance,usual_chance,gain_low,gain_middle,gain_high\n2026-10-20,1,1,AVGO,AVGO  261030C00350000,call,350,2026-10-30,2026-10-21,2026-10-22,4.38,4.52,0.6250,0.4441,-0.4672,0.0223,0.3796\n2026-10-20,1,2,NVDA,NVDA  261030P00175000,put,175,2026-10-30,2026-10-21,2026-10-22,1.91,2.01,0.6378,0.4604,-0.4549,0.0755,0.3481\n2026-10-20,1,3,XOM,XOM   261030C00120000,call,120,2026-10-30,2026-10-21,2026-10-22,1.04,1.10,0.6354,0.4595,-0.4272,0.0619,0.3488\n2026-10-20,1,4,UNH,UNH   261030P00340000,put,340,2026-10-30,2026-10-21,2026-10-22,3.11,3.27,0.5814,0.4056,-0.4637,0.0370,0.3475\n2026-10-20,1,5,MRK,MRK   261030C00088000,call,88,2026-10-30,2026-10-21,2026-10-22,1.12,1.17,0.6234,0.4664,-0.4545,0.0306,0.3388\n2026-10-20,1,6,PG,PG    261030P00145000,put,145,2026-10-30,2026-10-21,2026-10-22,1.83,1.92,0.5632,0.4181,-0.4063,0.0256,0.3132\n2026-10-20,1,7,JNJ,JNJ   261030C00195000,call,195,2026-10-30,2026-10-21,2026-10-22,2.51,2.61,0.5703,0.4422,-0.4785,0.0613,0.3289\n2026-10-20,1,8,AMD,AMD   261030C00235000,call,235,2026-10-30,2026-10-21,2026-10-22,2.75,2.84,0.5700,0.4420,-0.3915,0.0309,0.3076\n2026-10-20,1,9,CRM,CRM   261030C00250000,call,250,2026-10-30,2026-10-21,2026-10-22,2.37,2.49,0.5215,0.4018,-0.4721,0.0229,0.3145\n2026-10-20,1,10,V,V     261030C00350000,call,350,2026-10-30,2026-10-21,2026-10-22,4.31,4.45,0.4998,0.3921,-0.4694,0.0499,0.3887\n2026-10-20,5,1,GOOGL,GOOGL 261120C00260000,call,260,2026-11-20,2026-10-21,2026-10-28,6.02,6.21,0.6143,0.4267,-0.5717,0.0511,0.7550\n2026-10-20,5,2,PEP,PEP   261120P00140000,put,140,2026-11-20,2026-10-21,2026-10-28,3.09,3.17,0.5570,0.3803,-0.5323,0.1094,0.7534\n2026-10-20,5,3,NFLX,NFLX  261120C01235000,call,1235,2026-11-20,2026-10-21,2026-10-28,27.30,28.12,0.6008,0.4254,-0.6442,0.1161,0.8146\n2026-10-20,5,4,JNJ,JNJ   261120P00185000,put,185,2026-11-20,2026-10-21,2026-10-28,5.94,6.06,0.5645,0.3985,-0.5303,0.0497,0.6940\n2026-10-20,5,5,MRK,MRK   261120C00088000,call,88,2026-11-20,2026-10-21,2026-10-28,1.66,1.72,0.5699,0.4326,-0.5787,0.0722,0.8607\n2026-10-20,5,6,AVGO,AVGO  261120C00350000,call,350,2026-11-20,2026-10-21,2026-10-28,7.46,7.71,0.5716,0.4414,-0.6225,0.0758,0.8294\n2026-10-20,5,7,MA,MA    261120C00585000,call,585,2026-11-20,2026-10-21,2026-10-28,11.24,11.54,0.5757,0.4580,-0.6475,0.1140,0.7756\n2026-10-20,5,8,CVX,CVX   261120P00150000,put,150,2026-11-20,2026-10-21,2026-10-28,3.04,3.17,0.4977,0.4131,-0.5660,0.1160,0.6970\n2026-10-20,5,9,AMD,AMD   261120C00235000,call,235,2026-11-20,2026-10-21,2026-10-28,4.65,4.83,0.4506,0.3801,-0.6007,0.1270,0.6434\n2026-10-20,5,10,TSLA,TSLA  261120P00415000,put,415,2026-11-20,2026-10-21,2026-10-28,11.01,11.59,0.4553,0.3927,-0.5898,0.0683,0.6913\n2026-10-20,20,1,CVX,CVX   261218C00160000,call,160,2026-12-18,2026-10-21,2026-11-18,6.25,6.53,0.6251,0.4362,-0.7892,0.1518,1.2118\n2026-10-20,20,2,NFLX,NFLX  261218P01165000,put,1165,2026-12-18,2026-10-21,2026-11-18,50.25,52.77,0.6293,0.4626,-0.7234,0.2135,1.1189\n2026-10-20,20,3,JNJ,JNJ   261218P00185000,put,185,2026-12-18,2026-10-21,2026-11-18,8.33,8.72,0.5816,0.4510,-0.7388,0.0789,1.1545\n2026-10-20,20,4,JPM,JPM   261218C00310000,call,310,2026-12-18,2026-10-21,2026-11-18,12.02,12.32,0.5540,0.4290,-0.6663,0.1681,1.0638\n2026-10-20,20,5,V,V     261218C00350000,call,350,2026-12-18,2026-10-21,2026-11-18,13.24,14.02,0.5837,0.4617,-0.7255,0.1687,1.1910\n2026-10-20,20,6,BAC,BAC   261218C00052000,call,52,2026-12-18,2026-10-21,2026-11-18,2.42,2.50,0.5576,0.4471,-0.7637,0.0840,1.1010\n2026-10-20,20,7,XOM,XOM   261218C00120000,call,120,2026-12-18,2026-10-21,2026-11-18,4.29,4.47,0.5455,0.4360,-0.7517,0.0751,1.3658\n2026-10-20,20,8,PEP,PEP   261218P00140000,put,140,2026-12-18,2026-10-21,2026-11-18,7.25,7.66,0.4818,0.3863,-0.7135,0.1357,1.1943\n2026-10-20,20,9,WMT,WMT   261218P00095000,put,95,2026-12-18,2026-10-21,2026-11-18,4.63,4.85,0.4867,0.4007,-0.6575,0.2212,1.0495\n2026-10-20,20,10,TSLA,TSLA  261218P00415000,put,415,2026-12-18,2026-10-21,2026-11-18,19.79,20.63,0.4548,0.3855,-0.7241,0.1667,1.0942\n"
-                    }
-                  },
                   "option-picks-track-record": {
                     "summary": "Model=pt-options&Report=track-record: an options model's nine scored days, each hold in its own columns, the 5-day hold's in for five and the 20-day hold's for none yet",
                     "value": {
@@ -883,7 +865,7 @@
             }
           },
           "400": {
-            "description": "Model without Report, or the other way round; a Report that is not one of the four; a Ticker with any Report but picks, or one that is not a stock's symbol; any other parameter, even a lowercase model; or any of them given twice.",
+            "description": "Model without Report, or the other way round; a Report the API does not keep; any other parameter, even a lowercase model; or any of them given twice.",
             "content": {
               "application/json": {
                 "schema": {
@@ -907,7 +889,7 @@
                 },
                 "examples": {
                   "together": {
-                    "summary": "Model without Report, or a Report that is not one of the four",
+                    "summary": "Model without Report, or a Report the API does not keep",
                     "value": {
                       "report": {
                         "error": "Model and Report go together, and Report is summary, history, track-record or picks."
@@ -922,24 +904,8 @@
                       }
                     }
                   },
-                  "ticker": {
-                    "summary": "Ticker alone, with Model alone, or with a Report other than picks",
-                    "value": {
-                      "report": {
-                        "error": "Ticker goes with Report=picks."
-                      }
-                    }
-                  },
-                  "symbol": {
-                    "summary": "A Ticker that is not a stock's symbol, as aapl or BRK/B",
-                    "value": {
-                      "report": {
-                        "error": "Ticker is a stock's symbol, like AAPL or BRK.B."
-                      }
-                    }
-                  },
                   "twice": {
-                    "summary": "Model, Report or Ticker given twice",
+                    "summary": "Model or Report given twice",
                     "value": {
                       "report": {
                         "error": "Model, Report and Ticker may each be given once."
@@ -950,8 +916,44 @@
               }
             }
           },
+          "403": {
+            "description": "Report=picks: an options model's picks are for signed-in readers, on /v1/private/model, with the reader's ID token. See the Model API page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "picks": {
+                    "summary": "Report=picks, which this path answers to no one",
+                    "value": {
+                      "report": {
+                        "error": "The picks are for signed-in readers, at /v1/private/model."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Model names no model in the listing; Report=picks names a model that has no picks, as every stock model; or a Ticker names a stock the model has no picks for.",
+            "description": "Model names no model in the listing.",
             "content": {
               "application/json": {
                 "schema": {
@@ -979,22 +981,6 @@
                     "value": {
                       "report": {
                         "error": "There is no model named nope."
-                      }
-                    }
-                  },
-                  "picks": {
-                    "summary": "Report=picks, of a model with no picks",
-                    "value": {
-                      "report": {
-                        "error": "This model has no picks."
-                      }
-                    }
-                  },
-                  "stock": {
-                    "summary": "A Ticker the model has no picks for",
-                    "value": {
-                      "report": {
-                        "error": "No picks for that stock."
                       }
                     }
                   }
@@ -1065,14 +1051,6 @@
                     "value": {
                       "report": {
                         "error": "The track record of pt-gnn-5day could not be read."
-                      }
-                    }
-                  },
-                  "picks": {
-                    "summary": "Picks that could not be read",
-                    "value": {
-                      "report": {
-                        "error": "The picks of pt-options could not be read."
                       }
                     }
                   }
