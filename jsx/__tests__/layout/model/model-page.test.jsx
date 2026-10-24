@@ -70,6 +70,11 @@ import {
 const LOSS_NOTE = scoreOf('loss').note;
 
 //
+// what a live version learned from, as a format 4 listing gives it (#295)
+//
+const TRAINED = { training: 7, stopping: 3, first: '2026-10-05', last: '2026-10-19' };
+
+//
 // a wide screen's card by its name, and its rows under its rule (#267): each a
 // name and a value, or a heading's name alone
 //
@@ -259,6 +264,14 @@ describe('liveFigure', () => {
     it('says an average\'s check as an average\'s (#263)', () => {
         expect(liveFigure(downModelOf({ down: { since: '2026-10-19', days: 5, in_a_row: 10 } })).detail)
             .toBe('its 5-day average was worse than the baseline’s 10 days in a row');
+    });
+
+    it.each([
+        ['not_ahead', 'it went live without beating the baseline'],
+        ['track_record', 'its track record showed nothing better than the baseline'],
+    ])('says why a live version was taken down where no check did it, from format 4 (%s, #295)', (reason, words) => {
+        expect(liveFigure(downModelOf({ down: { since: '2026-10-23', reason: reason, days: null, in_a_row: null } })))
+            .toEqual({ value: 'Taken down Oct 23', detail: words });
     });
 });
 
@@ -663,6 +676,21 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         expect(noteOf(0)).toHaveAccessibleDescription(`Its 20-day average was worse than the baseline’s 5 days in a row. ${DOWN_LINE}`);
     });
 
+    it.each([
+        ['not_ahead', 'It went live without beating the baseline.'],
+        ['track_record', 'Its track record showed nothing better than the baseline.'],
+    ])('says why where no check did it, from format 4, on a wide screen and in a phone\'s note (%s, #295)', async (reason, why) => {
+        answer({ listing: listingOf([downModelOf({ down: { since: '2026-10-23', reason: reason, days: null, in_a_row: null }, behind: behindOf(0, 0) })], 4) });
+        await open('lagging');
+
+        const details = [...stat('Live version').querySelectorAll('.model-stat-detail')].map((line) => line.textContent);
+
+        expect(stat('Live version').querySelector('.model-stat-value')).toHaveTextContent('Taken down Oct 23');
+        expect(details).toEqual([`${why} Nothing predicts until a version beats the baseline.`]);
+        expect(noteOf(0)).toHaveAccessibleDescription(`${why} ${DOWN_LINE}`);
+        expect(screen.getByRole('region', { name: 'Summary' })).not.toHaveTextContent(/null|undefined/);
+    });
+
     it('says how many days in a row each check has been worse, in the Live version card\'s rows (#267)', async () => {
         answer({ listing: listingOf([downModelOf()]) });
         await open('lagging');
@@ -718,6 +746,50 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         await open('lagging');
 
         expect(document.querySelector('.model-heading a[href$="/alarm"]')).toHaveAttribute('href', '/model/lagging/alarm');
+    });
+});
+
+describe('what the live version trained on, from format 4 (#295)', () => {
+    function noteOf(at) {
+        const row = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-boxes');
+
+        return row.querySelectorAll('.stream-focus-figure-label')[at];
+    }
+
+    it('says it in the Live version card\'s rows on a wide screen, and after how it went live in a phone\'s note', async () => {
+        answer({ listing: listingOf([modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: TRAINED } })], 4) });
+        await open();
+
+        expect(rowsOf(cardOf('Live version'))).toEqual([['Trained on', '7 days, Oct 5 to Oct 19'], ['First predicted', 'Sep 1']]);
+        expect(noteOf(0)).toHaveAccessibleDescription('Went live after a nightly update. Trained on 7 days, Oct 5 to Oct 19.');
+    });
+
+    it('says a version that learned from one day as one day', async () => {
+        answer({ listing: listingOf([modelOf({ live: { since: '2026-10-09', kind: 'first', days: { ...TRAINED, training: 1, first: '2026-10-08', last: '2026-10-08' } } })], 4) });
+        await open();
+
+        expect(rowsOf(cardOf('Live version'))).toContainEqual(['Trained on', '1 day, Oct 8']);
+    });
+
+    it('says it of one taken down, between why and what happens next, in a phone\'s note', async () => {
+        answer({
+            listing: listingOf([downModelOf({
+                live: { since: '2026-10-09', kind: 'first', days: TRAINED },
+                down: { since: '2026-10-23', reason: 'not_ahead', days: null, in_a_row: null },
+            })], 4),
+        });
+        await open('lagging');
+
+        expect(noteOf(0)).toHaveAccessibleDescription('It went live without beating the baseline. Trained on 7 days, Oct 5 to Oct 19. '
+            + 'Nothing predicts until a new version beats the baseline on the days it was tested on.');
+    });
+
+    it('says nothing of it where the listing gives none, as before format 4', async () => {
+        answer();
+        await open();
+
+        expect(screen.queryByText('Trained on')).toBeNull();
+        expect(noteOf(0)).toHaveAccessibleDescription('Went live after a nightly update.');
     });
 });
 
@@ -1060,10 +1132,39 @@ describe('each card\'s rows on a wide screen (#267)', () => {
             expect(keys(liveRows(modelOf({ retired: '2026-10-02', behind: behindOf() }), null))).toEqual(['started']);
         });
 
+        it('says what the live version trained on, from format 4, after what it beat the one before by (#295)', () => {
+            const rows = liveRows(modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: TRAINED } }), wentOn());
+
+            expect(keys(rows)).toEqual(['beat', 'trained', 'started']);
+            expect(rows[1]).toEqual({ key: 'trained', name: 'Trained on', value: '7 days, Oct 5 to Oct 19' });
+        });
+
+        it('says so of one taken down or retired too, as it says what the version that predicted learned from (#295)', () => {
+            const live = { since: '2026-10-09', kind: 'nightly', days: TRAINED };
+
+            expect(keys(liveRows(downModelOf({ live: live, behind: [] }), null))).toEqual(['trained', 'started']);
+            expect(keys(liveRows(modelOf({ live: live, retired: '2026-10-20' }), null))).toEqual(['trained', 'started']);
+        });
+
+        it('says nothing of it where the listing gives none, as before format 4 (#295)', () => {
+            expect(keys(liveRows(modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: null } }), null))).toEqual(['started']);
+        });
+
         it('says how the live version came to be live, or for one taken down, what happens next', () => {
             expect(liveLine(modelOf())).toBe('went live after a nightly update');
             expect(liveLine(modelOf({ live: { since: '2026-10-05', kind: 'first' } }))).toBe('its first version, not yet beaten');
             expect(liveLine(downModelOf())).toBe('Nothing predicts until a version beats the baseline.');
+        });
+
+        it('says why first for one taken down that no check did, which has no check in its rows to show it (#295)', () => {
+            const downFor = (reason) => downModelOf({ down: { since: '2026-10-23', reason: reason, days: null, in_a_row: null } });
+
+            expect(liveLine(downFor('not_ahead')))
+                .toBe('It went live without beating the baseline. Nothing predicts until a version beats the baseline.');
+            expect(liveLine(downFor('track_record')))
+                .toBe('Its track record showed nothing better than the baseline. Nothing predicts until a version beats the baseline.');
+            expect(liveLine(downModelOf({ down: { since: '2026-10-19', reason: 'worse', days: 1, in_a_row: 5 } })))
+                .toBe('Nothing predicts until a version beats the baseline.');
         });
     });
 
