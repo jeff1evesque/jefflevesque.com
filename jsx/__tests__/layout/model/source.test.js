@@ -1,6 +1,7 @@
 /**
  * source.test.js: where the model pages get what they draw (#243): the model
- * api's listing and a model's two reports, each read in a worker.
+ * api's listing and a model's two reports, each read in a worker, and an options
+ * model's picks, asked as the signed-in reader on its private path (#290).
  *
  * fetch is replaced, so each case says what the api answers. The worker is the
  * real one, run in this process: WorkerBuilder is replaced by a stand-in that
@@ -46,9 +47,30 @@ jest.mock('../../../import/worker/web-worker.js', () => {
     };
 });
 
-import { MODEL, loadListing, loadOptionPicks, loadReport, readInWorker } from '../../../import/layout/model/source.js';
-import { ENDPOINTS } from '../../../import/general/api-url.js';
+//
+// the session, for the picks, which are asked as the signed-in reader (#290):
+// currentUser.js has its own suite, and unmocked Amplify throws
+//
+jest.mock('../../../import/general/currentUser.js', () => ({
+    __esModule: true,
+    default: jest.fn(),
+}));
+
+import {
+    MODEL,
+    NO_PICKS,
+    PICKS_FAILED,
+    PICKS_SIGNED_OUT,
+    loadListing,
+    loadOptionPicks,
+    loadReport,
+    readInWorker,
+} from '../../../import/layout/model/source.js';
+import { ENDPOINTS, MODEL_PICKS } from '../../../import/general/api-url.js';
+import amplifyCurrentUser from '../../../import/general/currentUser.js';
 import { listingOf } from '../../../test-support/model-fixtures.js';
+
+const TOKEN = 'header.payload.signature';
 
 function answers(body, ok = true, status = 200) {
     global.fetch = jest.fn(() => Promise.resolve({
@@ -71,6 +93,7 @@ let logged;
 beforeEach(() => {
     logged = jest.spyOn(console, 'log').mockImplementation(() => {});
     global.__model_worker_fails = false;
+    amplifyCurrentUser.mockResolvedValue(TOKEN);
 });
 
 afterEach(() => {
@@ -164,19 +187,27 @@ describe('a report', () => {
     });
 });
 
-describe('an options model\'s picks (#279)', () => {
+describe('an options model\'s picks, for a signed-in reader (#279, #290)', () => {
     const CSV = 'day,hold,rank,ticker,contract\n2026-10-21,5,1,AAPL,AAPL  261120C00230000\n2026-10-21,1,1,MSFT,MSFT  261120C00500000';
 
-    it('are asked for by the model, and a stock\'s by its symbol too', async () => {
+    it('are asked of the model api\'s private path, by the model, and a stock\'s by its symbol too', async () => {
         answers({ report: CSV });
 
         await loadOptionPicks('pt-options');
         await loadOptionPicks('pt-options', 'BRK.B');
 
         expect(asked()).toEqual([
-            `${MODEL}?Model=pt-options&Report=picks`,
-            `${MODEL}?Model=pt-options&Report=picks&Ticker=BRK.B`,
+            `${MODEL_PICKS}?Model=pt-options&Report=picks`,
+            `${MODEL_PICKS}?Model=pt-options&Report=picks&Ticker=BRK.B`,
         ]);
+    });
+
+    it('carry the reader\'s ID token as a bearer token', async () => {
+        answers({ report: CSV });
+
+        await loadOptionPicks('pt-options');
+
+        expect(global.fetch.mock.calls[0][1].headers.Authorization).toBe(`Bearer ${TOKEN}`);
     });
 
     it('resolve to their rows, each hold\'s apart and best first', async () => {
@@ -190,26 +221,51 @@ describe('an options model\'s picks (#279)', () => {
         ]);
     });
 
-    it('resolve to null, and say why, for a model or a stock the api has no picks for', async () => {
-        answers({ report: { error: 'No picks for that stock.' } }, false, 404);
-
-        expect(await loadOptionPicks('pt-options', 'ZZZZ')).toBeNull();
-        expect(logged).toHaveBeenCalledWith(`Error: ${MODEL} Model=pt-options Report=picks Ticker=ZZZZ returned status 404`);
-    });
-
-    it('resolve to null where the request never lands, or the answer holds none', async () => {
-        global.fetch = jest.fn(() => Promise.reject(new TypeError('offline')));
-        expect(await loadOptionPicks('pt-options')).toBeNull();
-
-        answers({ report: null });
-        expect(await loadOptionPicks('pt-options')).toBeNull();
-    });
-
-    it('resolve to null, and ask for nothing, for what is not a stock\'s symbol', async () => {
+    it('are not asked for at all signed out', async () => {
+        amplifyCurrentUser.mockResolvedValue(null);
         answers({ report: CSV });
 
-        expect(await loadOptionPicks('pt-options', 'BRK/B')).toBeNull();
+        expect(await loadOptionPicks('pt-options')).toBe(PICKS_SIGNED_OUT);
         expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('are signed out too where the api no longer takes the reader\'s session', async () => {
+        answers({ message: 'Unauthorized' }, false, 401);
+
+        expect(await loadOptionPicks('pt-options')).toBe(PICKS_SIGNED_OUT);
+    });
+
+    it('are none, and say why, for a model or a stock the api has no picks for', async () => {
+        answers({ report: { error: 'No picks for that stock.' } }, false, 404);
+
+        expect(await loadOptionPicks('pt-options', 'ZZZZ')).toBe(NO_PICKS);
+        expect(logged).toHaveBeenCalledWith(`Error: ${MODEL_PICKS} Model=pt-options Report=picks Ticker=ZZZZ returned status 404`);
+    });
+
+    it('are none where the answer holds none', async () => {
+        answers({ report: null });
+
+        expect(await loadOptionPicks('pt-options')).toBe(NO_PICKS);
+    });
+
+    it('are none, and nothing is asked, for what is not a stock\'s symbol', async () => {
+        answers({ report: CSV });
+
+        expect(await loadOptionPicks('pt-options', 'BRK/B')).toBe(NO_PICKS);
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('failed where the request never lands, the api fails, or the worker cannot read what it answered', async () => {
+        global.fetch = jest.fn(() => Promise.reject(new TypeError('offline')));
+        expect(await loadOptionPicks('pt-options')).toBe(PICKS_FAILED);
+
+        answers({ report: { error: 'The picks of pt-options could not be read.' } }, false, 502);
+        expect(await loadOptionPicks('pt-options')).toBe(PICKS_FAILED);
+
+        answers({ report: CSV });
+        global.__model_worker_fails = true;
+        expect(await loadOptionPicks('pt-options')).toBe(PICKS_FAILED);
+        expect(logged).toHaveBeenCalledWith(`Error: ${MODEL_PICKS} Model=pt-options Report=picks returned what the worker could not read`);
     });
 
     it('can be asked of another base', async () => {

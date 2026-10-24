@@ -4,8 +4,9 @@
 
 The models trained every night, and how each one scores. `/model` lists them, and
 `/model/<name>` draws one model's nightly attempts and its track record. It serves
-scores, and for an options model, its nightly picks: nothing here says how a model is
-built.
+scores to anyone, and an options model's nightly picks to signed-in readers alone, on a
+path of their own: see [Signed-in readers: the picks](#signed-in-readers-the-picks).
+Nothing here says how a model is built.
 
 Each model has a task, what it predicts. A stock model predicts the same three things
 about each of the roughly 500 stocks in the S&P 500 for the next trading day, the three
@@ -13,8 +14,8 @@ that its loss scores: the chance its price goes up, the chance it beats the aver
 stock, and how far it moves. An options model predicts, for every S&P 500 option, the
 chance it makes money if bought at 9:40 AM on the next trading day and sold at 3:40 PM
 1, 5 or 20 trading days later, after the gap between the buy and sell prices, and how
-much it makes. The api serves how those predictions score, and each night's picks of an
-options model: the options it ranks best.
+much it makes. The api serves how those predictions score, and to a signed-in reader,
+each night's picks of an options model: the options it ranks best.
 
 Each night the trainer builds a new version of every model, then scores it and the
 live version on the same held-out days. The new version goes live only if its loss is
@@ -31,7 +32,7 @@ predicts nothing until a new version beats the baseline.
 
 ## Parameters
 
-One path, five calls:
+One path, four calls:
 
 | Call | Parameters | `report` |
 |---|---|---|
@@ -39,16 +40,15 @@ One path, five calls:
 | A model's summary | `Model=<name>&Report=summary` | JSON: one model's summary |
 | A model's history | `Model=<name>&Report=history` | CSV: one row per nightly attempt |
 | A model's track record | `Model=<name>&Report=track-record` | CSV: one row per day it predicted |
-| An options model's picks | `Model=<name>&Report=picks`, and `&Ticker=<symbol>` for one stock's | CSV: each hold's top 10, or with `Ticker` that stock's options, best first, up to 100 for each hold |
 
 | Parameter | Values | The application sends |
 |---|---|---|
 | `Model` | a model's `name`, from the listing | the model whose page is open, each model on `/model` for its trend line, and each one compared |
-| `Report` | `summary`, `history`, `track-record`, `picks` | `history` for a model's page; `track-record` for its page, its trend line and a comparison; `picks` for an options model's page. No page asks for `summary` yet |
-| `Ticker` | a stock's symbol: `AAPL`, or `BRK.B` for a share class | the stock looked up on an options model's page, asking for BRK/B as `BRK.B` |
+| `Report` | `summary`, `history`, `track-record` | `history` for a model's page; `track-record` for its page, its trend line, a comparison, and an options model's picks page. No page asks for `summary` yet |
 
-`Model` and `Report` go together: either one alone is answered with a 400. `Ticker` goes
-with `Report=picks` alone.
+`Model` and `Report` go together: either one alone is answered with a 400. This path
+answers `Report=picks` with a 403: the picks are for signed-in readers, on the path
+below.
 
 ## The scores
 
@@ -195,19 +195,31 @@ loss.
 An empty cell is a score the day does not have, and is left out of an average rather
 than read as zero.
 
-## Response: picks
+## Signed-in readers: the picks
+
+`GET https://api.jefflevesque.com/v1/private/model?Model=<name>&Report=picks`
+
+An options model's picks are served to signed-in readers alone, on a path of their own,
+as the [Account API](account.md) serves a reader's subscriptions. `/model/<name>/picks`
+shows them. Each request carries the reader's ID token, as a bearer token. A signed-in
+reader can copy theirs from Account Settings, under API access:
+
+```
+Authorization: Bearer <ID token>
+```
 
 From format 3, an options model publishes its picks each night: with no `Ticker`, the
-top 10 options for each hold; with `Ticker`, that stock's options, best first, up to 100
-for each hold. A CSV string with a header row, each hold's rows together, best first.
-Each row is one option:
+top 10 options for each hold; with `Ticker=<symbol>`, that stock's options, best first,
+up to 100 for each hold. A symbol is `AAPL`, or `BRK.B` for a share class, never
+`BRK/B`: `^[A-Z]{1,5}(\.[A-Z])?$`. A CSV string with a header row, each hold's rows
+together, best first. Each row is one option:
 
 - `day`, the day the picks were made from;
 - `hold`, the trading days it is held: 1, 5 or 20;
 - `rank`, 1 for the best of its hold;
 - `ticker`, its stock, e.g. `BRK.B`;
 - `contract`, the option's contract name, which holds spaces but never a comma;
-- `call_put`, `call` or `put`;
+- `call_put`, `C` for a call or `P` for a put;
 - `strike`, in dollars;
 - `expiry`, the day it expires;
 - `buy_on`, the day it is bought, at 9:40 AM, and `sell_on`, the day it is sold, at
@@ -221,28 +233,38 @@ Each row is one option:
 Days are `YYYY-MM-DD`. Each hold's rows are ranked by how far `chance` is above
 `usual_chance`. They are the model's guesses, not trading advice.
 
+| Status | When |
+|---|---|
+| 200 | the picks, as above, with `Cache-Control: private, no-store`: no cache keeps them |
+| 400 | `Report` other than `picks`, a `Ticker` that is not a stock's symbol, or any other parameter |
+| 401 | no valid ID token: none, a malformed one, or one past its hour. Most are refused before they reach the API, with `{"message": "Unauthorized", ...}` |
+| 404 | a model with no picks, as no stock model has, or a stock it has none for |
+
 ## Errors
 
 | Status | `report` |
 |---|---|
-| 400 | an object whose `error` says what was wrong with the request: `Model` without `Report`, or the other way round; a `Report` the API does not keep; a `Ticker` with any `Report` but `picks`, or one that is not a stock's symbol; any other parameter, even a lowercase `model`; or any of them given twice |
-| 404 | an object whose `error` says no model has that name, that the model has no picks, as no stock model does, or that it has none for that stock |
+| 400 | an object whose `error` says what was wrong with the request: `Model` without `Report`, or the other way round; a `Report` the API does not keep; any other parameter, even a lowercase `model`; or any of them given twice |
+| 403 | an object whose `error` says the picks are for signed-in readers: `Report=picks`, which this path answers to no one |
+| 404 | an object whose `error` says no model has that name |
 | 500 | an object whose `error` says the API itself failed |
-| 502 | an object whose `error` says what could not be read: the listing, a model's report, or its picks |
+| 502 | an object whose `error` says what could not be read: the listing, or a model's report |
 
 A summary, history or track record that has not been published yet is a 502 too, even
-for a model the listing names. A 404 means only that no model has that name, or that
-there are no picks to give.
+for a model the listing names. A 404 means only that no model has that name.
 
 ## In the application
 
 - Built by `modelUrl`, in
   [`jsx/import/general/api-url.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/api-url.js),
-  which refuses `Model` without `history`, `track-record` or `picks`, the reports the
-  pages read, and a `Ticker` with any other report or that is not a stock's symbol,
-  rather than sending it.
+  which refuses `Model` without `history` or `track-record`, the reports the pages
+  read, rather than sending it. The picks are built by `modelPicksUrl`, beside it,
+  which refuses a `Ticker` that is not a stock's symbol.
 - Fetched by `loadListing`, `loadReport` and `loadOptionPicks`, in
   [`jsx/import/layout/model/source.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/layout/model/source.js).
+  The picks are asked as the signed-in reader, by `readAsReader` in
+  [`jsx/import/general/account-api.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/account-api.js),
+  which makes no request at all while signed out.
 - Read in a web worker,
   [`jsx/import/worker/model/report.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/worker/model/report.js),
   which also works out each day's 20-day averages.

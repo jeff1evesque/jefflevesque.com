@@ -6,7 +6,10 @@
  * against the know-nothing baseline -- or, in a list that shows them, loss's three
  * parts in place of it (#283). A retired model has no bell. A model whose live
  * version the trainer took down for doing worse than the baseline says when, and
- * which check did it, in place of when it went live (#263).
+ * which check did it, in place of when it went live (#263). An options model still
+ * trained has a link to its picks page under its description, for every reader:
+ * signed out, the page asks them to sign in, so a visitor learns the picks are
+ * there without seeing any (#290).
  *
  * The bell comes after the name, as a stream's comes after the stream's name on
  * /stream, so the two pages put it on one side (#259). The score comes last, as it
@@ -52,6 +55,7 @@ import {
     standing,
     statusOf,
     takenDown,
+    tradesOptions,
 } from './scores.js';
 
 //
@@ -302,6 +306,9 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                 </div>
                 <span className='model-address'>{address}</span>
                 {model.description ? <p className='model-description'>{model.description}</p> : null}
+                {tradesOptions(task) && status !== 'retired'
+                    ? <Link className='model-picks-link' to={`${address}/picks`}>See its picks &rsaquo;</Link>
+                    : null}
             </div>
             <div className='model-cell model-cell-alarm'>
                 <AlarmBell model={model} held={held} />

@@ -58,7 +58,6 @@ import {
     optionsListingOf,
     optionsModelOf,
     optionsTrackOf,
-    picksOf,
     timedHistoryOf,
     trackOf,
     withTop10,
@@ -116,7 +115,6 @@ beforeEach(() => {
     loadListing.mockReset();
     loadReport.mockReset();
     loadOptionPicks.mockReset();
-    loadOptionPicks.mockResolvedValue(picksOf());
     listSubscriptions.mockReset();
     listSubscriptions.mockResolvedValue(null);
     // the charts a case folds are kept, as a reader's are (#253)
@@ -1504,24 +1502,20 @@ describe('an options model (#279)', () => {
         });
     });
 
-    describe('its picks', () => {
-        it('come after the charts, asked for by its name', async () => {
-            options();
-            await open('pt-options');
+    describe('its picks (#290)', () => {
+        it.each([['signed out', null], ['signed in', []]])(
+            'are neither drawn nor asked for, %s: they have a page of their own',
+            async (label, subscriptions) => {
+                listSubscriptions.mockResolvedValue(subscriptions);
+                options();
+                await open('pt-options');
 
-            const cards = [...document.querySelectorAll('.model-card')];
-
-            expect(loadOptionPicks).toHaveBeenCalledWith('pt-options');
-            expect(cards[cards.length - 1]).toBe(screen.getByRole('region', { name: 'Tonight’s top 10' }));
-        });
-
-        it('are not drawn, nor asked for, for a stock model', async () => {
-            options();
-            await open('pt-gnn');
-
-            expect(screen.queryByRole('region', { name: 'Tonight’s top 10' })).toBeNull();
-            expect(loadOptionPicks).not.toHaveBeenCalled();
-        });
+                expect(loadOptionPicks).not.toHaveBeenCalled();
+                expect(document.querySelector('.model-picks')).toBeNull();
+                expect(screen.queryByText(/top 10, held|Tonight’s top 10/i)).toBeNull();
+                expect(screen.queryByRole('textbox', { name: 'Look up a stock' })).toBeNull();
+            },
+        );
     });
 });
 

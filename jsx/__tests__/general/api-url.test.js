@@ -24,6 +24,7 @@ import {
     knowledgeGraphUrl,
     knowledgeGraphTablesUrl,
     modelUrl,
+    modelPicksUrl,
     alarmsUrl,
     modelAlarmsUrl,
     subscriptionsUrl,
@@ -32,6 +33,7 @@ import {
     API,
     ENDPOINTS,
     NOTIFICATIONS,
+    MODEL_PICKS,
     DOCUMENTATION,
     API_DOCS,
     DATASETS,
@@ -516,35 +518,49 @@ describe('modelUrl (#243)', () => {
             .toBe(`https://api.jefflevesque.com/v1/public/model?Model=pt-gnn-5day&Report=${report}`);
     });
 
-    it('keeps the reports the pages read, an options model\'s picks among them (#279), not the summary (#245)', () => {
-        expect(MODEL_REPORTS).toEqual(['history', 'track-record', 'picks']);
+    it('keeps the reports the pages read on the public path, not the summary (#245), nor the picks, a signed-in reader\'s (#290)', () => {
+        expect(MODEL_REPORTS).toEqual(['history', 'track-record']);
+    });
+
+    it('refuses the picks on the public path, which answers them to no one (#290)', () => {
+        expect(() => modelUrl('pt-options', 'picks')).toThrow(/a Model needs a Report of history or track-record/);
+    });
+});
+
+describe('modelPicksUrl (#290)', () => {
+    it('asks for an options model\'s picks on the model api\'s private path', () => {
+        expect(MODEL_PICKS).toBe('https://api.jefflevesque.com/v1/private/model');
+        expect(String(modelPicksUrl('pt-options')))
+            .toBe('https://api.jefflevesque.com/v1/private/model?Model=pt-options&Report=picks');
     });
 
     it('asks for one stock\'s picks by its symbol, a share class\'s with its dot (#279)', () => {
-        expect(String(modelUrl('pt-options', 'picks', undefined, 'AAPL')))
-            .toBe('https://api.jefflevesque.com/v1/public/model?Model=pt-options&Report=picks&Ticker=AAPL');
-        expect(modelUrl('pt-options', 'picks', undefined, 'BRK.B').searchParams.get('Ticker')).toBe('BRK.B');
-        expect([...modelUrl('pt-options', 'picks').searchParams.keys()]).toEqual(['Model', 'Report']);
-    });
-
-    it.each([
-        ['history', 'pt-gnn', 'history'],
-        ['the track record', 'pt-gnn', 'track-record'],
-        ['the listing', null, null],
-    ])('refuses a ticker with %s, which the api would answer with a 400 (#279)', (label, model, report) => {
-        expect(() => modelUrl(model, report, undefined, 'AAPL')).toThrow(/a Ticker goes with Report=picks/);
+        expect(String(modelPicksUrl('pt-options', 'AAPL')))
+            .toBe('https://api.jefflevesque.com/v1/private/model?Model=pt-options&Report=picks&Ticker=AAPL');
+        expect(modelPicksUrl('pt-options', 'BRK.B').searchParams.get('Ticker')).toBe('BRK.B');
     });
 
     it.each(['aapl', 'BRK/B', 'TOOLONG', 'BRK.BB', 'A1', ' AAPL'])('refuses %p, which is not a stock\'s symbol (#279)', (ticker) => {
-        expect(() => modelUrl('pt-options', 'picks', undefined, ticker)).toThrow(/a Ticker is a stock's symbol, like AAPL or BRK.B/);
+        expect(() => modelPicksUrl('pt-options', ticker)).toThrow(/a Ticker is a stock's symbol, like AAPL or BRK.B/);
     });
 
-    it('takes the pattern a symbol is held to from the api document\'s Ticker (#279)', () => {
-        const document = JSON.parse(fs.readFileSync(path.join(OPENAPI, 'model.json'), 'utf8'));
-        const ticker = document.paths['/model'].get.parameters.find((parameter) => parameter.name === 'Ticker');
-
-        expect(ticker.schema.pattern).toBe(TICKER.source);
+    it('refuses picks of no model', () => {
+        expect(() => modelPicksUrl(null)).toThrow(/the picks are a model's/);
     });
+
+    it('can be asked of another base', () => {
+        expect(String(modelPicksUrl('pt-options', null, 'https://example.test/model')))
+            .toBe('https://example.test/model?Model=pt-options&Report=picks');
+    });
+
+    it('holds a symbol to the pattern the Model API page gives it', () => {
+        const page = fs.readFileSync(path.join(OPENAPI, '..', 'model.md'), 'utf8');
+
+        expect(page).toContain(`\`${TICKER.source}\``);
+    });
+});
+
+describe('modelUrl\'s names and refusals (#243)', () => {
 
     it('escapes a name as the query string needs it', () => {
         expect(String(modelUrl('a b&c', 'history'))).toBe(`${ENDPOINTS.model}?Model=a+b%26c&Report=history`);
@@ -639,15 +655,15 @@ describe('what is sent is what is documented', () => {
 
     it('model: the listing sends nothing, and a report exactly what the document declares (#243)', () => {
         //
-        // a stock's picks send the one more, Ticker, which only they take (#279)
+        // the picks, and the Ticker only they take, are asked on the private path
+        // (#290), which the document does not describe
         //
         const document = documentOf('model');
 
         expect(sent(modelUrl())).toEqual([]);
         MODEL_REPORTS.forEach((report) => {
-            expect(sent(modelUrl('pt-gnn', report))).toEqual(declared(document).filter((name) => name !== 'Ticker'));
+            expect(sent(modelUrl('pt-gnn', report))).toEqual(declared(document));
         });
-        expect(sent(modelUrl('pt-options', 'picks', undefined, 'AAPL'))).toEqual(declared(document));
     });
 
     it('model: asks for the one route its document templates, and a report its Report enumerates', () => {

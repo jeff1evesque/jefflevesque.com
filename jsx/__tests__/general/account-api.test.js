@@ -11,6 +11,8 @@
  *   - any other refusal rejects with the api's own message, which a page shows
  *   - a model's alarms are asked for and subscribed to as a stream's are, on paths
  *     of their own (#255)
+ *   - another api's private GET is asked as the reader the same way: the model
+ *     api's picks (#290)
  *
  * Note: the session is mocked rather than Amplify, since what the module does with a
  *       token is the question here -- currentUser.js has its own suite -- and fetch
@@ -28,6 +30,7 @@ import {
     UNREACHABLE,
     signedIn,
     readerToken,
+    readAsReader,
     listSubscriptions,
     subscribe,
     unsubscribe,
@@ -114,6 +117,49 @@ describe('readerToken', () => {
         amplifyCurrentUser.mockResolvedValue(null);
 
         await expect(readerToken()).resolves.toBeNull();
+    });
+});
+
+describe('readAsReader (#290)', () => {
+    //
+    // another of the site's apis asked as the signed-in reader, as the calls here
+    // are: the model api's picks, on its private path
+    //
+    const URL_ASKED = 'https://api.jefflevesque.com/v1/private/model?Model=pt-options&Report=picks';
+
+    it('asks with a GET that carries the ID token as a bearer token, and nothing else of the reader', async () => {
+        const fetcher = answering(200, 'day,hold,rank\n');
+
+        await expect(readAsReader(URL_ASKED)).resolves.toEqual({ report: 'day,hold,rank\n' });
+
+        const { url, options } = sent(fetcher);
+
+        expect(url).toBe(URL_ASKED);
+        expect(options).toEqual({ method: 'GET', headers: { Authorization: `Bearer ${TOKEN}` } });
+    });
+
+    it('makes no request at all when signed out, and resolves to null', async () => {
+        amplifyCurrentUser.mockResolvedValue(null);
+        const fetcher = answering(200, 'day\n');
+
+        await expect(readAsReader(URL_ASKED)).resolves.toBeNull();
+        expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it('reads a 401 as a session that has ended, and resolves to null', async () => {
+        answering(401, null);
+
+        await expect(readAsReader(URL_ASKED)).resolves.toBeNull();
+    });
+
+    it('rejects any other refusal with its status and the api\'s own words', async () => {
+        answering(404, { error: 'This model has no picks.' });
+
+        await expect(readAsReader(URL_ASKED)).rejects.toMatchObject({
+            name: 'AccountError',
+            status: 404,
+            message: 'This model has no picks.',
+        });
     });
 });
 

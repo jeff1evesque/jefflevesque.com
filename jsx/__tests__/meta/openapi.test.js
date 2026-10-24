@@ -318,13 +318,11 @@ describe('model.json, from format 3 on (#279)', () => {
     const errors = (status) => Object.values(operation.responses[status].content['application/json'].examples)
         .map((example) => example.value.report.error);
 
-    it('asks for an options model\'s picks as a Report, and a stock\'s by a Ticker of its symbol', () => {
-        const validate = ajv().compile(parameter('Ticker').schema);
-
-        expect(parameter('Report').schema.enum).toEqual(['summary', 'history', 'track-record', 'picks']);
-        expect(parameter('Ticker')).toMatchObject({ in: 'query', required: false, example: 'AAPL' });
-        expect(['AAPL', 'BRK.B', 'V'].map(validate)).toEqual([true, true, true]);
-        expect(['aapl', 'BRK/B', 'BRK.BB', 'TOOLONG', ''].map(validate)).toEqual([false, false, false, false, false]);
+    it('asks for no picks on the public path, nor takes a Ticker: the picks are a signed-in reader\'s (#290)', () => {
+        expect(parameter('Report').schema.enum).toEqual(['summary', 'history', 'track-record']);
+        expect(parameter('Ticker')).toBeUndefined();
+        expect(Object.keys(media.examples)).not.toContain('picks');
+        expect(operation.description).toMatch(/Report=picks is a 403 here: an options model's picks are for signed-in readers, on \/v1\/private\/model/);
     });
 
     it('says a task\'s scores, and keeps the four stock scores required beside the three it adds', () => {
@@ -354,15 +352,26 @@ describe('model.json, from format 3 on (#279)', () => {
         expect(listing.properties.format_version.description).toMatch(/3: a task's scores; the top 10's scores, profit_auc and an options model's track record's hold columns; the hold of down and of each check in behind; and the picks/);
     });
 
-    it('describes every column of the picks, and an options model\'s track record\'s holds', () => {
+    it('describes an options model\'s track record\'s holds', () => {
         const described = operation.responses['200'].description;
 
-        headerOf('picks').forEach((column) => expect(described).toContain(column));
         expect(described).toMatch(/<score>_1d, <score>_5d and <score>_20d/);
         expect(described).toMatch(/Its plain columns repeat the 1-day hold's/);
     });
 
-    it('shows a listing of both tasks, an options model\'s picks, and its track record with a set of columns for each hold', () => {
+    it('leaves the picks\' columns to the Model API page, which names every one for signed-in readers (#290)', () => {
+        const page = fs.readFileSync(path.join(OPENAPI, '..', 'model.md'), 'utf8');
+        const section = page.slice(page.indexOf('## Signed-in readers: the picks'), page.indexOf('## Errors'));
+
+        expect(section).toMatch(/^## Signed-in readers: the picks\n\n`GET https:\/\/api\.jefflevesque\.com\/v1\/private\/model\?Model=<name>&Report=picks`/);
+        expect(section).toContain('Authorization: Bearer <ID token>');
+        ['day', 'hold', 'rank', 'ticker', 'contract', 'call_put', 'strike', 'expiry', 'buy_on', 'sell_on',
+            'last_bid', 'last_ask', 'chance', 'usual_chance', 'gain_low', 'gain_middle', 'gain_high']
+            .forEach((column) => expect(section).toContain(`\`${column}\``));
+        expect(operation.responses['200'].description).not.toMatch(/picks, an options model's picks/);
+    });
+
+    it('shows a listing of both tasks, and an options model\'s track record with a set of columns for each hold', () => {
         const report = media.examples.list.value.report;
         const options = report.tasks.find((task) => task.scores.includes('profit_auc'));
 
@@ -371,26 +380,23 @@ describe('model.json, from format 3 on (#279)', () => {
         expect(report.tasks.find((task) => task.id === 'next-day').scores)
             .toEqual(['loss', 'auc_up', 'auc_beats', 'acc_up', 'top10_gain', 'top10_wins']);
         expect(report.models.filter((each) => each.task === options.id).map((each) => each.name)).toEqual(['pt-options']);
-        expect(headerOf('picks')).toEqual(['day', 'hold', 'rank', 'ticker', 'contract', 'call_put', 'strike', 'expiry',
-            'buy_on', 'sell_on', 'last_bid', 'last_ask', 'chance', 'usual_chance', 'gain_low', 'gain_middle', 'gain_high']);
         ['_1d', '_5d', '_20d'].forEach((hold) => {
             expect(headerOf('option-picks-track-record')).toEqual(expect.arrayContaining([`loss${hold}`, `top10_gain${hold}`, `baseline_profit_auc${hold}`]));
         });
     });
 
-    it('answers what is wrong with a Ticker, and a model or a stock with no picks, in the api\'s own words', () => {
+    it('answers what is wrong with a request, and the picks with a 403, in the api\'s own words (#290)', () => {
         expect(errors('400')).toEqual([
             'Model and Report go together, and Report is summary, history, track-record or picks.',
             'Model, Report and Ticker are the only parameters.',
-            'Ticker goes with Report=picks.',
-            'Ticker is a stock\'s symbol, like AAPL or BRK.B.',
             'Model, Report and Ticker may each be given once.',
         ]);
-        expect(errors('404')).toEqual(['There is no model named nope.', 'This model has no picks.', 'No picks for that stock.']);
+        expect(errors('403')).toEqual(['The picks are for signed-in readers, at /v1/private/model.']);
+        expect(errors('404')).toEqual(['There is no model named nope.']);
     });
 
-    it('says the api serves scores, and an options model\'s picks', () => {
-        expect(documentOf('model').info.description).toMatch(/Scores, and for an options model, its nightly picks/);
+    it('says the api serves scores alone, and the picks to signed-in readers on a path of their own (#290)', () => {
+        expect(documentOf('model').info.description).toMatch(/Scores alone: an options model's nightly picks are served to signed-in readers, on \/v1\/private\/model/);
     });
 });
 

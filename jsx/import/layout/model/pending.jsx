@@ -1,6 +1,7 @@
 /**
  * pending.jsx: what /model and a model's own page hold while the listing is
- * still on its way (#274).
+ * still on its way (#274), and an options model's picks page while its picks are
+ * (#290).
  *
  * Both pages used to wait as a title over one line, 'Loading the models…' or
  * 'Loading the model…', and the whole page arrived with the listing. On a cold
@@ -322,39 +323,94 @@ PendingChart.propTypes = {
 };
 
 /**
- * an options model's picks before they are in (#279): the card's title, which
- * never changes, a bar for the line under it and one for each of the holds'
- * tabs, and five rows of bars where the table's will be.
+ * the record card's figures before the track record is in (#290): their lines'
+ * words, which never change, over a bar for each figure.
  */
-export function PendingPicks({ title }) {
+export function PendingRecord() {
     return (
-        <section className='model-card model-picks' aria-hidden='true'>
-            <div className='model-card-head'>
-                <div className='model-card-title'>
-                    <h5>{title}</h5>
+        <div className='model-picks-figures' aria-hidden='true'>
+            {['average gain', 'made money'].map((line, at) => (
+                <div key={line} className='model-picks-figure'>
+                    <span className='model-stat-value'>
+                        <PendingBar width='5rem' delay={at * STAGGER} />
+                    </span>
+                    <span className='model-stat-detail'>{line}</span>
                 </div>
-                <p className='model-card-sub'>
-                    <PendingLines widths={['14rem']} />
-                </p>
-            </div>
-            <div className='model-picks-tabs'>
-                {['3rem', '3.5rem', '4rem'].map((width, at) => (
-                    <span key={width} className='model-score model-score-pending'>
-                        <PendingBar width={width} delay={at * STAGGER} />
-                    </span>
-                ))}
-            </div>
-            <div className='model-picks-pending'>
-                {[0, 1, 2, 3, 4].map((row) => (
-                    <span key={row} className='model-pending-line'>
-                        <PendingBar width='100%' delay={(row + 3) * STAGGER} />
-                    </span>
-                ))}
-            </div>
-        </section>
+            ))}
+        </div>
     );
 }
 
-PendingPicks.propTypes = {
-    title: PropTypes.string.isRequired,
-};
+/**
+ * an options model's picks page before its picks are in (#290): the hold picker's
+ * name over a bar for each hold, the When card's names over bars for its days, the
+ * record card over bars for its figures and its days, and the table's card, its
+ * title and the line under it, with ten rows of bars where its picks will be.
+ * Hidden from a screen reader, as none of it is the page yet.
+ */
+export function PendingPicks() {
+    return (
+        <div className='model-picks-pending' aria-hidden='true'>
+            <div className='model-controls'>
+                <div className='model-scores model-picker-pending'>
+                    <span className='model-control-label'>Hold</span>
+                    <div className='model-score-buttons'>
+                        {['2.75rem', '3rem', '3.25rem'].map((width, at) => (
+                            <span key={width} className='model-score model-score-pending'>
+                                <PendingBar width={width} delay={at * STAGGER} />
+                            </span>
+                        ))}
+                    </div>
+                    <span className='model-score-menu'>
+                        <span className='model-score model-score-pending'>
+                            <PendingBar width='4rem' />
+                        </span>
+                    </span>
+                </div>
+            </div>
+            <div className='model-picks-summary'>
+                <div className='model-stat model-picks-when'>
+                    <div className='model-stat-head'>
+                        <span className='model-stat-label'>When</span>
+                        <div className='model-picks-when-rows'>
+                            {['From', 'Buy', 'Sell'].map((name, at) => (
+                                <div key={name} className='model-picks-when-row'>
+                                    <span className='model-picks-when-name'>{name}</span>
+                                    <span className='model-picks-when-day'>
+                                        <PendingBar width='6.5rem' delay={(at + 1) * STAGGER} />
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <div className='model-stat model-picks-record'>
+                    <div className='model-stat-head'>
+                        <span className='model-stat-label'>How its top 10 has done</span>
+                        <PendingRecord />
+                    </div>
+                    <div className='model-stat-body'>
+                        <span className='model-picks-strip-pending' style={{ animationDelay: `${4 * STAGGER}ms` }} />
+                    </div>
+                </div>
+            </div>
+            <section className='model-card model-picks'>
+                <div className='model-card-head'>
+                    <div className='model-card-title'>
+                        <h5>Top 10</h5>
+                    </div>
+                    <p className='model-card-sub'>
+                        <PendingLines widths={['30rem']} />
+                    </p>
+                </div>
+                <div className='model-picks-pending-rows'>
+                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((row) => (
+                        <span key={row} className='model-pending-line'>
+                            <PendingBar width='100%' delay={(row + 5) * STAGGER} />
+                        </span>
+                    ))}
+                </div>
+            </section>
+        </div>
+    );
+}

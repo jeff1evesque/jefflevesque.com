@@ -34,7 +34,7 @@ import {
 import filterSchema from '../../import/animation/filter-schema.js';
 import { sourceNamespace } from '../../import/animation/encoding.js';
 import { loadArchiveListing, archiveFiles } from '../../import/general/archive-links.js';
-import { performanceUrl, datalakeUrl, TICKER } from '../../import/general/api-url.js';
+import { performanceUrl, datalakeUrl } from '../../import/general/api-url.js';
 import modelReport from '../../import/worker/model/report.js';
 import { LOSS_PARTS, SCORES, holdsOf, scoresFor, statusOf, tradesOptions } from '../../import/layout/model/scores.js';
 
@@ -658,34 +658,6 @@ describe('model, as /model and /model/:model read it (#243)', () => {
             expect(days('loss_5d')).toEqual(['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-12']);
             expect(days('loss_20d')).toEqual([]);
             expect(rows[rows.length - 1].average.loss_20d).toBeNull();
-        });
-
-        it('reads the picks: each hold\'s top 10, best first, made from one day, each contract\'s name with its spaces', () => {
-            const rows = read('option-picks', media.examples.picks.value, 'pt-options').rows;
-
-            expect(rows).toHaveLength(30);
-            [1, 5, 20].forEach((hold) => {
-                expect(rows.filter((row) => row.hold === hold).map((row) => row.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-            });
-            expect(new Set(rows.map((row) => row.day))).toEqual(new Set(['2026-10-20']));
-            rows.forEach((row) => {
-                expect(row.contract).toMatch(/^[A-Z]{1,5} +\d{6}[CP]\d{8}$/);
-                expect(['call', 'put']).toContain(row.call_put);
-                expect(row.ticker).toMatch(TICKER);
-                ['strike', 'last_bid', 'last_ask', 'chance', 'usual_chance', 'gain_low', 'gain_middle', 'gain_high']
-                    .forEach((key) => expect(Number.isFinite(row[key])).toBe(true));
-                expect(row.buy_on < row.sell_on && row.sell_on <= row.expiry).toBe(true);
-            });
-        });
-
-        it('ranks each hold\'s picks by how far each chance is above the usual chance', () => {
-            const rows = read('option-picks', media.examples.picks.value, 'pt-options').rows;
-
-            [1, 5, 20].forEach((hold) => {
-                const above = rows.filter((row) => row.hold === hold).map((row) => row.chance - row.usual_chance);
-
-                expect(above).toEqual([...above].sort((a, b) => b - a));
-            });
         });
     });
 });

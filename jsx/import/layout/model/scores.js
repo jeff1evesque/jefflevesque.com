@@ -724,6 +724,34 @@ export function longDay(day) {
 }
 
 /**
+ * a day as an options model's picks name it (#290): 'Tue, Oct 20', with its
+ * weekday, since the days they are made from, bought and sold are trading days.
+ */
+export function weekDay(day) {
+    if (!day) {
+        return '';
+    }
+
+    return noonOf(day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+/**
+ * today in New York, 'YYYY-MM-DD', where the trading days are kept (#290): a
+ * pick's buy day has passed once today is after it there, wherever the reader is.
+ */
+export function newYorkToday(now = new Date()) {
+    const parts = {};
+
+    new Intl.DateTimeFormat('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'America/New_York' })
+        .formatToParts(now)
+        .forEach((part) => {
+            parts[part.type] = part.value;
+        });
+
+    return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/**
  * a duration in seconds, as the pages print it: '1.3 s' to a tenth under ten
  * seconds, as the history keeps it, and to the whole second past them, '52 s',
  * '8 min 52 s', '1 h 0 min 5 s'. Nothing where there is none.

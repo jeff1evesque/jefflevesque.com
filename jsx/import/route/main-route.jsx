@@ -18,7 +18,7 @@ import DataLayoutState from '../redux/container/data/data.jsx';
 import StreamLayoutState from '../redux/container/stream/stream.jsx';
 import StreamTriggerLayoutState from '../redux/container/stream/trigger/trigger.jsx';
 import StreamAlarm from '../layout/stream/alarm.jsx';
-import ModelLayoutState, { ModelPageState } from '../redux/container/model.jsx';
+import ModelLayoutState, { ModelPageState, ModelPicksState } from '../redux/container/model.jsx';
 import ModelAlarm from '../layout/model/model-alarm.jsx';
 import GraphLayout, { RetrievalGraph } from '../layout/graph/graph.jsx';
 import HomePageState from '../redux/container/home-page.jsx';
@@ -49,7 +49,9 @@ import StreamItem from './stream-item.jsx';
 //
 // Note: '/model/:model/alarm' is a model's alarm page (#255), which its bells
 //       and its emails link to. Three segments, so '/:user/settings' never
-//       takes it either.
+//       takes it either. Nor '/model/:model/picks', an options model's picks,
+//       for signed-in readers (#290), which /model's rows and the menu under a
+//       reader's name link to.
 //
 class MainRoute extends Component {
     render() {
@@ -76,6 +78,7 @@ class MainRoute extends Component {
                 <Route path='/model' element={<ModelLayoutState />}/>
                 <Route path='/model/:model' element={<ModelPageState />}/>
                 <Route path='/model/:model/alarm' element={<ModelAlarm />}/>
+                <Route path='/model/:model/picks' element={<ModelPicksState />}/>
                 <Route path='/graph' element={<GraphLayout />}/>
                 <Route path='/graph/retrieval' element={<RetrievalGraph />}/>
                 <Route path='/graph/retrieval/:day' element={<RetrievalGraph />}/>

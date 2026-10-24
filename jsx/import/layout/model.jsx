@@ -5,7 +5,9 @@
  * S&P 500 stock -- the three things their loss scores (#277) -- and what the
  * options model predicts for each of its options (#279), what they read, linking
  * the knowledge graph and the data it is built from (#251), and that the page
- * shows how the predictions are graded, and the options model's page its picks.
+ * shows how the predictions are graded, and that an options model's picks are on
+ * a page of their own, for signed-in readers (#290), which each options model's
+ * row links to.
  * On a phone they fold to their first two lines, which a 'More' at the end of the
  * second opens and a 'Less' at their own end folds again, kept for the next visit
  * as the filters' band is (#287).
@@ -856,7 +858,7 @@ class ModelLayout extends Component {
                                 <Link to='/graph'>knowledge graph</Link>
                                 {', built from the '}
                                 <Link to='/stream'>data this site collects</Link>
-                                {'. Once the prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all. This page shows those grades, and the options model’s own page its picks.'}
+                                {'. Once the prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can predict the market at all. This page shows those grades. An options model’s picks are on a page of their own, for signed-in readers.'}
                                 {intro_open ? ' ' : null}
                                 {intro_open ? this.introToggle() : null}
                             </span>

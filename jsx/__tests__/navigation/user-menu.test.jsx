@@ -23,7 +23,7 @@
  */
 
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -32,9 +32,20 @@ jest.mock('@aws-amplify/auth', () => ({
     default: { signOut: jest.fn() },
 }));
 
+//
+// the model api's listing, which names the options models whose picks the menu
+// links to (#290): never in by default, so a case that does not ask about the
+// picks draws the menu as it always has
+//
+jest.mock('../../import/layout/model/source.js', () => ({
+    loadListing: jest.fn(),
+}));
+
 import Auth from '@aws-amplify/auth';
-import UserMenu from '../../import/navigation/user-menu.jsx';
+import UserMenu, { pickModels } from '../../import/navigation/user-menu.jsx';
 import { colors, toRGB } from '../../import/general/colors.js';
+import { loadListing } from '../../import/layout/model/source.js';
+import { listingOf, optionsListingOf, optionsModelOf } from '../../test-support/model-fixtures.js';
 
 const DESKTOP = 1024;
 const MOBILE = 375;
@@ -64,6 +75,8 @@ async function openUserDropdown() {
 beforeEach(() => {
     Auth.signOut.mockReset();
     Auth.signOut.mockResolvedValue(undefined);
+    loadListing.mockReset();
+    loadListing.mockReturnValue(new Promise(() => {}));
 });
 
 afterEach(() => {
@@ -312,5 +325,109 @@ describe('the theme switch', () => {
         renderMenu({ user: { name: 'jeff' }, width });
 
         expect(screen.getAllByRole('button', { name: 'Dark theme' })).toHaveLength(1);
+    });
+});
+
+describe('the links to each options model\'s picks (#290)', () => {
+    //
+    // a format 3 listing with a second options model beside pt-options, and the
+    // menu drawn once it is in
+    //
+    function twoOptions(overrides = {}) {
+        const listing = optionsListingOf();
+
+        return { ...listing, models: listing.models.concat([optionsModelOf({ name: 'tables-options', ...overrides })]) };
+    }
+
+    async function withListing(listing, options = {}) {
+        loadListing.mockResolvedValue(listing);
+
+        await act(async () => {
+            renderMenu({ user: { name: 'jeff' }, ...options });
+        });
+        await openUserDropdown();
+    }
+
+    //
+    // the open menu's links, in the order they are drawn
+    //
+    const linksShown = () => [...document.querySelectorAll('.dropdown-menu.show a.dropdown-item')].map((link) => link.textContent);
+
+    it('lists each options model under an "Option picks" heading, each leading to its picks page', async () => {
+        await withListing(twoOptions());
+
+        const menu = document.querySelector('.dropdown-menu.show');
+
+        expect(within(menu).getByText('Option picks')).toHaveClass('dropdown-header');
+        expect(within(menu).getByRole('link', { name: 'pt-options' })).toHaveAttribute('href', '/model/pt-options/picks');
+        expect(within(menu).getByRole('link', { name: 'tables-options' })).toHaveAttribute('href', '/model/tables-options/picks');
+        expect(loadListing).toHaveBeenCalledTimes(1);
+    });
+
+    it('puts them after Account Settings and before signing out, by name', async () => {
+        await withListing(twoOptions());
+
+        expect(linksShown()).toEqual(['My Profile', 'Account Settings', 'pt-options', 'tables-options', 'Sign out']);
+    });
+
+    it('lists them on a phone\'s menu too, ruled off from signing out', async () => {
+        await withListing(twoOptions(), { width: MOBILE });
+
+        const heading = screen.getByText('Option picks');
+
+        expect(linksShown()).toEqual(['My Profile', 'Account Settings', 'pt-options', 'tables-options', 'Sign out']);
+        expect(screen.getByRole('link', { name: 'tables-options' }).nextElementSibling).toHaveClass('dropdown-divider');
+        expect(heading.previousElementSibling).toHaveClass('dropdown-divider');
+    });
+
+    it('leaves out a retired options model', async () => {
+        await withListing(twoOptions({ retired: '2026-10-19' }));
+
+        expect(linksShown()).toEqual(['My Profile', 'Account Settings', 'pt-options', 'Sign out']);
+    });
+
+    it.each([
+        ['a listing with no options model', () => listingOf()],
+        ['a listing that could not be had', () => null],
+    ])('draws no heading and no link for %s', async (label, listing) => {
+        await withListing(listing());
+
+        expect(screen.queryByText('Option picks')).toBeNull();
+        expect(linksShown()).toEqual(['My Profile', 'Account Settings', 'Sign out']);
+    });
+
+    it('lets go of a listing that lands after the menu has gone', async () => {
+        let land;
+
+        loadListing.mockReturnValue(new Promise((done) => { land = done; }));
+
+        const view = render(
+            <MemoryRouter>
+                <UserMenu user={{ name: 'jeff' }} dispatchLogout={jest.fn()} />
+            </MemoryRouter>
+        );
+
+        view.unmount();
+        await act(async () => land(twoOptions()));
+
+        expect(screen.queryByText('Option picks')).toBeNull();
+    });
+});
+
+describe('pickModels (#290)', () => {
+    it('names every options model still trained, by name', () => {
+        expect(pickModels({
+            tasks: optionsListingOf().tasks,
+            models: [
+                optionsModelOf({ name: 'zeta-options' }),
+                optionsModelOf({ name: 'alpha-options' }),
+                optionsModelOf({ name: 'gone-options', retired: '2026-10-01' }),
+            ].concat(listingOf().models),
+        })).toEqual(['alpha-options', 'zeta-options']);
+    });
+
+    it('names none for a listing that could not be had, or a model of a task it does not describe', () => {
+        expect(pickModels(null)).toEqual([]);
+        expect(pickModels({ tasks: [], models: [optionsModelOf()] })).toEqual([]);
     });
 });
