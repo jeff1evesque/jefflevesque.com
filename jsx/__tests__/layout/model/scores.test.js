@@ -1,6 +1,7 @@
 /**
  * scores.test.js: what the model pages know about a score, a model's status and
- * its days (#243), and which lists show loss's three parts (#283).
+ * its days (#243), which lists show loss's three parts (#283), and a model's
+ * holds (#279), from format 5 a stock model's and Combined (#300).
  *
  * The rule every chart and figure leans on is betterBy's: a difference is
  * positive where it is better, whichever way the score runs. Loss is lower-is-
@@ -10,6 +11,8 @@
 
 import {
     BASELINE_DASH,
+    COMBINED,
+    COMBINED_HOLD,
     COMPARE_COLORS,
     COMPARE_MAX,
     DEFAULT_HOLD,
@@ -24,13 +27,13 @@ import {
     WINDOW,
     alignDays,
     averageDays,
-    behindLine,
-    behindRows,
     betterBy,
     chartColors,
     checkWords,
+    checksTable,
     chosenScore,
     columnOf,
+    comesIn,
     compareBlocked,
     formatDuration,
     formatGap,
@@ -38,17 +41,32 @@ import {
     formatSignedTick,
     formatStarted,
     formatTick,
+    heldOut,
+    holdKey,
+    holdLabel,
+    holdLine,
     holdName,
+    holdsAmong,
     holdsOf,
+    isHold,
     isScore,
+    listedHolds,
     liveKind,
     longDay,
     lossParts,
+    namedHold,
+    noResultsYet,
     noteOf,
+    onThe,
     recentDays,
+    resultDays,
+    resultLag,
+    resultName,
     scoreIn,
     scoreOf,
+    scoreOnHold,
     scoresFor,
+    scoresOn,
     sharedScores,
     shortDay,
     showsParts,
@@ -69,6 +87,9 @@ import {
     TASKS,
     behindOf,
     downModelOf,
+    heldListingOf,
+    heldModelOf,
+    heldTrackOf,
     holdsBehindOf,
     listingOf,
     modelOf,
@@ -393,14 +414,14 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
     it('says why a take-down no check did was made, from format 4 (#295)', () => {
         expect(checkWords({ reason: 'not_ahead', days: null, in_a_row: null })).toBe('it went live without beating the baseline');
         expect(checkWords({ reason: 'track_record', days: null, in_a_row: null })).toBe('its track record showed nothing better than the baseline');
-        expect(checkWords({ reason: 'track_record', days: null, in_a_row: null, hold: 5 })).toBe('its track record showed nothing better than the baseline');
+        expect(checkWords({ reason: 'track_record', days: null, in_a_row: null, hold: null })).toBe('its track record showed nothing better than the baseline');
     });
 
     it('words a take-down for doing worse as every one before format 4, and one whose check it cannot read without it (#295)', () => {
         expect(checkWords({ reason: 'worse', days: 1, in_a_row: 5 })).toBe('worse than the baseline 5 scored days in a row');
         expect(checkWords({ reason: 'worse', days: null, in_a_row: 5 })).toBe('worse than the baseline 5 days in a row');
         expect(checkWords({ reason: 'worse', days: null, in_a_row: null })).toBe('worse than the baseline');
-        expect(checkWords({ reason: 'worse', days: null, in_a_row: null, hold: 5 })).toBe('the 5-day hold did worse than the baseline');
+        expect(checkWords({ reason: 'worse', days: null, in_a_row: null, hold: 5 })).toBe('its 5-day hold did worse than the baseline');
     });
 
     it('never says null, whatever a take-down leaves out (#295)', () => {
@@ -411,27 +432,18 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         });
     });
 
-    it('says how many days in a row each check has been worse, of how many take a version down', () => {
-        expect(behindLine(behindOf()))
-            .toBe('Days in a row worse than the baseline: each day 4 of 5, 5-day average 0 of 10, 20-day average not yet.');
-        expect(behindLine(behindOf(0, 2, 1)))
-            .toBe('Days in a row worse than the baseline: each day 0 of 5, 5-day average 2 of 10, 20-day average 1 of 5.');
+    it('gives how many days in a row each check has been worse as a table, of how many take a version down (#300)', () => {
+        expect(checksTable(behindOf())).toEqual({
+            checks: [{ days: 1, name: 'Each day' }, { days: 5, name: '5-day average' }, { days: 20, name: '20-day average' }],
+            rows: [{ key: 'checks', hold: null, name: '', counts: ['4 of 5', '0 of 10', 'not yet'] }],
+        });
+        expect(checksTable(behindOf(0, 2, 1)).rows[0].counts).toEqual(['0 of 5', '2 of 10', '1 of 5']);
     });
 
-    it('says nothing for a listing that gives no checks, as one before format 2', () => {
-        expect(behindLine([])).toBe('');
-        expect(behindLine(undefined)).toBe('');
-        expect(behindLine(modelOf().behind)).toBe('');
-    });
-
-    it('gives the same checks as rows, a name and a count each, for a wide screen\'s card (#267)', () => {
-        expect(behindRows(behindOf())).toEqual([
-            { key: 'check-1', name: 'Each day', value: '4 of 5' },
-            { key: 'check-5', name: '5-day average', value: '0 of 10' },
-            { key: 'check-20', name: '20-day average', value: 'not yet' },
-        ]);
-        expect(behindRows([])).toEqual([]);
-        expect(behindRows(undefined)).toEqual([]);
+    it('gives no table for a listing that gives no checks, as one before format 2', () => {
+        expect(checksTable([])).toBeNull();
+        expect(checksTable(undefined)).toBeNull();
+        expect(checksTable(modelOf().behind)).toBeNull();
     });
 });
 
@@ -742,25 +754,186 @@ describe('an options model\'s holds (#279)', () => {
         expect(holdName(5)).toBe('5-day hold');
     });
 
-    it('say which hold took a live version down', () => {
-        expect(checkWords({ days: 1, in_a_row: 5, hold: 5 })).toBe('the 5-day hold did worse than the baseline 5 scored days in a row');
-        expect(checkWords({ days: 20, in_a_row: 5, hold: 1 })).toBe('the 1-day hold’s 20-day average was worse than the baseline’s 5 days in a row');
+    it('say which hold took a live version down, as its own: \'its 5-day hold\' (#300)', () => {
+        expect(checkWords({ days: 1, in_a_row: 5, hold: 5 })).toBe('its 5-day hold did worse than the baseline 5 scored days in a row');
+        expect(checkWords({ days: 20, in_a_row: 5, hold: 1 })).toBe('its 1-day hold’s 20-day average was worse than the baseline’s 5 days in a row');
         expect(checkWords({ days: 1, in_a_row: 5, hold: null })).toBe('worse than the baseline 5 scored days in a row');
     });
 
-    it('say how close each check is on each hold, in a line and in a card\'s rows', () => {
-        expect(behindLine(holdsBehindOf())).toBe(
-            'Days in a row worse than the baseline: 1-day hold, each day 2 of 5, 5-day average 0 of 10, 20-day average 0 of 5; '
-            + '5-day hold, each day 0 of 5, 5-day average 0 of 10, 20-day average not yet; '
-            + '20-day hold, each day 0 of 5, 5-day average not yet, 20-day average not yet.',
-        );
-        expect(behindRows(holdsBehindOf()).slice(0, 5)).toEqual([
-            { key: 'hold-1', name: '1-day hold', head: true },
-            { key: 'check-1-1', name: 'Each day', value: '2 of 5' },
-            { key: 'check-1-5', name: '5-day average', value: '0 of 10' },
-            { key: 'check-1-20', name: '20-day average', value: '0 of 5' },
-            { key: 'hold-5', name: '5-day hold', head: true },
+    it('say how close each check is on each hold, a row of a table each (#300)', () => {
+        expect(checksTable(holdsBehindOf())).toEqual({
+            checks: [{ days: 1, name: 'Each day' }, { days: 5, name: '5-day average' }, { days: 20, name: '20-day average' }],
+            rows: [
+                { key: 'hold-1', hold: 1, name: '1 day', counts: ['2 of 5', '0 of 10', '0 of 5'] },
+                { key: 'hold-5', hold: 5, name: '5 days', counts: ['0 of 5', '0 of 10', 'not yet'] },
+                { key: 'hold-20', hold: 20, name: '20 days', counts: ['0 of 5', 'not yet', 'not yet'] },
+            ],
+        });
+    });
+
+    it('put a dash where a hold has no such check', () => {
+        const behind = holdsBehindOf().filter((check) => !(check.hold === 20 && check.days === 20));
+
+        expect(checksTable(behind).rows[2].counts).toEqual(['0 of 5', 'not yet', '–']);
+    });
+});
+
+describe('a stock model\'s holds, from format 5 on (#300)', () => {
+    it('add Combined, kept by its name where a hold is by its days, after the three', () => {
+        expect(COMBINED).toBe('combined');
+        expect(COMBINED_HOLD).toEqual({ days: 'combined', label: 'Combined' });
+        expect([1, 5, 20, 'combined'].every(isHold)).toBe(true);
+        expect([2, '5', 'Combined', null, undefined].some(isHold)).toBe(false);
+    });
+
+    it('key each hold as the listing\'s holds and a track record\'s hold_days do', () => {
+        expect([1, 5, 20, COMBINED].map(holdKey)).toEqual(['1d', '5d', '20d', 'combined']);
+    });
+
+    it('put Combined\'s scores in columns ending _combined', () => {
+        expect(columnOf('loss', COMBINED)).toBe('loss_combined');
+        expect(columnOf('up_log_loss', COMBINED)).toBe('up_log_loss_combined');
+        expect(columnOf('auc_up', 5)).toBe('auc_up_5d');
+    });
+
+    it('are the holds a stock model\'s track record has columns for, and Combined', () => {
+        expect(holdsOf(heldTrackOf(3)).map((hold) => hold.days)).toEqual([1, 5, 20, COMBINED]);
+        expect(holdsOf(heldTrackOf(3)).map((hold) => hold.label)).toEqual(['1 day', '5 days', '20 days', 'Combined']);
+        expect(holdsOf(optionsTrackOf(3)).map((hold) => hold.days)).toEqual([1, 5, 20]);
+    });
+
+    it('are also the holds the listing gives a model\'s scores on, and none for one before format 5', () => {
+        expect(listedHolds(heldModelOf()).map((hold) => hold.days)).toEqual([1, 5, 20, COMBINED]);
+        expect(listedHolds(modelOf())).toEqual([]);
+        expect(listedHolds(null)).toEqual([]);
+        expect(listedHolds(modelOf({ holds: { '1d': { days: 3 }, '5d': { days: 0 } } })).map((hold) => hold.days)).toEqual([1, 5]);
+    });
+
+    it('offer a task\'s list the holds any of its models has, in the picker\'s order', () => {
+        const models = heldListingOf().models;
+
+        expect(holdsAmong(models.filter((model) => model.task === 'direction')).map((hold) => hold.days)).toEqual([1, 5, 20, COMBINED]);
+        expect(holdsAmong(models.filter((model) => model.task === OPTIONS_TASK.id)).map((hold) => hold.days)).toEqual([1, 5, 20]);
+        expect(holdsAmong(listingOf().models)).toEqual([]);
+    });
+
+    it('are named in a line of text, a label and its picker', () => {
+        expect(holdName(COMBINED)).toBe('combined');
+        expect(holdLabel(5)).toBe('5 days');
+        expect(holdLabel(COMBINED)).toBe('Combined');
+        expect(holdLabel(3)).toBe('3 days');
+        expect(namedHold(5)).toBe(', 5-day hold');
+        expect(namedHold(COMBINED)).toBe(', combined');
+        expect(namedHold(1)).toBe(', 1-day hold');
+        expect(namedHold(1, true)).toBe('');
+        expect(namedHold(null)).toBe('');
+        expect(onThe(5)).toBe(' on the 5-day hold');
+        expect(onThe(COMBINED)).toBe(' on the combined score');
+        expect(onThe(null)).toBe('');
+        expect(resultName(20)).toBe('20-day result');
+        expect(resultName(COMBINED)).toBe('combined score');
+    });
+
+    it('offer every score but the top 10\'s on Combined, and every one on another hold', () => {
+        const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+        expect(heldOut(stocks, COMBINED)).toEqual(['top10_gain', 'top10_wins']);
+        expect(heldOut(stocks, 5)).toEqual([]);
+        expect(heldOut(stocks, null)).toEqual([]);
+        expect(heldOut(OPTIONS_TASK, 20)).toEqual([]);
+    });
+
+    it('show loss on Combined in place of a top 10\'s score, and keep the score picked on another hold', () => {
+        expect(scoreOnHold('top10_gain', COMBINED)).toBe('loss');
+        expect(scoreOnHold('top10_wins', COMBINED)).toBe('loss');
+        expect(scoreOnHold('auc_up', COMBINED)).toBe('auc_up');
+        expect(scoreOnHold('top10_gain', 5)).toBe('top10_gain');
+        expect(scoreOnHold('top10_gain', null)).toBe('top10_gain');
+    });
+
+    it('count a stock model\'s 1-day result in the next trading day, its 5-day in 6, its 20-day and Combined in 21', () => {
+        const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+        expect([1, 5, 20, COMBINED].map((hold) => resultDays(stocks, hold))).toEqual([1, 6, 21, 21]);
+        expect([1, 5, 20].map((hold) => resultDays(OPTIONS_TASK, hold))).toEqual([2, 6, 21]);
+        expect(resultDays(undefined, 1)).toBe(1);
+    });
+
+    it('say when each result comes in, in a sentence and in a row', () => {
+        const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+        expect(comesIn(stocks, 1)).toBe('the next trading day');
+        expect(comesIn(stocks, 5)).toBe('6 trading days after its prediction');
+        expect(comesIn(OPTIONS_TASK, 1)).toBe('2 trading days after its prediction');
+        expect(resultLag(stocks, 1)).toBe('the next trading day');
+        expect(resultLag(stocks, 20)).toBe('21 trading days later');
+        expect(resultLag(stocks, COMBINED)).toBe('with the 20-day result');
+    });
+
+    it('say a hold has no results yet, and when each comes in', () => {
+        const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+        expect(noResultsYet(stocks, 1)).toBe('No 1-day results yet: each one comes in the next trading day.');
+        expect(noResultsYet(stocks, 20)).toBe('No 20-day results yet: each one comes in 21 trading days after its prediction.');
+        expect(noResultsYet(stocks, COMBINED)).toBe('No combined scores yet: each one comes in with its day’s 20-day result, 21 trading days after its prediction.');
+        expect(noResultsYet(OPTIONS_TASK, 5)).toBe('No 5-day results yet: each one comes in 6 trading days after its prediction.');
+    });
+
+    it('say what a stock model\'s hold is, and when its results come in, under the pickers', () => {
+        const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+        expect(holdLine(stocks, 5)).toBe('5-day hold: bought at 9:40 AM on the next trading day and sold at 3:40 PM 5 trading days later. Each result comes in 6 trading days after its prediction.');
+        expect(holdLine(stocks, 1)).toBe('1-day hold: from 9:40 AM to 3:40 PM on the next trading day, as the model predicts today. Each result comes in the next trading day.');
+        expect(holdLine(stocks, 20)).toMatch(/sold at 3:40 PM 20 trading days later\. Each result comes in 21 trading days after its prediction, about a month\.$/);
+        expect(holdLine(stocks, COMBINED)).toMatch(/^Combined: the average of the 1, 5 and 20-day scores/);
+    });
+
+    it('give a model\'s scores on a hold from the listing\'s holds, and its own where the listing gives none', () => {
+        const model = heldModelOf();
+
+        expect(scoresOn(model, 5)).toEqual({ score: model.holds['5d'].score, baseline: model.holds['5d'].baseline, days: 25, hold: 5 });
+        expect(scoresOn(model, 20)).toEqual({ score: null, baseline: null, days: 0, hold: 20 });
+        expect(scoresOn(model, null)).toEqual({ score: model.score, baseline: model.baseline, days: 30, hold: null });
+        expect(scoresOn(model)).toEqual(scoresOn(model, null));
+        expect(scoresOn(modelOf(), 5)).toEqual({ score: modelOf().score, baseline: modelOf().baseline, days: 30, hold: null });
+        expect(scoresOn(modelOf({ holds: { '1d': model.holds['1d'] } }), 5).hold).toBeNull();
+    });
+
+    it('sort models by their scores on the hold', () => {
+        const models = heldListingOf().models.slice(0, 2).reverse();
+
+        expect(sortModels(models, 'score', 'loss', 5).map((model) => model.name)).toEqual(['tables-gnn', 'pt-gnn']);
+        expect(sortModels(models, 'score', 'loss', 20).map((model) => model.name)).toEqual(['pt-gnn', 'tables-gnn']);
+    });
+
+    it('take loss\'s parts on a hold from its own columns', () => {
+        const newest = heldTrackOf(30).slice(-1)[0];
+
+        expect(lossParts(newest, 5).map((part) => part.value)).toEqual([
+            newest.average.up_log_loss_5d,
+            newest.average.beats_log_loss_5d,
+            newest.average.move_pinball_5d,
         ]);
-        expect(behindRows(holdsBehindOf())).toHaveLength(12);
+        expect(lossParts(newest, 20)).toEqual([]);
+        expect(lossParts(heldTrackOf(30, { twenty: 30 }).slice(-1)[0], COMBINED)).toHaveLength(3);
+    });
+
+    it('say on Combined that loss is the average of the day\'s three losses, and on a longer hold when the top 10 is sold', () => {
+        const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+        expect(noteOf('loss', stocks, COMBINED)).toMatch(/^On Combined, loss is the average of the day’s 1, 5 and 20-day losses/);
+        expect(noteOf('loss', stocks, 5)).toBe(noteOf('loss', stocks));
+        expect(noteOf('top10_gain', stocks, 5)).toMatch(/bought at the 9:40 AM ask on the next trading day and sold at the 3:40 PM bid on the sell day/);
+        expect(noteOf('top10_gain', stocks, 1)).toMatch(/sold at the 3:40 PM bid the same day/);
+        expect(noteOf('loss', OPTIONS_TASK, COMBINED)).toBe(noteOf('loss', OPTIONS_TASK));
+        expect(noteOf('auc_up', stocks, COMBINED)).toBe(noteOf('auc_up', stocks));
+    });
+
+    it('name the hold of a take-down for doing worse or for its track record, and none for not_ahead', () => {
+        expect(checkWords({ reason: 'worse', days: 1, in_a_row: 5, hold: 5 })).toBe('its 5-day hold did worse than the baseline 5 scored days in a row');
+        expect(checkWords({ reason: 'track_record', days: null, in_a_row: null, hold: 20 }))
+            .toBe('its 20-day hold’s track record showed nothing better than the baseline, even on the days this version predicted itself');
+        expect(checkWords({ reason: 'not_ahead', days: null, in_a_row: null, hold: 5 })).toBe('it went live without beating the baseline');
+        expect(checkWords({ reason: 'track_record', days: null, in_a_row: null, hold: 20 })).not.toMatch(/null|undefined|NaN/);
     });
 });

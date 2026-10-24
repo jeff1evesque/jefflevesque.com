@@ -371,6 +371,40 @@ function meanOf(recent, field) {
 }
 
 /**
+ * a track record's averages, worked out as the worker works them: each day's
+ * over the last 20 rows, and from #300 each hold's columns, those ending in
+ * `ends`, over the hold's own latest 20 days that have its result, with
+ * `hold_days` saying how many each takes in.
+ */
+function withAverages(rows, ends) {
+    rows.forEach((row, at) => {
+        const recent = rows.slice(Math.max(0, at - 19), at + 1);
+
+        row.days = recent.length;
+        row.average = meanOf(recent, 'score');
+        row.baseline_average = meanOf(recent, 'baseline');
+        row.hold_days = {};
+
+        ends.forEach((end) => {
+            const has = (each) => Object.keys(each.score).some((name) => name.endsWith(end) && each.score[name] !== null);
+            const scored = rows.slice(0, at + 1).filter(has).slice(-20);
+
+            [['average', 'score'], ['baseline_average', 'baseline']].forEach(([field, from]) => {
+                Object.keys(row[field]).filter((name) => name.endsWith(end)).forEach((name) => {
+                    const values = scored.map((each) => each[from][name]).filter((value) => value !== null);
+
+                    row[field][name] = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+                });
+            });
+
+            row.hold_days[end.slice(1)] = scored.length;
+        });
+    });
+
+    return rows;
+}
+
+/**
  * an options model's track record (#279), its averages worked out as the worker
  * works them: every day's 1-day hold in, its last 4 days' 5-day results not yet,
  * and its last 19 days' 20-day results not yet. `loss(at)` is each day's loss on
@@ -386,18 +420,11 @@ export function optionsTrackOf(count = 30, from = '2026-09-01', loss = (at) => 0
             baseline: optionsScoresAt(0.88, -0.04, held),
             down_days: null,
             down_in_a_row: null,
+            down_hold: null,
         };
     });
 
-    rows.forEach((row, at) => {
-        const recent = rows.slice(Math.max(0, at - 19), at + 1);
-
-        row.days = recent.length;
-        row.average = meanOf(recent, 'score');
-        row.baseline_average = meanOf(recent, 'baseline');
-    });
-
-    return rows;
+    return withAverages(rows, ['_1d', '_5d', '_20d']);
 }
 
 /**
@@ -415,6 +442,144 @@ export function withTop10(rows, gain = 0.0012) {
         average: top(row.average, gain, 5.5),
         baseline_average: top(row.baseline_average, 0.0003, 5.1),
     }));
+}
+
+//
+// a format 5 stock model's holds (#300), by the key the listing gives each, and
+// how much lower each one's loss is than the 1-day hold's: a longer move is
+// called a little better, the baseline's as well as the model's
+//
+const HELD = { '1d': 0, '5d': 0.04, '20d': 0.07 };
+
+//
+// a format 5 stock model's scores on a day (#300), the model's or its
+// baseline's: the plain ones, then each hold's as `<score>_1d`, `_5d` and
+// `_20d` -- the 1-day hold's the plain ones again -- each null where `held`
+// says the hold's result is not in yet, and Combined's, `<score>_combined`, the
+// three holds' average, in once all three are. The top 10's on each hold but
+// Combined, which has none
+//
+function heldScoresAt(loss, held, baseline = false) {
+    const at = (value) => (baseline ? baselineAt(value) : scoresAt(value));
+    const top = baseline ? { top10_gain: 0.0003, top10_wins: 5.1 } : { top10_gain: 0.0012, top10_wins: 5.5 };
+    const scores = { ...at(loss), ...top };
+    const each = {};
+
+    Object.keys(HELD).forEach((key) => {
+        each[key] = { ...at(loss - HELD[key]), ...top };
+
+        Object.keys(each[key]).forEach((name) => {
+            scores[`${name}_${key}`] = held[key] ? each[key][name] : null;
+        });
+    });
+
+    Object.keys(at(loss)).forEach((name) => {
+        scores[`${name}_combined`] = held['1d'] && held['5d'] && held['20d']
+            ? (each['1d'][name] + each['5d'][name] + each['20d'][name]) / 3
+            : null;
+    });
+
+    return scores;
+}
+
+/**
+ * a format 5 stock model's track record (#300), its averages worked out as the
+ * worker works them: the plain columns over the last 20 rows, and each hold's
+ * over its own latest 20 days that have its result, with `hold_days` saying how
+ * many. Every day's 1-day hold is in; the 5-day hold's for all but the newest
+ * `notIn` days; and the 20-day hold's, and Combined with it, for the oldest
+ * `twenty` -- none, unless a case says so. `loss(at)` is each day's 1-day loss.
+ */
+export function heldTrackOf(count = 30, { notIn = 5, twenty = 0, from = '2026-09-01', loss = (at) => 1.6 + (at % 3) * 0.01 } = {}) {
+    const rows = weekdays(count, from).map((day, at) => {
+        const held = { '1d': true, '5d': at < count - notIn, '20d': at < twenty };
+
+        return {
+            day: day,
+            score: heldScoresAt(loss(at), held),
+            baseline: heldScoresAt(BASELINE.loss, held, true),
+            down_days: null,
+            down_in_a_row: null,
+            down_hold: null,
+        };
+    });
+
+    return withAverages(rows, Object.keys(HELD).concat(['combined']).map((key) => `_${key}`));
+}
+
+/**
+ * a model's scores on each of its holds as a format 5 listing gives them
+ * (#300), from its track record, `rows`, as the trainer averages them: each
+ * hold's `days`, every day it has a result on, and its task's scores and the
+ * baseline's on it, its newest day's averages, as the worker reads them --
+ * loss's parts null, as the listing gives none -- or none for a hold with no
+ * day scored yet.
+ */
+export function holdsFrom(rows, keys = STOCK_SCORES) {
+    const newest = rows[rows.length - 1];
+    const holds = {};
+
+    Object.keys(newest.hold_days).forEach((key) => {
+        const days = rows.filter((row) => Object.keys(row.score).some((name) => name.endsWith(`_${key}`) && row.score[name] !== null)).length;
+        const set = (field) => {
+            const scores = { ...NO_PARTS };
+
+            keys.forEach((name) => {
+                if (`${name}_${key}` in newest[field]) {
+                    scores[name] = newest[field][`${name}_${key}`];
+                }
+            });
+
+            return scores;
+        };
+
+        holds[key] = {
+            days: days,
+            score: days ? set('average') : null,
+            baseline: days ? set('baseline_average') : null,
+        };
+    });
+
+    return holds;
+}
+
+/**
+ * a format 5 stock model as the listing holds it (#300): tables-gnn, its scores
+ * on each hold from its track record, `rows`, and its own scores the 1-day
+ * hold's, as the listing's are.
+ */
+export function heldModelOf(overrides = {}, rows = heldTrackOf()) {
+    const holds = holdsFrom(rows);
+
+    return modelOf({
+        name: 'tables-gnn',
+        description: 'A model of the tables',
+        scored_days: holds['1d'].days,
+        score: holds['1d'].score,
+        baseline: holds['1d'].baseline,
+        holds: holds,
+        ...overrides,
+    });
+}
+
+/**
+ * a format 5 listing (#300): the stock tasks naming their scores, two stock
+ * models with holds -- tables-gnn, and pt-gnn, a little behind it -- and the
+ * options task with pt-options, its scores on each of its three holds given
+ * too. `models`, where given, takes the models' place.
+ */
+export function heldListingOf(models = null) {
+    const behind = heldTrackOf(30, { loss: (at) => 1.62 + (at % 3) * 0.01 });
+
+    return {
+        format_version: 5,
+        tasks: TASKS.map((task) => ({ ...task, scores: STOCK_SCORES.slice() })).concat([{ ...OPTIONS_TASK, scores: OPTIONS_TASK.scores.slice() }]),
+        models: models || [
+            heldModelOf(),
+            heldModelOf({ name: 'pt-gnn', description: 'A graph model of the market' }, behind),
+            optionsModelOf({ holds: holdsFrom(optionsTrackOf(30), OPTIONS_TASK.scores) }),
+        ],
+    };
 }
 
 /**

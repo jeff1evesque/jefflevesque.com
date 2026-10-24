@@ -36,12 +36,15 @@ import { MemoryRouter } from 'react-router-dom';
 import ModelLayout, { linkedCompare, writeCompare } from '../../import/layout/model.jsx';
 import { loadListing, loadReport } from '../../import/layout/model/source.js';
 import { listSubscriptions } from '../../import/general/account-api.js';
-import { COMPARE_COLORS, SCORES, noteOf } from '../../import/layout/model/scores.js';
+import { COMPARE_COLORS, SCORES, formatScore, noteOf } from '../../import/layout/model/scores.js';
 import { readLayout, writeLayout } from '../../import/general/layout-preference.js';
 import {
     OPTIONS_TASK,
     behindOf,
     downModelOf,
+    heldListingOf,
+    heldModelOf,
+    heldTrackOf,
     listingOf,
     modelOf,
     optionsListingOf,
@@ -1354,5 +1357,147 @@ describe('compare', () => {
         await open();
 
         expect(window.location.search).toBe('?compare=pt-gnn');
+    });
+});
+
+describe('the lists\' holds, from format 5 on (#300)', () => {
+    //
+    // a format 5 listing: tables-gnn and pt-gnn with their holds, a little
+    // behind it, and pt-options with its three, each model's track record with
+    // its holds' columns -- the newest five days without their 5-day results,
+    // and none with a 20-day result
+    //
+    const BEHIND = { loss: (at) => 1.62 + (at % 3) * 0.01 };
+
+    function held(props = {}) {
+        answer(heldListingOf(), (name) => {
+            if (name === 'pt-options') {
+                return optionsTrackOf(30);
+            }
+
+            return heldTrackOf(30, name === 'pt-gnn' ? BEHIND : {});
+        });
+
+        return open(props);
+    }
+
+    const buttons = (name, picker) => within(within(group(name)).getByRole('group', { name: picker })).getAllByRole('button');
+    const pressedIn = (name, picker) => buttons(name, picker).filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent);
+    const rowOf = (name) => screen.getByRole('link', { name: name }).closest('.model-row');
+
+    it('gives each list a hold picker of its own beside its score picker, with Combined for a task of stocks', async () => {
+        await held();
+
+        expect(buttons('Next-day direction', 'Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days', 'Combined']);
+        expect(buttons('Option picks', 'Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days']);
+        expect(within(group('Next-day direction')).getByRole('group', { name: 'Hold' }).closest('.model-controls'))
+            .toBe(within(group('Next-day direction')).getByRole('group', { name: 'Score' }).closest('.model-controls'));
+    });
+
+    it('opens on 1 day, so each list reads as before format 5: its rows on the listing\'s own scores', async () => {
+        await held({ scores: { direction: 'auc_up' } });
+
+        expect(pressedIn('Next-day direction', 'Hold')).toEqual(['1 day']);
+        expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
+        expect(group('Next-day direction').querySelector('.model-list-head .model-noted')).toHaveTextContent(/^Up\/down AUC, last 20 days$/);
+        expect(rowOf('tables-gnn').querySelector('.model-score-value')).toHaveTextContent(formatScore(heldModelOf().score.auc_up, 'auc_up'));
+    });
+
+    it('changes nothing, and breaks nothing, where a hold is picked with no store listening', async () => {
+        await held();
+        await userEvent.click(within(group('Next-day direction')).getByRole('button', { name: '5 days' }));
+
+        expect(pressedIn('Next-day direction', 'Hold')).toEqual(['1 day']);
+    });
+
+    it('hands the hold picked up with its task', async () => {
+        const onHold = jest.fn();
+
+        await held({ onHold: onHold });
+        await userEvent.click(within(group('Next-day direction')).getByRole('button', { name: 'Combined' }));
+        await userEvent.click(within(group('Option picks')).getByRole('button', { name: '20 days' }));
+
+        expect(onHold.mock.calls).toEqual([['direction', 'combined'], ['option-picks', 20]]);
+    });
+
+    it('puts each row\'s score, how it stands, its days and its trend line on the hold picked, named with it', async () => {
+        await held({ holds: { direction: 5 }, scores: { direction: 'auc_up' } });
+
+        const row = rowOf('tables-gnn');
+
+        expect(group('Next-day direction').querySelector('.model-list-head .model-noted')).toHaveTextContent('Up/down AUC, 5-day hold, last 20 days');
+        expect(row.querySelector('.model-score-value')).toHaveTextContent(formatScore(heldModelOf().holds['5d'].score.auc_up, 'auc_up'));
+        expect(row.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Up/down AUC, 5-day hold, last 20 days');
+        expect(within(row).getByRole('img', { name: 'tables-gnn\'s 20-day Up/down AUC, 5-day hold, over the last 60 days' })).toBeInTheDocument();
+    });
+
+    it('puts loss\'s three parts on the hold, from its own columns', async () => {
+        await held({ holds: { direction: 5 } });
+
+        const newest = heldTrackOf(30).slice(-1)[0];
+
+        expect([...rowOf('tables-gnn').querySelectorAll('.model-part-cell-value')].map((cell) => cell.textContent)).toEqual([
+            formatScore(newest.average.up_log_loss_5d, 'loss'),
+            formatScore(newest.average.beats_log_loss_5d, 'loss'),
+            formatScore(newest.average.move_pinball_5d, 'loss'),
+        ]);
+    });
+
+    it('leaves the other task\'s list on its own hold', async () => {
+        await held({ holds: { direction: 20 } });
+
+        expect(pressedIn('Next-day direction', 'Hold')).toEqual(['20 days']);
+        expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
+    });
+
+    it('offers no Combined on the options list, and shows it on 1 day where Combined is kept for it', async () => {
+        await held({ holds: { 'option-picks': 'combined' } });
+
+        expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
+    });
+
+    it('disables the top 10\'s two on Combined, and shows loss for one picked', async () => {
+        await held({ holds: { direction: 'combined' }, scores: { direction: 'top10_wins' } });
+
+        expect(buttons('Next-day direction', 'Score').filter((button) => button.disabled).map((button) => button.textContent))
+            .toEqual(['Top 10 gain', 'Top 10 wins']);
+        expect(pressedIn('Next-day direction', 'Score')).toEqual(['Loss']);
+        expect(buttons('Option picks', 'Score').some((button) => button.disabled)).toBe(false);
+    });
+
+    it('sorts each list by its models\' scores on the hold, and by name where none has one yet', async () => {
+        await held({ holds: { direction: 5 } });
+
+        expect(namesIn('Next-day direction')).toEqual(['tables-gnn', 'pt-gnn']);
+    });
+
+    it('draws no hold picker on a list whose models the listing gives no holds, as before format 5', async () => {
+        answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(5) : withTop10(trackOf(5))));
+        await open({ holds: { direction: 5 } });
+
+        expect(within(group('Next-day direction')).queryByRole('group', { name: 'Hold' })).toBeNull();
+        expect(within(group('Option picks')).queryByRole('group', { name: 'Hold' })).toBeNull();
+        expect(group('Next-day direction').querySelector('.model-list-head .model-noted')).toHaveTextContent(/^Loss, last 20 days$/);
+    });
+
+    it('draws each model ticked on its list\'s hold in the comparison, named with it', async () => {
+        await held({ holds: { direction: 5 } });
+
+        fireEvent.click(box('tables-gnn'));
+        fireEvent.click(box('pt-gnn'));
+
+        const legend = within(screen.getByRole('region', { name: 'Comparison' })).getByRole('list', { name: 'Legend' });
+
+        expect(legend).toHaveTextContent('tables-gnn, 5-day hold');
+        expect(legend).toHaveTextContent('pt-gnn, 5-day hold');
+    });
+
+    it('names no hold in the comparison on 1 day, as before format 5', async () => {
+        await held();
+
+        fireEvent.click(box('tables-gnn'));
+        fireEvent.click(box('pt-gnn'));
+
+        expect(within(screen.getByRole('region', { name: 'Comparison' })).getByRole('list', { name: 'Legend' })).not.toHaveTextContent('hold');
     });
 });

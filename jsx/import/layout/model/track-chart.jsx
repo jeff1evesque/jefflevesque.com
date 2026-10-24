@@ -19,6 +19,10 @@
  * or line yet. Another model drawn beside it is drawn on the same hold where it
  * has holds, and on its own scores where it has none, as a stock model.
  *
+ * From format 5 a stock model's has too, and Combined, their average (#300). A
+ * light band lies over the newest days whose result on the hold is not in yet,
+ * and the legend says how many there are.
+ *
  * Note: the baseline is the model's own, its record's average (#263).
  *       Each model's track record carries the baseline's scores on its own
  *       days, and they differ from one record to the next -- on 2026-10-15 the
@@ -32,6 +36,7 @@ import {
     CartesianGrid,
     ComposedChart,
     Line,
+    ReferenceArea,
     ReferenceLine,
     ResponsiveContainer,
     Scatter,
@@ -40,9 +45,10 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisStyle, useFolds, usePanelDay } from './parts.jsx';
+import { FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisStyle, tickGap, useFolds, usePanelDay } from './parts.jsx';
 import {
     BASELINE_DASH,
+    COMBINED,
     COMPARE_COLORS,
     WINDOW,
     alignDays,
@@ -51,9 +57,10 @@ import {
     columnOf,
     formatScore,
     formatTick,
-    holdName,
     holdsOf,
     longDay,
+    onThe,
+    resultName,
     scoreIn,
     scoreOf,
     shortDay,
@@ -148,12 +155,64 @@ export function TakenDownTick(props) {
 
 TakenDownTick.propTypes = WentLiveTick.propTypes;
 
+//
+// about how wide a character of the band's label is, in px, at its 12px: a
+// label wider than its band is set against the plot's right edge instead, so
+// the plot's clip does not cut it in half
+//
+const LABEL_CHAR = 6.5;
+
+/**
+ * the light band over the newest days whose result on the hold is not in yet
+ * (#300), from halfway past the last day that has one to the plot's right
+ * edge, and at its top how many days it lies over, 'Not in yet: newest 5 days'.
+ * Recharts hands it the area from that day to the newest, `steps` days on, and
+ * the plot's clip trims what it draws past the newest.
+ */
+export function NotInBand({ x, y, width, height, steps, count, color, ink }) {
+    if (![x, y, width, height].every(Number.isFinite) || !steps) {
+        return null;
+    }
+
+    const step = width / steps;
+    const left = x + step / 2;
+    const label = `Not in yet: newest ${count} ${count === 1 ? 'day' : 'days'}`;
+    const fits = label.length * LABEL_CHAR + 8 <= x + width - left;
+
+    return (
+        <g className='model-not-in'>
+            <rect x={left} y={y} width={width} height={height} fill={color} fillOpacity={0.12} />
+            <line x1={left} x2={left} y1={y} y2={y + height} stroke={color} strokeOpacity={0.4} />
+            <text
+                x={fits ? (left + x + width) / 2 : x + width - 4}
+                y={y + 14}
+                textAnchor={fits ? 'middle' : 'end'}
+                fill={ink}
+                fontSize={12}
+            >
+                {label}
+            </text>
+        </g>
+    );
+}
+
+NotInBand.propTypes = {
+    x: PropTypes.number,
+    y: PropTypes.number,
+    width: PropTypes.number,
+    height: PropTypes.number,
+    steps: PropTypes.number.isRequired,
+    count: PropTypes.number.isRequired,
+    color: PropTypes.string.isRequired,
+    ink: PropTypes.string.isRequired,
+};
+
 /**
  * each day as the chart draws it: the model's score that day and its average,
  * the average of its own baseline, the other model's average where one is
  * added, and the check a day's score set off where it took the live version
- * down (#263). A day only the other model was scored on has no dot and no line
- * of this model's.
+ * down (#263), with the hold it was of (#300). A day only the other model was
+ * scored on has no dot and no line of this model's.
  *
  * With a `hold` (#279), each is the hold's column of the score, and a day whose
  * hold's result is not in yet has none of them: its average would be of the
@@ -182,9 +241,32 @@ export function trackPoints(name, rows, other, otherRows, score, hold = null) {
             days: own ? own.days : null,
             baseline: own && held ? scoreIn(own.baseline_average, column) : null,
             other: their ? scoreIn(their.average, theirs) : null,
-            down: own && Number.isFinite(own.down_days) ? { days: own.down_days, in_a_row: own.down_in_a_row } : null,
+            down: own && Number.isFinite(own.down_days)
+                ? { days: own.down_days, in_a_row: own.down_in_a_row, hold: own.down_hold || null }
+                : null,
         };
     });
+}
+
+/**
+ * the newest days a hold's result is not in for yet (#300): `steps`, the days
+ * on the chart after the last one that has it, and `count`, how many of them
+ * are this model's own -- a day only the other model has is no result of its
+ * own to wait for. Nothing for no hold, or where every day's is in.
+ */
+export function notIn(points, hold) {
+    const last = points.map((point) => point.single !== null).lastIndexOf(true);
+
+    if (!hold || last < 0 || last === points.length - 1) {
+        return null;
+    }
+
+    const after = points.slice(last + 1);
+    const count = after.filter((point) => point.days !== null).length;
+
+    return count
+        ? { from: points[last].day, to: points[points.length - 1].day, steps: after.length, count: count }
+        : null;
 }
 
 function TrackChart({ name, rows, score, others, other, otherRows, onOther, wentLive = [], hold = null, days = WINDOW }) {
@@ -199,7 +281,13 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
     // the hold the chart draws, as its description and its table's name say it
     // (#279): nothing for a model with no holds
     //
-    const onHold = hold ? ` on the ${holdName(hold)}` : '';
+    const onHold = onThe(hold);
+
+    //
+    // the newest days whose result on the hold is not in yet, under a light
+    // band (#300)
+    //
+    const waiting = notIn(points, hold);
     //
     // the nights a new version went live that are days on the chart: a night
     // the record has no day for has nowhere to stand
@@ -259,7 +347,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
         // why this model has nothing on the day: on a hold, that its result is
         // not in yet (#279)
         //
-        const none = hold ? `${name}’s ${hold}-day result for this day is not in yet` : `${name} has no score this day`;
+        const none = hold ? `${name}’s ${resultName(hold)} for this day is not in yet` : `${name} has no score this day`;
 
         return {
             title: longDay(point.day),
@@ -313,6 +401,13 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                                 { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
                                 ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.better, label: 'New version went live' }] : []),
                                 ...(downs.length ? [{ key: 'down', kind: 'tick', color: colors.worse, label: 'Live version taken down' }] : []),
+                                ...(waiting
+                                    ? [{
+                                        key: 'not-in',
+                                        kind: 'band',
+                                        color: colors.muted,
+                                        label: 'Not in yet',
+                                    }] : []),
                             ]}
                         />
                     </>
@@ -330,7 +425,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                         <ResponsiveContainer width='100%' height={HEIGHT}>
                             <ComposedChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
                                 <CartesianGrid stroke={colors.grid} vertical={false} />
-                                <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={24} {...axisStyle(colors)} />
+                                <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={tickGap(panel.phone)} {...axisStyle(colors)} />
                                 <YAxis
                                     width={56}
                                     domain={['auto', 'auto']}
@@ -338,6 +433,15 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                                     tickFormatter={(value) => formatTick(value, score)}
                                     {...axisStyle(colors)}
                                 />
+                                {waiting
+                                    ? (
+                                        <ReferenceArea
+                                            x1={waiting.from}
+                                            x2={waiting.to}
+                                            ifOverflow='hidden'
+                                            shape={(props) => <NotInBand {...props} steps={waiting.steps} count={waiting.count} color={colors.muted} ink={colors.muted} />}
+                                        />
+                                    ) : null}
                                 <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
                                 <Scatter
                                     dataKey='single'
@@ -395,6 +499,31 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
     );
 }
 
+/**
+ * the track record's card on a hold that has no result in yet (#300): its title,
+ * which folds it as the chart's does, and in place of the chart, `message`, when
+ * each of the hold's results comes in. The card had given way to the line alone,
+ * and the page lost its Track record heading on that hold.
+ */
+export function TrackNone({ message }) {
+    const [folds, toggle] = useFolds('model-page');
+
+    return (
+        <section className='model-card model-track' aria-labelledby='model-track-title'>
+            <div className='model-card-head'>
+                <div className='model-card-title'>
+                    <FoldTitle as='h5' id='model-track-title' title={TITLE} folded={Boolean(folds.track)} onFold={() => toggle('track')} />
+                </div>
+            </div>
+            {folds.track ? null : <p className='model-status model-status-empty'>{message}</p>}
+        </section>
+    );
+}
+
+TrackNone.propTypes = {
+    message: PropTypes.string.isRequired,
+};
+
 TrackChart.propTypes = {
     name: PropTypes.string.isRequired,
     //
@@ -420,9 +549,10 @@ TrackChart.propTypes = {
     wentLive: PropTypes.arrayOf(PropTypes.string),
     //
     // the hold an options model's record is drawn on, in trading days, or none
-    // for a model with no holds (#279)
+    // for a model with no holds (#279), and from format 5 a stock model's, or
+    // Combined (#300)
     //
-    hold: PropTypes.number,
+    hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]),
     //
     // how many scored days each day's average takes in: the listing's
     // `average_days` (#293)

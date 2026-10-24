@@ -1,6 +1,7 @@
 /**
  * track-chart.test.jsx: a model's track record, on its own page (#243), and
- * another model of its task drawn beside it from a menu.
+ * another model of its task drawn beside it from a menu, on an options model's
+ * holds (#279) and from format 5 a stock model's and Combined (#300).
  *
  * Note: recharts is drawn for real, in a container given a size -- see
  *       sizedRecharts in test-support/model-fixtures.js.
@@ -12,11 +13,11 @@ import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import TrackChart, { DayDot, TakenDownTick, WentLiveTick, trackPoints } from '../../../import/layout/model/track-chart.jsx';
+import TrackChart, { DayDot, NotInBand, TakenDownTick, WentLiveTick, notIn, trackPoints } from '../../../import/layout/model/track-chart.jsx';
 import { chartColors } from '../../../import/layout/model/scores.js';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
-import { optionsTrackOf, phoneScreen, pointAt, tapAt, trackOf, wideScreen, withTop10 } from '../../../test-support/model-fixtures.js';
+import { heldTrackOf, optionsTrackOf, phoneScreen, pointAt, tapAt, trackOf, wideScreen, withTop10 } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
     const onOther = props.onOther || jest.fn();
@@ -88,13 +89,14 @@ describe('trackPoints', () => {
         expect(points[2].baseline).toBeCloseTo(1.7);
     });
 
-    it('holds the check a day\'s score set off, on that day alone (#263)', () => {
+    it('holds the check a day\'s score set off, on that day alone (#263), and the hold it ran on (#300)', () => {
         const rows = trackOf(3);
 
         rows[1] = { ...rows[1], down_days: 5, down_in_a_row: 10 };
+        rows[2] = { ...rows[2], down_days: 1, down_in_a_row: 5, down_hold: 20 };
 
         expect(trackPoints('pt-gnn', rows, null, undefined, 'loss').map((point) => point.down))
-            .toEqual([null, { days: 5, in_a_row: 10 }, null]);
+            .toEqual([null, { days: 5, in_a_row: 10, hold: null }, { days: 1, in_a_row: 5, hold: 20 }]);
     });
 });
 
@@ -584,6 +586,20 @@ describe('an options model\'s holds (#279)', () => {
         expect(container.querySelector('.model-tip-foot')).toHaveTextContent('pt-options’s 5-day result for this day is not in yet');
     });
 
+    it('lay a light band over the newest days not in yet, on a longer hold too (#300)', () => {
+        const { container } = held();
+
+        expect(container.querySelector('.model-not-in')).toHaveTextContent('Not in yet: newest 4 days');
+        expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('Not in yet')).toBeInTheDocument();
+    });
+
+    it('lay none over the 1-day hold, whose every day is in', () => {
+        const { container } = held({ hold: 1 });
+
+        expect(container.querySelector('.model-not-in')).toBeNull();
+        expect(within(screen.getByRole('list', { name: 'Legend' })).queryByText('Not in yet')).toBeNull();
+    });
+
     it('leave a stock model\'s line and panel as they were', () => {
         draw();
 
@@ -649,5 +665,114 @@ describe('the model\'s own baseline (#263)', () => {
         expect(baseline.querySelector('.model-tip-value')).toHaveTextContent('1.700');
         expect([...container.querySelectorAll('.recharts-line-curve')]
             .filter((line) => line.getAttribute('stroke-dasharray'))).toHaveLength(1);
+    });
+});
+
+describe('a stock model\'s holds and Combined, from format 5 on (#300)', () => {
+    //
+    // thirty days from Sep 1, the last five without their 5-day results, and
+    // none with a 20-day result, or a combined score, but where a case says
+    //
+    const rows = heldTrackOf(30);
+
+    it('read Combined\'s columns, the three holds\' average', () => {
+        const all = heldTrackOf(30, { notIn: 0, twenty: 30 });
+        const points = trackPoints('tables-gnn', all, null, undefined, 'loss', 'combined');
+
+        expect(points[29]).toMatchObject({ single: all[29].score.loss_combined, average: all[29].average.loss_combined });
+        expect(points[29].baseline).toBeCloseTo(all[29].baseline_average.loss_combined);
+    });
+
+    it('read a hold\'s columns of loss\'s parts and the AUCs, as of loss', () => {
+        const points = trackPoints('tables-gnn', rows, null, undefined, 'auc_beats', 5);
+
+        expect(points[10]).toMatchObject({ single: rows[10].score.auc_beats_5d, average: rows[10].average.auc_beats_5d });
+        expect(points[29]).toMatchObject({ single: null, average: null, baseline: null });
+    });
+
+    it('lay the band over the newest days whose 5-day result is not in yet, and say how many', () => {
+        const { container } = draw({ name: 'tables-gnn', rows: rows, others: [], hold: 5 });
+
+        expect(container.querySelector('.model-not-in')).toHaveTextContent('Not in yet: newest 5 days');
+        expect(container.querySelectorAll('.model-day-dot')).toHaveLength(25);
+    });
+
+    it('name Combined the chart is on, and say of a day not in yet that its combined score is not', () => {
+        const all = heldTrackOf(30, { twenty: 26 });
+        const { container } = draw({ name: 'tables-gnn', rows: all, others: [], hold: 'combined' });
+
+        expect(container.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringMatching(/^Loss on the combined score of tables-gnn/));
+
+        pointAt(container.querySelector('.recharts-wrapper'), 586);
+
+        expect(container.querySelector('.model-tip-foot')).toHaveTextContent('tables-gnn’s combined score for this day is not in yet');
+    });
+
+    it('draw another stock model of format 5 on the hold, and one before it on its plain scores', () => {
+        const theirs = heldTrackOf(30, { loss: () => 1.7 });
+
+        expect(trackPoints('tables-gnn', rows, 'pt-gnn', theirs, 'loss', 5)[3].other).toBe(theirs[3].average.loss_5d);
+        expect(trackPoints('tables-gnn', rows, 'old', trackOf(30), 'loss', 5)[3].other).toBe(trackOf(30)[3].average.loss);
+    });
+});
+
+describe('notIn, the newest days a hold\'s result is not in for (#300)', () => {
+    it('counts the days after the last one in, and is none for no hold or where every one is in', () => {
+        const points = trackPoints('tables-gnn', heldTrackOf(30), null, undefined, 'loss', 5);
+
+        expect(notIn(points, 5)).toEqual({ from: points[24].day, to: points[29].day, steps: 5, count: 5 });
+        expect(notIn(points, null)).toBeNull();
+        expect(notIn(trackPoints('tables-gnn', heldTrackOf(30), null, undefined, 'loss', 1), 1)).toBeNull();
+        expect(notIn(trackPoints('tables-gnn', heldTrackOf(30), null, undefined, 'loss', 20), 20)).toBeNull();
+    });
+
+    it('counts only this model\'s own days, not one only the other model has', () => {
+        const mine = heldTrackOf(10);
+        const theirs = trackOf(11);
+        const points = trackPoints('tables-gnn', mine, 'pt-gnn', theirs, 'loss', 5);
+
+        expect(notIn(points, 5)).toMatchObject({ steps: 6, count: 5 });
+    });
+
+    it('is none where only the other model\'s days come after this one\'s last', () => {
+        const points = trackPoints('tables-gnn', heldTrackOf(10, { notIn: 0 }), 'pt-gnn', trackOf(11), 'loss', 5);
+
+        expect(notIn(points, 5)).toBeNull();
+    });
+});
+
+describe('NotInBand (#300)', () => {
+    const band = (props) => render(
+        <svg>
+            <NotInBand x={400} y={12} width={100} height={200} steps={5} count={5} color='#777' ink='#555' {...props} />
+        </svg>
+    );
+
+    it('starts halfway past the last day in, and says at its top how many days it lies over', () => {
+        const { container } = band();
+
+        expect(container.querySelector('rect')).toHaveAttribute('x', '410');
+        expect(container.querySelector('line')).toHaveAttribute('x1', '410');
+        expect(container.querySelector('text')).toHaveTextContent('Not in yet: newest 5 days');
+    });
+
+    it('says a single day as a day, and sets a label wider than the band against the plot\'s edge', () => {
+        const { container } = band({ width: 20, steps: 1, count: 1 });
+
+        expect(container.querySelector('text')).toHaveTextContent('Not in yet: newest 1 day');
+        expect(container.querySelector('text')).toHaveAttribute('text-anchor', 'end');
+        expect(container.querySelector('text')).toHaveAttribute('x', '416');
+    });
+
+    it('centers a label its band has room for', () => {
+        const { container } = band({ width: 300, steps: 10 });
+
+        expect(container.querySelector('text')).toHaveAttribute('text-anchor', 'middle');
+    });
+
+    it('draws nothing without a place to stand', () => {
+        const { container } = band({ x: undefined });
+
+        expect(container.querySelector('rect')).toBeNull();
     });
 });

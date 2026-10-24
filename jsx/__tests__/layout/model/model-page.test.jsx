@@ -5,7 +5,8 @@
  * two reports answer, and when. The charts are drawn for real -- see
  * attempts-chart.test.jsx and track-chart.test.jsx for what is in them -- and
  * these cases are about the page round them: who the model is, its figures, and
- * what it says when there is nothing to draw.
+ * what it says when there is nothing to draw -- and from format 5, a stock
+ * model's holds and Combined (#300).
  */
 
 jest.mock('recharts', () => require('../../../test-support/model-fixtures.js').sizedRecharts());
@@ -58,8 +59,13 @@ import {
     optionsListingOf,
     optionsModelOf,
     optionsTrackOf,
+    heldListingOf,
+    heldModelOf,
+    heldTrackOf,
+    phoneScreen,
     timedHistoryOf,
     trackOf,
+    wideScreen,
     withAverageDays,
     withTop10,
 } from '../../../test-support/model-fixtures.js';
@@ -86,6 +92,27 @@ function cardOf(label) {
 
 function rowsOf(card) {
     return [...card.querySelectorAll('.model-stat-row')].map((row) => [...row.children].map((cell) => cell.textContent));
+}
+
+//
+// the take-down checks' table (#300), in a wide screen's Live version card or
+// under a phone's boxes: its header's names, then each row's cells, or null
+// where there is none
+//
+function checksIn(where) {
+    const table = screen.getByRole('region', { name: 'Summary' }).querySelector(`.model-summary-${where} .model-checks`);
+
+    return table ? [...table.querySelectorAll('tr')].map((row) => [...row.children].map((cell) => cell.textContent)) : null;
+}
+
+//
+// what a phone shows under its boxes (#300), in order: a line of text, or a
+// list's or a table's class
+//
+function underBoxes() {
+    const details = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-details');
+
+    return [...details.children].map((each) => (each.tagName === 'P' && !each.classList.contains('model-trained-line') ? each.textContent : each.className));
 }
 
 //
@@ -609,7 +636,7 @@ describe('a listing that says how many scored days its models\' scores average, 
 
 describe('a live version taken down for doing worse than the baseline (#263)', () => {
     const DOWN_LINE = 'Nothing predicts until a new version beats the baseline on the days it was tested on.';
-    const BEHIND = 'Days in a row worse than the baseline: each day 4 of 5, 5-day average 0 of 10, 20-day average not yet.';
+    const CHECKS = ['Each day', '5-day average', '20-day average'];
 
     //
     // a wide screen's card, as 'the summary' reads one, and a phone's box
@@ -634,15 +661,15 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         expect(document.querySelector('.model-heading .model-pill')).toHaveClass('model-pill-down');
     });
 
-    it('says when it was taken down, and that nothing predicts until a version beats the baseline, the check that did it in its rows (#267)', async () => {
+    it('says when it was taken down, the check that did it, and that nothing predicts until a version beats the baseline (#300)', async () => {
         answer({ listing: listingOf([downModelOf()]) });
         await open('lagging');
 
         const details = [...stat('Live version').querySelectorAll('.model-stat-detail')].map((line) => line.textContent);
 
         expect(stat('Live version').querySelector('.model-stat-value')).toHaveTextContent('Taken down Oct 19');
-        expect(details).toEqual(['Nothing predicts until a version beats the baseline.']);
-        expect(rowsOf(stat('Live version'))).toContainEqual(['Each day', '5 of 5']);
+        expect(details).toEqual(['Worse than the baseline 5 scored days in a row. Nothing predicts until a version beats the baseline.']);
+        expect(checksIn('cards')).toEqual([CHECKS, ['5 of 5', '1 of 10', 'not yet']]);
     });
 
     it('names a phone\'s box Taken down, with the day as its value, where a live version\'s box keeps its one name and value (#272)', async () => {
@@ -662,18 +689,19 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         expect(box().querySelector('.stream-focus-figure-value .stream-focus-long')).toHaveTextContent(/^Taken down Oct 19$/);
     });
 
-    it('keeps the check that did it, and what happens next, in a phone\'s note', async () => {
+    it('keeps the check that did it in a phone\'s note, and it and what happens next under the boxes (#300)', async () => {
         answer({ listing: listingOf([downModelOf()]) });
         await open('lagging');
 
-        expect(noteOf(0)).toHaveAccessibleDescription(`Worse than the baseline 5 scored days in a row. ${DOWN_LINE}`);
+        expect(noteOf(0)).toHaveAccessibleDescription('Worse than the baseline 5 scored days in a row.');
+        expect(document.querySelector('.model-down-line')).toHaveTextContent(`Worse than the baseline 5 scored days in a row. ${DOWN_LINE}`);
     });
 
     it('words an average\'s check as an average\'s, in a phone\'s note', async () => {
         answer({ listing: listingOf([downModelOf({ down: { since: '2026-10-19', days: 20, in_a_row: 5 } })]) });
         await open('lagging');
 
-        expect(noteOf(0)).toHaveAccessibleDescription(`Its 20-day average was worse than the baseline’s 5 days in a row. ${DOWN_LINE}`);
+        expect(noteOf(0)).toHaveAccessibleDescription('Its 20-day average was worse than the baseline’s 5 days in a row.');
     });
 
     it.each([
@@ -687,37 +715,41 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
 
         expect(stat('Live version').querySelector('.model-stat-value')).toHaveTextContent('Taken down Oct 23');
         expect(details).toEqual([`${why} Nothing predicts until a version beats the baseline.`]);
-        expect(noteOf(0)).toHaveAccessibleDescription(`${why} ${DOWN_LINE}`);
+        expect(noteOf(0)).toHaveAccessibleDescription(why);
+        expect(document.querySelector('.model-down-line')).toHaveTextContent(`${why} ${DOWN_LINE}`);
         expect(screen.getByRole('region', { name: 'Summary' })).not.toHaveTextContent(/null|undefined/);
     });
 
-    it('says how many days in a row each check has been worse, in the Live version card\'s rows (#267)', async () => {
+    it('says how many days in a row each check has been worse, in a table at the Live version card\'s foot (#300)', async () => {
         answer({ listing: listingOf([downModelOf()]) });
         await open('lagging');
 
-        expect(rowsOf(stat('Live version'))).toEqual([
-            ['First predicted', 'Sep 1'],
-            ['Days in a row worse than the baseline'],
-            ['Each day', '5 of 5'],
-            ['5-day average', '1 of 10'],
-            ['20-day average', 'not yet'],
-        ]);
+        expect(rowsOf(stat('Live version'))).toEqual([['First predicted', 'Sep 1']]);
+        expect(stat('Live version').querySelector('.model-checks caption')).toHaveTextContent('Days in a row worse than the baseline');
+        expect(stat('Live version').querySelector('.model-stat-body').lastElementChild).toHaveClass('model-checks');
+        expect(checksIn('cards')).toEqual([CHECKS, ['5 of 5', '1 of 10', 'not yet']]);
         expect(stat('Loss, last 20 days')).not.toHaveTextContent('Days in a row');
     });
 
-    it('says so of a model still live too, which shows how close it is, and nothing of being taken down', async () => {
+    it('says so of a model still live too, which shows how close it is, on a wide screen and under a phone\'s boxes', async () => {
         answer({ listing: listingOf([modelOf({ behind: behindOf() })]) });
         await open();
 
-        expect(rowsOf(stat('Live version')).slice(-4)).toEqual([
-            ['Days in a row worse than the baseline'],
-            ['Each day', '4 of 5'],
-            ['5-day average', '0 of 10'],
-            ['20-day average', 'not yet'],
-        ]);
-        expect(noteOf(2)).toHaveAccessibleDescription(`${LOSS_NOTE} 0.060 better than the baseline, 1.660. ${BEHIND}`);
+        expect(checksIn('cards')).toEqual([CHECKS, ['4 of 5', '0 of 10', 'not yet']]);
+        expect(checksIn('boxes')).toEqual(checksIn('cards'));
+        expect(noteOf(2)).toHaveAccessibleDescription(LOSS_NOTE);
         expect(stat('Live version').querySelector('.model-stat-head')).toHaveTextContent(/^Live versionOct 9went live after a nightly update$/);
         expect(screen.queryByText(DOWN_LINE)).toBeNull();
+        expect(document.querySelector('.model-down-line')).toBeNull();
+    });
+
+    it('fades a check without its days, where a count is in the figures\' ink', async () => {
+        answer({ listing: listingOf([modelOf({ behind: behindOf() })]) });
+        await open();
+
+        const cells = [...document.querySelectorAll('.model-summary-cards .model-checks td')];
+
+        expect(cells.map((cell) => cell.className)).toEqual(['', '', 'model-checks-none']);
     });
 
     it('says none of it for a retired model, or where the listing gives no checks, as one before format 2', async () => {
@@ -761,7 +793,8 @@ describe('what the live version trained on, from format 4 (#295)', () => {
         await open();
 
         expect(rowsOf(cardOf('Live version'))).toEqual([['Trained on', '7 days, Oct 5 to Oct 19'], ['First predicted', 'Sep 1']]);
-        expect(noteOf(0)).toHaveAccessibleDescription('Went live after a nightly update. Trained on 7 days, Oct 5 to Oct 19.');
+        expect(noteOf(0)).toHaveAccessibleDescription('Went live after a nightly update.');
+        expect(document.querySelector('.model-trained-line')).toHaveTextContent('Trained on7 days, Oct 5 to Oct 19');
     });
 
     it('says a version that learned from one day as one day', async () => {
@@ -771,7 +804,7 @@ describe('what the live version trained on, from format 4 (#295)', () => {
         expect(rowsOf(cardOf('Live version'))).toContainEqual(['Trained on', '1 day, Oct 8']);
     });
 
-    it('says it of one taken down, between why and what happens next, in a phone\'s note', async () => {
+    it('says it of one taken down, last under a phone\'s boxes, after why it was (#300)', async () => {
         answer({
             listing: listingOf([downModelOf({
                 live: { since: '2026-10-09', kind: 'first', days: TRAINED },
@@ -780,8 +813,12 @@ describe('what the live version trained on, from format 4 (#295)', () => {
         });
         await open('lagging');
 
-        expect(noteOf(0)).toHaveAccessibleDescription('It went live without beating the baseline. Trained on 7 days, Oct 5 to Oct 19. '
-            + 'Nothing predicts until a new version beats the baseline on the days it was tested on.');
+        expect(noteOf(0)).toHaveAccessibleDescription('It went live without beating the baseline.');
+        expect(underBoxes().slice(-3)).toEqual([
+            'It went live without beating the baseline. Nothing predicts until a new version beats the baseline on the days it was tested on.',
+            'model-checks',
+            'model-trained-line',
+        ]);
     });
 
     it('says nothing of it where the listing gives none, as before format 4', async () => {
@@ -789,6 +826,7 @@ describe('what the live version trained on, from format 4 (#295)', () => {
         await open();
 
         expect(screen.queryByText('Trained on')).toBeNull();
+        expect(document.querySelector('.model-trained-line')).toBeNull();
         expect(noteOf(0)).toHaveAccessibleDescription('Went live after a nightly update.');
     });
 });
@@ -844,7 +882,37 @@ describe('the summary, on a phone', () => {
 
         expect(notes()[0]).toHaveAccessibleDescription('Went live after a nightly update.');
         expect(notes()[1]).toHaveAccessibleDescription(`${WENT} Weekly retrains: 1 of 2.`);
-        expect(notes()[2]).toHaveAccessibleDescription(`${LOSS_NOTE} 0.060 better than the baseline, 1.660. 1st of 3 Next-day direction models.`);
+        expect(notes()[2]).toHaveAccessibleDescription(`${LOSS_NOTE} 1st of 3 Next-day direction models.`);
+    });
+
+    it('says the score\'s name and how it stands against the baseline first under the boxes, with the arrow (#300)', async () => {
+        answer();
+
+        await open();
+
+        const line = document.querySelector('.model-score-line');
+
+        expect(line).toHaveTextContent('Loss, last 20 days: ▲ 0.060 better than the baseline, 1.660');
+        expect(line).toHaveClass('model-gap-better');
+        expect(line.querySelector('.model-gap-arrow')).toHaveTextContent('▲');
+        expect(underBoxes()[0]).toBe(line.textContent);
+    });
+
+    it('puts under the boxes the score\'s line, loss\'s parts, why it was taken down, its checks, and what it trained on, in that order (#300)', async () => {
+        answer({
+            listing: listingOf([downModelOf({ live: { since: '2026-10-09', kind: 'nightly', days: TRAINED } })], 4),
+            track: trackOf(5, '2026-09-01', () => 1.6),
+        });
+
+        await open('lagging');
+
+        expect(underBoxes()).toEqual([
+            'Loss, last 20 days: ▼ 0.040 worse than the baseline, 1.660',
+            'model-parts',
+            'Worse than the baseline 5 scored days in a row. Nothing predicts until a new version beats the baseline on the days it was tested on.',
+            'model-checks',
+            'model-trained-line',
+        ]);
     });
 
     it('says only what going live is where there are no weekly retrains, or no history', async () => {
@@ -869,7 +937,8 @@ describe('the summary, on a phone', () => {
 
         await open('pt-gnn', { scores: { direction: 'acc_up' } });
 
-        expect(notes()[2]).toHaveAccessibleDescription(`${scoreOf('acc_up').note} 2.0 pts better than the baseline, 52.0%. 2nd of 3 Next-day direction models.`);
+        expect(notes()[2]).toHaveAccessibleDescription(`${scoreOf('acc_up').note} 2nd of 3 Next-day direction models.`);
+        expect(document.querySelector('.model-score-line')).toHaveTextContent('Up/down accuracy, last 20 days: ▲ 2.0 pts better than the baseline, 52.0%');
     });
 
     it('colors the attempts blue, and the score green where it beats the baseline', async () => {
@@ -977,9 +1046,9 @@ describe('loss, part by part (#265)', () => {
         await open();
 
         expect(rowsIn('cards').map(read)).toEqual([
-            ['Up or down', '0.720', 'worse than baseline 0.700'],
-            ['Beats the average stock', '0.620', 'better than baseline 0.693'],
-            ['Size of the move', '0.260', 'better than baseline 0.267'],
+            ['Up or down', '0.720', '▼ worse than baseline 0.700'],
+            ['Beats the average stock', '0.620', '▲ better than baseline 0.693'],
+            ['Size of the move', '0.260', '▲ better than baseline 0.267'],
         ]);
         expect(within(screen.getByRole('region', { name: 'Summary' })).getAllByRole('list', { name: 'Loss, part by part' })).toHaveLength(2);
     });
@@ -996,7 +1065,7 @@ describe('loss, part by part (#265)', () => {
         expect(Math.abs(sum(baselines) - figures().baseline)).toBeLessThanOrEqual(0.001);
     });
 
-    it('marks each part better or worse than the baseline\'s, as the card\'s own line is', async () => {
+    it('marks each part better or worse than the baseline\'s, as the card\'s own line is, the arrow alone in its color (#300)', async () => {
         answer({ track: steady() });
         await open();
 
@@ -1005,6 +1074,19 @@ describe('loss, part by part (#265)', () => {
             'model-part-baseline model-gap-better',
             'model-part-baseline model-gap-better',
         ]);
+        expect(rowsIn('cards').map((row) => row.querySelector('.model-gap-arrow').textContent)).toEqual(['▼ ', '▲ ', '▲ ']);
+    });
+
+    it('gives a part level with the baseline\'s no arrow', async () => {
+        const track = steady();
+        const last = track[track.length - 1];
+
+        last.baseline_average = { ...last.baseline_average, up_log_loss: last.average.up_log_loss };
+        answer({ track: track });
+        await open();
+
+        expect(rowsIn('cards')[0].querySelector('.model-part-baseline')).toHaveTextContent(/^level with baseline 0\.720$/);
+        expect(rowsIn('cards')[0].querySelector('.model-gap-arrow')).toBeNull();
     });
 
     it('shows the same rows under the boxes on a phone', async () => {
@@ -1024,7 +1106,7 @@ describe('loss, part by part (#265)', () => {
         answer({ track: track });
         await open();
 
-        expect(read(rowsIn('cards')[2])).toEqual(['Size of the move', formatScore(0.265, 'loss'), 'better than baseline 0.267']);
+        expect(read(rowsIn('cards')[2])).toEqual(['Size of the move', formatScore(0.265, 'loss'), '▲ better than baseline 0.267']);
     });
 
     it('leaves out the baseline\'s side of a part the baseline has none of', async () => {
@@ -1150,21 +1232,21 @@ describe('each card\'s rows on a wide screen (#267)', () => {
             expect(keys(liveRows(modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: null } }), null))).toEqual(['started']);
         });
 
-        it('says how the live version came to be live, or for one taken down, what happens next', () => {
+        it('says how the live version came to be live, or for one taken down, why and what happens next (#300)', () => {
             expect(liveLine(modelOf())).toBe('went live after a nightly update');
             expect(liveLine(modelOf({ live: { since: '2026-10-05', kind: 'first' } }))).toBe('its first version, not yet beaten');
-            expect(liveLine(downModelOf())).toBe('Nothing predicts until a version beats the baseline.');
+            expect(liveLine(downModelOf())).toBe('Worse than the baseline 5 scored days in a row. Nothing predicts until a version beats the baseline.');
         });
 
-        it('says why first for one taken down that no check did, which has no check in its rows to show it (#295)', () => {
+        it('says why first for every take-down, a check\'s too, which the checks\' table no longer names (#295, #300)', () => {
             const downFor = (reason) => downModelOf({ down: { since: '2026-10-23', reason: reason, days: null, in_a_row: null } });
 
             expect(liveLine(downFor('not_ahead')))
                 .toBe('It went live without beating the baseline. Nothing predicts until a version beats the baseline.');
             expect(liveLine(downFor('track_record')))
                 .toBe('Its track record showed nothing better than the baseline. Nothing predicts until a version beats the baseline.');
-            expect(liveLine(downModelOf({ down: { since: '2026-10-19', reason: 'worse', days: 1, in_a_row: 5 } })))
-                .toBe('Nothing predicts until a version beats the baseline.');
+            expect(liveLine(downModelOf({ down: { since: '2026-10-19', reason: 'worse', days: 1, in_a_row: 5, hold: 5 } })))
+                .toBe('Its 5-day hold did worse than the baseline 5 scored days in a row. Nothing predicts until a version beats the baseline.');
         });
     });
 
@@ -1182,7 +1264,24 @@ describe('each card\'s rows on a wide screen (#267)', () => {
                 ['Result', 'went live'],
                 ['Started', '3:58 AM ET'],
                 ['Took', '9 min 52 s'],
+                ['Its held-out loss', '1.614, live 1.600'],
             ]);
+        });
+
+        it('says attempts are judged on the 1-day hold, for a stock model with holds (#300)', () => {
+            expect(attemptRows(historyOf(2), true).map((row) => [row.name, row.value]).slice(0, 2))
+                .toEqual([['Nightly updates', '0 of 2'], ['Judged on', 'the 1-day hold']]);
+            expect(attemptRows(historyOf(2)).map((row) => row.key)).not.toContain('judged');
+        });
+
+        it('gives the held-out loss alone where the live version has none, as on a first night (#300)', () => {
+            const rows = attemptRows(historyOf(1, { 0: { live: { loss: null } } }));
+
+            expect(rows.find((row) => row.key === 'loss').value).toBe('1.610');
+        });
+
+        it('gives no held-out loss for a night with none', () => {
+            expect(attemptRows(historyOf(1, { 0: { attempt: { loss: null } } })).map((row) => row.key)).not.toContain('loss');
         });
 
         it('has no times for a night before Oct 15, and a row for weekly retrains only where there were some', async () => {
@@ -1194,6 +1293,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
                 ['Weekly retrains', '1 of 2'],
                 ['Last attempt, Oct 6'],
                 ['Result', 'kept back'],
+                ['Its held-out loss', '1.613, live 1.600'],
             ]);
         });
 
@@ -1217,15 +1317,16 @@ describe('each card\'s rows on a wide screen (#267)', () => {
         //
         const steady = () => trackOf(5, '2026-09-01', () => 1.6);
 
-        it('puts its place among its task\'s models first, then a heading over the parts, then the parts, under its rule (#272)', async () => {
+        it('puts its place among its task\'s models first, then at its foot the parts under a heading of their own, under its rule (#272, #300)', async () => {
             answer({ track: steady() });
             await open();
 
             const body = cardOf('Loss, last 20 days').querySelector('.model-stat-body');
 
-            expect([...body.children].map((part) => part.className)).toEqual(['model-stat-rows', 'model-parts']);
-            expect(rowsOf(body)).toEqual([['Among Next-day direction models', '1st of 3'], ['Loss, part by part']]);
-            expect(body.querySelector('.model-stat-row:last-child')).toHaveClass('model-stat-row-head');
+            expect([...body.children].map((part) => part.className)).toEqual(['model-stat-rows', 'model-stat-group']);
+            expect(rowsOf(body)).toEqual([['Among Next-day direction models', '1st of 3']]);
+            expect(body.querySelector('.model-stat-group-head')).toHaveTextContent('Loss, part by part');
+            expect(body.querySelector('.model-stat-group > .model-parts')).not.toBeNull();
             expect(cardOf('Loss, last 20 days').querySelector('.model-stat-head')).not.toHaveTextContent('Next-day direction models');
         });
 
@@ -1235,8 +1336,8 @@ describe('each card\'s rows on a wide screen (#267)', () => {
 
             const body = cardOf('Loss, last 20 days').querySelector('.model-stat-body');
 
-            expect([...body.children].map((part) => part.className)).toEqual(['model-stat-rows', 'model-parts']);
-            expect(rowsOf(body)).toEqual([['Loss, part by part']]);
+            expect([...body.children].map((part) => part.className)).toEqual(['model-stat-group']);
+            expect(rowsOf(body)).toEqual([]);
         });
 
         it('keeps its place, and has no heading or parts, with another score picked', async () => {
@@ -1532,7 +1633,8 @@ describe('an options model (#279)', () => {
             await open('pt-options', { hold: hold });
 
             expect(screen.getByText(said)).toHaveClass('model-status-empty');
-            expect(document.querySelector('.model-track')).toBeNull();
+            expect(document.querySelector('.model-track .model-chart')).toBeNull();
+            expect(within(document.querySelector('.model-track')).getByRole('heading', { name: 'Track record' })).toBeInTheDocument();
         });
 
         it('offer the holds the track record has columns for, on the first where the one handed is none of them', async () => {
@@ -1582,32 +1684,26 @@ describe('an options model (#279)', () => {
             const box = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-boxes .stream-focus-figure-label');
 
             expect(stat('Live version').querySelector('.model-stat-value')).toHaveTextContent('Taken down Oct 19');
-            expect(box).toHaveAccessibleDescription(
-                'The 5-day hold did worse than the baseline 5 scored days in a row. Nothing predicts until a new version beats the baseline on the days it was tested on.',
+            expect(box).toHaveAccessibleDescription('Its 5-day hold did worse than the baseline 5 scored days in a row.');
+            expect(document.querySelector('.model-down-line')).toHaveTextContent(
+                'Its 5-day hold did worse than the baseline 5 scored days in a row. Nothing predicts until a new version beats the baseline on the days it was tested on.',
             );
-            expect(liveFigure(down()).detail).toBe('the 5-day hold did worse than the baseline 5 scored days in a row');
+            expect(liveFigure(down()).detail).toBe('its 5-day hold did worse than the baseline 5 scored days in a row');
         });
 
-        it('list each check for each hold in the Live version card', async () => {
+        it('list each check for each hold in the Live version card, a row of its table each (#300)', async () => {
             options();
             await open('pt-options');
 
-            expect(rowsOf(stat('Live version'))).toEqual([
-                ['First predicted', 'Sep 1'],
-                ['Days in a row worse than the baseline'],
-                ['1-day hold'],
-                ['Each day', '2 of 5'],
-                ['5-day average', '0 of 10'],
-                ['20-day average', '0 of 5'],
-                ['5-day hold'],
-                ['Each day', '0 of 5'],
-                ['5-day average', '0 of 10'],
-                ['20-day average', 'not yet'],
-                ['20-day hold'],
-                ['Each day', '0 of 5'],
-                ['5-day average', 'not yet'],
-                ['20-day average', 'not yet'],
+            expect(rowsOf(stat('Live version'))).toEqual([['First predicted', 'Sep 1']]);
+            expect(checksIn('cards')).toEqual([
+                ['Hold', 'Each day', '5-day average', '20-day average'],
+                ['1 day', '2 of 5', '0 of 10', '0 of 5'],
+                ['5 days', '0 of 5', '0 of 10', 'not yet'],
+                ['20 days', '0 of 5', 'not yet', 'not yet'],
             ]);
+            expect([...document.querySelectorAll('.model-summary-cards .model-checks tbody th')].map((cell) => cell.getAttribute('scope')))
+                .toEqual(['row', 'row', 'row']);
         });
     });
 
@@ -1698,5 +1794,397 @@ describe('the route', () => {
 
         expect(screen.getByRole('heading', { name: 'tables' })).toBeInTheDocument();
         expect(loadReport).toHaveBeenCalledWith('tables', 'history', 20);
+    });
+});
+
+describe('a stock model\'s holds, from format 5 on (#300)', () => {
+    //
+    // tables-gnn's record: thirty days, the newest five without their 5-day
+    // results, and none with a 20-day result or a combined score
+    //
+    function held({ listing = heldListingOf(), track = heldTrackOf(30), history = historyOf() } = {}) {
+        loadListing.mockResolvedValue(listing);
+        loadReport.mockImplementation((name, kind) => Promise.resolve(kind === 'history' ? history : track));
+    }
+
+    function stat(label) {
+        return within(screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-cards')).getByText(label).closest('.model-stat');
+    }
+
+    const picker = (name) => within(screen.getByRole('group', { name: name })).getAllByRole('button');
+    const pressed = (name) => picker(name).filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent);
+    const trackOn = () => document.querySelector('.model-track .model-chart').getAttribute('aria-label');
+    const holdsTable = () => document.querySelector('.model-holds-table');
+    const tableRows = () => [...holdsTable().querySelectorAll('tbody tr')];
+
+    describe('the hold picker', () => {
+        it('is beside the score picker on a format 5 stock model: 1, 5 and 20 days and Combined, on 1 day to start', async () => {
+            held();
+            await open('tables-gnn');
+
+            expect(picker('Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days', 'Combined']);
+            expect(pressed('Hold')).toEqual(['1 day']);
+            expect(trackOn()).toMatch(/^Loss on the 1-day hold of tables-gnn/);
+        });
+
+        it('is on no stock model whose track record and listing have no holds, as before format 5', async () => {
+            answer();
+            await open();
+
+            expect(screen.queryByRole('group', { name: 'Hold' })).toBeNull();
+            expect(document.querySelector('.model-hold-line')).toBeNull();
+            expect(document.querySelector('.model-by-hold')).toBeNull();
+        });
+
+        it('is there while the track record is on its way, from the listing\'s holds', async () => {
+            loadListing.mockResolvedValue(heldListingOf());
+            loadReport.mockImplementation((name, kind) => (kind === 'history' ? Promise.resolve(historyOf()) : new Promise(() => {})));
+            await open('tables-gnn');
+
+            expect(picker('Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days', 'Combined']);
+        });
+
+        it('hands the hold picked up, Combined by its name', async () => {
+            const onHold = jest.fn();
+
+            held();
+            await open('tables-gnn', { onHold: onHold });
+            await userEvent.click(screen.getByRole('button', { name: 'Combined' }));
+            await userEvent.click(screen.getByRole('button', { name: '20 days' }));
+
+            expect(onHold.mock.calls).toEqual([['combined'], [20]]);
+        });
+
+        it('says under the pickers what the hold is, and when its results come in', async () => {
+            held();
+
+            const { unmount } = await open('tables-gnn', { hold: 5 });
+
+            expect(document.querySelector('.model-hold-line')).toHaveTextContent(
+                '5-day hold: bought at 9:40 AM on the next trading day and sold at 3:40 PM 5 trading days later. Each result comes in 6 trading days after its prediction.',
+            );
+
+            unmount();
+            await open('tables-gnn');
+
+            expect(document.querySelector('.model-hold-line')).toHaveTextContent(/^1-day hold: from 9:40 AM to 3:40 PM on the next trading day/);
+        });
+
+        it('falls back to 1 day on an options model, which has no Combined', async () => {
+            loadListing.mockResolvedValue(optionsListingOf());
+            loadReport.mockImplementation((name, kind) => Promise.resolve(kind === 'history' ? optionsHistoryOf() : optionsTrackOf(30)));
+            await open('pt-options', { hold: 'combined' });
+
+            expect(pressed('Hold')).toEqual(['1 day']);
+            expect(picker('Hold').map((button) => button.textContent)).not.toContain('Combined');
+            expect(document.querySelector('.model-hold-line')).toBeNull();
+        });
+    });
+
+    describe('the score card', () => {
+        it('names the hold, and gives its score and the baseline\'s from the listing\'s holds', async () => {
+            const model = heldModelOf();
+
+            held();
+            await open('tables-gnn', { hold: 5 });
+
+            const card = stat('Loss, 5-day hold, last 20 days');
+
+            expect(card.querySelector('.model-stat-value')).toHaveTextContent(formatScore(model.holds['5d'].score.loss, 'loss'));
+            expect(card.querySelector('.model-stat-detail')).toHaveTextContent(
+                `▲ 0.050 better than the baseline, ${formatScore(model.holds['5d'].baseline.loss, 'loss')}`,
+            );
+            expect(card.querySelector('.model-stat-detail')).toHaveClass('model-gap-better');
+        });
+
+        it('names the 1-day hold beside its picker, and gives the listing\'s own scores on it', async () => {
+            held();
+            await open('tables-gnn');
+
+            expect(stat('Loss, 1-day hold, last 20 days').querySelector('.model-stat-value'))
+                .toHaveTextContent(formatScore(heldModelOf().score.loss, 'loss'));
+        });
+
+        it('says how many days the hold has scored and when each result comes in, under its place', async () => {
+            held();
+            await open('tables-gnn', { hold: 5 });
+
+            expect(rowsOf(stat('Loss, 5-day hold, last 20 days'))).toEqual([
+                ['Among Next-day direction models', '1st of 2'],
+                ['Scored days on this hold', '25'],
+                ['Each result comes in', '6 trading days later'],
+            ]);
+        });
+
+        it('counts a hold\'s days so far by its own days', async () => {
+            const track = heldTrackOf(30, { notIn: 20 });
+
+            held({ listing: heldListingOf([heldModelOf({}, track)]), track: track });
+            await open('tables-gnn', { hold: 5 });
+
+            expect(stat('Loss, 5-day hold, 10 days so far')).toBeInTheDocument();
+        });
+
+        it('says a hold with no day scored yet has none, and when its first result comes in, on the card and in place of the chart', async () => {
+            held();
+            await open('tables-gnn', { hold: 20 });
+
+            const card = stat('Loss, 20-day hold');
+
+            expect(card.querySelector('.model-stat-value')).toHaveTextContent('–');
+            expect(card.querySelector('.model-stat-detail')).toHaveTextContent('No 20-day results yet: each one comes in 21 trading days after its prediction.');
+            expect(rowsOf(card)).toContainEqual(['Scored days on this hold', 'none yet']);
+            expect(document.querySelector('.model-track .model-chart')).toBeNull();
+            expect(document.querySelector('.model-track .model-status-empty')).toHaveTextContent('No 20-day results yet: each one comes in 21 trading days after its prediction.');
+            expect(screen.getAllByText('No 20-day results yet: each one comes in 21 trading days after its prediction.')).toHaveLength(3);
+        });
+
+        it('folds the track record\'s card on a hold with no results, as it folds the chart\'s', async () => {
+            held();
+            await open('tables-gnn', { hold: 20 });
+
+            await userEvent.click(within(document.querySelector('.model-track')).getByRole('button', { name: 'Track record' }));
+
+            expect(document.querySelector('.model-track .model-status-empty')).toBeNull();
+            expect(within(document.querySelector('.model-track')).getByRole('button', { name: 'Track record' })).toHaveAttribute('aria-expanded', 'false');
+        });
+
+        it('shows loss\'s three parts on the hold, from its own columns', async () => {
+            const track = heldTrackOf(30);
+            const newest = track[track.length - 1];
+
+            held({ track: track });
+            await open('tables-gnn', { hold: 5 });
+
+            const values = [...stat('Loss, 5-day hold, last 20 days').querySelectorAll('.model-part-value')].map((value) => value.textContent);
+
+            expect(values).toEqual([
+                formatScore(newest.average.up_log_loss_5d, 'loss'),
+                formatScore(newest.average.beats_log_loss_5d, 'loss'),
+                formatScore(newest.average.move_pinball_5d, 'loss'),
+            ]);
+        });
+
+        it('carries the note of the score on the hold: on Combined, loss averages the day\'s three', async () => {
+            held({ track: heldTrackOf(30, { twenty: 30 }) });
+            await open('tables-gnn', { hold: 'combined' });
+
+            expect(within(stat('Loss, combined')).getByText('Loss, combined')).toHaveAccessibleDescription(noteOf('loss', { scores: ['loss'] }, 'combined'));
+        });
+    });
+
+    describe('Combined', () => {
+        it('offers the top 10\'s two disabled, in the buttons and the phone\'s menu', async () => {
+            held();
+            await open('tables-gnn', { hold: 'combined' });
+
+            expect(picker('Score').filter((button) => button.disabled).map((button) => button.textContent)).toEqual(['Top 10 gain', 'Top 10 wins']);
+            expect([...document.querySelectorAll('.model-scores:not(.model-holds) option:disabled')].map((option) => option.textContent))
+                .toEqual(['Top 10 gain', 'Top 10 wins']);
+        });
+
+        it('shows loss where a top 10\'s score is picked, and leaves the score picked as it was', async () => {
+            const onScore = jest.fn();
+
+            held();
+            await open('tables-gnn', { hold: 'combined', scores: { direction: 'top10_gain' }, onScore: onScore });
+
+            expect(pressed('Score')).toEqual(['Loss']);
+            expect(stat('Loss, combined')).toBeInTheDocument();
+            expect(onScore).not.toHaveBeenCalled();
+        });
+
+        it('shows the top 10\'s score again on another hold', async () => {
+            held();
+            await open('tables-gnn', { hold: 5, scores: { direction: 'top10_gain' } });
+
+            expect(pressed('Score')).toEqual(['Top 10 gain']);
+            expect(stat('Top 10 gain, 5-day hold, last 20 days')).toBeInTheDocument();
+        });
+    });
+
+    describe('the attempts', () => {
+        it('stay as they are on every hold, with all three of their charts', async () => {
+            held({ history: timedHistoryOf() });
+
+            //
+            // the card as drawn, but for the ids recharts numbers its clips by,
+            // which count up from one chart drawn to the next
+            //
+            const drawn = () => document.querySelector('.model-attempts').innerHTML.replace(/recharts\d+-clip/g, 'clip');
+            const { unmount } = await open('tables-gnn');
+            const before = drawn();
+
+            unmount();
+            await open('tables-gnn', { hold: 5 });
+
+            expect(drawn()).toBe(before);
+            expect(screen.getByRole('heading', { name: 'How long each attempt took' })).toBeInTheDocument();
+        });
+
+        it('are said to be judged on the 1-day hold', async () => {
+            held();
+            await open('tables-gnn', { hold: 20 });
+
+            expect(rowsOf(stat('Attempts that went live'))).toContainEqual(['Judged on', 'the 1-day hold']);
+        });
+
+        it('say nothing of a hold for a model without holds, or an options model', async () => {
+            answer();
+
+            const { unmount } = await open();
+
+            expect(rowsOf(stat('Attempts that went live')).map((row) => row[0])).not.toContain('Judged on');
+
+            unmount();
+            loadListing.mockResolvedValue(optionsListingOf());
+            loadReport.mockImplementation((name, kind) => Promise.resolve(kind === 'history' ? optionsHistoryOf() : optionsTrackOf(30)));
+            await open('pt-options');
+
+            expect(rowsOf(stat('Attempts that went live')).map((row) => row[0])).not.toContain('Judged on');
+        });
+    });
+
+    describe('Scores by hold', () => {
+        it('has a row for each hold and Combined, and a column for each score', async () => {
+            held();
+            await open('tables-gnn');
+
+            expect(screen.getByRole('heading', { name: /Scores by hold/ })).toBeInTheDocument();
+            expect([...holdsTable().querySelectorAll('thead th')].map((cell) => cell.textContent))
+                .toEqual(['Hold', 'Loss', 'Up/down AUC', 'Beat-the-average AUC', 'Up/down accuracy', 'Top 10 gain', 'Top 10 wins']);
+            expect(tableRows().map((row) => row.querySelector('.model-holds-name').textContent)).toEqual(['1 day', '5 days', '20 days', 'Combined']);
+        });
+
+        it('gives each cell the hold\'s average and how it stands against the baseline\'s, with the arrow', async () => {
+            const model = heldModelOf();
+
+            held();
+            await open('tables-gnn');
+
+            const loss = tableRows()[1].querySelectorAll('td')[0];
+
+            expect(loss.querySelector('.model-holds-value')).toHaveTextContent(formatScore(model.holds['5d'].score.loss, 'loss'));
+            expect(loss.querySelector('.model-gap')).toHaveTextContent('▲ 0.050 better');
+            expect(loss.querySelector('.model-gap')).toHaveClass('model-gap-better');
+        });
+
+        it('says each hold\'s scored days and when its results come in', async () => {
+            held();
+            await open('tables-gnn');
+
+            expect(tableRows().map((row) => [...row.querySelectorAll('.model-holds-about')].map((line) => line.textContent))).toEqual([
+                ['last 20 of 30 scored days', 'Comes in the next trading day'],
+                ['last 20 of 25 scored days', 'Comes in 6 trading days after its prediction'],
+                ['no scored days yet', 'Comes in 21 trading days after its prediction'],
+                ['no scored days yet', 'Comes in with the day’s 20-day result'],
+            ]);
+        });
+
+        it('says Combined has no top 10, and a hold with no day yet has no figure', async () => {
+            held();
+            await open('tables-gnn');
+
+            const combined = [...tableRows()[3].querySelectorAll('td')];
+
+            expect(combined.slice(-2).map((cell) => cell.textContent)).toEqual(['–no combined score', '–no combined score']);
+            expect(tableRows()[2].querySelector('td')).toHaveTextContent(/^–$/);
+        });
+
+        it('says a hold of one scored day so far as one day', async () => {
+            const model = heldModelOf();
+
+            held({ listing: heldListingOf([{ ...model, holds: { ...model.holds, '5d': { ...model.holds['5d'], days: 1 } } }]) });
+            await open('tables-gnn');
+
+            expect(tableRows()[1].querySelector('.model-holds-about')).toHaveTextContent(/^1 scored day so far$/);
+        });
+
+        it('shades the hold picked', async () => {
+            held();
+            await open('tables-gnn', { hold: 5 });
+
+            expect(tableRows().map((row) => row.className)).toEqual(['', 'model-holds-picked', '', '']);
+        });
+
+        it('is drawn for no options model', async () => {
+            loadListing.mockResolvedValue(heldListingOf());
+            loadReport.mockImplementation((name, kind) => Promise.resolve(kind === 'history' ? optionsHistoryOf() : optionsTrackOf(30)));
+            await open('pt-options');
+
+            expect(document.querySelector('.model-by-hold')).toBeNull();
+        });
+
+        it('becomes \'<score> by hold\' on a phone: the score picked on every hold, a line each, with its days', async () => {
+            held();
+            await open('tables-gnn', { hold: 5, scores: { direction: 'auc_up' } });
+
+            const list = screen.getByRole('list', { name: 'Up/down AUC by hold' });
+            const lines = [...list.querySelectorAll('li')];
+
+            expect(lines.map((line) => line.querySelector('.model-holds-name').textContent)).toEqual(['1 day', '5 days', '20 days', 'Combined']);
+            expect(lines[1].querySelector('.model-holds-about')).toHaveTextContent('last 20 of 25 scored days');
+            expect(lines[1].querySelector('.model-gap .model-gap-arrow')).toHaveTextContent('▲');
+            expect(lines.map((line) => line.className)).toEqual(['', 'model-holds-picked', '', '']);
+            expect(document.querySelector('.model-by-hold h5 .model-holds-phone')).toHaveTextContent('Up/down AUC by hold');
+        });
+    });
+
+    describe('on a phone', () => {
+        afterEach(wideScreen);
+
+        it('names the score box with its hold, and puts the hold\'s figure in it', async () => {
+            phoneScreen();
+            held();
+            await open('tables-gnn', { hold: 5 });
+
+            const box = screen.getByRole('region', { name: 'Summary' }).querySelectorAll('.model-summary-boxes .stream-focus-figure')[2];
+
+            expect(box.querySelector('.stream-focus-figure-label .stream-focus-short')).toHaveTextContent('Loss, 5 days');
+            expect(box.querySelector('.stream-focus-figure-value')).toHaveTextContent(formatScore(heldModelOf().holds['5d'].score.loss, 'loss'));
+            expect(document.querySelector('.model-score-line')).toHaveTextContent(/^Loss, 5-day hold, last 20 days: ▲ 0\.050 better than the baseline/);
+        });
+
+        it('says a hold with no results yet, under the boxes, in place of how it stands', async () => {
+            phoneScreen();
+            held();
+            await open('tables-gnn', { hold: 'combined' });
+
+            expect(document.querySelector('.model-score-line')).toHaveTextContent(
+                /^No combined scores yet: each one comes in with its day’s 20-day result, 21 trading days after its prediction\.$/,
+            );
+        });
+    });
+
+    describe('a take-down', () => {
+        it('names the hold that did worse, and never says null or undefined', async () => {
+            const down = heldModelOf({ down: { since: '2026-10-19', reason: 'worse', days: 1, in_a_row: 5, hold: 5 } });
+
+            held({ listing: heldListingOf([down]) });
+            await open('tables-gnn');
+
+            expect(document.querySelector('.model-down-line')).toHaveTextContent(/^Its 5-day hold did worse than the baseline 5 scored days in a row\. Nothing predicts/);
+            expect(stat('Live version').querySelector('.model-stat-detail')).toHaveTextContent(/^Its 5-day hold did worse than the baseline 5 scored days in a row\./);
+            expect(screen.getByRole('region', { name: 'Summary' })).not.toHaveTextContent(/null|undefined/);
+        });
+
+        it('names the hold whose track record showed nothing better, and none for one that went live behind', async () => {
+            const downFor = (reason, hold) => heldModelOf({ down: { since: '2026-10-19', reason: reason, days: null, in_a_row: null, hold: hold } });
+
+            held({ listing: heldListingOf([downFor('track_record', 20)]) });
+
+            const { unmount } = await open('tables-gnn');
+
+            expect(document.querySelector('.model-down-line')).toHaveTextContent(
+                /^Its 20-day hold’s track record showed nothing better than the baseline, even on the days this version predicted itself\./,
+            );
+
+            unmount();
+            held({ listing: heldListingOf([downFor('not_ahead', null)]) });
+            await open('tables-gnn');
+
+            expect(document.querySelector('.model-down-line')).toHaveTextContent(/^It went live without beating the baseline\./);
+            expect(screen.getByRole('region', { name: 'Summary' })).not.toHaveTextContent(/null|undefined/);
+        });
     });
 });

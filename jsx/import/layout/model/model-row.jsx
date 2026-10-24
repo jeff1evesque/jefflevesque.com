@@ -21,7 +21,13 @@
  * A row across a wide screen, under the list's headings, and a card on a phone,
  * where each figure carries its own name instead -- see '_model.scss'. There the
  * score's name carries a note on what the score measures, as the heading over
- * its column does on a wide screen (#265).
+ * its column does on a wide screen (#265). From #300 a phone's card is its name
+ * and status, its description, its score, the trend line across the card, and a
+ * line of when its live version went live and how many attempts did.
+ *
+ * From format 5 each list has a hold picker (#300), and a row's score, how it
+ * stands, its days, its trend line and loss's parts are on the hold picked: the
+ * listing's scores on it, and the track record's columns of it.
  *
  * Note: the trend line is drawn on the axis the list hands every row: the last
  *       60 days any model was scored on. A model that started a fortnight ago
@@ -29,17 +35,19 @@
  *       nothing, so every row's line lines up with the row above it.
  */
 
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { LineChart, Line, Tooltip as ChartTip, XAxis, YAxis } from 'recharts';
+import ClickAwayListener from '@mui/material/ClickAwayListener';
 import Tooltip from '@mui/material/Tooltip';
 import { isMobile } from 'react-device-detect';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import InfoNote from '../../general/info-note.jsx';
-import { AlarmBell, Mark, StatusPill } from './parts.jsx';
+import { AlarmBell, Mark, StatusPill, gapWords, usePhone } from './parts.jsx';
 import { PendingBar } from '../graph/pending.jsx';
 import {
+    COMBINED,
     COMPARE_COLORS,
     DEFAULT_SCORE,
     LOSS_PARTS,
@@ -49,13 +57,16 @@ import {
     betterBy,
     chartColors,
     checkWords,
-    formatGap,
+    columnOf,
     formatScore,
+    holdsOf,
     liveKind,
     lossParts,
+    namedHold,
     noteOf,
     scoreIn,
     scoreOf,
+    scoresOn,
     shortDay,
     standing,
     statusOf,
@@ -65,7 +76,7 @@ import {
 
 //
 // the trend line's size, in px: as wide as its column, and about a row's text
-// tall
+// tall. A phone's card draws it across the card, as wide as that is (#300)
 //
 const TREND_WIDTH = 132;
 const TREND_HEIGHT = 36;
@@ -76,38 +87,86 @@ const TREND_HEIGHT = 36;
 //
 const TIP_ABOVE = -62;
 
+//
+// how wide the trend line is drawn, in px: TREND_WIDTH, or on a phone's card
+// the width of the box it is drawn in, followed as the card is resized (#300).
+// TREND_WIDTH wherever the box cannot be measured, as under jsdom.
+//
+// The box is kept by a ref callback rather than a ref object: it is drawn only
+// once the track record is in, after the line's placeholder, and an effect
+// keyed on a ref object would have measured nothing and never looked again
+//
+function useTrendWidth(phone) {
+    const [box, setBox] = useState(null);
+    const [width, setWidth] = useState(TREND_WIDTH);
+
+    useEffect(() => {
+        if (!phone || !box || typeof window.ResizeObserver !== 'function') {
+            setWidth(TREND_WIDTH);
+
+            return undefined;
+        }
+
+        const observer = new window.ResizeObserver(([entry]) => {
+            setWidth(Math.max(TREND_WIDTH, Math.floor(entry.contentRect.width)));
+        });
+
+        observer.observe(box);
+
+        return () => observer.disconnect();
+    }, [phone, box]);
+
+    return [setBox, width];
+}
+
 /**
  * a model's average score over the days on `axis`, beside the baseline's: each
  * day's average of its last `days` scored days, the listing's `average_days`
- * (#293).
+ * (#293). On a `hold` (#300), the hold's own averages, each day once its result
+ * on the hold is in: the newest days of a longer hold have none yet.
  *
  * On a computer, the day under the pointer has a dot on each line and, over the
  * line, a small box of its numbers: the day, the score, and the baseline's
- * (#296). A day the model has no score has none. A phone, with no pointer, has
- * neither.
+ * (#296), the score named with its hold (#300). A day the model has no score has
+ * none. A phone has no pointer, so the box is for the day tapped (#300): a tap
+ * on another day moves it, and one on the same day, or anywhere else, closes it.
  *
  * `rows` is the model's track record: undefined while it is on its way, null
  * where it could not be had.
  */
-export function TrendLine({ name, rows, axis, score, days = WINDOW }) {
+export function TrendLine({ name, rows, axis, score, days = WINDOW, hold = null }) {
     const { theme } = useContext(ThemeModeContext);
     const colors = chartColors(theme);
+    const phone = usePhone();
+    const [box, width] = useTrendWidth(phone);
+    const [tapped, setTapped] = useState(null);
 
     if (rows === undefined) {
         return <span className='model-trend-pending' aria-label='Loading the trend' />;
     }
 
+    //
+    // the hold the line is on: the list's, where the record has its columns,
+    // and the score's own otherwise, as one before format 5 has (#300)
+    //
+    const on = hold && holdsOf(rows).some((each) => each.days === hold) ? hold : null;
+    const column = columnOf(score, on);
     const byDay = {};
 
     (rows || []).forEach((row) => {
         byDay[row.day] = row;
     });
 
-    const data = axis.map((day) => ({
-        day: day,
-        value: byDay[day] ? scoreIn(byDay[day].average, score) : null,
-        baseline: byDay[day] ? scoreIn(byDay[day].baseline_average, score) : null,
-    }));
+    const data = axis.map((day) => {
+        const row = byDay[day];
+        const held = Boolean(row) && (!on || scoreIn(row.score, column) !== null);
+
+        return {
+            day: day,
+            value: held ? scoreIn(row.average, column) : null,
+            baseline: held ? scoreIn(row.baseline_average, column) : null,
+        };
+    });
 
     if (!data.some((point) => point.value !== null)) {
         return (
@@ -117,12 +176,14 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW }) {
         );
     }
 
+    const label = `${scoreOf(score).label}${namedHold(on, true)}`;
+
     //
-    // the box of the day under the pointer, as the model page's panels say a
-    // day, each number after its line's mark (#296)
+    // the box of the day under the pointer, or tapped, as the model page's
+    // panels say a day, each number after its line's mark (#296)
     //
-    const tip = ({ active, label }) => {
-        const point = active ? data.find((each) => each.day === label) : null;
+    const tip = ({ active, label: pointed }) => {
+        const point = active ? data.find((each) => each.day === (isMobile ? tapped : pointed)) : null;
 
         if (!point || point.value === null) {
             return null;
@@ -133,7 +194,7 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW }) {
                 <div className='model-tip-title'>{shortDay(point.day)}</div>
                 <div className='model-tip-row'>
                     <Mark kind='line' color={colors.muted} />
-                    <span className='model-tip-name'>{scoreOf(score).label}</span>
+                    <span className='model-tip-name'>{label}</span>
                     <span className='model-tip-value'>{formatScore(point.value, score)}</span>
                 </div>
                 {point.baseline === null ? null : (
@@ -147,31 +208,51 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW }) {
         );
     };
 
-    return (
+    //
+    // a tap on a phone: the day tapped, where it has a score, and none for a
+    // second tap on the same day. Recharts keeps its own day under the last
+    // tap, so the dots and the box are shown only while one is tapped here
+    //
+    const tap = (state) => {
+        const day = state && state.activeLabel;
+        const point = data.find((each) => each.day === day);
+
+        setTapped(point && point.value !== null && day !== tapped ? day : null);
+    };
+
+    const showing = !isMobile || Boolean(tapped);
+
+    const chart = (
         <span
+            ref={box}
             className='model-trend'
             role='img'
-            aria-label={`${name}'s ${days}-day ${scoreOf(score).label}, over the last ${TREND_DAYS} days`}
+            aria-label={`${name}'s ${days}-day ${label}, over the last ${TREND_DAYS} days`}
         >
-            <LineChart width={TREND_WIDTH} height={TREND_HEIGHT} data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+            <LineChart
+                width={width}
+                height={TREND_HEIGHT}
+                data={data}
+                margin={{ top: 4, right: 4, bottom: 4, left: 4 }}
+                onClick={isMobile ? tap : undefined}
+            >
                 <XAxis dataKey='day' hide />
                 <YAxis hide domain={['dataMin', 'dataMax']} reversed={scoreOf(score).lower} />
-                {isMobile ? null : (
-                    <ChartTip
-                        content={tip}
-                        cursor={false}
-                        isAnimationActive={false}
-                        allowEscapeViewBox={{ x: true, y: true }}
-                        position={{ y: TIP_ABOVE }}
-                        wrapperStyle={{ zIndex: 10, pointerEvents: 'none' }}
-                    />
-                )}
+                <ChartTip
+                    content={tip}
+                    cursor={false}
+                    isAnimationActive={false}
+                    allowEscapeViewBox={{ x: true, y: true }}
+                    position={{ y: TIP_ABOVE }}
+                    wrapperStyle={{ zIndex: 10, pointerEvents: 'none' }}
+                    {...(isMobile ? { trigger: 'click', active: showing } : {})}
+                />
                 <Line
                     dataKey='baseline'
                     stroke={colors.grid}
                     strokeWidth={1.5}
                     dot={false}
-                    activeDot={isMobile ? false : { r: 2.5, fill: colors.grid, stroke: 'none' }}
+                    activeDot={showing ? { r: 2.5, fill: colors.grid, stroke: 'none' } : false}
                     isAnimationActive={false}
                 />
                 <Line
@@ -179,12 +260,21 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW }) {
                     stroke={colors.muted}
                     strokeWidth={1.5}
                     dot={false}
-                    activeDot={isMobile ? false : { r: 3, fill: colors.muted, stroke: 'none' }}
+                    activeDot={showing ? { r: 3, fill: colors.muted, stroke: 'none' } : false}
                     isAnimationActive={false}
                 />
             </LineChart>
         </span>
     );
+
+    //
+    // on a phone, a tap anywhere off the line closes its box. Always about the
+    // line there, so a tap does not draw the chart over again, and lose the day
+    // recharts keeps for it
+    //
+    return isMobile
+        ? <ClickAwayListener onClickAway={() => tapped && setTapped(null)}>{chart}</ClickAwayListener>
+        : chart;
 }
 
 TrendLine.propTypes = {
@@ -197,24 +287,34 @@ TrendLine.propTypes = {
     // `average_days` (#293)
     //
     days: PropTypes.number,
+    //
+    // the hold the list is on, where its task has holds (#300)
+    //
+    hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]),
 };
 
 //
 // what the score's figure is called on a phone's card, where there are no
 // headings: over the last of the days its scores average (#293), before it
 // retired for a retired one, and so far for one with fewer scored days than that
-// -- a new model, or one taken down before it had them (#263)
+// -- a new model, or one taken down before it had them (#263). On a hold (#300),
+// named with the hold, by the hold's own days
 //
-function scoreLabel(model, score) {
-    const label = scoreOf(score).label;
+function scoreLabel(model, score, hold) {
+    const on = scoresOn(model, hold);
+    const label = `${scoreOf(score).label}${namedHold(on.hold, true)}`;
     const days = averageDays(model);
+
+    if (on.hold && !on.days) {
+        return `${label}, no scored days yet`;
+    }
 
     if (statusOf(model) === 'retired') {
         return `${label}, last ${days} days before retiring`;
     }
 
-    return model.scored_days < days
-        ? `${label}, ${model.scored_days} ${model.scored_days === 1 ? 'day' : 'days'} so far`
+    return on.days < days
+        ? `${label}, ${on.days} ${on.days === 1 ? 'day' : 'days'} so far`
         : `${label}, last ${days} days`;
 }
 
@@ -236,27 +336,21 @@ function liveCell(model, status) {
 }
 
 //
-// how the score stands against the baseline's, in words: '▲ 0.034 better than
-// the baseline'. The arrow in a span of its own, so it alone takes the color
-// of better or worse -- see '.model-gap-arrow' in '_model.scss'
+// the same two in a line at the foot of a phone's card (#300), with how many
+// attempts went live: 'Live since Oct 9 · 4 of 30 attempts went live'
 //
-function gapText(gap, score) {
-    const stands = standing(gap, score);
+function sinceLine(model, status) {
+    const went = `${model.attempts.went_live} of ${model.attempts.total} attempts went live`;
+    const figure = {
+        retired: () => `Retired ${shortDay(model.retired)}`,
+        down: () => takenDown(model.down.since),
+    }[status];
 
-    if (gap === null) {
-        return '';
+    if (figure) {
+        return `${figure()} · ${went}`;
     }
 
-    if (stands === 'level') {
-        return 'level with the baseline';
-    }
-
-    return (
-        <>
-            <span className='model-gap-arrow'>{stands === 'better' ? '▲' : '▼'}</span>
-            {` ${formatGap(gap, score)} ${stands} than the baseline`}
-        </>
-    );
+    return model.live.since ? `Live since ${shortDay(model.live.since)} · ${went}` : went;
 }
 
 //
@@ -265,19 +359,9 @@ function gapText(gap, score) {
 // Compared as the two are printed, as lossParts compares them
 //
 function partGap(part) {
-    if (part.stands === 'level') {
-        return 'level';
-    }
-
     const printed = (value) => Number(formatScore(value, DEFAULT_SCORE));
-    const gap = betterBy(printed(part.value), printed(part.baseline), DEFAULT_SCORE);
 
-    return (
-        <>
-            <span className='model-gap-arrow'>{part.stands === 'better' ? '▲' : '▼'}</span>
-            {` ${formatGap(gap, DEFAULT_SCORE)} ${part.stands}`}
-        </>
-    );
+    return gapWords(betterBy(printed(part.value), printed(part.baseline), DEFAULT_SCORE), DEFAULT_SCORE, '', 'level');
 }
 
 /**
@@ -285,16 +369,17 @@ function partGap(part) {
  * screen, under one heading -- see model.jsx -- and on a phone's card, or in a
  * list too narrow for the three columns, a line each, naming its part. Each is
  * the part's average, and how it stands against the baseline's, from the
- * newest day of the model's track record, as its own page has them (#265). Bars
- * while the record is on its way, and dashes where it could not be had or has
- * no parts.
+ * newest day of the model's track record, as its own page has them (#265), on
+ * the hold the list is on (#300). Bars while the record is on its way, and
+ * dashes where it could not be had or has no parts.
  */
-export function PartCells({ model, rows, task = undefined }) {
-    const parts = Array.isArray(rows) && rows.length ? lossParts(rows[rows.length - 1]) : [];
+export function PartCells({ model, rows, task = undefined, hold = undefined }) {
+    const on = scoresOn(model, hold);
+    const parts = Array.isArray(rows) && rows.length ? lossParts(rows[rows.length - 1], on.hold) : [];
 
     return (
         <div className='model-cell model-cell-parts'>
-            <InfoNote note={noteOf(DEFAULT_SCORE, task)} className='model-cell-label model-noted'>{scoreLabel(model, DEFAULT_SCORE)}</InfoNote>
+            <InfoNote note={noteOf(DEFAULT_SCORE, task, on.hold)} className='model-cell-label model-noted'>{scoreLabel(model, DEFAULT_SCORE, hold)}</InfoNote>
             <ul className='model-part-cells' aria-label='Loss, part by part'>
                 {LOSS_PARTS.map((each) => {
                     const part = parts.find((one) => one.key === each.key);
@@ -330,13 +415,18 @@ PartCells.propTypes = {
         id: PropTypes.string.isRequired,
         scores: PropTypes.arrayOf(PropTypes.string),
     }),
+    //
+    // the hold the list is on, where its task has holds (#300)
+    //
+    hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]),
 };
 
-function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false, task = undefined, parts = false }) {
+function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false, task = undefined, parts = false, hold = null }) {
     const status = statusOf(model);
     const live = liveCell(model, status);
-    const value = scoreIn(model.score, score);
-    const gap = betterBy(value, scoreIn(model.baseline, score), score);
+    const on = scoresOn(model, hold);
+    const value = scoreIn(on.score, score);
+    const gap = betterBy(value, scoreIn(on.baseline, score), score);
     const ticked = picked !== null;
     const address = `/model/${encodeURIComponent(model.name)}`;
 
@@ -391,17 +481,23 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
             </div>
             <div className='model-cell model-cell-trend'>
                 <span className='model-cell-label'>{`Last ${TREND_DAYS} days`}</span>
-                <TrendLine name={model.name} rows={rows} axis={axis} score={score} days={averageDays(model)} />
+                <TrendLine name={model.name} rows={rows} axis={axis} score={score} days={averageDays(model)} hold={hold} />
             </div>
             {parts
-                ? <PartCells model={model} rows={rows} task={task} />
+                ? <PartCells model={model} rows={rows} task={task} hold={hold} />
                 : (
                     <div className='model-cell model-cell-score'>
-                        <InfoNote note={noteOf(score, task)} className='model-cell-label model-noted'>{scoreLabel(model, score)}</InfoNote>
+                        <InfoNote note={noteOf(score, task, on.hold)} className='model-cell-label model-noted'>{scoreLabel(model, score, hold)}</InfoNote>
                         <span className='model-score-value'>{formatScore(value, score)}</span>
-                        <span className={`model-gap model-gap-${standing(gap, score)}`}>{gapText(gap, score)}</span>
+                        <span className={`model-gap model-gap-${standing(gap, score)}`}>{gapWords(gap, score)}</span>
                     </div>
                 )}
+            <div className='model-cell model-cell-since'>
+                <span className='model-figure-detail'>{sinceLine(model, status)}</span>
+                {status === 'down'
+                    ? <span className='model-figure-detail'>{`${live.detail.charAt(0).toUpperCase()}${live.detail.slice(1)}.`}</span>
+                    : null}
+            </div>
         </div>
     );
 }
@@ -473,6 +569,11 @@ ModelRow.propTypes = {
     // see scores.js's showsParts
     //
     parts: PropTypes.bool,
+    //
+    // the hold the list is on, where its task has holds (#300): its score, how
+    // it stands, its days, its trend line and loss's parts follow it
+    //
+    hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]),
 };
 
 export default ModelRow;

@@ -23,7 +23,9 @@ import {
     StatusPill,
     TipBox,
     axisStyle,
+    gapWords,
     isPhone,
+    tickGap,
     modelsHeld,
     useFolds,
     usePanelDay,
@@ -81,6 +83,30 @@ describe('ScorePicker', () => {
     });
 });
 
+describe('ScorePicker\'s scores a hold has none of (#300)', () => {
+    it('offers them disabled, as buttons and in the phone\'s menu, and hands none of them up', async () => {
+        const onScore = jest.fn();
+
+        render(<ScorePicker score='loss' onScore={onScore} offered={['loss', 'top10_gain', 'top10_wins']} disabled={['top10_gain', 'top10_wins']} />);
+
+        const buttons = within(screen.getByRole('group', { name: 'Score' })).getAllByRole('button');
+        const options = within(screen.getByRole('combobox', { name: 'Score' })).getAllByRole('option');
+
+        expect(buttons.map((button) => button.disabled)).toEqual([false, true, true]);
+        expect(options.map((option) => option.disabled)).toEqual([false, true, true]);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Top 10 gain' }));
+
+        expect(onScore).not.toHaveBeenCalled();
+    });
+
+    it('disables none where it is handed none', () => {
+        render(<ScorePicker score='loss' onScore={() => {}} />);
+
+        expect(within(screen.getByRole('group', { name: 'Score' })).getAllByRole('button').some((button) => button.disabled)).toBe(false);
+    });
+});
+
 describe('HoldPicker (#279)', () => {
     it('offers the three holds as buttons, the one shown pressed', () => {
         render(<HoldPicker hold={5} onHold={() => {}} />);
@@ -110,6 +136,68 @@ describe('HoldPicker (#279)', () => {
 
         expect(within(screen.getByRole('group', { name: 'Hold' })).getAllByRole('button').map((button) => button.textContent))
             .toEqual(['1 day', '5 days']);
+    });
+
+    describe('Combined, a stock model\'s holds averaged (#300)', () => {
+        const ALL = [
+            { days: 1, label: '1 day' },
+            { days: 5, label: '5 days' },
+            { days: 20, label: '20 days' },
+            { days: 'combined', label: 'Combined' },
+        ];
+
+        it('is a button after the three, pressed while it is the hold shown', () => {
+            render(<HoldPicker hold='combined' onHold={() => {}} holds={ALL} />);
+
+            const buttons = within(screen.getByRole('group', { name: 'Hold' })).getAllByRole('button');
+
+            expect(buttons.map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days', 'Combined']);
+            expect(buttons.map((button) => button.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'false', 'true']);
+        });
+
+        it('is handed up by its name, from its button or the phone\'s menu, as the holds are by their days', async () => {
+            const onHold = jest.fn();
+
+            render(<HoldPicker hold={1} onHold={onHold} holds={ALL} />);
+
+            await userEvent.click(screen.getByRole('button', { name: 'Combined' }));
+            expect(onHold).toHaveBeenLastCalledWith('combined');
+
+            expect(within(screen.getByRole('combobox', { name: 'Hold' })).getAllByRole('option').map((option) => option.textContent))
+                .toEqual(['1 day', '5 days', '20 days', 'Combined']);
+            await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Hold' }), 'combined');
+            expect(onHold).toHaveBeenLastCalledWith('combined');
+            await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Hold' }), '20');
+            expect(onHold).toHaveBeenLastCalledWith(20);
+        });
+    });
+});
+
+describe('gapWords (#274, #300)', () => {
+    const words = (...args) => render(<span className='holder'>{gapWords(...args)}</span>).container.querySelector('.holder');
+
+    it('puts the arrow before how far a score is from the baseline\'s, and which way', () => {
+        expect(words(0.034, 'loss')).toHaveTextContent('▲ 0.034 better than the baseline');
+        expect(words(-0.013, 'loss').querySelector('.model-gap-arrow')).toHaveTextContent('▼');
+        expect(words(-0.013, 'loss')).toHaveTextContent('▼ 0.013 worse than the baseline');
+    });
+
+    it('leaves off what follows the word where gaps stand side by side, and says level as it is handed', () => {
+        expect(words(0.012, 'loss', '', 'level')).toHaveTextContent(/^▲ 0\.012 better$/);
+        expect(words(0.0001, 'loss', '', 'level')).toHaveTextContent(/^level$/);
+        expect(words(0.0001, 'loss')).toHaveTextContent(/^level with the baseline$/);
+        expect(words(0.0001, 'loss').querySelector('.model-gap-arrow')).toBeNull();
+    });
+
+    it('says nothing where there is no gap', () => {
+        expect(words(null, 'loss')).toBeEmptyDOMElement();
+    });
+});
+
+describe('tickGap (#300)', () => {
+    it('stands a phone\'s days further apart, so a narrow chart names fewer', () => {
+        expect(tickGap(false)).toBe(24);
+        expect(tickGap(true)).toBe(40);
     });
 });
 

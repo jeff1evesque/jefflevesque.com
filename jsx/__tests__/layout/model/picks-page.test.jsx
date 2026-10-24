@@ -534,7 +534,7 @@ describe('where there are no picks to show', () => {
         await open();
 
         expect(screen.getByRole('region', { name: 'No picks while pt-options is down' })).toHaveTextContent(
-            'pt-options was taken down on Oct 16: the 1-day hold did worse than the baseline 5 scored days in a row. It makes no picks until a new version beats the baseline on the days it was tested on.',
+            'pt-options was taken down on Oct 16: its 1-day hold did worse than the baseline 5 scored days in a row. It makes no picks until a new version beats the baseline on the days it was tested on.',
         );
         expect(card('How its top 10 has done')).toHaveClass('model-picks-record-wide');
         expect(within(screen.getByRole('group', { name: 'Hold' })).getAllByRole('button')).toHaveLength(3);

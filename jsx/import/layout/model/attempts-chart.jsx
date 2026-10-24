@@ -50,7 +50,7 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisStyle, useFolds, usePanelDay } from './parts.jsx';
+import { FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisStyle, tickGap, useFolds, usePanelDay } from './parts.jsx';
 import {
     BASELINE_DASH,
     SCORING_OPACITY,
@@ -365,7 +365,7 @@ function AttemptsChart({ rows, score }) {
                         <ResponsiveContainer width='100%' height={HEIGHT}>
                             <ComposedChart data={points} syncId={SYNC} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events('attempts')}>
                                 <CartesianGrid stroke={colors.grid} vertical={false} />
-                                <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={24} {...axisStyle(colors)} />
+                                <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={tickGap(panel.phone)} {...axisStyle(colors)} />
                                 <YAxis
                                     width={56}
                                     domain={['auto', 'auto']}

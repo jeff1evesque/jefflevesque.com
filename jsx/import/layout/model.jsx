@@ -20,6 +20,13 @@
  * models shows loss's three parts in its place, each under its own name, the
  * score's heading over the three (#283).
  *
+ * From format 5, where the listing gives its models' scores on each hold, a
+ * list has a hold picker beside its score picker (#300): 1, 5 and 20 days, and
+ * Combined for a task of stocks. Its rows' scores, days, trend lines and parts
+ * follow it, and it opens on 1 day, so the list reads as it did until another
+ * is picked. Each list's hold is kept as its score is, but apart from a model
+ * page's -- see redux/container/model.jsx.
+ *
  * Ticking two or three models of one task draws their track records on one chart
  * over the lists, on the score its list shows; see model/compare-chart.jsx. A
  * model of another task can be ticked beside them only on a score of what each
@@ -53,7 +60,7 @@ import ErrorFallback from '../formatter/boundary-error.jsx';
 import InfoNote from '../general/info-note.jsx';
 import ModelRow from './model/model-row.jsx';
 import CompareChart from './model/compare-chart.jsx';
-import { ScorePicker, isPhone, modelsHeld } from './model/parts.jsx';
+import { HoldPicker, ScorePicker, isPhone, modelsHeld } from './model/parts.jsx';
 import { PendingGroup, STAGGER } from './model/pending.jsx';
 import { PendingBar } from './graph/pending.jsx';
 import { readLayout, writeLayout } from '../general/layout-preference.js';
@@ -68,9 +75,13 @@ import {
     averageDays,
     chosenScore,
     compareBlocked,
+    heldOut,
+    holdsAmong,
+    namedHold,
     noteOf,
     recentDays,
     scoreOf,
+    scoreOnHold,
     scoresFor,
     sharedScores,
     showsParts,
@@ -206,11 +217,20 @@ class ModelLayout extends Component {
         //
         scores: PropTypes.objectOf(PropTypes.string),
         onScore: PropTypes.func,
+        //
+        // the hold each task's list is on, by its id, and the way to choose
+        // another (#300): the store's, kept apart from a model page's. A task
+        // with none is on 1 day
+        //
+        holds: PropTypes.objectOf(PropTypes.oneOfType([PropTypes.number, PropTypes.string])),
+        onHold: PropTypes.func,
     }
 
     static defaultProps = {
         scores: {},
         onScore: () => {},
+        holds: {},
+        onHold: () => {},
     }
 
     constructor(props) {
@@ -390,10 +410,25 @@ class ModelLayout extends Component {
 
     //
     // the score a task's list shows (#279): the one the reader picked for its
-    // task, and loss until they do
+    // task, and loss until they do -- and on Combined, loss in place of a top
+    // 10's, which Combined has none of (#300)
     //
     scoreFor(task) {
-        return chosenScore(this.props.scores, task);
+        return scoreOnHold(chosenScore(this.props.scores, task), this.holdFor(task).hold);
+    }
+
+    //
+    // the holds a task's list offers, from format 5 on (#300): those the
+    // listing gives any of its models' scores on, and none before. And the one
+    // it is on: the one picked for the task, where it is offered, and the first
+    // otherwise, 1 day
+    //
+    holdFor(task) {
+        const holds = holdsAmong(this.state.listing.models.filter((model) => model.task === task.id));
+        const picked = this.props.holds[task.id];
+        const offered = holds.some((each) => each.days === picked);
+
+        return { holds: holds, hold: offered ? picked : (holds.length ? holds[0].days : null) };
     }
 
     //
@@ -620,9 +655,14 @@ class ModelLayout extends Component {
         if (chosen.length >= 2) {
             const tasks = tasksOf(chosen, listing.tasks);
 
+            //
+            // each model on the hold its list is on (#300)
+            //
+            const holdOf = (model) => this.holdFor(tasks.find((task) => task.id === model.task)).hold;
+
             return (
                 <CompareChart
-                    picks={chosen.map((model, at) => ({ model: model, slot: picked[at].slot }))}
+                    picks={chosen.map((model, at) => ({ model: model, slot: picked[at].slot, hold: holdOf(model) }))}
                     records={records}
                     score={this.comparedScore(chosen)}
                     task={tasks[0]}
@@ -647,7 +687,7 @@ class ModelLayout extends Component {
     //
     groups(shown) {
         const { listing, records, picked, subscribed } = this.state;
-        const { onScore } = this.props;
+        const { onScore, onHold } = this.props;
         const chosen = this.chosen();
         const compared = this.comparedScore(chosen);
 
@@ -672,11 +712,12 @@ class ModelLayout extends Component {
                 return null;
             }
 
+            const { holds, hold } = this.holdFor(task);
             const score = this.scoreFor(task);
             const parts = showsParts(score, task);
             const scoreHead = (
-                <InfoNote note={noteOf(score, task)} className='model-noted'>
-                    {`${scoreOf(score).label}, last ${averageDays(listing)} days`}
+                <InfoNote note={noteOf(score, task, hold)} className='model-noted'>
+                    {`${scoreOf(score).label}${namedHold(hold, true)}, last ${averageDays(listing)} days`}
                 </InfoNote>
             );
 
@@ -697,7 +738,13 @@ class ModelLayout extends Component {
                         <span className='model-group-count'>{`${models.length} ${models.length === 1 ? 'model' : 'models'}`}</span>
                     </div>
                     <div className='model-controls model-group-controls'>
-                        <ScorePicker score={score} onScore={(key) => onScore(task.id, key)} offered={scoresFor(task)} />
+                        <ScorePicker
+                            score={score}
+                            onScore={(key) => onScore(task.id, key)}
+                            offered={scoresFor(task)}
+                            disabled={heldOut(task, hold)}
+                        />
+                        {holds.length ? <HoldPicker hold={hold} onHold={(key) => onHold(task.id, key)} holds={holds} /> : null}
                     </div>
                     <div className={parts ? 'model-list model-list-parts' : 'model-list'}>
                         <div className='model-list-head'>
@@ -716,7 +763,7 @@ class ModelLayout extends Component {
                                 ) : scoreHead}
                         </div>
                         <div role='list' aria-label={`${task.name} models`}>
-                            {sortModels(models, this.state.sort, score).map((model) => {
+                            {sortModels(models, this.state.sort, score, hold).map((model) => {
                                 const tick = picked.find((each) => each.name === model.name);
 
                                 return (
@@ -725,6 +772,7 @@ class ModelLayout extends Component {
                                         model={model}
                                         task={task}
                                         score={score}
+                                        hold={hold}
                                         rows={records[model.name]}
                                         axis={axis}
                                         picked={tick ? tick.slot : null}

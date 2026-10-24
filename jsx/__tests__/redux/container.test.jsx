@@ -34,8 +34,8 @@
  *
  * The model container is the exception to both (#243). It maps what the model
  * pages share, the score they show for each task and a model page's hold (#279),
- * and binds its creators properly, so what a page hands onScore or onHold is the
- * action's.
+ * and each of /model's lists' holds (#300), and binds its creators properly, so
+ * what a page hands onScore or onHold is the action's.
  */
 
 import React from 'react';
@@ -284,13 +284,38 @@ describe.each([
     });
 });
 
-describe('the model container\'s hold, for a model\'s page (#279)', () => {
-    it('maps /model the scores and the way to pick one, and nothing else', () => {
+describe('the model container\'s holds, for /model\'s lists (#300)', () => {
+    it('maps /model the scores and each list\'s hold, and the ways to pick them, and nothing else', () => {
         const { props } = propsOf(ModelLayoutState, { user: { name: 'jeff' } }, 'model');
 
-        expect(Object.keys(props).sort()).toEqual(['onScore', 'scores']);
+        expect(Object.keys(props).sort()).toEqual(['holds', 'onHold', 'onScore', 'scores']);
     });
 
+    it('hands it the hold the store holds for each task, and none on a store with none', () => {
+        expect(propsOf(ModelLayoutState, { model: { scores: {}, hold: 5, holds: { direction: 'combined' } } }, 'model').props.holds)
+            .toEqual({ direction: 'combined' });
+        expect(propsOf(ModelLayoutState, { model: { scores: {}, hold: 5 } }, 'model').props.holds).toEqual({});
+        expect(propsOf(ModelLayoutState, {}, 'model').props.holds).toEqual({});
+    });
+
+    it('dispatches the task and the hold onHold is handed, which the store then holds apart from a model page\'s', () => {
+        const { props, dispatched } = propsOf(ModelLayoutState, {}, 'model');
+
+        act(() => props.onHold('direction', 5));
+
+        expect(dispatched[dispatched.length - 1]).toEqual({ type: 'SET-MODEL-LIST-HOLD', task: 'direction', hold: 5 });
+
+        const store = realStore();
+
+        render(<Provider store={store}><ModelLayoutState /></Provider>);
+        act(() => mockSeen.model.onHold('direction', 'combined'));
+
+        expect(store.getState().model).toEqual({ scores: {}, hold: 1, holds: { direction: 'combined' } });
+        expect(mockSeen.model.holds).toEqual({ direction: 'combined' });
+    });
+});
+
+describe('the model container\'s hold, for a model\'s page (#279)', () => {
     it('maps a model\'s page the hold and the way to pick one too, and nothing else', () => {
         const { props } = propsOf(ModelPageState, { user: { name: 'jeff' } }, 'model-page');
 
@@ -314,8 +339,12 @@ describe('the model container\'s hold, for a model\'s page (#279)', () => {
         render(<Provider store={store}><ModelPageState /></Provider>);
         act(() => mockSeen['model-page'].onHold(20));
 
-        expect(store.getState().model).toEqual({ scores: {}, hold: 20 });
+        expect(store.getState().model).toEqual({ scores: {}, hold: 20, holds: {} });
         expect(mockSeen['model-page'].hold).toBe(20);
+    });
+
+    it('hands the page Combined, which a stock model\'s page has from format 5 on (#300)', () => {
+        expect(propsOf(ModelPageState, { model: { scores: {}, hold: 'combined' } }, 'model-page').props.hold).toBe('combined');
     });
 });
 
@@ -335,8 +364,12 @@ describe('the model container\'s hold, for an options model\'s picks page (#290)
         render(<Provider store={store}><ModelPicksState /></Provider>);
         act(() => mockSeen['picks-page'].onHold(20));
 
-        expect(store.getState().model).toEqual({ scores: {}, hold: 20 });
+        expect(store.getState().model).toEqual({ scores: {}, hold: 20, holds: {} });
         expect(mockSeen['picks-page'].hold).toBe(20);
+    });
+
+    it('hands it 1 day while the store keeps Combined, which an options model has none of (#300)', () => {
+        expect(propsOf(ModelPicksState, { model: { scores: {}, hold: 'combined' } }, 'picks-page').props.hold).toBe(1);
     });
 });
 

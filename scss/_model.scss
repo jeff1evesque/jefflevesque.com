@@ -519,11 +519,34 @@
   &:focus-visible {
     border-color: $gray-7;
   }
+
+  //
+  // a score the hold picked has none of: the top 10's on Combined (#300),
+  // offered in its place and faded, answering the pointer with no highlight
+  //
+  &:disabled {
+    color: $gray-5;
+    cursor: not-allowed;
+
+    &:hover {
+      border-color: $gray-3;
+    }
+  }
 }
 
 .model-score-menu {
   display: none;
   margin: 0;
+}
+
+//
+// the line under a stock model's pickers (#300): what its hold is, and when
+// each of its results comes in
+//
+.model-hold-line {
+  color: $gray-7;
+  margin: 0 0 1rem;
+  max-width: 72ch;
 }
 
 .model-score-menu select,
@@ -684,6 +707,14 @@
 }
 
 .model-cell-label {
+  display: none;
+}
+
+//
+// a phone card's line of when the live version went live and how many
+// attempts did (#300), which a wide row says in two columns of its own
+//
+.model-cell-since {
   display: none;
 }
 
@@ -2000,29 +2031,33 @@ $model-trend-width: 132px;
 }
 
 //
-// a card's rows under a thin rule (#267), and in the score's card, the parts
-// of loss after them
+// a card's rows under a thin rule (#267), and at its foot, the Live version
+// card's checks and the score card's parts of loss (#300): the cards are as
+// tall as the tallest, and each one's rows keep to its top and its table to its
+// foot, so the three read as one row of cards rather than three of their own
+// heights
 //
 .model-stat-body {
-  align-self: start;
+  align-self: stretch;
   border-top: 1px solid $gray-2;
-  display: grid;
-  gap: 0.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  justify-content: space-between;
   margin-top: 0.55rem;
-  padding-top: 0.55rem;
+  padding-top: 0.2rem;
 }
 
 //
 // each row drawn as a part of loss is: its name at the left and its value at
-// the right, the value in the figures' ink. A heading row, in the muted gray of
-// a figure's name on a phone's card, stands a little apart from the rows above
-// it
+// the right, the value in the figures' ink, and a light rule under it (#300). A
+// heading row, in the muted gray of a figure's name on a phone's card, stands a
+// little apart from the rows above it
 //
 .model-stat-rows {
   color: $gray-7;
   display: grid;
   font-size: 0.85rem;
-  gap: 0.2rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2030,8 +2065,86 @@ $model-trend-width: 132px;
 
 .model-stat-row {
   align-items: baseline;
+  border-bottom: 1px solid $gray-1;
   column-gap: 0.75rem;
   display: flex;
+  padding: 0.35rem 0;
+}
+
+//
+// a heading and what it is over, at a card's foot: the parts of loss (#300)
+//
+.model-stat-group {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.model-stat-group-head {
+  color: $gray-7;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+//
+// how close each of the trainer's checks is to taking the live version down,
+// as a small table (#300) -- see model-page.jsx's ChecksTable: a row for each
+// hold, a column for each check, the counts at the right in the figures' ink,
+// and 'not yet' in the muted gray. At a wide screen's Live version card's foot,
+// and under a phone's boxes
+//
+.model-checks {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+
+  caption {
+    caption-side: top;
+    color: $gray-7;
+    font-weight: 600;
+    padding-bottom: 0.3rem;
+    text-align: left;
+  }
+
+  th,
+  td {
+    border-top: 1px solid $gray-1;
+    font-weight: normal;
+    padding: 0.35rem 0 0.35rem 0.6rem;
+    text-align: right;
+  }
+
+  th:first-child,
+  td:first-child {
+    padding-left: 0;
+  }
+
+  thead th {
+    border-top: 0;
+    color: $gray-6;
+    vertical-align: bottom;
+  }
+
+  tbody th {
+    color: $gray-7;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  //
+  // the holds' column's heading over their names, at the left as they are
+  //
+  .model-checks-hold {
+    text-align: left;
+  }
+
+  td {
+    color: $gray-9;
+  }
+
+  .model-checks-none {
+    color: $gray-6;
+  }
 }
 
 .model-stat-row-value {
@@ -2106,29 +2219,155 @@ $model-trend-width: 132px;
 }
 
 //
-// as wide as its widest words, 'better than baseline 0.261', 12.5em in the
-// system font, and to the right of its room: so each line's figure stands
-// over the next one's, and each baseline's over the next, whichever word a
-// line has -- 'level with' is the narrowest
+// as wide as its widest words, '▲ better than baseline 0.261', 13.7em in the
+// system font with the arrow before them (#300), and to the right of its room:
+// so each line's figure stands over the next one's, and each baseline's over
+// the next, whichever word a line has -- 'level with' is the narrowest
 //
 .model-part-baseline {
-  min-width: 12.6em;
+  min-width: 13.8em;
   text-align: right;
 }
 
 //
-// too narrow for the longest line -- 'Beats the average stock 0.720 worse than
-// baseline 0.693', 28.5em -- every line's figures go under its name, still at
-// the right, rather than that line's alone: at 1100px wide, the score's card
+// too narrow for the longest line -- 'Beats the average stock 0.720 ▼ worse
+// than baseline 0.693', 29.6em -- every line's figures go under its name, still
+// at the right, rather than that line's alone: at 1100px wide, the score's card
 // holds 276px. The cards' own rows are short, and stay on one line
 //
-@container (max-width: 29em) {
+@container (max-width: 30em) {
   .model-part {
     display: grid;
   }
 
   .model-part-figures {
     justify-self: end;
+  }
+}
+
+//
+// on a phone, what goes under the three boxes, in this order (#300): the
+// score's line, loss's parts, why the live version was taken down, the
+// checks, and what it trained on -- see model-page.jsx's summary. A wide
+// screen's cards hold them instead
+//
+.model-summary-details {
+  color: $gray-7;
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+
+  > p {
+    margin: 0;
+  }
+}
+
+.model-trained-line {
+  border-top: 1px solid $gray-1;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+}
+
+.model-trained-value {
+  color: $gray-9;
+  text-align: right;
+}
+
+//
+// a stock model's scores on each of its holds (#300) -- see model-page.jsx's
+// HoldsTable: a row for each hold, its name over how many days it has scored
+// and when its results come in, and a column for each score, each cell its
+// figure over how it stands. The hold picked is shaded in a light wash of the
+// charts' better blue. In a box of its own that scrolls, where a narrow window
+// is too narrow for its six scores, rather than the page.
+//
+// On a phone the score picked alone, a line for each hold, in its place
+//
+.model-holds-phone {
+  display: none;
+}
+
+.model-holds-box {
+  overflow-x: auto;
+}
+
+.model-holds-table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+
+  th,
+  td {
+    border-bottom: 1px solid $gray-1;
+    font-weight: normal;
+    padding: 0.55rem 0.7rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  thead th {
+    border-bottom-color: $gray-2;
+    color: $gray-6;
+    font-size: 0.85rem;
+    vertical-align: bottom;
+  }
+
+  tbody th {
+    min-width: 11rem;
+  }
+
+  td {
+    min-width: 6.5rem;
+  }
+
+  .model-gap {
+    display: block;
+  }
+}
+
+.model-holds-picked > th,
+.model-holds-picked > td,
+.model-holds-list > .model-holds-picked {
+  background-color: color-mix(in srgb, var(--stream-shade-0) 8%, transparent);
+}
+
+.model-holds-name {
+  color: $gray-9;
+  display: block;
+  font-weight: 600;
+}
+
+.model-holds-about {
+  color: $gray-6;
+  display: block;
+  font-size: 0.85rem;
+}
+
+.model-holds-value {
+  color: $gray-9;
+  display: block;
+}
+
+.model-holds-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  > li {
+    align-items: baseline;
+    border-top: 1px solid $gray-1;
+    column-gap: 0.75rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.55rem 0.5rem;
+  }
+
+  .model-holds-value,
+  .model-gap {
+    text-align: right;
   }
 }
 
@@ -2196,6 +2435,29 @@ $model-trend-width: 132px;
 
   .model-page .model-controls {
     margin-bottom: 1rem;
+  }
+
+  //
+  // a Score menu and a Hold menu side by side, each under its name (#300),
+  // where they stacked: on a model's page with holds, and over each list that
+  // has them. The line under them comes 0.75rem after, as any line under a row
+  // of controls
+  //
+  .model-controls:has(> .model-holds) {
+    column-gap: 0.75rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    > .model-scores {
+      align-items: stretch;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      grid-column: auto;
+    }
+  }
+
+  .model-page .model-controls:has(> .model-holds) {
+    margin-bottom: 0.75rem;
   }
 
   //
@@ -2369,9 +2631,10 @@ $model-trend-width: 132px;
   // it. The model's lines keep their own spacing, so 0.6rem goes over each row
   // of figures rather than between every row.
   //
-  // Under them, the live version, how many attempts went live and the 60-day
-  // line in one row, each as wide as it needs and the line at the right, and
-  // under those, across the card, the score (#283)
+  // Under them, across the card, the score (#283), then the 60-day line as wide
+  // as the card, and last a line of when the live version went live and how
+  // many attempts did (#300), which take the place of their two figures: the
+  // figures and the line had stood side by side, the line squeezed to 132px
   //
   .model-row {
     border: 1px solid $gray-2;
@@ -2382,8 +2645,9 @@ $model-trend-width: 132px;
       'address address address address address'
       'about about about about about'
       'picks picks picks picks picks'
-      'live went trend trend trend'
-      'score score score score score';
+      'score score score score score'
+      'trend trend trend trend trend'
+      'since since since since since';
     grid-template-columns: auto auto minmax(0, 1fr) auto auto;
     margin-top: 0.6rem;
     padding: 1rem;
@@ -2417,15 +2681,24 @@ $model-trend-width: 132px;
 
   .model-cell-score,
   .model-cell-trend,
-  .model-cell-live,
-  .model-cell-went {
+  .model-cell-since {
     margin-top: 0.6rem;
   }
 
   .model-cell-score { grid-area: score; }
-  .model-cell-trend { grid-area: trend; justify-self: end; }
-  .model-cell-live { grid-area: live; }
-  .model-cell-went { grid-area: went; }
+  .model-cell-trend { grid-area: trend; }
+  .model-cell-since { display: flex; grid-area: since; }
+
+  .model-cell-live,
+  .model-cell-went {
+    display: none;
+  }
+
+  .model-trend,
+  .model-trend-pending,
+  .model-trend-none {
+    width: 100%;
+  }
 
   //
   // the score under a light rule, so the figures over it and the score read as
@@ -2450,27 +2723,6 @@ $model-trend-width: 132px;
     margin-top: 0.15rem;
   }
 
-  //
-  // too narrow for the live version, the attempts and the 60-day line side by
-  // side, as on a 320px phone: the line under the other two
-  //
-  @media (max-width: 374.98px) {
-    .model-row {
-      grid-template-areas:
-        'name name name compare alarm'
-        'address address address address address'
-        'about about about about about'
-        'picks picks picks picks picks'
-        'live went went went went'
-        'trend trend trend trend trend'
-        'score score score score score';
-    }
-
-    .model-cell-trend {
-      justify-self: start;
-    }
-  }
-
   .model-cell-label {
     color: $gray-6;
     display: block;
@@ -2493,9 +2745,20 @@ $model-trend-width: 132px;
   // in the boxes' names' size, so each part keeps to one line on a 375px phone,
   // where the list is 333px wide
   //
-  .model-summary-boxes > .model-parts {
+  .model-summary-details .model-parts {
     font-size: 0.8rem;
-    margin-top: 0.75rem;
+  }
+
+  //
+  // the Scores by hold table gives way to '<score> by hold', the score picked
+  // on every hold, a line each (#300)
+  //
+  .model-holds-wide {
+    display: none;
+  }
+
+  .model-holds-phone {
+    display: revert;
   }
 
   //

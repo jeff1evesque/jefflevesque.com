@@ -11,6 +11,10 @@
  * the trades are not alike. An options model is drawn on its 1-day hold's, as
  * the listing scores it.
  *
+ * From #300 each model is drawn on the hold its list is on, where its track
+ * record has the hold, and on its plain scores where it has none -- as the
+ * track chart draws a second model -- each day once the hold's result is in.
+ *
  * Each model is drawn in the color it was given when it was ticked, which it
  * keeps for as long as it stays ticked -- see ModelLayout.pick -- so unticking
  * one does not repaint the others. The legend names each in the page's own text
@@ -40,16 +44,22 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { Legend, Mark, NoBox, Numbers, Readout, ScorePicker, axisStyle, usePanelDay } from './parts.jsx';
+import { Legend, Mark, NoBox, Numbers, Readout, ScorePicker, axisStyle, tickGap, usePanelDay } from './parts.jsx';
 import {
     BASELINE_DASH,
+    COMBINED,
     COMPARE_COLORS,
     alignDays,
     averageDays,
     chartColors,
+    columnOf,
     formatScore,
     formatTick,
+    holdKey,
+    holdsOf,
     longDay,
+    namedHold,
+    resultName,
     scoreIn,
     scoreOf,
     sharedScores,
@@ -127,6 +137,29 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
         held[name] = records[name] || [];
     });
 
+    //
+    // the column each model is drawn on (#300): the hold its list is on, where
+    // its record has the hold, and the score's own otherwise
+    //
+    const columns = {};
+
+    picks.forEach((pick) => {
+        const hold = pick.hold && holdsOf(records[pick.model.name]).some((each) => each.days === pick.hold) ? pick.hold : null;
+
+        columns[pick.model.name] = { column: columnOf(score, hold), hold: hold };
+    });
+
+    //
+    // a model's average and its baseline's on a day, on its column: none on a
+    // day whose result on its hold is not in yet, whose average would be of the
+    // days before it alone
+    //
+    const averageOf = (row, name, field) => {
+        const { column, hold } = columns[name];
+
+        return row && (!hold || scoreIn(row.score, column) !== null) ? scoreIn(row[field], column) : null;
+    };
+
     const aligned = alignDays(held);
     const data = aligned.map((entry) => {
         const point = { day: entry.day };
@@ -134,8 +167,8 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
         picks.forEach((pick) => {
             const row = entry[pick.model.name];
 
-            point[`slot${pick.slot}`] = row ? scoreIn(row.average, score) : null;
-            point[`base${pick.slot}`] = row ? scoreIn(row.baseline_average, score) : null;
+            point[`slot${pick.slot}`] = averageOf(row, pick.model.name, 'average');
+            point[`base${pick.slot}`] = averageOf(row, pick.model.name, 'baseline_average');
         });
 
         return point;
@@ -156,14 +189,24 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
         }
 
         //
+        // a model on a hold whose result for the day is not in yet is said so
+        // under the rows (#300), as one not running that day is
+        //
+        const notInYet = (pick) => {
+            const { column, hold } = columns[pick.model.name];
+
+            return Boolean(hold) && scoreIn(entry[pick.model.name].score, column) === null;
+        };
+
+        //
         // a model whose record has no column for the score, as a stock model's
         // written before the top 10's had, comes after the rest (#279)
         //
         const scored = picks
-            .filter((pick) => entry[pick.model.name])
+            .filter((pick) => entry[pick.model.name] && !notInYet(pick))
             .sort((a, b) => {
-                const x = scoreIn(entry[a.model.name].average, score);
-                const y = scoreIn(entry[b.model.name].average, score);
+                const x = averageOf(entry[a.model.name], a.model.name, 'average');
+                const y = averageOf(entry[b.model.name], b.model.name, 'average');
 
                 if (x === null || y === null) {
                     return (x === null) - (y === null);
@@ -177,25 +220,29 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
         //
         const rows = scored.map((pick) => {
             const row = entry[pick.model.name];
+            const { hold } = columns[pick.model.name];
+            const days = hold && row.hold_days ? row.hold_days[holdKey(hold)] : row.days;
 
             return {
                 key: pick.model.name,
                 mark: <Mark kind='line' color={COMPARE_COLORS[pick.slot]} />,
-                name: row.days < averageDays(pick.model) ? `${pick.model.name} (${row.days} days)` : pick.model.name,
-                value: formatScore(scoreIn(row.average, score), score),
+                name: days < averageDays(pick.model) ? `${pick.model.name} (${days} days)` : pick.model.name,
+                value: formatScore(averageOf(row, pick.model.name, 'average'), score),
             };
         }).concat(scored
-            .filter((pick) => scoreIn(entry[pick.model.name].baseline_average, score) !== null)
+            .filter((pick) => averageOf(entry[pick.model.name], pick.model.name, 'baseline_average') !== null)
             .map((pick) => ({
                 key: `base-${pick.model.name}`,
                 mark: <Mark kind='dashed' color={COMPARE_COLORS[pick.slot]} />,
                 name: baselineOf(pick.model.name),
-                value: formatScore(scoreIn(entry[pick.model.name].baseline_average, score), score),
+                value: formatScore(averageOf(entry[pick.model.name], pick.model.name, 'baseline_average'), score),
             })));
 
         const absent = picks
-            .filter((pick) => !entry[pick.model.name])
-            .map((pick) => `${pick.model.name}: ${absence(pick.model, entry.day)}`);
+            .filter((pick) => !entry[pick.model.name] || notInYet(pick))
+            .map((pick) => (entry[pick.model.name]
+                ? `${pick.model.name}: its ${resultName(columns[pick.model.name].hold)} is not in yet`
+                : `${pick.model.name}: ${absence(pick.model, entry.day)}`));
 
         return { title: longDay(entry.day), rows: rows, foot: absent.length ? absent.join(' · ') : null };
     };
@@ -230,7 +277,12 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
                             key: pick.model.name,
                             kind: 'line',
                             color: COMPARE_COLORS[pick.slot],
-                            label: <span className='model-legend-name'>{pick.model.name}</span>,
+                            label: (
+                                <>
+                                    <span className='model-legend-name'>{pick.model.name}</span>
+                                    {namedHold(columns[pick.model.name].hold, true)}
+                                </>
+                            ),
                         })),
                         ...picks.map((pick) => ({
                             key: `base-${pick.model.name}`,
@@ -257,7 +309,7 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
                                 <XAxis
                                     dataKey='day'
                                     tickFormatter={shortDay}
-                                    minTickGap={24}
+                                    minTickGap={tickGap(panel.phone)}
                                     {...axisStyle(colors)}
                                 />
                                 <YAxis
@@ -330,6 +382,10 @@ CompareChart.propTypes = {
             average_days: PropTypes.number,
         }).isRequired,
         slot: PropTypes.number.isRequired,
+        //
+        // the hold its list is on, where its task has holds (#300)
+        //
+        hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]),
     })).isRequired,
     //
     // every model's track record, by name: undefined while one is on its way,
