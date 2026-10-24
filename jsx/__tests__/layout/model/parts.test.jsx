@@ -116,7 +116,10 @@ describe('HoldPicker (#279)', () => {
 describe('StatusPill', () => {
     it.each([
         [modelOf(), 'Live', 'model-pill-live'],
-        [modelOf({ scored_days: 4 }), 'New · 4 days', 'model-pill-new'],
+        [modelOf({ scored_days: 4 }), 'New · day 4 of 20', 'model-pill-new'],
+        [modelOf({ scored_days: 0 }), 'New', 'model-pill-new'],
+        [modelOf({ scored_days: 25, average_days: 30 }), 'New · day 25 of 30', 'model-pill-new'],
+        [modelOf({ scored_days: 25, average_days: 20 }), 'Live', 'model-pill-live'],
         [modelOf({ retired: '2026-10-01' }), 'Retired', 'model-pill-retired'],
         [downModelOf(), 'Behind baseline', 'model-pill-down'],
         [downModelOf({ retired: '2026-10-20' }), 'Retired', 'model-pill-retired'],
