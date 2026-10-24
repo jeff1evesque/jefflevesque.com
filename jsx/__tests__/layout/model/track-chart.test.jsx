@@ -2,7 +2,9 @@
  * track-chart.test.jsx: a model's track record, on its own page (#243), and
  * another model of its task drawn beside it from a menu, on an options model's
  * holds (#279) and from format 5 a stock model's and Combined (#300), under a
- * title naming the hold and the score, and the line it is handed (#300).
+ * title naming the hold and the score, and the line it is handed, with a popup
+ * of a day's numbers where it is pointed at or tapped, and on a phone its values
+ * inside the plot (#300).
  *
  * Note: recharts is drawn for real, in a container given a size -- see
  *       sizedRecharts in test-support/model-fixtures.js.
@@ -11,7 +13,7 @@
 jest.mock('recharts', () => require('../../../test-support/model-fixtures.js').sizedRecharts());
 
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import TrackChart, {
@@ -51,6 +53,13 @@ function draw(props = {}) {
 
     return { ...view, onOther };
 }
+
+//
+// the popup over the chart (#300), once it is pointed at or tapped, or null; and
+// the chart pointed at, at `x`
+//
+const popupIn = (container) => container.querySelector('.recharts-tooltip-wrapper .model-chart-tip');
+const point = (container, x = 300) => pointAt(container.querySelector('.recharts-wrapper'), x);
 
 function yTicks(container) {
     return [...container.querySelectorAll('.recharts-yAxis .recharts-cartesian-axis-tick')].map((tick) => ({
@@ -194,6 +203,24 @@ describe('the chart', () => {
         expect(screen.getByText('Lower is better, so the axis is flipped: better is up.')).toHaveClass('model-legend-note');
     });
 
+    it('keeps its values in a 56px gutter on a wide screen, and on a phone inside the plot, which starts at the card\'s edge (#300)', () => {
+        const leftOf = (container) => Number(container.querySelector('.recharts-cartesian-grid-horizontal line').getAttribute('x1'));
+        const wide = draw().container;
+
+        expect(leftOf(wide)).toBe(56);
+
+        phoneScreen();
+
+        const phone = draw().container;
+        const value = phone.querySelector('.recharts-yAxis .recharts-cartesian-axis-tick-value');
+
+        expect(leftOf(phone)).toBe(0);
+        expect(value).toHaveAttribute('stroke', chartColors('light').page);
+        expect(value).toHaveAttribute('paint-order', 'stroke');
+
+        wideScreen();
+    });
+
     it('leaves another score\'s axis the right way up, and says higher is better', () => {
         const { container } = draw({ score: 'auc_beats' });
         const ticks = yTicks(container);
@@ -287,43 +314,54 @@ describe('another model of the task', () => {
     });
 });
 
-describe('the panel (#251)', () => {
+describe('the popup (#300)', () => {
     afterEach(wideScreen);
 
-    it('names the day and every value drawn on it', () => {
-        const { container } = draw({ rows: trackOf(1), other: 'tables', otherRows: trackOf(1) });
+    it('shows nothing until the chart is pointed at, and nothing under the chart, where a panel had stood', () => {
+        const { container } = draw({ rows: trackOf(5) });
 
-        pointAt(container.querySelector('.recharts-wrapper'), 300);
-
-        const tip = container.querySelector('.model-tip');
-
-        expect(tip).toHaveTextContent('Tue, Sep 1, 2026');
-        expect(within(tip).getByText('This model, this day')).toBeInTheDocument();
-        expect(within(tip).getByText('This model, 1 days')).toBeInTheDocument();
-        expect(within(tip).getByText('tables, 20 days')).toBeInTheDocument();
-        expect(within(tip).getByText('Know-nothing baseline, 20 days')).toBeInTheDocument();
+        expect(popupIn(container)).toBeNull();
+        expect(container.querySelector('.model-readout')).toBeNull();
     });
 
-    it('is one slim line under the chart on a wide screen, on the latest day, and draws no box over the chart', () => {
-        const { container } = draw({ rows: trackOf(5) });
-        const panel = container.querySelector('.model-chart').nextElementSibling;
+    it('names the day pointed at, and every value drawn on it as the legend names it', () => {
+        const { container } = draw({ rows: trackOf(1), other: 'tables', otherRows: trackOf(1) });
 
-        expect(panel).toHaveClass('model-readout', 'model-readout-line');
-        expect(panel).toHaveTextContent('Mon, Sep 7, 2026');
-        expect(container.querySelector('.recharts-tooltip-wrapper .model-tip')).toBeNull();
+        point(container);
+
+        const tip = popupIn(container);
+
+        expect(tip).toHaveClass('model-tip', 'model-chart-tip');
+        expect(tip.querySelector('.model-tip-title')).toHaveTextContent('Tue, Sep 1, 2026');
+        expect([...tip.querySelectorAll('.model-tip-name')].map((name) => name.textContent))
+            .toEqual(['This day', 'Last day’s average', 'tables, last 20 days', 'Baseline, last 20 days']);
+    });
+
+    it('goes once the pointer leaves the chart', () => {
+        const { container } = draw({ rows: trackOf(5) });
+
+        point(container);
+        expect(popupIn(container)).not.toBeNull();
+
+        fireEvent.mouseLeave(container.querySelector('.recharts-wrapper'));
+
+        expect(popupIn(container)).toBeNull();
     });
 
     it('marks this model\'s values in its blue, and the baseline\'s dashed in amber', () => {
         const { container } = draw({ rows: trackOf(1) });
         const colors = chartColors('light');
-        const rows = [...container.querySelectorAll('.model-tip-row')];
+
+        point(container);
+
+        const rows = [...popupIn(container).querySelectorAll('.model-tip-row')];
 
         expect(rows[0].querySelector('circle')).toHaveAttribute('fill', colors.better);
         expect(rows[1].querySelector('line')).toHaveAttribute('stroke', colors.better);
         expect(rows[2].querySelector('line')).toHaveAttribute('stroke', colors.baseline);
     });
 
-    it('leaves the baseline out on a day it has none, and is not drawn for a record with no days', () => {
+    it('leaves the baseline out on a day it has none, and shows nothing for a record with no days', () => {
         //
         // the worker averages a first day with no baseline to none
         //
@@ -334,48 +372,73 @@ describe('the panel (#251)', () => {
         }));
         const { container, unmount } = draw({ rows: rows });
 
-        expect(container.querySelector('.model-readout')).not.toHaveTextContent('Know-nothing baseline');
+        point(container);
+
+        expect(popupIn(container)).not.toHaveTextContent('Baseline');
 
         unmount();
 
-        expect(draw({ rows: [] }).container.querySelector('.model-readout')).toBeNull();
+        const empty = draw({ rows: [] }).container;
+
+        point(empty);
+
+        expect(popupIn(empty)).toBeNull();
     });
 
-    it('opens on a phone only for the day tapped, as rows, and closes on a second tap', () => {
+    it('opens on a phone for the day tapped, and closes on a second tap on it', () => {
         phoneScreen();
 
         const { container } = draw({ rows: trackOf(1) });
         const chart = container.querySelector('.recharts-wrapper');
 
-        expect(container.querySelector('.model-readout')).toBeNull();
+        expect(popupIn(container)).toBeNull();
 
         tapAt(chart, 300);
 
-        expect(container.querySelector('.model-readout')).not.toHaveClass('model-readout-line');
-        expect(container.querySelector('.model-readout')).toHaveTextContent('Tue, Sep 1, 2026');
+        expect(popupIn(container)).toHaveTextContent('Tue, Sep 1, 2026');
 
         tapAt(chart, 300);
 
-        expect(container.querySelector('.model-readout')).toBeNull();
+        expect(popupIn(container)).toBeNull();
+    });
+
+    it('closes on a phone at a tap anywhere off the chart, and stays at one on it', async () => {
+        phoneScreen();
+
+        const { container } = draw({ rows: trackOf(1) });
+
+        //
+        // mui listens for a tap off the chart from the tick after it is drawn
+        //
+        await act(async () => new Promise((done) => setTimeout(done, 0)));
+
+        tapAt(container.querySelector('.recharts-wrapper'), 300);
+        fireEvent.click(container.querySelector('.model-chart'));
+
+        expect(popupIn(container)).not.toBeNull();
+
+        fireEvent.click(document.body);
+
+        expect(popupIn(container)).toBeNull();
     });
 
     it('names a full window as 20 days', () => {
         const { container } = draw({ rows: trackOf(20) });
 
-        pointAt(container.querySelector('.recharts-wrapper'), 580);
+        point(container, 580);
 
-        expect(within(container.querySelector('.model-tip')).getByText('This model, 20 days')).toBeInTheDocument();
+        expect(within(popupIn(container)).getByText('Last 20 days’ average')).toBeInTheDocument();
     });
 
     it('says when this model has no score on a day only the other was scored on', () => {
         const { container } = draw({ rows: trackOf(1, '2026-09-02'), other: 'tables', otherRows: trackOf(1, '2026-09-01') });
 
-        pointAt(container.querySelector('.recharts-wrapper'), 100);
+        point(container, 100);
 
-        const tip = container.querySelector('.model-tip');
+        const tip = popupIn(container);
 
         expect(tip).toHaveTextContent('pt-gnn has no score this day');
-        expect(within(tip).queryByText('This model, this day')).toBeNull();
+        expect(within(tip).queryByText('This day')).toBeNull();
     });
 });
 
@@ -393,7 +456,7 @@ describe('folding the track record (#253)', () => {
         expect(container.querySelector('.model-chart')).not.toBeNull();
     });
 
-    it('folds down to its title: the line under it, its legend, the menu, the chart, its panel and its numbers', async () => {
+    it('folds down to its title: the line under it, its legend, the menu, the chart, its popup and its numbers', async () => {
         const { container } = draw({ about: trackLine(undefined, null) });
 
         expect(container.querySelector('.model-card-sub')).not.toBeNull();
@@ -406,7 +469,7 @@ describe('folding the track record (#253)', () => {
         expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
         expect(screen.queryByRole('combobox')).toBeNull();
         expect(container.querySelector('.model-chart')).toBeNull();
-        expect(container.querySelector('.model-readout')).toBeNull();
+        expect(popupIn(container)).toBeNull();
         expect(screen.queryByRole('button', { name: 'Show the numbers' })).toBeNull();
 
         await userEvent.click(title());
@@ -488,22 +551,22 @@ describe('the nights a new version went live', () => {
         expect(screen.queryByText('New version went live')).toBeNull();
     });
 
-    it('are named in the panel of their night', () => {
+    it('are named in the popup of their night (#300)', () => {
         const rows = trackOf(1);
         const { container } = draw({ rows: rows, wentLive: [rows[0].day] });
 
-        pointAt(container.querySelector('.recharts-wrapper'), 300);
+        point(container);
 
-        expect(container.querySelector('.model-tip-foot')).toHaveTextContent('A new version went live this night');
+        expect(popupIn(container).querySelector('.model-tip-foot')).toHaveTextContent('A new version went live this night');
     });
 
-    it('share the panel\'s note with a day this model has no score', () => {
+    it('share the popup\'s note with a day this model has no score', () => {
         const mine = trackOf(1, '2026-09-02');
         const { container } = draw({ rows: mine, other: 'tables', otherRows: trackOf(1, '2026-09-01'), wentLive: ['2026-09-01'] });
 
-        pointAt(container.querySelector('.recharts-wrapper'), 100);
+        point(container, 100);
 
-        expect(container.querySelector('.model-tip-foot'))
+        expect(popupIn(container).querySelector('.model-tip-foot'))
             .toHaveTextContent('pt-gnn has no score this day · A new version went live this night');
     });
 
@@ -555,11 +618,13 @@ describe('the days whose score took the live version down (#263)', () => {
         expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('Live version taken down')).toBeInTheDocument();
     });
 
-    it('name the check in the panel of their day', () => {
+    it('name the check in the popup of their day (#300)', () => {
         const rows = takenDown().slice(0, 4);
         const { container } = draw({ rows: rows });
 
-        expect(container.querySelector('.model-tip-foot'))
+        point(container, 586);
+
+        expect(popupIn(container).querySelector('.model-tip-foot'))
             .toHaveTextContent('Live version taken down: worse than the baseline 5 scored days in a row');
     });
 
@@ -647,14 +712,26 @@ describe('an options model\'s holds (#279)', () => {
         expect(screen.getByRole('table', { name: 'Loss on the 5-day hold, track record' })).toBeInTheDocument();
     });
 
-    it('open the panel on the latest day whose result is in, and say of a newer one that it is not in yet', () => {
-        const { container } = held();
+    it('name in the popup a day whose result is in, and say of a newer one that it is not in yet (#300)', () => {
+        //
+        // a chart drawn for each, as recharts takes a second move of the pointer
+        // in one tick at the next
+        //
+        const { container, unmount } = held();
 
-        expect(container.querySelector('.model-readout')).toHaveTextContent('Tue, Oct 6, 2026');
+        point(container, 300);
 
-        pointAt(container.querySelector('.recharts-wrapper'), 586);
+        expect(within(popupIn(container)).getByText('This day')).toBeInTheDocument();
+        expect(popupIn(container).querySelector('.model-tip-foot')).toBeNull();
 
-        expect(container.querySelector('.model-tip-foot')).toHaveTextContent('pt-options’s 5-day result for this day is not in yet');
+        unmount();
+
+        const newer = held().container;
+
+        point(newer, 586);
+
+        expect(popupIn(newer).querySelector('.model-tip-foot')).toHaveTextContent('pt-options’s 5-day result for this day is not in yet');
+        expect(within(popupIn(newer)).queryByText('This day')).toBeNull();
     });
 
     it('lay a light band over the newest days not in yet, on a longer hold too (#300)', () => {
@@ -685,23 +762,31 @@ describe('the days each average takes in, the listing\'s average_days (#293)', (
     // listing of 30: every row so far, up to 30
     //
     const counted = (count) => trackOf(count).map((row, at) => ({ ...row, days: Math.min(at + 1, 30) }));
-    const readout = (container) => within(container.querySelector('.model-readout'));
+
+    //
+    // the popup of the newest day (#300)
+    //
+    const newest = (container) => {
+        point(container, 586);
+
+        return within(popupIn(container));
+    };
 
     it('name a full window by them, and one still filling by its own days', () => {
         const full = draw({ rows: counted(32), days: 30 }).container;
 
-        expect(readout(full).getByText('This model, 30 days')).toBeInTheDocument();
-        expect(readout(full).getByText('Know-nothing baseline, 30 days')).toBeInTheDocument();
+        expect(newest(full).getByText('Last 30 days’ average')).toBeInTheDocument();
+        expect(newest(full).getByText('Baseline, last 30 days')).toBeInTheDocument();
 
         const filling = draw({ rows: counted(25), days: 30 }).container;
 
-        expect(readout(filling).getByText('This model, 25 days')).toBeInTheDocument();
+        expect(newest(filling).getByText('Last 25 days’ average')).toBeInTheDocument();
     });
 
     it('name the other model\'s line by them', () => {
         const { container } = draw({ rows: counted(2), other: 'tables', otherRows: counted(2), days: 30 });
 
-        expect(readout(container).getByText('tables, 30 days')).toBeInTheDocument();
+        expect(newest(container).getByText('tables, last 30 days')).toBeInTheDocument();
     });
 
     it('are said in the legend and to a screen reader (#300)', () => {
@@ -725,7 +810,7 @@ describe('the days each average takes in, the listing\'s average_days (#293)', (
     it('are 20 where the chart is handed none', () => {
         const { container } = draw({ rows: trackOf(25) });
 
-        expect(readout(container).getByText('This model, 20 days')).toBeInTheDocument();
+        expect(newest(container).getByText('Last 20 days’ average')).toBeInTheDocument();
         expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('Last 20 days’ average')).toBeInTheDocument();
     });
 });
@@ -733,8 +818,11 @@ describe('the days each average takes in, the listing\'s average_days (#293)', (
 describe('the model\'s own baseline (#263)', () => {
     it('is drawn from its own record, and the other model\'s baseline is not drawn', () => {
         const { container } = draw({ rows: trackOf(2, '2026-09-01', undefined, () => 1.7), other: 'tables', otherRows: trackOf(2) });
-        const baseline = [...container.querySelectorAll('.model-tip-row')]
-            .find((row) => row.textContent.startsWith('Know-nothing baseline'));
+
+        point(container, 586);
+
+        const baseline = [...popupIn(container).querySelectorAll('.model-tip-row')]
+            .find((row) => row.textContent.startsWith('Baseline'));
 
         expect(baseline.querySelector('.model-tip-value')).toHaveTextContent('1.700');
         expect([...container.querySelectorAll('.recharts-line-curve')]
@@ -777,9 +865,9 @@ describe('a stock model\'s holds and Combined, from format 5 on (#300)', () => {
 
         expect(container.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringMatching(/^Loss on the combined score of tables-gnn/));
 
-        pointAt(container.querySelector('.recharts-wrapper'), 586);
+        point(container, 586);
 
-        expect(container.querySelector('.model-tip-foot')).toHaveTextContent('tables-gnn’s combined score for this day is not in yet');
+        expect(popupIn(container).querySelector('.model-tip-foot')).toHaveTextContent('tables-gnn’s combined score for this day is not in yet');
     });
 
     it('draw another stock model of format 5 on the hold, and one before it on its plain scores', () => {

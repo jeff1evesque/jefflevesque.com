@@ -76,6 +76,7 @@ import {
     scoreOf,
     scoreOnHold,
     scoresFor,
+    scoresAt,
     scoresOn,
     sharedScores,
     shortDay,
@@ -927,6 +928,44 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
         expect(scoresOn(model)).toEqual(scoresOn(model, null));
         expect(scoresOn(modelOf(), 5)).toEqual({ score: modelOf().score, baseline: modelOf().baseline, days: 30, hold: null });
         expect(scoresOn(modelOf({ holds: { '1d': model.holds['1d'] } }), 5).hold).toBeNull();
+    });
+
+    it('read an options model\'s scores on a longer hold from its track record where the listing gives none, before format 5', () => {
+        const model = modelOf({ name: 'pt-options', task: 'option-picks' });
+        const rows = optionsTrackOf(30);
+        const scored = rows.filter((row) => row.score.loss_5d !== null);
+        const newest = scored[scored.length - 1];
+        const on = scoresAt(model, 5, rows);
+
+        expect(on.hold).toBe(5);
+        expect(on.days).toBe(scored.length);
+        expect(on.score.loss).toBe(newest.average.loss_5d);
+        expect(on.baseline.loss).toBe(newest.baseline_average.loss_5d);
+        expect(on.score.profit_auc).toBe(newest.average.profit_auc_5d);
+        expect(on.pending).toBeUndefined();
+    });
+
+    it('give the listing\'s scores where it has the hold, or the hold is the first, or none is picked', () => {
+        const model = heldModelOf();
+
+        expect(scoresAt(model, 5, optionsTrackOf(30))).toEqual(scoresOn(model, 5));
+        expect(scoresAt(modelOf(), 1, undefined)).toEqual(scoresOn(modelOf(), 1));
+        expect(scoresAt(modelOf(), null, undefined)).toEqual(scoresOn(modelOf(), null));
+    });
+
+    it('are on their way with the record, and none where it could not be had or has no columns for the hold', () => {
+        expect(scoresAt(modelOf(), 5, undefined)).toEqual({ score: null, baseline: null, days: 0, hold: 5, pending: true });
+        expect(scoresAt(modelOf(), 20, null)).toEqual({ score: null, baseline: null, days: 0, hold: 20 });
+        expect(scoresAt(modelOf(), 5, trackOf(10))).toEqual({ score: null, baseline: null, days: 0, hold: 5 });
+    });
+
+    it('sort an options list by its rows\' track records on a longer hold, before format 5', () => {
+        const worse = modelOf({ name: 'aaa', task: 'option-picks' });
+        const better = modelOf({ name: 'zzz', task: 'option-picks' });
+        const records = { aaa: optionsTrackOf(30, '2026-09-01', () => 0.9), zzz: optionsTrackOf(30, '2026-09-01', () => 0.8) };
+
+        expect(sortModels([worse, better], 'score', 'loss', 5, records).map((each) => each.name)).toEqual(['zzz', 'aaa']);
+        expect(sortModels([better, worse], 'score', 'loss', 5, { aaa: records.aaa }).map((each) => each.name)).toEqual(['aaa', 'zzz']);
     });
 
     it('sort models by their scores on the hold', () => {

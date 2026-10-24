@@ -10,7 +10,7 @@
 jest.mock('recharts', () => require('../../../test-support/model-fixtures.js').sizedRecharts());
 
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import AttemptsChart, {
@@ -72,17 +72,47 @@ function tookTicks(container) {
 //
 // point at the attempts' chart, or one of the charts under it, at `x`. On the
 // 600px a chart is drawn at here, x 110 is the first of five nights and 430 the
-// fourth -- Oct 15 in timedHistoryOf, the first night with times
+// fourth -- Oct 15 in timedHistoryOf, the first night with times -- and 540 the
+// fifth. On a phone the attempts' chart spans the whole 600px, its values inside
+// it, so its first night is nearest x 40 there
 //
 function pointAt(container, x, which = ATTEMPTS) {
     pointAtChart(container.querySelector(`${which} .recharts-wrapper`), x);
 }
 
 //
-// the one panel under the three charts (#300), or null where there is none
+// every popup over the charts (#300), and the one, or null where none shows
 //
-function panelOf(container) {
-    return container.querySelector('.model-attempt-panel');
+function popupsOf(container) {
+    return [...container.querySelectorAll('.model-chart-tip')];
+}
+
+function popupOf(container) {
+    return container.querySelector('.model-chart-tip');
+}
+
+//
+// what a popup says: its title, each row as its name and value, and its foot
+//
+function readPopup(popup) {
+    return {
+        title: popup.querySelector('.model-tip-title').textContent,
+        rows: [...popup.querySelectorAll('.model-tip-row')].map((row) => [
+            row.querySelector('.model-tip-name').textContent,
+            row.querySelector('.model-tip-value').textContent,
+        ]),
+        foot: popup.querySelector('.model-tip-foot') ? popup.querySelector('.model-tip-foot').textContent : null,
+    };
+}
+
+//
+// the next turn of the event loop, after which a popup's click-away listener
+// takes clicks: MUI's starts listening a turn after it mounts
+//
+async function nextTurn() {
+    await act(async () => {
+        await new Promise((done) => setTimeout(done, 0));
+    });
 }
 
 //
@@ -419,6 +449,34 @@ describe('the chart', () => {
     });
 });
 
+describe('the values\' axis (#300)', () => {
+    afterEach(() => wideScreen());
+
+    const leftOf = (container) => Number(container.querySelector(`${ATTEMPTS} .recharts-cartesian-grid-horizontal line`).getAttribute('x1'));
+
+    const valueOf = (container) => container.querySelector(`${ATTEMPTS} .recharts-yAxis .recharts-cartesian-axis-tick-value`);
+
+    it('sets the charts 56px in on a wide screen, their values in the gutter at their left', () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        expect(leftOf(container)).toBe(56);
+        expect(valueOf(container)).toHaveAttribute('text-anchor', 'end');
+        expect(valueOf(container)).not.toHaveAttribute('paint-order');
+    });
+
+    it('draws a phone\'s charts the card\'s whole width, their values inside them on a halo of the page, where a gutter set them well in from the card\'s edge', () => {
+        phoneScreen();
+
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        expect(leftOf(container)).toBe(0);
+        expect(valueOf(container)).toHaveAttribute('text-anchor', 'start');
+        expect(valueOf(container)).toHaveAttribute('font-size', '11');
+        expect(valueOf(container)).toHaveAttribute('stroke', chartColors('light').page);
+        expect(valueOf(container)).toHaveAttribute('paint-order', 'stroke');
+    });
+});
+
 describe('the nights\' axis (#300)', () => {
     // a fold is kept, as a reader's is: none is left for the cases after these
     beforeEach(() => window.localStorage.clear());
@@ -537,131 +595,105 @@ describe('how long each attempt took (#247)', () => {
     });
 });
 
-describe('the panel (#300)', () => {
+describe('the popups (#300)', () => {
     afterEach(wideScreen);
 
-    //
-    // the panel's lines: its night, the scores, what came of the attempt, and
-    // how long it took
-    //
-    function linesOf(container) {
-        return [...panelOf(container).children].map((line) => line.textContent);
-    }
-
-    it('is not drawn for a history with no nights', () => {
-        const { container } = draw({ rows: [] });
-
-        expect(panelOf(container)).toBeNull();
-    });
-
-    it('is one panel, under the last of the three charts, on the latest night on a wide screen', () => {
+    it('draws none until a chart is pointed at, and no panel under the charts', () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
-        expect(container.querySelectorAll('.model-attempt-panel')).toHaveLength(1);
-        expect(container.querySelector(TOOK).nextElementSibling).toBe(panelOf(container));
-        expect(linesOf(container)).toEqual([
-            'Oct 16 · nightly update',
-            'Attempt 1.614 · live version 1.600 · baseline 1.660',
-            '▼ Kept back: 0.014 worse than the live version',
-            '9 min 52 s in all: training 8 min 17 s, scoring 1 min 35 s, started 3:58 AM ET',
-        ]);
+        expect(popupsOf(container)).toEqual([]);
+        expect(container.querySelector('.model-attempt-panel, .model-readout')).toBeNull();
     });
 
-    it('stands under the bars of better or worse while no night has times', () => {
-        const { container } = draw({ rows: historyOf() });
-
-        expect(container.querySelector(GAP).nextElementSibling).toBe(panelOf(container));
-    });
-
-    it.each([
-        ['the attempts', ATTEMPTS],
-        ['the bars of better or worse', GAP],
-        ['how long each took', TOOK],
-    ])('moves to the night pointed at on %s, and stays on it when the pointer leaves', (name, which) => {
+    it('says over the attempts what each line and mark is on the night pointed at, each after its mark, and what came of it', () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
-        pointAt(container, 430, which);
+        pointAt(container, 110);
 
-        expect(panelOf(container).firstChild).toHaveTextContent('Oct 15 · nightly update');
+        const popup = popupOf(container);
 
-        fireEvent.mouseLeave(container.querySelector(`${which} .recharts-wrapper`));
-
-        expect(panelOf(container).firstChild).toHaveTextContent('Oct 15 · nightly update');
+        expect(popupsOf(container)).toHaveLength(1);
+        expect(container.querySelector(ATTEMPTS).contains(popup)).toBe(true);
+        expect(popup).toHaveClass('model-tip');
+        expect(readPopup(popup)).toEqual({
+            title: 'Oct 12 · nightly update',
+            rows: [['This attempt', '1.610'], ['Live version', '1.600'], ['Baseline', '1.660']],
+            foot: 'Kept back: 0.010 worse than the live version',
+        });
+        expect(popup.querySelectorAll('.model-tip-row svg.model-mark')).toHaveLength(3);
+        expect(popup.querySelector('.model-tip-row circle')).toHaveAttribute('stroke', chartColors('light').better);
     });
 
-    it('draws no box over a chart: the panel holds the numbers', () => {
+    it('draws one popup at a time: the charts that share the night pointed at show none', () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        pointAt(container, 430, GAP);
+
+        expect(popupsOf(container)).toHaveLength(1);
+        expect(container.querySelector(GAP).contains(popupOf(container))).toBe(true);
+        expect(container.querySelector(ATTEMPTS).querySelector('.model-chart-tip')).toBeNull();
+        expect(container.querySelector(TOOK).querySelector('.model-chart-tip')).toBeNull();
+    });
+
+    it('takes the popup away when the pointer leaves the chart', () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
         pointAt(container, 430);
 
-        expect(container.querySelector('.model-tip')).toBeNull();
-        expect(container.querySelector('.model-readout')).toBeNull();
-        expect(container.querySelector('.recharts-tooltip-wrapper .model-attempt-panel')).toBeNull();
-    });
+        expect(popupOf(container)).not.toBeNull();
 
-    it('names a weekly retrain so', () => {
-        const { container } = draw({ rows: historyOf(1, { 0: { kind: 'weekly', went_live: true } }) });
+        fireEvent.mouseLeave(container.querySelector(`${ATTEMPTS} .recharts-wrapper`));
 
-        expect(panelOf(container).firstChild).toHaveTextContent('Oct 1 · weekly retrain');
+        expect(popupOf(container)).toBeNull();
     });
 
     it.each([
-        ['beat', { went_live: true, attempt: { loss: 1.55, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } }, 'better', '▲ ', 'Went live: 0.050 better than the live version'],
-        ['missed', {}, 'worse', '▼ ', 'Kept back: 0.010 worse than the live version'],
-    ])('says how far an attempt that %s the live version stood from it, after the list\'s arrow', (label, night, stands, arrow, said) => {
+        ['missed', {}, 'bar', chartColors('light').worse, '0.010 worse than the live version', 'Kept back'],
+        ['beat', { went_live: true, attempt: { loss: 1.55, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } }, 'bar', chartColors('light').better, '0.050 better than the live version', 'Went live'],
+    ])('says over the bars how far an attempt that %s the live version stood from it, after a bar in its color', (label, night, mark, color, said, came) => {
         const { container } = draw({ rows: historyOf(1, { 0: night }) });
-        const verdict = panelOf(container).querySelector('.model-attempt-panel-verdict');
 
-        expect(verdict).toHaveClass(`model-gap-${stands}`);
-        expect(verdict.querySelector('.model-gap-arrow')).toHaveTextContent(arrow.trim());
-        expect(verdict).toHaveTextContent(`${arrow.trim()} ${said}`);
+        pointAt(container, 300, GAP);
+
+        const popup = popupOf(container);
+
+        expect(readPopup(popup)).toEqual({ title: 'Oct 1 · nightly update', rows: [[said, '']], foot: came });
+        expect(popup.querySelector('.model-tip-row rect')).toHaveAttribute('fill', color);
     });
 
-    it('calls an attempt that matched the live version level, with no arrow', () => {
+    it('calls an attempt level with the live version so over the bars, with no mark', () => {
         const { container } = draw({ rows: historyOf(1, { 0: { attempt: { loss: 1.6001, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 } } }) });
-        const verdict = panelOf(container).querySelector('.model-attempt-panel-verdict');
 
-        expect(verdict).toHaveClass('model-gap-level');
-        expect(verdict.querySelector('.model-gap-arrow')).toBeNull();
-        expect(verdict).toHaveTextContent(/^Kept back: level with the live version$/);
+        pointAt(container, 300, GAP);
+
+        expect(readPopup(popupOf(container)).rows).toEqual([['Level with the live version', '']]);
+        expect(popupOf(container).querySelector('.model-tip-row svg')).toBeNull();
     });
 
-    it('calls a first version so, with no live version among its scores or arrow before it', () => {
+    it('says over the bars that a first version had no live version to stand against', () => {
         const none = { loss: null, auc_up: null, auc_beats: null, acc_up: null };
         const { container } = draw({ rows: historyOf(1, { 0: { went_live: true, live: none } }) });
-        const verdict = panelOf(container).querySelector('.model-attempt-panel-verdict');
 
-        expect(linesOf(container)[1]).toBe('Attempt 1.610 · baseline 1.660');
-        expect(verdict).toHaveClass('model-gap-level');
-        expect(verdict.querySelector('.model-gap-arrow')).toBeNull();
-        expect(verdict).toHaveTextContent(/^Went live: the model’s first version$/);
+        pointAt(container, 300, GAP);
+
+        expect(readPopup(popupOf(container))).toEqual({ title: 'Oct 1 · nightly update', rows: [['No live version to compare with', '']], foot: 'Went live' });
+        expect(popupOf(container).querySelector('.model-tip-row svg')).toBeNull();
     });
 
-    it('reads its scores on the score on screen, beside how far a kept-back attempt stood on it', () => {
-        const { container } = draw({
-            score: 'auc_up',
-            rows: historyOf(1, { 0: { attempt: { loss: 1.61, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } } }),
-        });
-
-        expect(linesOf(container).slice(1, 3)).toEqual([
-            'Attempt 0.600 · live version 0.560 · baseline 0.500',
-            '▲ Kept back: 0.040 better than the live version',
-        ]);
-        expect(screen.getByText(/Going live is decided by loss/)).toBeInTheDocument();
-    });
-
-    it('says how long the night pointed at took: its training, its scoring, and when it started in Eastern time', () => {
+    it('says how long the night pointed at took: its training and its scoring, each after its mark, and when it started in Eastern time', () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
         pointAt(container, 430, TOOK);
 
-        expect(linesOf(container)[3]).toBe('8 min 52 s in all: training 7 min 17 s, scoring 1 min 35 s, started 3:58 AM ET');
-    });
+        const popup = popupOf(container);
 
-    it('leaves out when a night started where the history does not say', () => {
-        const { container } = draw({ rows: timedHistoryOf({ 4: { started: null } }) });
-
-        expect(linesOf(container)[3]).toBe('9 min 52 s in all: training 8 min 17 s, scoring 1 min 35 s');
+        expect(container.querySelector(TOOK).contains(popup)).toBe(true);
+        expect(readPopup(popup)).toEqual({
+            title: 'Oct 15 · nightly update',
+            rows: [['Training', '7 min 17 s'], ['Scoring', '1 min 35 s']],
+            foot: '8 min 52 s in all, started 3:58 AM ET',
+        });
+        expect(popup.querySelectorAll('.model-tip-row svg.model-mark')).toHaveLength(2);
     });
 
     //
@@ -674,44 +706,147 @@ describe('the panel (#300)', () => {
 
         pointAt(container, 110, TOOK);
 
-        expect(linesOf(container)[0]).toBe('Oct 12 · nightly update');
-        expect(linesOf(container)[3]).toBe('No times: they are kept from Oct 15, 2026 on');
+        expect(readPopup(popupOf(container))).toEqual({ title: 'Oct 12 · nightly update', rows: [], foot: 'No times: they are kept from Oct 15, 2026 on' });
+    });
+
+    it('leaves out when a night started where the history does not say', () => {
+        const { container } = draw({ rows: timedHistoryOf({ 4: { started: null } }) });
+
+        pointAt(container, 540, TOOK);
+
+        expect(readPopup(popupOf(container)).foot).toBe('9 min 52 s in all');
     });
 
     it('prints a night under ten seconds to a tenth', () => {
         const { container } = draw({ rows: timedHistoryOf({ 4: { training_seconds: 2.3, total_seconds: 2.6 } }) });
 
-        expect(linesOf(container)[3]).toBe('2.6 s in all: training 2.3 s, scoring 0.3 s, started 3:58 AM ET');
+        pointAt(container, 540, TOOK);
+
+        expect(readPopup(popupOf(container))).toEqual({
+            title: 'Oct 16 · nightly update',
+            rows: [['Training', '2.3 s'], ['Scoring', '0.3 s']],
+            foot: '2.6 s in all, started 3:58 AM ET',
+        });
     });
 
-    it('shows the latest night on a phone too, moves to the night tapped, and back to the latest on a second tap', () => {
+    it('names a weekly retrain so', () => {
+        const { container } = draw({ rows: historyOf(1, { 0: { kind: 'weekly', went_live: true } }) });
+
+        pointAt(container, 300);
+
+        expect(readPopup(popupOf(container)).title).toBe('Oct 1 · weekly retrain');
+    });
+
+    it.each([
+        ['beat', { went_live: true, attempt: { loss: 1.55, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } }, 'Went live: 0.050 better than the live version'],
+        ['missed', {}, 'Kept back: 0.010 worse than the live version'],
+        ['matched', { attempt: { loss: 1.6001, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 } }, 'Kept back: level with the live version'],
+    ])('says what came of an attempt that %s the live version, under its scores', (label, night, said) => {
+        const { container } = draw({ rows: historyOf(1, { 0: night }) });
+
+        pointAt(container, 300);
+
+        expect(readPopup(popupOf(container)).foot).toBe(said);
+    });
+
+    it('calls a first version so, with no live version among its rows', () => {
+        const none = { loss: null, auc_up: null, auc_beats: null, acc_up: null };
+        const { container } = draw({ rows: historyOf(1, { 0: { went_live: true, live: none } }) });
+
+        pointAt(container, 300);
+
+        expect(readPopup(popupOf(container))).toEqual({
+            title: 'Oct 1 · nightly update',
+            rows: [['This attempt', '1.610'], ['Baseline', '1.660']],
+            foot: 'Went live: the model’s first version',
+        });
+    });
+
+    it('reads its scores on the score on screen, beside how far a kept-back attempt stood on it', () => {
+        const { container } = draw({
+            score: 'auc_up',
+            rows: historyOf(1, { 0: { attempt: { loss: 1.61, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } } }),
+        });
+
+        pointAt(container, 300);
+
+        expect(readPopup(popupOf(container))).toEqual({
+            title: 'Oct 1 · nightly update',
+            rows: [['This attempt', '0.600'], ['Live version', '0.560'], ['Baseline', '0.500']],
+            foot: 'Kept back: 0.040 better than the live version',
+        });
+        expect(screen.getByText(/Going live is decided by loss/)).toBeInTheDocument();
+    });
+
+    it('draws none on a phone for a pointer: only a tap opens one', () => {
+        phoneScreen();
+
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        pointAt(container, 430);
+
+        expect(popupsOf(container)).toEqual([]);
+    });
+
+    it('opens on a phone for the night tapped, over the chart tapped, and closes on a second tap on it', () => {
         phoneScreen();
 
         const { container } = draw({ rows: timedHistoryOf() });
         const took = container.querySelector(`${TOOK} .recharts-wrapper`);
 
-        expect(container.querySelectorAll('.model-attempt-panel')).toHaveLength(1);
-        expect(panelOf(container).firstChild).toHaveTextContent('Oct 16 · nightly update');
+        tapAt(took, 430);
+
+        expect(popupsOf(container)).toHaveLength(1);
+        expect(container.querySelector(TOOK).contains(popupOf(container))).toBe(true);
+        expect(readPopup(popupOf(container)).title).toBe('Oct 15 · nightly update');
 
         tapAt(took, 430);
 
-        expect(panelOf(container).firstChild).toHaveTextContent('Oct 15 · nightly update');
-
-        tapAt(took, 430);
-
-        expect(panelOf(container).firstChild).toHaveTextContent('Oct 16 · nightly update');
+        expect(popupsOf(container)).toEqual([]);
     });
 
-    it('moves on a phone to the night tapped on whichever chart was tapped last', () => {
+    it('moves on a phone to another night tapped on the same chart', () => {
+        phoneScreen();
+
+        const { container } = draw({ rows: timedHistoryOf() });
+        const attempts = container.querySelector(`${ATTEMPTS} .recharts-wrapper`);
+
+        tapAt(attempts, 430);
+        tapAt(attempts, 40);
+
+        expect(popupsOf(container)).toHaveLength(1);
+        expect(readPopup(popupOf(container)).title).toBe('Oct 12 · nightly update');
+    });
+
+    it('moves on a phone to the chart tapped next, for the night tapped there', async () => {
         phoneScreen();
 
         const { container } = draw({ rows: timedHistoryOf() });
 
+        await nextTurn();
         tapAt(container.querySelector(`${TOOK} .recharts-wrapper`), 430);
-        tapAt(container.querySelector(`${ATTEMPTS} .recharts-wrapper`), 110);
+        tapAt(container.querySelector(`${ATTEMPTS} .recharts-wrapper`), 40);
 
-        expect(container.querySelectorAll('.model-attempt-panel')).toHaveLength(1);
-        expect(panelOf(container).firstChild).toHaveTextContent('Oct 12 · nightly update');
+        expect(popupsOf(container)).toHaveLength(1);
+        expect(container.querySelector(ATTEMPTS).contains(popupOf(container))).toBe(true);
+        expect(readPopup(popupOf(container)).title).toBe('Oct 12 · nightly update');
+    });
+
+    it('closes on a phone for a tap anywhere off the chart, and stays open for one on it', async () => {
+        phoneScreen();
+
+        const { container } = draw({ rows: timedHistoryOf() });
+        const took = container.querySelector(`${TOOK} .recharts-wrapper`);
+
+        await nextTurn();
+        tapAt(took, 430);
+        fireEvent.click(container.querySelector(TOOK));
+
+        expect(popupOf(container)).not.toBeNull();
+
+        fireEvent.click(document.body);
+
+        expect(popupsOf(container)).toEqual([]);
     });
 });
 
@@ -731,7 +866,6 @@ describe('folding the card (#253, #300)', () => {
 
         expect(title()).toHaveAttribute('aria-expanded', 'true');
         expect(container.querySelectorAll('.model-chart')).toHaveLength(3);
-        expect(container.querySelectorAll('.model-attempt-panel')).toHaveLength(1);
     });
 
     it('gives the two charts under the first a heading each, and no fold of their own: a fold in a fold confused', () => {
@@ -743,7 +877,7 @@ describe('folding the card (#253, #300)', () => {
         expect(container.querySelector('.model-card-minor button')).toBeNull();
     });
 
-    it('folds the whole card down to its title -- its line, its legend, all three charts, the panel and the numbers -- and opens it again', async () => {
+    it('folds the whole card down to its title -- its line, its legend, all three charts and the numbers -- and opens it again', async () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
         await userEvent.click(title());
@@ -754,7 +888,7 @@ describe('folding the card (#253, #300)', () => {
         expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
         expect(screen.queryByRole('heading', { name: GAP_TITLE })).toBeNull();
         expect(screen.queryByRole('heading', { name: TOOK_TITLE })).toBeNull();
-        expect(panelOf(container)).toBeNull();
+        expect(popupOf(container)).toBeNull();
         expect(screen.queryByRole('button', { name: 'Show the numbers' })).toBeNull();
 
         await userEvent.click(title());

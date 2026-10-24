@@ -79,6 +79,7 @@ import {
     heldTrackOf,
     holdsBehindOf,
     phoneScreen,
+    pointAt,
     timedHistoryOf,
     trackOf,
     wideScreen,
@@ -662,19 +663,27 @@ describe('a listing that says how many scored days its models\' scores average, 
         expect(stat('Loss, last 10 days')).toBeInTheDocument();
     });
 
-    it('says them in the track record\'s legend, its panel and its table (#300)', async () => {
+    it('says them in the track record\'s legend, its popup and its table (#300)', async () => {
         answer({ listing: over(30), track: trackOf(5) });
         await open();
 
         const track = screen.getByRole('region', { name: 'Track record: Loss' });
         const legend = within(track).getByRole('list', { name: 'Legend' });
 
+        expect(track.querySelector('.model-readout')).toBeNull();
+
+        act(() => pointAt(track.querySelector('.recharts-wrapper'), 300));
+
+        const popup = track.querySelector('.model-chart-tip');
+
+        expect(within(popup).getByText('Baseline, last 30 days')).toBeInTheDocument();
+        expect(within(popup).getByText(/^Last \d+ days’ average$/)).toBeInTheDocument();
+
         await userEvent.click(within(track).getByRole('button', { name: 'Show the numbers' }));
 
         expect(within(legend).getByText('Last 30 days’ average')).toBeInTheDocument();
         expect(within(legend).getByText('Baseline, last 30 days')).toBeInTheDocument();
         expect(track.querySelector('.model-card-sub')).toHaveTextContent(/^Each day’s real predictions, scored once that day’s prices are in\.$/);
-        expect(within(track).getByText('Know-nothing baseline, 30 days')).toBeInTheDocument();
         expect(within(within(track).getByRole('table')).getAllByRole('columnheader').map((cell) => cell.textContent))
             .toEqual(['Day', 'This day', '30 days', 'Baseline, 30 days']);
     });

@@ -65,29 +65,13 @@
 
 //
 // the docs' page on the models (#296), in place of /model's intro: the page icon
-// at the right end of the Sort row on a computer, and of the title's row on a
-// phone, as /stream's icons sit at the end of theirs. Each shows on its own
-// screens alone, and outranks '.api-links' to hide
+// at the right end of the title's row, as /stream's icons sit at the end of
+// theirs -- on a computer too from #300, where it had stood at the end of the
+// sort menu's row, which the page no longer has
 //
-.model-heading .model-heading-docs,
-.model-controls .model-controls-docs {
-  margin-left: auto;
-}
-
 .model-heading .model-heading-docs {
   align-self: center;
-}
-
-@media (max-width: 767.98px) {
-  .model-controls .model-controls-docs {
-    display: none;
-  }
-}
-
-@media (min-width: 768px) {
-  .model-heading .model-heading-docs {
-    display: none;
-  }
+  margin-left: auto;
 }
 
 .model-status {
@@ -532,7 +516,6 @@
   text-transform: uppercase;
 }
 
-.model-sort,
 .model-other {
   align-items: center;
   display: flex;
@@ -629,7 +612,6 @@
 }
 
 .model-score-menu select,
-.model-sort select,
 .model-other select {
   -webkit-appearance: none;
   appearance: none;
@@ -834,8 +816,12 @@
   grid-area: score;
 }
 
+//
+// the line 6px under what it spans, so its highest day never touches the words
+// (#300)
+//
 .model-cell-trend {
-  gap: 2px;
+  gap: 6px;
   grid-area: trend;
 }
 
@@ -944,12 +930,6 @@
 .model-name {
   font-size: 15px;
   font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.model-address {
-  color: $gray-6;
-  font-size: 13px;
   overflow-wrap: anywhere;
 }
 
@@ -1420,33 +1400,6 @@
 }
 
 //
-// a night's numbers, in one panel under the attempts' three charts (#300) --
-// see attempts-chart.jsx's AttemptPanel: on a tint a step off the page, the
-// night in the figures' ink over a line each of its scores, what became of it,
-// and how long it took
-//
-.model-attempt-panel {
-  background-color: color-mix(in srgb, $gray-1 45%, $white-1);
-  border-radius: 6px;
-  color: $gray-7;
-  display: flex;
-  flex-direction: column;
-  font-size: 14px;
-  gap: 4px;
-  line-height: 1.45;
-  padding: 10px 12px;
-}
-
-.model-attempt-panel-title {
-  color: $gray-9;
-  font-weight: 600;
-}
-
-.model-attempt-panel-scores {
-  font-variant-numeric: tabular-nums;
-}
-
-//
 // the track record's card on a hold with no result in yet (#300): when its
 // results come in, in the middle of a light tint where the chart would be
 //
@@ -1575,6 +1528,22 @@
 // tip, smaller, a line for each row, and as wide as its words rather than the
 // 132px line it is drawn over
 //
+//
+// the popup over a model page's chart, by the day pointed at or tapped (#300) --
+// see parts.jsx's popupOf: the panel's tip as a /model trend line's box is, a
+// line for each of its rows, and no wider than a phone's chart can hold, where a
+// row's words wrap
+//
+.model-chart-tip {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  gap: 0.15rem;
+  line-height: 1.35;
+  max-width: 260px;
+  padding: 6px 10px;
+  width: max-content;
+}
+
 .model-trend-tip {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   font-size: 0.8rem;
@@ -2611,8 +2580,7 @@
   //
   // the pickers as #300 lays them out on a phone: each picker's name
   // over its menu, a Score menu and a Hold menu side by side, and one on its
-  // own across the line. The sort keeps its name beside its menu, which runs
-  // to the line's end (#272)
+  // own across the line
   //
   .model-controls {
     column-gap: 10px;
@@ -2630,14 +2598,6 @@
     grid-column: auto;
   }
 
-  .model-sort {
-    align-items: center;
-    column-gap: 0.5rem;
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
   .model-score-menu {
     display: flex;
     min-width: 0;
@@ -2647,10 +2607,6 @@
     border-radius: 8px;
     font-size: 15px;
     min-height: 44px;
-    width: 100%;
-  }
-
-  .model-sort select {
     width: 100%;
   }
 
@@ -2869,7 +2825,12 @@
   }
 
   .model-cell-model { grid-area: model; }
-  .model-cell-compare { grid-area: compare; align-self: start; height: 1.75rem; }
+  //
+  // the box that ticks a model as tall as its name's line, which the bell's
+  // finger-wide button sets, so the box stands level with the name, its status
+  // and its bell, one row across the card's top (#300)
+  //
+  .model-cell-compare { grid-area: compare; align-self: start; height: 2.75rem; }
   .model-cell-score,
   .model-cell-parts { grid-area: score; }
   .model-cell-trend { grid-area: trend; }
@@ -2983,6 +2944,39 @@
     font-size: 22px;
   }
 
+  //
+  // a phone's trend line 56px tall across its card (#300) -- model-row.jsx's
+  // TREND_HEIGHT_PHONE
+  //
+  .model-trend,
+  .model-trend-pending,
+  .model-trend-none {
+    height: 56px;
+  }
+
+  .model-trend-none {
+    line-height: 56px;
+  }
+
+  //
+  // a phone's charts as wide as their card, their values inside them -- see
+  // parts.jsx's valueAxis -- so the attempts' headings and lines over their
+  // charts start at the card's edge as its title does (#300)
+  //
+  .model-page .model-card-minor,
+  .model-page .model-attempts > .model-card-sub {
+    margin-left: 0;
+  }
+
+  //
+  // no legend on a phone's charts but which way the axis runs (#300): the
+  // popup a tap opens names every line and mark of the day tapped, and a legend
+  // took a small card's room, packed and tight
+  //
+  .model-page .model-legend > li:not(.model-legend-note) {
+    display: none;
+  }
+
   .model-summary-cards {
     display: none;
   }
@@ -2993,21 +2987,24 @@
 
   //
   // a model's three figures as #300 lays them out on a phone: three boxes 8px
-  // apart, each a name over its value at its left on a light tint, the score's
-  // washed in the charts' blue where it is better than the baseline and in
-  // their red where it is worse, every value in the figures' ink
+  // apart, each a name over its value in its middle on a light tint inside a
+  // light rule, so the room round them reads the same on every side and each box
+  // stands as one (#300), the score's washed in the charts'
+  // blue where it is better than the baseline and in their red where it is
+  // worse, every value in the figures' ink
   //
   .model-summary-boxes .stream-focus-figures {
     gap: 8px;
   }
 
   .model-summary-boxes .stream-focus-figure {
-    align-items: flex-start;
+    align-items: center;
     background-color: color-mix(in srgb, $gray-1 60%, $white-1);
-    border: 0;
+    border: 1px solid $gray-2;
     border-radius: 8px;
     gap: 4px;
     padding: 10px;
+    text-align: center;
   }
 
   .model-summary-boxes .stream-focus-figure:has(.stream-focus-figure-good) {

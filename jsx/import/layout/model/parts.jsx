@@ -439,6 +439,86 @@ export function usePanelDay(latest) {
 }
 
 /**
+ * which of a card's charts shows its popup of a day's numbers, and for which day
+ * (#300), in place of a panel under the charts, which a reader on a phone did not
+ * know was there:
+ *
+ *     a computer    the chart under the pointer, for the day recharts hands its
+ *                   tooltip as the pointer moves, and none once it leaves
+ *     a phone       the chart and the day tapped: a second tap on the same day
+ *                   closes it, as does a tap anywhere off the chart
+ *
+ * Charts that share their days -- the attempts' three -- share one hook, so one
+ * chart's popup shows at a time, though recharts moves the others' to the day.
+ *
+ *     events(chart)        the props a recharts chart takes
+ *     tooltip(chart)       the props its tooltip takes, a tap's on a phone
+ *     dayFor(chart, day)   the day its popup shows, or null for none, `day` being
+ *                          the one recharts hands it
+ *     away(chart)          what closes a phone's popup for a tap off the chart
+ */
+export function usePopup() {
+    const phone = usePhone();
+    const [hovered, setHovered] = useState(null);
+    const [tapped, setTapped] = useState(null);
+    const opens = (chart) => Boolean(tapped && tapped.chart === chart);
+
+    const events = (chart) => (phone
+        ? {
+            onClick: (state) => {
+                const day = (state && state.activeLabel) || null;
+
+                if (day) {
+                    setTapped(opens(chart) && tapped.day === day ? null : { chart: chart, day: day });
+                }
+            },
+        } : {
+            onMouseMove: () => {
+                if (hovered !== chart) {
+                    setHovered(chart);
+                }
+            },
+            onMouseLeave: () => setHovered(null),
+        });
+
+    const tooltip = (chart) => (phone ? { trigger: 'click', active: opens(chart) } : {});
+
+    const dayFor = (chart, day) => {
+        if (phone) {
+            return opens(chart) ? tapped.day : null;
+        }
+
+        return hovered === chart ? day || null : null;
+    };
+
+    //
+    // a tap off the chart closes its popup -- but not one a tap on another chart
+    // has just opened, in the same click: the first chart's tap off it is heard
+    // after the second chart's tap on it
+    //
+    const away = (chart) => () => {
+        if (opens(chart)) {
+            setTapped((current) => (current && current.chart === chart ? null : current));
+        }
+    };
+
+    return { phone: phone, events: events, tooltip: tooltip, dayFor: dayFor, away: away };
+}
+
+/**
+ * what a chart's tooltip draws (#300): the popup of `tip(day)`, a TipBox -- see
+ * below -- for the day `popup` gives the chart named `chart`, and nothing for any
+ * other, so only the chart pointed at or tapped shows one.
+ */
+export function popupOf(popup, chart, tip) {
+    return function Popup({ active, label }) {
+        const box = active || popup.phone ? tip(popup.dayFor(chart, label)) : null;
+
+        return box ? <TipBox {...box} className='model-chart-tip' /> : null;
+    };
+}
+
+/**
  * which of a page's sections the reader has folded, kept between visits as
  * every other page keeps how it was arranged -- see layout-preference.js -- and
  * apart on a phone and a wide screen, as /graph keeps its columns.
@@ -515,13 +595,14 @@ Readout.propTypes = {
 };
 
 /**
- * what a panel says of a day: its title, a row for each thing drawn on it with
- * its mark, and a note under them. Laid out as rows on a phone and as one line
- * on a wide screen -- see Readout, which places it under its chart.
+ * what a panel or a popup says of a day: its title, a row for each thing drawn
+ * on it with its mark, and a note under them. Laid out as rows on a phone and as
+ * one line on a wide screen under a chart -- see Readout -- and as rows in a
+ * chart's popup, `className` 'model-chart-tip' (#300) -- see popupOf.
  */
-export function TipBox({ title, rows, foot = null }) {
+export function TipBox({ title, rows, foot = null, className = '' }) {
     return (
-        <div className='model-tip'>
+        <div className={`model-tip${className ? ` ${className}` : ''}`}>
             <div className='model-tip-title'>{title}</div>
             {rows.map((row) => (
                 <div key={row.key} className='model-tip-row'>
@@ -544,6 +625,7 @@ TipBox.propTypes = {
         value: PropTypes.node,
     })).isRequired,
     foot: PropTypes.node,
+    className: PropTypes.string,
 };
 
 /**
@@ -614,6 +696,27 @@ Numbers.propTypes = {
  */
 export function tickGap(phone) {
     return phone ? 40 : 24;
+}
+
+/**
+ * a chart's values' axis (#300): on a wide screen a 56px gutter at the chart's
+ * left, wide enough for 'better' and '8 min', in the axes' own style; on a phone
+ * its values inside the plot instead, over its gridlines' left ends, each on a
+ * halo of the page's color so a mark under it does not hide it. A gutter set a
+ * phone's chart well in from its small card's edge, 56px and then 40px of 330px.
+ */
+export function valueAxis(phone, colors) {
+    if (!phone) {
+        return { width: 56, ...axisStyle(colors) };
+    }
+
+    return {
+        ...axisStyle(colors),
+        width: 56,
+        mirror: true,
+        tickMargin: 2,
+        tick: { fill: colors.muted, fontSize: 11, stroke: colors.page, strokeWidth: 3, paintOrder: 'stroke' },
+    };
 }
 
 /**

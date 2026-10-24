@@ -343,14 +343,12 @@ describe('the page before the listing', () => {
             expect(filters().querySelector('.model-filters-summary > .graph-pending-bar')).not.toHaveAttribute('style');
         });
 
-        it('draws the sort, which works before the listing lands, the hint, and the list\'s score picker as its name over bars (#279)', async () => {
+        it('draws the hint, and the list\'s score picker as its name over bars, with no sort menu (#279, #300)', async () => {
             await waiting();
-
-            await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'name');
 
             const picker = document.querySelector('.model-group .model-picker-pending');
 
-            expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('name');
+            expect(screen.queryByRole('combobox', { name: 'Sort' })).toBeNull();
             expect(screen.getByText('Tick two or three models that predict the same thing to compare them.')).toHaveClass('model-hint');
             expect(picker.querySelector('.model-control-label')).toHaveTextContent('Score');
             expect(screen.queryByRole('group', { name: 'Score' })).toBeNull();
@@ -371,20 +369,19 @@ describe('the page before the listing', () => {
             });
         });
 
-        it('gives the bars\' places to the lists once the listing lands, sorted as the sort was set while it waited', async () => {
+        it('gives the bars\' places to the lists once the listing lands, each best score first', async () => {
             const listing = deferred();
 
             loadListing.mockReturnValue(listing.promise);
             loadReport.mockResolvedValue(trackOf(5));
             await open();
-            await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'name');
 
             await act(async () => listing.resolve(listingOf()));
 
             expect(document.querySelector('.model-row-pending')).toBeNull();
             expect(screen.queryByRole('status')).toBeNull();
             expect(document.querySelector('.model-count')).toHaveTextContent('4');
-            expect(namesIn('Next-day direction')).toEqual(['fresh', 'pt-gnn', 'tables']);
+            expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
         });
     });
 
@@ -596,15 +593,13 @@ describe('the lists', () => {
         expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
     });
 
-    it('sorts by what the sort menu says', async () => {
+    it('has no sort menu: each list is best score first (#300)', async () => {
         answer();
         await open();
 
-        await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'name');
-        expect(namesIn('Next-day direction')).toEqual(['fresh', 'pt-gnn', 'tables']);
-
-        await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'went');
-        expect(namesIn('Next-day direction')).toEqual(['tables', 'pt-gnn', 'fresh']);
+        expect(screen.queryByRole('combobox', { name: 'Sort' })).toBeNull();
+        expect(document.querySelector('.model-sort')).toBeNull();
+        expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
     });
 
     it('shows the score picked in every row, and sorts by it', async () => {
@@ -746,29 +741,24 @@ describe('the title (#296)', () => {
         expect(screen.queryByRole('button', { name: 'Less' })).toBeNull();
     });
 
-    it('links the docs\' page on the models from the Sort row and from the title\'s row, each in a new tab', async () => {
+    it('links the docs\' page on the models from the title\'s row alone, in a new tab (#300)', async () => {
         answer();
         await open();
 
-        const sortRow = document.querySelector('.model-main > .model-controls');
-        const titleRow = document.querySelector('.model-heading');
+        const link = within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' });
 
-        [sortRow, titleRow].forEach((row) => {
-            const link = within(row).getByRole('link', { name: 'How the models work' });
-
-            expect(link).toHaveAttribute('href', GUIDE);
-            expect(link).toHaveAttribute('target', '_blank');
-            expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-            expect(link).toHaveClass('api-link');
-            expect(link.querySelector('svg')).toHaveAttribute('data-testid', 'DescriptionOutlinedIcon');
-        });
+        expect(screen.getAllByRole('link', { name: 'How the models work' })).toEqual([link]);
+        expect(link).toHaveAttribute('href', GUIDE);
+        expect(link).toHaveAttribute('target', '_blank');
+        expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+        expect(link).toHaveClass('api-link');
+        expect(link.querySelector('svg')).toHaveAttribute('data-testid', 'DescriptionOutlinedIcon');
     });
 
-    it('draws the Sort row\'s large, as /stream\'s is on a computer, and the title row\'s medium, as on a phone', async () => {
+    it('draws the icon medium, beside a title of the menu\'s size', async () => {
         answer();
         await open();
 
-        expect(document.querySelector('.model-controls-docs svg')).toHaveClass('MuiSvgIcon-fontSizeLarge');
         expect(document.querySelector('.model-heading-docs svg')).toHaveClass('MuiSvgIcon-fontSizeMedium');
     });
 
@@ -776,16 +766,16 @@ describe('the title (#296)', () => {
         answer();
         await open();
 
-        await userEvent.hover(within(document.querySelector('.model-controls')).getByRole('link', { name: 'How the models work' }));
+        await userEvent.hover(within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' }));
 
         expect(await screen.findByRole('tooltip')).toHaveTextContent('How the models work');
     });
 
-    it('keeps the Sort row\'s link while the listing is on its way', async () => {
+    it('keeps the title row\'s link while the listing is on its way', async () => {
         loadListing.mockReturnValue(new Promise(() => {}));
         await open();
 
-        expect(within(document.querySelector('.model-controls')).getByRole('link', { name: 'How the models work' })).toHaveAttribute('href', GUIDE);
+        expect(within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' })).toHaveAttribute('href', GUIDE);
     });
 
     it('keeps no fold for an intro in the layout this browser keeps, on a phone', async () => {
@@ -1521,14 +1511,73 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
         expect(namesIn('Next-day direction')).toEqual(['tables-gnn', 'pt-gnn']);
     });
 
-    it('draws no hold picker on a list whose models the listing gives no holds, as before format 5', async () => {
+    it('draws no hold picker on a list of stock models the listing gives no holds, as before format 5', async () => {
         answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(5) : withTop10(trackOf(5))));
         await open({ holds: { direction: 5 } });
 
         expect(within(group('Next-day direction')).queryByRole('group', { name: 'Hold' })).toBeNull();
-        expect(within(group('Option picks')).queryByRole('group', { name: 'Hold' })).toBeNull();
         expect(group('Next-day direction').querySelector('.model-hold-line')).toBeNull();
         expect(group('Next-day direction').querySelector('.model-parts-note')).toHaveTextContent(/, last 20 days$/);
+    });
+
+    describe('an options list before format 5, its holds from its models\' track records (#300)', () => {
+        const optionsRow = () => rowOf('pt-options');
+        const valueIn = () => optionsRow().querySelector('.model-score-value');
+        const daysIn = () => optionsRow().querySelector('.model-score-days');
+
+        it('offers its three holds on 1 day, with the line saying what the hold is', async () => {
+            answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(30) : withTop10(trackOf(5))));
+            await open();
+
+            expect(buttons('Option picks', 'Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days']);
+            expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
+            expect(group('Option picks').querySelector('.model-hold-line'))
+                .toHaveTextContent('1-day hold: bought at the 9:40 AM ask on the next trading day and sold at the 3:40 PM bid the day after.');
+        });
+
+        it('shows each row\'s score on a longer hold as its track record has it, and its days', async () => {
+            const rows = optionsTrackOf(30);
+            const scored = (hold) => rows.filter((row) => row.score[`loss_${hold}d`] !== null);
+            const newest = (hold) => scored(hold)[scored(hold).length - 1];
+
+            const onHold = jest.fn();
+
+            answer(optionsListingOf(), (name) => (name === 'pt-options' ? rows : withTop10(trackOf(5))));
+
+            const { unmount } = await open({ holds: { 'option-picks': 5 }, onHold: onHold });
+
+            expect(valueIn()).toHaveTextContent(formatScore(newest(5).average.loss_5d, 'loss'));
+            expect(daysIn()).toHaveTextContent('last 20 days');
+            expect(optionsRow().querySelector('.model-cell-score .model-gap')).toHaveTextContent(`, ${formatScore(newest(5).baseline_average.loss_5d, 'loss')}`);
+            expect(group('Option picks').querySelector('.model-hold-line')).toHaveTextContent('5-day hold: sold at the 3:40 PM bid 5 trading days after the buy day.');
+
+            await userEvent.click(within(within(group('Option picks')).getByRole('group', { name: 'Hold' })).getByRole('button', { name: '20 days' }));
+
+            expect(onHold).toHaveBeenCalledWith('option-picks', 20);
+
+            unmount();
+            await open({ holds: { 'option-picks': 20 } });
+
+            expect(valueIn()).toHaveTextContent(formatScore(newest(20).average.loss_20d, 'loss'));
+            expect(daysIn()).toHaveTextContent(`${scored(20).length} days so far`);
+        });
+
+        it('holds bars in a row\'s figures on a longer hold while its track record is on its way', async () => {
+            loadListing.mockResolvedValue(optionsListingOf());
+            loadReport.mockImplementation((name) => (name === 'pt-options' ? new Promise(() => {}) : Promise.resolve(withTop10(trackOf(5)))));
+            await open({ holds: { 'option-picks': 5 } });
+
+            expect(valueIn().querySelector('.graph-pending-bar')).not.toBeNull();
+            expect(daysIn().querySelector('.graph-pending-bar')).not.toBeNull();
+        });
+
+        it('shows a dash where the track record could not be had', async () => {
+            answer(optionsListingOf(), (name) => (name === 'pt-options' ? null : withTop10(trackOf(5))));
+            await open({ holds: { 'option-picks': 5 } });
+
+            expect(valueIn()).toHaveTextContent('–');
+            expect(daysIn()).toHaveTextContent('no scored days yet');
+        });
     });
 
     it('draws each model ticked on its list\'s hold in the comparison, named with it', async () => {

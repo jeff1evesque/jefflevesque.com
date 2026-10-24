@@ -2,8 +2,9 @@
  * parts.test.jsx: what both model pages draw alike (#243): the score picker, a
  * model's status and its bell (#255), a legend's marks and the note on which way
  * its axis runs (#300), how a part of loss stands, a panel's day and how it is
- * chosen, a chart's table, and a chart's title that folds it, with the folds it
- * keeps.
+ * chosen, a chart's popup and which chart shows it (#300), a chart's values'
+ * axis (#300), a chart's table, and a chart's title that folds it, with the
+ * folds it keeps.
  */
 
 import React from 'react';
@@ -29,11 +30,14 @@ import {
     gapWords,
     isPhone,
     partGap,
+    popupOf,
     tickGap,
     modelsHeld,
     useFolds,
     usePanelDay,
     usePhone,
+    usePopup,
+    valueAxis,
 } from '../../../import/layout/model/parts.jsx';
 import { readLayout, writeLayout } from '../../../import/general/layout-preference.js';
 import { downModelOf, modelOf, phoneScreen, wideScreen } from '../../../test-support/model-fixtures.js';
@@ -228,6 +232,25 @@ describe('tickGap (#300)', () => {
     it('stands a phone\'s days further apart, so a narrow chart names fewer', () => {
         expect(tickGap(false)).toBe(24);
         expect(tickGap(true)).toBe(40);
+    });
+});
+
+describe('valueAxis (#300)', () => {
+    const colors = { grid: '#eee', muted: '#888', page: '#fff' };
+
+    it('keeps a wide screen\'s values in a 56px gutter at the chart\'s left, in the axes\' own style', () => {
+        expect(valueAxis(false, colors)).toEqual({ width: 56, stroke: '#eee', tick: { fill: '#888', fontSize: 12 }, tickLine: false });
+    });
+
+    it('draws a phone\'s values inside the plot, each on a halo of the page\'s color, so the chart has its card\'s whole width', () => {
+        expect(valueAxis(true, colors)).toEqual({
+            stroke: '#eee',
+            tickLine: false,
+            width: 56,
+            mirror: true,
+            tickMargin: 2,
+            tick: { fill: '#888', fontSize: 11, stroke: '#fff', strokeWidth: 3, paintOrder: 'stroke' },
+        });
     });
 });
 
@@ -459,6 +482,16 @@ describe('TipBox', () => {
 
         expect(container.querySelector('.model-tip-foot')).toBeNull();
     });
+
+    it('takes a class beside its own, as a chart\'s popup does (#300), and none where it is handed none', () => {
+        const { container, rerender } = render(<TipBox title='x' rows={[]} className='model-chart-tip' />);
+
+        expect(container.firstChild).toHaveClass('model-tip', 'model-chart-tip');
+
+        rerender(<TipBox title='x' rows={[]} />);
+
+        expect(container.firstChild).toHaveAttribute('class', 'model-tip');
+    });
 });
 
 describe('Readout (#251)', () => {
@@ -588,6 +621,143 @@ describe('usePanelDay (#251)', () => {
 
         expect(result.current.dayFor('attempts')).toBe('2026-10-15');
         expect(result.current.dayFor('took')).toBeNull();
+    });
+});
+
+describe('usePopup (#300)', () => {
+    afterEach(wideScreen);
+
+    it('shows a wide screen\'s popup on the chart under the pointer alone, for the day recharts hands it', () => {
+        const { result } = renderHook(() => usePopup());
+
+        expect(result.current.phone).toBe(false);
+        expect(result.current.tooltip('attempts')).toEqual({});
+        expect(result.current.events('attempts')).not.toHaveProperty('onClick');
+        expect(result.current.dayFor('attempts', '2026-10-14')).toBeNull();
+
+        act(() => result.current.events('attempts').onMouseMove());
+
+        expect(result.current.dayFor('attempts', '2026-10-14')).toBe('2026-10-14');
+        expect(result.current.dayFor('attempts', undefined)).toBeNull();
+        expect(result.current.dayFor('gap', '2026-10-14')).toBeNull();
+
+        act(() => result.current.events('attempts').onMouseMove());
+        act(() => result.current.events('gap').onMouseMove());
+
+        expect(result.current.dayFor('gap', '2026-10-13')).toBe('2026-10-13');
+        expect(result.current.dayFor('attempts', '2026-10-13')).toBeNull();
+    });
+
+    it('takes a wide screen\'s popup away once the pointer leaves, and has nothing for a tap off a chart to close', () => {
+        const { result } = renderHook(() => usePopup());
+
+        act(() => result.current.events('track').onMouseMove());
+        act(() => result.current.away('track')());
+
+        expect(result.current.dayFor('track', '2026-10-14')).toBe('2026-10-14');
+
+        act(() => result.current.events('track').onMouseLeave());
+
+        expect(result.current.dayFor('track', '2026-10-14')).toBeNull();
+    });
+
+    it('opens a phone\'s popup on the chart and the day tapped, and closes it on a second tap on the day', () => {
+        phoneScreen();
+
+        const { result } = renderHook(() => usePopup());
+
+        expect(result.current.phone).toBe(true);
+        expect(result.current.events('track')).not.toHaveProperty('onMouseMove');
+        expect(result.current.tooltip('track')).toEqual({ trigger: 'click', active: false });
+        expect(result.current.dayFor('track', '2026-10-16')).toBeNull();
+
+        act(() => result.current.events('track').onClick({ activeLabel: '2026-10-14' }));
+
+        expect(result.current.tooltip('track')).toEqual({ trigger: 'click', active: true });
+        expect(result.current.dayFor('track', '2026-10-16')).toBe('2026-10-14');
+
+        act(() => result.current.events('track').onClick({ activeLabel: '2026-10-15' }));
+        expect(result.current.dayFor('track')).toBe('2026-10-15');
+
+        act(() => result.current.events('track').onClick({ activeLabel: '2026-10-15' }));
+        expect(result.current.dayFor('track')).toBeNull();
+
+        act(() => result.current.events('track').onClick({}));
+        act(() => result.current.events('track').onClick(null));
+        expect(result.current.dayFor('track')).toBeNull();
+    });
+
+    it('moves a phone\'s popup to the chart tapped next, and closes it at a tap off its own chart alone', () => {
+        phoneScreen();
+
+        const { result } = renderHook(() => usePopup());
+
+        act(() => result.current.events('took').onClick({ activeLabel: '2026-10-15' }));
+        act(() => result.current.events('attempts').onClick({ activeLabel: '2026-10-15' }));
+
+        expect(result.current.dayFor('attempts')).toBe('2026-10-15');
+        expect(result.current.dayFor('took')).toBeNull();
+        expect(result.current.tooltip('took')).toEqual({ trigger: 'click', active: false });
+
+        act(() => result.current.away('took')());
+
+        expect(result.current.dayFor('attempts')).toBe('2026-10-15');
+
+        act(() => result.current.away('attempts')());
+
+        expect(result.current.dayFor('attempts')).toBeNull();
+    });
+
+    it('keeps a phone\'s popup a tap on another chart opens, though the first chart hears the same tap as one off it', () => {
+        phoneScreen();
+
+        const { result } = renderHook(() => usePopup());
+
+        act(() => result.current.events('took').onClick({ activeLabel: '2026-10-15' }));
+
+        //
+        // one click: the attempts' chart opens its popup, and the time chart's
+        // listener, which holds the tap from before, hears it as off its chart
+        //
+        const before = result.current;
+
+        act(() => {
+            before.events('attempts').onClick({ activeLabel: '2026-10-14' });
+            before.away('took')();
+        });
+
+        expect(result.current.dayFor('attempts')).toBe('2026-10-14');
+        expect(result.current.dayFor('took')).toBeNull();
+    });
+});
+
+describe('popupOf (#300)', () => {
+    const tip = (day) => (day ? { title: day, rows: [{ key: 'a', name: 'This day', value: '1.600' }], foot: 'Went live' } : null);
+    const wide = { phone: false, dayFor: (chart, day) => (chart === 'track' ? day : null) };
+
+    it('draws the day\'s numbers in a popup box on the chart its popup is on, while recharts says it is active', () => {
+        const Popup = popupOf(wide, 'track', tip);
+        const { container } = render(<Popup active label='2026-10-14' />);
+
+        expect(container.firstChild).toHaveClass('model-tip', 'model-chart-tip');
+        expect(container.querySelector('.model-tip-title')).toHaveTextContent('2026-10-14');
+        expect(container.querySelector('.model-tip-foot')).toHaveTextContent('Went live');
+    });
+
+    it('draws nothing while recharts says it is not, on another chart, or for a day the chart does not have', () => {
+        const Popup = popupOf(wide, 'track', tip);
+        const Other = popupOf(wide, 'gap', tip);
+
+        expect(render(<Popup active={false} label='2026-10-14' />).container).toBeEmptyDOMElement();
+        expect(render(<Other active label='2026-10-14' />).container).toBeEmptyDOMElement();
+        expect(render(<Popup active label={undefined} />).container).toBeEmptyDOMElement();
+    });
+
+    it('draws a phone\'s for the day tapped, whatever recharts says', () => {
+        const Popup = popupOf({ phone: true, dayFor: () => '2026-10-15' }, 'track', tip);
+        const { container } = render(<Popup active={false} label='2026-10-14' />);
+
+        expect(container.querySelector('.model-tip-title')).toHaveTextContent('2026-10-15');
     });
 });
 

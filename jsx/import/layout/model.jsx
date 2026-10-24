@@ -3,9 +3,10 @@
  *
  * What the models predict, what they read, and how they're graded against the
  * baseline are on the docs' page on the models, which an icon leads to (#296):
- * /stream's docs icon, at the right end of the Sort row on a computer, and of the
- * title's row on a phone. It took the place of five sentences under the title,
- * which a phone folded behind a 'More' (#287).
+ * /stream's docs icon, at the right end of the title's row. It took the place of
+ * five sentences under the title, which a phone folded behind a 'More' (#287),
+ * and from #300 it sits there on a computer too: the page has no sort menu, whose
+ * row it shared, and each list is best score first.
  * One list per task -- what a model predicts -- beside a column of filters, by
  * task and by status, which folds to a rail as /graph's columns do and is a
  * folded band on a phone (#251). Every row carries the model's live version, how
@@ -14,8 +15,8 @@
  * listing's `average_days` (#293); see model/model-row.jsx. Each
  * list has a score picker of its own, of the scores its task has (#279), which
  * chooses what its rows and their trend lines show, and is shared with each of
- * its models' own pages -- see redux/container/model.jsx -- and a sort menu
- * orders every list alike. While Loss is picked, a list of stock models shows
+ * its models' own pages -- see redux/container/model.jsx -- and each list is in
+ * order of its score, best first. While Loss is picked, a list of stock models shows
  * loss's three parts in its place, each under its own name (#283). From #300 a
  * list is laid out as #300 lays it out: the task's name, its count and what
  * it predicts, its pickers, then its rows in a box, with no headings over them.
@@ -42,7 +43,7 @@
  * is plain.
  *
  * Note: the listing says everything a row prints but its trend line, so the
- *       lists, the filters and the sort are drawn from it alone, and each row's
+ *       lists and the filters are drawn from it alone, and each row's
  *       track record fills its trend line in as it arrives.
  *
  * Note: the model api is built after this page (#243). Until it answers, the
@@ -67,7 +68,7 @@ import { listSubscriptions } from '../general/account-api.js';
 import { GUIDES } from '../general/api-url.js';
 import { loadListing, loadReport } from './model/source.js';
 import {
-    SORTS,
+    HOLDS,
     STATUSES,
     averageDays,
     chosenScore,
@@ -82,6 +83,7 @@ import {
     showsParts,
     sortModels,
     statusOf,
+    tradesOptions,
 } from './model/scores.js';
 
 //
@@ -179,9 +181,8 @@ const HINT = 'Tick two or three models that predict the same thing to compare th
  * the docs' page on the models (#296), as /stream links its api's docs: the page
  * icon in the docs links' gray, named in its tooltip and to a screen reader, and
  * opened in a new tab, so the lists stay as the reader arranged them. `size` is
- * mui's: 'large' on the Sort row of a computer, and 'medium' on a phone's title
- * row, the two sizes /stream's icon is drawn at -- see '_model.scss', which
- * shows each on its own screens.
+ * mui's, 'medium' at the end of the title's row, as it sits beside a title of
+ * the menu's size on every screen since the sort menu's row went (#300).
  */
 export function DocsLink({ size }) {
     return (
@@ -278,7 +279,6 @@ class ModelLayout extends Component {
             // the tasks and statuses unticked in the filters
             hidden_tasks: [],
             hidden_statuses: [],
-            sort: 'score',
             // the models ticked to compare, each with its color slot, in the
             // order of the slots
             picked: [],
@@ -447,12 +447,15 @@ class ModelLayout extends Component {
 
     //
     // the holds a task's list offers, from format 5 on (#300): those the
-    // listing gives any of its models' scores on, and none before. And the one
-    // it is on: the one picked for the task, where it is offered, and the first
+    // listing gives any of its models' scores on -- and before then, for a task
+    // that trades options, its three, whose scores each row reads from its
+    // model's track record, as the model's own page does (#279). And the one it
+    // is on: the one picked for the task, where it is offered, and the first
     // otherwise, 1 day
     //
     holdFor(task) {
-        const holds = holdsAmong(this.state.listing.models.filter((model) => model.task === task.id));
+        const listed = holdsAmong(this.state.listing.models.filter((model) => model.task === task.id));
+        const holds = !listed.length && tradesOptions(task) ? HOLDS : listed;
         const picked = this.props.holds[task.id];
         const offered = holds.some((each) => each.days === picked);
 
@@ -764,7 +767,7 @@ class ModelLayout extends Component {
                     {holds.length ? <p className='model-hold-line'>{listLine(task, hold)}</p> : null}
                     <div className={parts ? 'model-list model-list-parts' : 'model-list'}>
                         <div role='list' aria-label={`${task.name} models`}>
-                            {sortModels(models, this.state.sort, score, hold).map((model) => {
+                            {sortModels(models, 'score', score, hold, records).map((model) => {
                                 const tick = picked.find((each) => each.name === model.name);
 
                                 return (
@@ -792,44 +795,16 @@ class ModelLayout extends Component {
     }
 
     //
-    // the sort, which needs nothing from the listing, so it is drawn while it
-    // is on its way as well. Each list has its own score picker (#279), of the
-    // scores the listing says its task has. On a computer, the docs' page on the
-    // models at the row's right end (#296)
-    //
-    controls() {
-        return (
-            <div className='model-controls'>
-                <label className='model-sort'>
-                    <span className='model-control-label' aria-hidden='true'>Sort</span>
-                    <select
-                        aria-label='Sort'
-                        value={this.state.sort}
-                        onChange={(event) => this.setState({ sort: event.target.value })}
-                    >
-                        {SORTS.map((each) => (
-                            <option key={each.key} value={each.key}>{each.label}</option>
-                        ))}
-                    </select>
-                </label>
-                <div className='api-links model-controls-docs'>
-                    <DocsLink size='large' />
-                </div>
-            </div>
-        );
-    }
-
-    //
     // the page under its title: a line saying why there is nothing to show, or
-    // the filters beside the controls, the comparison and the lists
+    // the filters beside the comparison and the lists
     //
     body() {
         const { listing } = this.state;
 
         //
         // while the listing is on its way, the page's own shape (#274): the
-        // filters, the controls, and the list with bars where its figures will
-        // be -- see model/pending.jsx
+        // filters, how to start a comparison, and the list with bars where its
+        // figures will be -- see model/pending.jsx
         //
         if (listing === undefined) {
             return (
@@ -837,7 +812,6 @@ class ModelLayout extends Component {
                     {this.filters()}
                     <div className='model-main'>
                         <p className='visually-hidden' role='status'>Loading the models&hellip;</p>
-                        {this.controls()}
                         <p className='model-hint'>{HINT}</p>
                         <PendingGroup />
                     </div>
@@ -859,7 +833,6 @@ class ModelLayout extends Component {
             <div className='model-columns'>
                 {this.filters()}
                 <div className='model-main'>
-                    {this.controls()}
                     {this.comparison()}
                     {this.groups(shown)}
                     {shown.length ? null : <p className='model-status'>No model matches these filters.</p>}

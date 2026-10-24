@@ -464,6 +464,35 @@ export function scoresOn(model, hold = null) {
 }
 
 /**
+ * a model's scores on a hold in /model's list (#300): the listing's, as
+ * scoresOn gives them, or where the listing gives none on a hold past the
+ * first -- an options model's before format 5 -- its track record's, `rows`:
+ * each score's average on the newest day the hold has a result in, the
+ * baseline's beside it, and how many days the hold has scored, as the listing's
+ * `holds` will have them. `pending` while the record is on its way, and none
+ * where it could not be had or has no columns for the hold.
+ */
+export function scoresAt(model, hold, rows) {
+    const on = scoresOn(model, hold);
+
+    if (on.hold || !hold || hold === DEFAULT_HOLD) {
+        return on;
+    }
+
+    if (rows === undefined) {
+        return { score: null, baseline: null, days: 0, hold: hold, pending: true };
+    }
+
+    const scored = Array.isArray(rows) ? rows.filter((row) => scoreIn(row.score, columnOf(DEFAULT_SCORE, hold)) !== null) : [];
+    const newest = scored.length ? scored[scored.length - 1] : null;
+    const of = (field) => (newest
+        ? Object.fromEntries(KNOWN_SCORES.map((each) => [each.key, scoreIn(newest[field], columnOf(each.key, hold))]))
+        : null);
+
+    return { score: of('average'), baseline: of('baseline_average'), days: scored.length, hold: hold };
+}
+
+/**
  * what a model's track record says of its days on a hold, under the record's
  * title (#300): when each day is scored -- 'Each day’s real predictions, scored
  * the next trading day', or on a longer hold once its sell day is in, and that
@@ -653,13 +682,6 @@ export const STATUSES = [
     { key: 'new', label: 'New' },
     { key: 'down', label: 'Behind baseline' },
     { key: 'retired', label: 'Retired' },
-];
-
-export const SORTS = [
-    { key: 'score', label: 'Best score' },
-    { key: 'name', label: 'Name' },
-    { key: 'went', label: 'Most attempts gone live' },
-    { key: 'since', label: 'Newest live version' },
 ];
 
 //
@@ -1302,11 +1324,13 @@ export function formatStarted(text) {
  *              trained
  *
  * Ties are broken by name, so the order never depends on the listing's. On a
- * `hold` (#300), the scores are each model's on it -- see scoresOn.
+ * `hold` (#300), the scores are each model's on it -- see scoresOn -- or with
+ * `records`, the track records by name, as /model's list has them -- see
+ * scoresAt.
  */
-export function sortModels(models, sort, key, hold = null) {
+export function sortModels(models, sort, key, hold = null, records = null) {
     const byName = (a, b) => a.name.localeCompare(b.name);
-    const scored = (model) => scoreIn(scoresOn(model, hold).score, key);
+    const scored = (model) => scoreIn((records ? scoresAt(model, hold, records[model.name]) : scoresOn(model, hold)).score, key);
 
     const compare = {
         name: byName,

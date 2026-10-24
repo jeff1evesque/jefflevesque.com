@@ -34,6 +34,7 @@
 
 import React, { useContext } from 'react';
 import PropTypes from 'prop-types';
+import ClickAwayListener from '@mui/material/ClickAwayListener';
 import {
     CartesianGrid,
     ComposedChart,
@@ -47,7 +48,7 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { FAINT_OPACITY, FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisNote, axisStyle, tickGap, useFolds, usePanelDay } from './parts.jsx';
+import { FAINT_OPACITY, FoldTitle, Legend, Mark, Numbers, axisNote, axisStyle, popupOf, tickGap, useFolds, usePopup, valueAxis } from './parts.jsx';
 import {
     COMBINED,
     COMPARE_COLORS,
@@ -90,6 +91,14 @@ export function trackTitle(score, hold = null) {
 // compared models' colors, as it would be on /model
 //
 const OTHER_COLOR = COMPARE_COLORS[0];
+
+//
+// an average's name, as the legend and the popup say it (#300): 'Last 20 days’
+// average', or of one day, 'Last day’s average'
+//
+function averageName(count) {
+    return count === 1 ? 'Last day’s average' : `Last ${count} days’ average`;
+}
 
 /**
  * a single day's score, as a faint dot. Nothing on a day with none.
@@ -313,12 +322,12 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
     const downs = points.filter((point) => point.down).map((point) => point.day);
 
     //
-    // the day its panel shows, as the attempts' panels do: the day pointed at,
-    // the latest until then, or on a phone the day tapped -- see usePanelDay. On
-    // a hold, the latest whose result is in (#279): the newest days have none yet
+    // a popup of a day's numbers, as the attempts' charts have (#300): the day
+    // pointed at on a computer, and on a phone the day tapped -- see usePopup.
+    // A panel under the chart had held them, and a reader on a phone did not
+    // know it was there
     //
-    const latest = hold ? points.filter((point) => point.single !== null) : points;
-    const panel = usePanelDay(latest.length ? latest[latest.length - 1].day : null);
+    const popup = usePopup();
 
     //
     // folded down to its title by the reader, as the attempts' charts fold --
@@ -326,6 +335,10 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
     //
     const [folds, toggle] = useFolds('model-page');
 
+    //
+    // what the popup says of a day (#300): the day, and each line or dot drawn on
+    // it, named as the legend names it, since a phone has no legend
+    //
     const tipOf = (day) => {
         const point = points.find((each) => each.day === day);
 
@@ -337,22 +350,22 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
 
         if (point.single !== null) {
             tipRows.push(
-                { key: 'single', mark: <Mark kind='faint' color={colors.better} />, name: 'This model, this day', value: formatScore(point.single, score) },
+                { key: 'single', mark: <Mark kind='faint' color={colors.better} />, name: 'This day', value: formatScore(point.single, score) },
                 {
                     key: 'average',
                     mark: <Mark kind='line' color={colors.better} />,
-                    name: `This model, ${point.days < days ? point.days : days} days`,
+                    name: averageName(point.days < days ? point.days : days),
                     value: formatScore(point.average, score),
                 },
             );
         }
 
         if (shown && point.other !== null) {
-            tipRows.push({ key: 'other', mark: <Mark kind='line' color={OTHER_COLOR} />, name: `${shown}, ${days} days`, value: formatScore(point.other, score) });
+            tipRows.push({ key: 'other', mark: <Mark kind='line' color={OTHER_COLOR} />, name: `${shown}, last ${days} days`, value: formatScore(point.other, score) });
         }
 
         if (point.baseline !== null) {
-            tipRows.push({ key: 'baseline', mark: <Mark kind='dashed' color={colors.baseline} />, name: `Know-nothing baseline, ${days} days`, value: formatScore(point.baseline, score) });
+            tipRows.push({ key: 'baseline', mark: <Mark kind='dashed' color={colors.baseline} />, name: `Baseline, last ${days} days`, value: formatScore(point.baseline, score) });
         }
 
         //
@@ -402,7 +415,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                         <Legend
                             items={[
                                 { key: 'single', kind: 'faint', color: colors.better, label: 'Each day' },
-                                { key: 'average', kind: 'line', color: colors.better, label: `Last ${days} days’ average` },
+                                { key: 'average', kind: 'line', color: colors.better, label: averageName(days) },
                                 ...(shown ? [{ key: 'other', kind: 'line', color: OTHER_COLOR, label: <span className='model-legend-name'>{shown}</span> }] : []),
                                 { key: 'baseline', kind: 'dashed', color: colors.baseline, label: `Baseline, last ${days} days` },
                                 ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.live, label: 'New version went live' }] : []),
@@ -424,60 +437,66 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                 <>
                     {other && otherRows === undefined ? <p className='model-note'>{`Loading ${other}’s track record…`}</p> : null}
                     {other && otherRows === null ? <p className='model-note'>{`The track record of ${other} could not be loaded.`}</p> : null}
-                    <div
-                        className='model-chart'
-                        role='img'
-                        aria-label={`${label}${onHold} of ${name}${shown ? ` and ${shown}` : ''} and the know-nothing baseline, as averages of the last ${days} days, with single days as dots. The numbers are in the table below.`}
-                    >
-                        <ResponsiveContainer width='100%' height={HEIGHT}>
-                            <ComposedChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
-                                <CartesianGrid stroke={colors.grid} vertical={false} />
-                                <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={tickGap(panel.phone)} {...axisStyle(colors)} />
-                                <YAxis
-                                    width={56}
-                                    domain={['auto', 'auto']}
-                                    reversed={lower}
-                                    tickFormatter={(value) => formatTick(value, score)}
-                                    {...axisStyle(colors)}
-                                />
-                                {waiting
-                                    ? (
-                                        <ReferenceArea
-                                            x1={waiting.from}
-                                            x2={waiting.to}
-                                            ifOverflow='hidden'
-                                            shape={(props) => <NotInBand {...props} steps={waiting.steps} count={waiting.count} color={colors.muted} ink={colors.muted} />}
+                    <ClickAwayListener onClickAway={popup.away('track')}>
+                        <div
+                            className='model-chart'
+                            role='img'
+                            aria-label={`${label}${onHold} of ${name}${shown ? ` and ${shown}` : ''} and the know-nothing baseline, as averages of the last ${days} days, with single days as dots. The numbers are in the table below.`}
+                        >
+                            <ResponsiveContainer width='100%' height={HEIGHT}>
+                                <ComposedChart data={points} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...popup.events('track')}>
+                                    <CartesianGrid stroke={colors.grid} vertical={false} />
+                                    <XAxis dataKey='day' tickFormatter={shortDay} minTickGap={tickGap(popup.phone)} {...axisStyle(colors)} />
+                                    <YAxis
+                                        {...valueAxis(popup.phone, colors)}
+                                        domain={['auto', 'auto']}
+                                        reversed={lower}
+                                        tickFormatter={(value) => formatTick(value, score)}
+                                    />
+                                    {waiting
+                                        ? (
+                                            <ReferenceArea
+                                                x1={waiting.from}
+                                                x2={waiting.to}
+                                                ifOverflow='hidden'
+                                                shape={(props) => <NotInBand {...props} steps={waiting.steps} count={waiting.count} color={colors.muted} ink={colors.muted} />}
+                                            />
+                                        ) : null}
+                                    <Tooltip
+                                        content={popupOf(popup, 'track', tipOf)}
+                                        cursor={{ stroke: colors.muted, strokeWidth: 1 }}
+                                        isAnimationActive={false}
+                                        wrapperStyle={{ zIndex: 10, pointerEvents: 'none' }}
+                                        {...popup.tooltip('track')}
+                                    />
+                                    <Scatter
+                                        dataKey='single'
+                                        isAnimationActive={false}
+                                        shape={(props) => <DayDot {...props} color={colors.better} />}
+                                    />
+                                    <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={PAGE_DASH} dot={false} isAnimationActive={false} />
+                                    {shown
+                                        ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
+                                        : null}
+                                    <Line dataKey='average' stroke={colors.better} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                                    {ticks.map((day) => (
+                                        <ReferenceLine
+                                            key={day}
+                                            x={day}
+                                            shape={(props) => <WentLiveTick {...props} color={colors.live} />}
                                         />
-                                    ) : null}
-                                <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
-                                <Scatter
-                                    dataKey='single'
-                                    isAnimationActive={false}
-                                    shape={(props) => <DayDot {...props} color={colors.better} />}
-                                />
-                                <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={PAGE_DASH} dot={false} isAnimationActive={false} />
-                                {shown
-                                    ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
-                                    : null}
-                                <Line dataKey='average' stroke={colors.better} strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                                {ticks.map((day) => (
-                                    <ReferenceLine
-                                        key={day}
-                                        x={day}
-                                        shape={(props) => <WentLiveTick {...props} color={colors.live} />}
-                                    />
-                                ))}
-                                {downs.map((day) => (
-                                    <ReferenceLine
-                                        key={`down-${day}`}
-                                        x={day}
-                                        shape={(props) => <TakenDownTick {...props} color={colors.worse} />}
-                                    />
-                                ))}
-                            </ComposedChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <Readout tip={tipOf(panel.dayFor())} line={!panel.phone} />
+                                    ))}
+                                    {downs.map((day) => (
+                                        <ReferenceLine
+                                            key={`down-${day}`}
+                                            x={day}
+                                            shape={(props) => <TakenDownTick {...props} color={colors.worse} />}
+                                        />
+                                    ))}
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </ClickAwayListener>
                     <Numbers
                         label={`${label}${onHold}, track record`}
                         columns={[
