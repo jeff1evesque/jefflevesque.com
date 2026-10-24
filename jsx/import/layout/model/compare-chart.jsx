@@ -1,7 +1,8 @@
 /**
  * compare-chart.jsx: two or three models of one task, compared over /model's
- * lists (#243): their 20-day track records on one chart, each beside its own
- * know-nothing baseline, dashed in its color (#263).
+ * lists (#243): their track records' averages on one chart, over as many scored
+ * days as the listing's `average_days` (#293), each beside its own know-nothing
+ * baseline, dashed in its color (#263).
  *
  * Models of different tasks are compared on a score of what each one's picks
  * would have made, which both tasks name (#279): the top 10's gain, or how many
@@ -15,7 +16,7 @@
  * one does not repaint the others. The legend names each in the page's own text
  * beside a swatch of its line.
  *
- * Note: a baseline for each model, from its own record's 20-day averages. Each
+ * Note: a baseline for each model, from its own record's averages. Each
  *       record carries the baseline's scores on its own model's days, and they
  *       differ -- on 2026-10-15 the baseline's loss was 1.733 in tables-gnn's and
  *       1.702 in pt-gnn's -- and the trainer judges each model against its own.
@@ -43,8 +44,8 @@ import { Legend, Mark, NoBox, Numbers, Readout, ScorePicker, axisStyle, usePanel
 import {
     BASELINE_DASH,
     COMPARE_COLORS,
-    WINDOW,
     alignDays,
+    averageDays,
     chartColors,
     formatScore,
     formatTick,
@@ -105,6 +106,12 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
     const lower = scoreOf(score).lower;
     const waiting = picks.filter((pick) => records[pick.model.name] === undefined);
     const missing = picks.filter((pick) => records[pick.model.name] === null);
+
+    //
+    // how many scored days each line averages (#293): the listing's, which every
+    // model in it carries, so the first one compared says it for them all
+    //
+    const days = averageDays(picks[0].model);
 
     //
     // models of more than one task (#279): what each predicts, the scores the
@@ -174,7 +181,7 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
             return {
                 key: pick.model.name,
                 mark: <Mark kind='line' color={COMPARE_COLORS[pick.slot]} />,
-                name: row.days < WINDOW ? `${pick.model.name} (${row.days} days)` : pick.model.name,
+                name: row.days < averageDays(pick.model) ? `${pick.model.name} (${row.days} days)` : pick.model.name,
                 value: formatScore(scoreIn(row.average, score), score),
             };
         }).concat(scored
@@ -214,7 +221,7 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
                 <p className='model-card-sub'>
                     {`${together(tasks.map((each) => each.name))}, scored on the same days. `}
                     {lengths ? `${LENGTHS} ` : ''}
-                    {'Lines are averages of the last 20 days, and each model’s own know-nothing baseline is dashed in its color. Up is better'}
+                    {`Lines are averages of the last ${days} days, and each model’s own know-nothing baseline is dashed in its color. Up is better`}
                     {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
                 </p>
                 <Legend
@@ -243,7 +250,7 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
             {waiting.length
                 ? <p className='model-status'>Loading the track records&hellip;</p>
                 : (
-                    <div className='model-chart' role='img' aria-label={`${scoreOf(score).label}, 20-day averages of ${together(names)}, each beside its own know-nothing baseline. The numbers are in the table below.`}>
+                    <div className='model-chart' role='img' aria-label={`${scoreOf(score).label}, ${days}-day averages of ${together(names)}, each beside its own know-nothing baseline. The numbers are in the table below.`}>
                         <ResponsiveContainer width='100%' height={HEIGHT}>
                             <ComposedChart data={data} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...panel.events()}>
                                 <CartesianGrid stroke={colors.grid} vertical={false} />
@@ -290,7 +297,7 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
                 )}
             {waiting.length ? null : <Readout tip={tipOf(panel.dayFor())} line={!panel.phone} />}
             <Numbers
-                label={`${scoreOf(score).label}, 20-day averages`}
+                label={`${scoreOf(score).label}, ${days}-day averages`}
                 columns={[
                     { key: 'day', label: 'Day', text: true },
                     ...picks.map((pick) => ({ key: `slot${pick.slot}`, label: pick.model.name })),
@@ -320,6 +327,7 @@ CompareChart.propTypes = {
             name: PropTypes.string.isRequired,
             started: PropTypes.string,
             retired: PropTypes.string,
+            average_days: PropTypes.number,
         }).isRequired,
         slot: PropTypes.number.isRequired,
     })).isRequired,
