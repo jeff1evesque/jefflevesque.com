@@ -356,14 +356,15 @@ describe('the page before the listing', () => {
             expect(screen.queryByRole('group', { name: 'Score' })).toBeNull();
         });
 
-        it('draws two rows of bars under the list\'s headings, each with its box disabled and no bell', async () => {
+        it('draws two rows of bars in the list\'s box, laid out as its rows will be, each with its box disabled and no bell', async () => {
             await waiting();
 
             const rows = [...document.querySelectorAll('.model-row-pending')];
 
             expect(rows).toHaveLength(2);
-            expect([...document.querySelector('.model-list-head').children].map((heading) => heading.textContent))
-                .toEqual(['Compare', 'Model', '', 'Live version', 'Went live', 'Last 60 days', 'Loss, last 20 daysUp or downBeats the average stockSize of the move']);
+            expect(document.querySelector('.model-list-head')).toBeNull();
+            expect([...rows[0].children].map((cell) => cell.classList[1]))
+                .toEqual(['model-cell-compare', 'model-cell-model', 'model-cell-parts', 'model-cell-trend', 'model-cell-since']);
             rows.forEach((row) => {
                 expect(row.querySelector('input[type="checkbox"]')).toBeDisabled();
                 expect(row.querySelector('.control-tray')).toBeNull();
@@ -423,6 +424,56 @@ describe('the lists', () => {
         expect(within(group('Next-day direction')).getByText('Up or down, scored the next day.')).toBeInTheDocument();
     });
 
+    describe('folding a list under its name (#300)', () => {
+        const foldOf = (name) => within(group(name)).getByRole('button', { name: name });
+
+        it('opens every list on a first visit, each name saying so', async () => {
+            answer();
+
+            await open();
+
+            expect(foldOf('Next-day direction')).toHaveAttribute('aria-expanded', 'true');
+            expect(foldOf('Beat the average')).toHaveAttribute('aria-expanded', 'true');
+        });
+
+        it('folds a list down to its name and count, and opens it again, leaving the other open', async () => {
+            answer();
+
+            await open();
+            await userEvent.click(foldOf('Next-day direction'));
+
+            const folded = group('Next-day direction');
+
+            expect(foldOf('Next-day direction')).toHaveAttribute('aria-expanded', 'false');
+            expect(within(folded).getByText('3 models')).toBeInTheDocument();
+            expect(folded.querySelector('.model-group-detail')).toBeNull();
+            expect(within(folded).queryByRole('group', { name: 'Score' })).toBeNull();
+            expect(screen.queryByRole('list', { name: 'Next-day direction models' })).toBeNull();
+            expect(screen.getByRole('list', { name: 'Beat the average models' })).toBeInTheDocument();
+
+            await userEvent.click(foldOf('Next-day direction'));
+
+            expect(foldOf('Next-day direction')).toHaveAttribute('aria-expanded', 'true');
+            expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
+        });
+
+        it('keeps each list\'s fold for the next visit, by its task', async () => {
+            answer();
+
+            const { unmount } = await open();
+
+            await userEvent.click(foldOf('Beat the average'));
+
+            expect(readLayout('model-list', 'wide').fold).toEqual({ beats: true });
+
+            unmount();
+            await open();
+
+            expect(foldOf('Beat the average')).toHaveAttribute('aria-expanded', 'false');
+            expect(foldOf('Next-day direction')).toHaveAttribute('aria-expanded', 'true');
+        });
+    });
+
     it('leaves out a task\'s line under its name where the listing has none', async () => {
         const listing = listingOf();
 
@@ -465,12 +516,15 @@ describe('the lists', () => {
             ]);
         });
 
-        it('heads the score\'s column with them, and names the trend lines by them', async () => {
+        it('says them over each row\'s parts, and names the trend lines by them', async () => {
             answer(over(30));
 
             await open();
 
-            expect([...group('Next-day direction').querySelector('.model-parts-head').children][0]).toHaveTextContent(/^Loss, last 30 days$/);
+            const rowOf = (name) => screen.getByRole('link', { name: name }).closest('.model-row');
+
+            expect(rowOf('tables').querySelector('.model-parts-note')).toHaveTextContent(/, last 30 days$/);
+            expect(rowOf('pt-gnn').querySelector('.model-parts-note')).toHaveTextContent(/, 25 days so far$/);
             expect(screen.getByRole('img', { name: 'pt-gnn\'s 30-day Loss, over the last 60 days' })).toBeInTheDocument();
         });
 
@@ -541,95 +595,79 @@ describe('the lists', () => {
         expect(namesIn('Next-day direction')).toEqual(['tables', 'pt-gnn', 'fresh']);
     });
 
-    it('heads the score\'s column with the score picked, and sorts by it', async () => {
+    it('shows the score picked in every row, and sorts by it', async () => {
         answer();
 
         await open({ scores: { direction: 'acc_up' } });
 
-        expect(group('Next-day direction').querySelector('.model-list-head')).toHaveTextContent('Up/down accuracy, last 20 days');
+        expect([...group('Next-day direction').querySelectorAll('.model-cell-score .visually-hidden')].map((name) => name.textContent))
+            .toEqual(['Up/down accuracy: ', 'Up/down accuracy: ', 'Up/down accuracy: ']);
         expect(namesIn('Next-day direction')).toEqual(['tables', 'pt-gnn', 'fresh']);
     });
 
-    it('heads every column in a row\'s order, the bell\'s third with no name, after Model (#259), and the score last (#283)', async () => {
+    it('lays each row out as #300 lays it out: the model, its score, its trend line and when it went live, with no headings over them', async () => {
         answer();
 
         await open({ scores: { direction: 'auc_up' } });
 
-        const headings = [...group('Next-day direction').querySelector('.model-list-head').children]
-            .map((heading) => heading.textContent);
+        const row = group('Next-day direction').querySelector('.model-row');
 
-        expect(headings).toEqual(['Compare', 'Model', '', 'Live version', 'Went live', 'Last 60 days', 'Up/down AUC, last 20 days']);
+        expect(group('Next-day direction').querySelector('.model-list-head')).toBeNull();
+        expect([...row.children].map((cell) => cell.classList[1]))
+            .toEqual(['model-cell-compare', 'model-cell-model', 'model-cell-score', 'model-cell-trend', 'model-cell-since']);
     });
 
-    it('marks the 60-day line\'s heading, so a list too narrow for the line drops the two together (#283)', async () => {
-        answer();
-
-        await open();
-
-        expect(group('Next-day direction').querySelector('.model-list-head').children[5]).toHaveClass('model-head-trend');
-    });
-
-    it('gives the score\'s heading the note of the score picked (#265)', async () => {
+    it('gives the days under each row\'s figure the note of the score picked (#265)', async () => {
         answer();
 
         await open({ scores: { direction: 'auc_beats' } });
 
-        const heading = group('Next-day direction').querySelector('.model-list-head').children[6];
+        const days = group('Next-day direction').querySelector('.model-score-days');
 
-        expect(heading).toHaveTextContent('Beat-the-average AUC, last 20 days');
-        expect(heading).toHaveAccessibleDescription(SCORES.find((score) => score.key === 'auc_beats').note);
-        expect(heading.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+        expect(days).toHaveTextContent('last 20 days');
+        expect(days).toHaveAccessibleDescription(SCORES.find((score) => score.key === 'auc_beats').note);
+        expect(days.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
     });
 
-    it('lets the keyboard reach the score\'s heading, which a screen reader is shown, and hides the rest (#265)', async () => {
-        //
-        // something the keyboard can reach can't sit in a part of the page hidden
-        // from a screen reader, so the score's heading alone is not hidden
-        //
+    it('lets the keyboard reach the note, and shows it under the pointer (#265)', async () => {
         answer();
 
         await open({ scores: { direction: 'acc_up' } });
 
-        const head = group('Next-day direction').querySelector('.model-list-head');
-        const [compare, model, bell, live, went, trend, score] = [...head.children];
+        const days = group('Next-day direction').querySelector('.model-score-days');
 
-        expect(head).not.toHaveAttribute('aria-hidden');
-        expect(score).toHaveAttribute('tabindex', '0');
-        expect(score).not.toHaveAttribute('aria-hidden');
-        [compare, model, bell, live, went, trend].forEach((heading) => expect(heading).toHaveAttribute('aria-hidden', 'true'));
+        expect(days).toHaveAttribute('tabindex', '0');
 
-        await userEvent.hover(score);
+        await userEvent.hover(days);
 
         expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES.find((each) => each.key === 'acc_up').note);
     });
 
     describe('on Loss, a list of stock models shows loss\'s three parts in its place (#283)', () => {
-        const partsHead = () => group('Next-day direction').querySelector('.model-parts-head');
+        const noteIn = () => group('Next-day direction').querySelector('.model-parts-note');
 
-        it('heads them with the score\'s heading, and each with its own name', async () => {
+        it('says over each row\'s parts what they add up to, and names each part, as #300 lays it out', async () => {
             answer();
 
             await open();
+
+            const row = screen.getByRole('link', { name: 'pt-gnn' }).closest('.model-row');
 
             expect(group('Next-day direction').querySelector('.model-list')).toHaveClass('model-list-parts');
-            expect(group('Next-day direction').querySelector('.model-list-head').lastElementChild).toBe(partsHead());
-            expect([...partsHead().children].map((heading) => heading.textContent))
-                .toEqual(['Loss, last 20 days', 'Up or down', 'Beats the average stock', 'Size of the move']);
+            expect(row.querySelector('.model-parts-note')).toHaveTextContent(/^Loss 1\.600, part by part, last 20 days$/);
+            expect([...row.querySelectorAll('.model-part-cell-name')].map((name) => name.textContent))
+                .toEqual(['Up or down', 'Beats the average stock', 'Size of the move']);
         });
 
-        it('lets the keyboard reach the score\'s heading over them, with loss\'s note, and hides their names', async () => {
+        it('lets the keyboard reach the line over them, with loss\'s note', async () => {
             answer();
 
             await open();
 
-            const [note, ...names] = [...partsHead().children];
+            expect(noteIn()).toHaveAttribute('tabindex', '0');
+            expect(noteIn()).toHaveAccessibleDescription(SCORES[0].note);
 
-            expect(partsHead()).not.toHaveAttribute('aria-hidden');
-            expect(note).toHaveAttribute('tabindex', '0');
-            expect(note).toHaveAccessibleDescription(SCORES[0].note);
-            names.forEach((name) => expect(name).toHaveAttribute('aria-hidden', 'true'));
-
-            await userEvent.hover(note);
+            await userEvent.hover(noteIn());
 
             expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES[0].note);
         });
@@ -662,7 +700,7 @@ describe('the lists', () => {
             await open({ scores: { direction: 'auc_up' } });
 
             expect(group('Next-day direction').querySelector('.model-list')).not.toHaveClass('model-list-parts');
-            expect(partsHead()).toBeNull();
+            expect(noteIn()).toBeNull();
             expect(group('Next-day direction').querySelector('.model-cell-parts')).toBeNull();
             expect(group('Next-day direction').querySelector('.model-score-value')).toHaveTextContent('0.560');
         });
@@ -1079,7 +1117,7 @@ describe('two tasks, from format 3 on (#279)', () => {
 
     const buttonsIn = (where) => within(within(where).getByRole('group', { name: 'Score' })).getAllByRole('button');
     const pressedIn = (where) => buttonsIn(where).filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent);
-    const headingIn = (name) => group(name).querySelector('.model-list-head').children[6];
+    const daysIn = (name) => group(name).querySelector('.model-score-days, .model-parts-note');
 
     it('draws a list for each task, each under a score picker of its own task\'s scores', async () => {
         await both();
@@ -1134,17 +1172,15 @@ describe('two tasks, from format 3 on (#279)', () => {
 
         expect(pressedIn(group('Option picks'))).toEqual(['Top 10 gain']);
         expect(pressedIn(group('Next-day direction'))).toEqual(['Loss']);
-        expect(headingIn('Option picks')).toHaveTextContent('Top 10 gain, last 20 days');
-        expect(headingIn('Option picks')).toHaveAccessibleDescription(noteOf('top10_gain', OPTIONS_TASK));
-        expect(headingIn('Next-day direction')).toHaveTextContent('Loss, last 20 days');
+        expect(group('Option picks').querySelector('.model-cell-score .visually-hidden')).toHaveTextContent('Top 10 gain:');
+        expect(daysIn('Option picks')).toHaveAccessibleDescription(noteOf('top10_gain', OPTIONS_TASK));
+        expect(daysIn('Next-day direction')).toHaveTextContent(/^Loss 1\.600, part by part, last 20 days$/);
         expect(group('Option picks').querySelector('.model-score-value')).toHaveTextContent('3.10%');
     });
 
-    it('leaves the stock list as it was: its headings, its rows, and on Loss, loss\'s parts (#283)', async () => {
+    it('leaves the stock list as it was: its rows, and on Loss, loss\'s parts (#283)', async () => {
         await both();
 
-        expect([...group('Next-day direction').querySelector('.model-list-head').children].map((heading) => heading.textContent))
-            .toEqual(['Compare', 'Model', '', 'Live version', 'Went live', 'Last 60 days', 'Loss, last 20 daysUp or downBeats the average stockSize of the move']);
         expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
         expect([...group('Next-day direction').querySelector('.model-row').querySelectorAll('.model-part-cell-value')].map((value) => value.textContent))
             .toEqual(['0.720', '0.620', '0.268']);
@@ -1154,8 +1190,8 @@ describe('two tasks, from format 3 on (#279)', () => {
         await both();
 
         expect(group('Option picks').querySelector('.model-list')).not.toHaveClass('model-list-parts');
-        expect(group('Option picks').querySelector('.model-parts-head')).toBeNull();
-        expect(headingIn('Option picks')).toHaveTextContent(/^Loss, last 20 days$/);
+        expect(group('Option picks').querySelector('.model-cell-parts')).toBeNull();
+        expect(daysIn('Option picks')).toHaveTextContent(/^last 20 days$/);
         expect(group('Option picks').querySelector('.model-score-value')).toHaveTextContent('0.840');
     });
 
@@ -1399,7 +1435,8 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
 
         expect(pressedIn('Next-day direction', 'Hold')).toEqual(['1 day']);
         expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
-        expect(group('Next-day direction').querySelector('.model-list-head .model-noted')).toHaveTextContent(/^Up\/down AUC, last 20 days$/);
+        expect(rowOf('tables-gnn').querySelector('.model-cell-score .visually-hidden')).toHaveTextContent(/^Up\/down AUC:$/);
+        expect(rowOf('tables-gnn').querySelector('.model-score-days')).toHaveTextContent(/^last 20 days$/);
         expect(rowOf('tables-gnn').querySelector('.model-score-value')).toHaveTextContent(formatScore(heldModelOf().score.auc_up, 'auc_up'));
     });
 
@@ -1425,9 +1462,10 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
 
         const row = rowOf('tables-gnn');
 
-        expect(group('Next-day direction').querySelector('.model-list-head .model-noted')).toHaveTextContent('Up/down AUC, 5-day hold, last 20 days');
+        expect(row.querySelector('.model-cell-score .visually-hidden')).toHaveTextContent('Up/down AUC, 5-day hold:');
         expect(row.querySelector('.model-score-value')).toHaveTextContent(formatScore(heldModelOf().holds['5d'].score.auc_up, 'auc_up'));
-        expect(row.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Up/down AUC, 5-day hold, last 20 days');
+        expect(row.querySelector('.model-score-days')).toHaveTextContent(/^last 20 days$/);
+        expect(group('Next-day direction').querySelector('.model-hold-line')).toHaveTextContent(/^5-day hold: bought at 9:40 AM on the next trading day/);
         expect(within(row).getByRole('img', { name: 'tables-gnn\'s 20-day Up/down AUC, 5-day hold, over the last 60 days' })).toBeInTheDocument();
     });
 
@@ -1477,7 +1515,8 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
 
         expect(within(group('Next-day direction')).queryByRole('group', { name: 'Hold' })).toBeNull();
         expect(within(group('Option picks')).queryByRole('group', { name: 'Hold' })).toBeNull();
-        expect(group('Next-day direction').querySelector('.model-list-head .model-noted')).toHaveTextContent(/^Loss, last 20 days$/);
+        expect(group('Next-day direction').querySelector('.model-hold-line')).toBeNull();
+        expect(group('Next-day direction').querySelector('.model-parts-note')).toHaveTextContent(/, last 20 days$/);
     });
 
     it('draws each model ticked on its list\'s hold in the comparison, named with it', async () => {

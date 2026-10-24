@@ -49,6 +49,11 @@
  * Every take-down check is a table, a row for each hold, and every "better" and
  * "worse" than the baseline carries the list's arrow (#300).
  *
+ * The page is laid out as #300 lays it out: its parts 22px apart, a stock model
+ * with holds closing on when each hold's results come in, and its Live version
+ * card saying which holds it predicts. Every titled section folds, and stays
+ * folded on the next visit -- see parts.jsx's useFolds.
+ *
  * The listing says who the model is; its history and its track record are asked
  * for once the listing names it. A name the listing does not hold is a model
  * that does not exist, and the page says so rather than drawing nothing.
@@ -68,8 +73,8 @@ import ErrorFallback from '../../formatter/boundary-error.jsx';
 import FigureBoxes from '../../general/figure-boxes.jsx';
 import InfoNote from '../../general/info-note.jsx';
 import AttemptsChart, { HEIGHT as ATTEMPTS_HEIGHT, TITLE as ATTEMPTS_TITLE } from './attempts-chart.jsx';
-import TrackChart, { HEIGHT as TRACK_HEIGHT, TITLE as TRACK_TITLE, TrackNone } from './track-chart.jsx';
-import { AlarmBell, HoldPicker, ScorePicker, StatusPill, gapWords, modelsHeld } from './parts.jsx';
+import TrackChart, { HEIGHT as TRACK_HEIGHT, TITLE as TRACK_TITLE, TrackNone, trackTitle } from './track-chart.jsx';
+import { AlarmBell, FoldTitle, HoldPicker, ScorePicker, StatusPill, gapWords, modelsHeld, partGap, useFolds } from './parts.jsx';
 import { loadListing, loadReport } from './source.js';
 import { PendingChart, PendingLines, PendingPicker, PendingSummary, STAGGER } from './pending.jsx';
 import { PendingBar } from '../graph/pending.jsx';
@@ -78,14 +83,16 @@ import {
     COMBINED,
     DEFAULT_HOLD,
     DEFAULT_SCORE,
+    HELD_OUT,
     HOLDS,
     averageDays,
     betterBy,
     checkWords,
+    checksNote,
     checksTable,
     chosenScore,
     columnOf,
-    comesIn,
+    comesInLine,
     formatDuration,
     formatGap,
     formatScore,
@@ -98,8 +105,10 @@ import {
     liveKind,
     lossParts,
     namedHold,
+    newYorkToday,
     noResultsYet,
     noteOf,
+    predictsLine,
     resultLag,
     scoreIn,
     scoreOf,
@@ -111,8 +120,10 @@ import {
     standing,
     statusOf,
     takenDown,
+    trackLine,
     tradesOptions,
     trainedOn,
+    whenRows,
 } from './scores.js';
 
 //
@@ -212,51 +223,60 @@ export function sentence(line) {
     return line ? `${line.charAt(0).toUpperCase()}${line.slice(1)}.` : '';
 }
 
-//
-// what a model whose live version was taken down does until it goes live again,
-// under its figure on a wide screen (#267). Its rows show the check that took it
-// down, so the line says only what happens next
-//
-const DOWN_SHORT = 'Nothing predicts until a version beats the baseline.';
-
 /**
- * the line under the Live version card's figure on a wide screen (#267): how the
- * live version came to be live, as liveFigure says it, or for one taken down,
- * why, and what happens until a version beats the baseline: 'Its 5-day hold did
- * worse than the baseline 5 scored days in a row. Nothing predicts until a
- * version beats the baseline.' A check's take-down said only what came next, its
- * check shown in the card's rows; from #300 the checks are a table of counts,
- * and every take-down says why, as one no check did has since format 4 (#295).
+ * the line under the Live version card's figure on a wide screen (#267): what
+ * made the live version, 'weekly retrain' (#300), or how it came to be live as
+ * liveFigure says it, for a first version or a retired model -- or, for one taken
+ * down, why: 'Its 5-day hold did worse than the baseline 5 scored days in a
+ * row.' The card says what happens next on a line of its own, in gray.
  */
 export function liveLine(model) {
-    if (statusOf(model) !== 'down') {
-        return liveFigure(model).detail;
+    const status = statusOf(model);
+
+    if (status === 'down') {
+        return sentence(checkWords(model.down));
     }
 
-    return `${sentence(checkWords(model.down))} ${DOWN_SHORT}`;
+    if ((status === 'live' || status === 'new') && model.live.kind && model.live.kind !== 'first') {
+        return liveKind(model.live.kind);
+    }
+
+    return liveFigure(model).detail;
 }
 
 /**
  * the Live version card's rows on a wide screen (#267), each { key, name, value }:
  *
+ *     Predicts                            the holds a stock model predicts, from
+ *                                         format 5 (#300), `predicts` -- see
+ *                                         scores.js's predictsLine
+ *     Trained on                          what the live version learned from, from
+ *                                         format 4 (#295): '7 days, Oct 5 to Oct
+ *                                         19' -- see scores.js's trainedOn
  *     Beat the version it replaced by     how much lower its loss was than the
  *                                         version before it, on the night it went
  *                                         live: loss, which decides what goes
  *                                         live, whatever score is picked
- *     Trained on                          what the live version learned from, from
- *                                         format 4 (#295): '7 days, Oct 5 to Oct
- *                                         19' -- see scores.js's trainedOn
  *     First predicted                     the listing's `started`
  *
- * No first row for a first version, one taken down, a retired model, a night the
- * history does not hold, or a version that only matched the one before it. No
- * Trained on where the listing says nothing of it, as before format 4. The
- * checks come after the rows, as a table (#300) -- see ChecksTable.
+ * No Predicts for a model without holds. No Trained on where the listing says
+ * nothing of it, as before format 4. No Beat row for a first version, one taken
+ * down, a retired model, a night the history does not hold, or a version that
+ * only matched the one before it. The checks come after the rows, as a table
+ * (#300) -- see ChecksTable.
  */
-export function liveRows(model, history) {
+export function liveRows(model, history, predicts = '') {
     const status = statusOf(model);
     const rows = [];
     const trained = trainedOn(model.live);
+
+    if (predicts) {
+        rows.push({ key: 'predicts', name: 'Predicts', value: predicts });
+    }
+
+    if (trained) {
+        rows.push({ key: 'trained', name: 'Trained on', value: trained });
+    }
 
     if ((status === 'live' || status === 'new') && model.live.kind && model.live.kind !== 'first' && Array.isArray(history)) {
         const night = history.find((row) => row.day === model.live.since && row.went_live);
@@ -265,10 +285,6 @@ export function liveRows(model, history) {
         if (standing(gap, 'loss') === 'better') {
             rows.push({ key: 'beat', name: 'Beat the version it replaced by', value: formatGap(gap, 'loss') });
         }
-    }
-
-    if (trained) {
-        rows.push({ key: 'trained', name: 'Trained on', value: trained });
     }
 
     if (model.started) {
@@ -287,24 +303,26 @@ export function checksOf(model) {
     return statusOf(model) === 'retired' ? null : checksTable(model.behind);
 }
 
-/**
- * the line under the Attempts card's figure on a wide screen (#267): how far
- * back its count goes, 'every attempt since Oct 9', the history's first night --
- * or 'nightly attempts' where there is no history to say.
- */
-export function attemptsLine(history) {
-    return Array.isArray(history) && history.length ? `every attempt since ${shortDay(history[0].day)}` : 'nightly attempts';
-}
+//
+// the line under the Attempts card's figure on a wide screen (#267): what its
+// count is of (#300)
+//
+export const ATTEMPTS_LINE = 'of every nightly update and weekly retrain';
+
+//
+// the note at the Attempts card's foot for a stock model with holds (#300): why
+// its attempts are judged on the 1-day hold, and how its longer holds are judged
+//
+export const ATTEMPTS_NOTE = `Each night’s attempt is tested on the newest ${HELD_OUT} days, which don’t have 5 or 20-day results yet. The longer holds are judged on their real scored days, by the take-down checks.`;
 
 /**
  * the Attempts card's rows on a wide screen (#267), as liveRows gives them: how
- * many nightly updates and weekly retrains went live, of how many -- a kind with
- * no attempts has no row -- and, for a model with holds, `held`, that attempts
- * are judged on the 1-day hold (#300). Then the newest night, under 'Last
- * attempt, Oct 19': whether it went live, when it started and how long it took,
- * where the history has its times, and its loss on the held-out days beside the
- * live version's, which is what decided it (#300). None where there is no
- * history.
+ * many nightly updates and weekly retrains went live, of how many, '3 of 7 went
+ * live' -- a kind with no attempts has no row -- then the newest night, 'Oct 19,
+ * went live' (#300), when it started and how long it took, where the history has
+ * its times, and its loss on the held-out days beside the live version's, which
+ * is what decided it. Last, for a model with holds, `held`, that attempts are
+ * judged on the 1-day hold. None where there is no history.
  */
 export function attemptRows(history, held = false) {
     if (!Array.isArray(history) || !history.length) {
@@ -317,13 +335,9 @@ export function attemptRows(history, held = false) {
         const nights = history.filter((row) => row.kind === kind);
 
         if (nights.length) {
-            rows.push({ key: kind, name: name, value: `${nights.filter((row) => row.went_live).length} of ${nights.length}` });
+            rows.push({ key: kind, name: name, value: `${nights.filter((row) => row.went_live).length} of ${nights.length} went live` });
         }
     });
-
-    if (held) {
-        rows.push({ key: 'judged', name: 'Judged on', value: 'the 1-day hold' });
-    }
 
     const last = history[history.length - 1];
     const attempt = scoreIn(last.attempt, 'loss');
@@ -339,20 +353,18 @@ export function attemptRows(history, held = false) {
     ];
 
     return rows.concat(
-        [
-            { key: 'last', name: `Last attempt, ${shortDay(last.day)}`, head: true },
-            { key: 'result', name: 'Result', value: last.went_live ? 'went live' : 'kept back' },
-        ],
+        [{ key: 'last', name: 'Last attempt', value: `${shortDay(last.day)}, ${last.went_live ? 'went live' : 'kept back'}` }],
         more.filter((row) => row.value),
+        held ? [{ key: 'judged', name: 'Judged on', value: 'the 1-day hold' }] : [],
     );
 }
 
 /**
  * a card's rows on a wide screen, under a thin rule (#267), drawn as loss's parts
- * are: a name at the left and its value at the right, and a heading in gray over
- * the rows after it. `children` come after the rows, at the card's foot (#300):
- * the Live version card's checks, and the score card's parts. Nothing, not even
- * the rule, where there are neither.
+ * are: a name at the left and its value at the right. `children` come after the
+ * rows, at the card's foot (#300): the Live version card's checks, the score
+ * card's parts, and the Attempts card's note. Nothing, not even the rule, where
+ * there are neither.
  */
 export function CardRows({ rows, children = null }) {
     if (!rows.length && !children) {
@@ -365,9 +377,9 @@ export function CardRows({ rows, children = null }) {
                 ? (
                     <ul className='model-stat-rows'>
                         {rows.map((row) => (
-                            <li key={row.key} className={row.head ? 'model-stat-row model-stat-row-head' : 'model-stat-row'}>
+                            <li key={row.key} className='model-stat-row'>
                                 <span className='model-stat-row-name'>{row.name}</span>
-                                {row.head ? null : <span className='model-stat-row-value'>{row.value}</span>}
+                                <span className='model-stat-row-value'>{row.value}</span>
                             </li>
                         ))}
                     </ul>
@@ -381,27 +393,15 @@ CardRows.propTypes = {
     rows: PropTypes.arrayOf(PropTypes.shape({
         key: PropTypes.string.isRequired,
         name: PropTypes.string.isRequired,
-        value: PropTypes.string,
-        head: PropTypes.bool,
+        value: PropTypes.string.isRequired,
     })).isRequired,
     children: PropTypes.node,
 };
 
-//
-// how a part of loss stands against the baseline's, in words before the
-// baseline's figure, as the score's card says its own: 'worse than baseline'
-//
-const PART_STANDS = {
-    better: 'better than baseline',
-    worse: 'worse than baseline',
-    level: 'level with baseline',
-};
-
 /**
  * the three scores loss adds up (#265), under the score's figure while Loss is
- * picked: each part's average, and how it stands against the baseline's
- * beside the baseline's own, after the list's arrow (#300) -- 'Up or down 0.723
- * ▼ worse than baseline 0.713'.
+ * picked: each part's average, and how far it stands from the baseline's, after
+ * the list's arrow (#300) -- 'Up or down 0.723 ▼ 0.010 worse'.
  *
  * `parts` are lossParts' of the track record's newest day, over the same days as
  * the figure, so the three add up to it.
@@ -414,13 +414,7 @@ export function LossParts({ parts }) {
                     <span className='model-part-name'>{part.label}</span>
                     <span className='model-part-figures'>
                         <span className='model-part-value'>{formatScore(part.value, 'loss')}</span>
-                        {part.stands
-                            ? (
-                                <span className={`model-part-baseline model-gap-${part.stands}`}>
-                                    {part.stands === 'level' ? null : <span className='model-gap-arrow'>{part.stands === 'better' ? '▲ ' : '▼ '}</span>}
-                                    {`${PART_STANDS[part.stands]} ${formatScore(part.baseline, 'loss')}`}
-                                </span>
-                            ) : null}
+                        {part.stands ? <span className={`model-part-gap model-gap-${part.stands}`}>{partGap(part)}</span> : null}
                     </span>
                 </li>
             ))}
@@ -490,6 +484,24 @@ ChecksTable.propTypes = {
     }).isRequired,
 };
 
+/**
+ * the checks' table and the note under it (#300): what 'not yet' means, and what
+ * a check that reaches its limit does -- see scores.js's checksNote.
+ */
+export function Checks({ table, note }) {
+    return (
+        <div className='model-checks-block'>
+            <ChecksTable table={table} />
+            <p className='model-checks-note'>{note}</p>
+        </div>
+    );
+}
+
+Checks.propTypes = {
+    table: ChecksTable.propTypes.table,
+    note: PropTypes.string.isRequired,
+};
+
 //
 // a score's figure on a hold, and how it stands against the baseline's in the
 // fewest words, '▲ 0.012 better', as a cell of the Scores by hold table and a
@@ -522,6 +534,48 @@ function scoredDays(days, window) {
     return days >= window ? `last ${window} of ${days} scored days` : `${days} scored ${days === 1 ? 'day' : 'days'} so far`;
 }
 
+//
+// the Scores by hold card's title, which folds it (#300): 'Scores by hold' on a
+// wide screen, and on a phone the score picked, 'Loss by hold'
+//
+function HoldsTitle({ label, folded, onFold }) {
+    return (
+        <FoldTitle
+            as='h5'
+            id='model-holds-title'
+            title={(
+                <>
+                    <span className='model-holds-wide'>Scores by hold</span>
+                    <span className='model-holds-phone'>{`${label} by hold`}</span>
+                </>
+            )}
+            folded={folded}
+            onFold={onFold}
+        />
+    );
+}
+
+HoldsTitle.propTypes = {
+    label: PropTypes.string.isRequired,
+    folded: PropTypes.bool.isRequired,
+    onFold: PropTypes.func.isRequired,
+};
+
+//
+// what the Scores by hold table holds, under its title (#300): each hold's
+// scores over its own latest days, beside the baseline's, what Combined is, and
+// why it has no top 10 where the task has one
+//
+function holdsAbout(task, holds, window) {
+    const combined = holds.some((each) => each.days === COMBINED);
+
+    return [
+        `Each hold’s scores over its own latest ${window} scored days, beside the baseline’s on the same days.`,
+        combined ? 'Combined is the average of the 1, 5 and 20-day scores of the same prediction days, so it comes in with the 20-day result.' : '',
+        combined && heldOut(task, COMBINED).length ? 'The top 10 has no combined score: a 20-day gain and a 1-day gain aren’t the same kind of number.' : '',
+    ].filter(Boolean).join(' ');
+}
+
 /**
  * a stock model's scores on each of its holds (#300), under the summary: a row
  * for each hold and one for Combined, saying how many days it has scored and
@@ -530,22 +584,38 @@ function scoredDays(days, window) {
  * listing's `holds`, as the score card's figure is. The hold picked is shaded.
  *
  * On a phone, '<score> by hold' in its place: the score picked, on every hold, a
- * line each, so nothing runs past the screen's edge. Both are drawn, and the
- * stylesheet shows the one that fits -- see '_model.scss'.
+ * line each, so nothing runs past the screen's edge. Both are drawn, each under
+ * a line of its own saying what it holds, and the stylesheet shows the one that
+ * fits -- see '_model.scss'.
+ *
+ * Its title folds it away and opens it again, as every section of the page
+ * does, kept between visits -- see parts.jsx's useFolds.
  */
 export function HoldsTable({ model, task, score, hold }) {
     const holds = listedHolds(model);
     const keys = scoresFor(task);
     const shown = scoreOnHold(score, hold);
     const window = averageDays(model);
+    const [folds, toggle] = useFolds('model-page');
+
+    if (folds.holds) {
+        return (
+            <section className='model-card model-by-hold' aria-labelledby='model-holds-title'>
+                <div className='model-card-head'>
+                    <HoldsTitle label={scoreOf(shown).label} folded onFold={() => toggle('holds')} />
+                </div>
+            </section>
+        );
+    }
 
     return (
         <section className='model-card model-by-hold' aria-labelledby='model-holds-title'>
             <div className='model-card-head'>
-                <h5 id='model-holds-title'>
-                    <span className='model-holds-wide'>Scores by hold</span>
-                    <span className='model-holds-phone'>{`${scoreOf(shown).label} by hold`}</span>
-                </h5>
+                <HoldsTitle label={scoreOf(shown).label} folded={false} onFold={() => toggle('holds')} />
+                <p className='model-card-sub model-holds-wide'>{holdsAbout(task, holds, window)}</p>
+                <p className='model-card-sub model-holds-phone'>
+                    {`Each over its hold’s own latest ${window} scored days. Pick another score above to see it on every hold.`}
+                </p>
             </div>
             <div className='model-holds-wide model-holds-box'>
                 <table className='model-holds-table'>
@@ -564,7 +634,7 @@ export function HoldsTable({ model, task, score, hold }) {
                                     <th scope='row'>
                                         <span className='model-holds-name'>{each.label}</span>
                                         <span className='model-holds-about'>{scoredDays(on.days, window)}</span>
-                                        <span className='model-holds-about'>{`Comes in ${each.days === COMBINED ? 'with the day’s 20-day result' : comesIn(task, each.days)}`}</span>
+                                        <span className='model-holds-about'>{comesInLine(task, each.days)}</span>
                                     </th>
                                     {keys.map((key) => {
                                         const figure = heldFigure(task, on, key);
@@ -611,6 +681,52 @@ HoldsTable.propTypes = {
     }),
     score: PropTypes.string.isRequired,
     hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]),
+};
+
+/**
+ * when each of a stock model's holds' results come in (#300), the page's last
+ * card: a box for each hold and for Combined, its name over when each of its
+ * results comes in and when it was first scored -- see scores.js's whenRows.
+ * Its title folds it, as every section of the page does.
+ */
+export function WhenCard({ rows }) {
+    const [folds, toggle] = useFolds('model-page');
+
+    return (
+        <section className='model-card model-when' aria-labelledby='model-when-title'>
+            <div className='model-card-head'>
+                <FoldTitle
+                    as='h5'
+                    id='model-when-title'
+                    title='When results come in'
+                    folded={Boolean(folds.when)}
+                    onFold={() => toggle('when')}
+                />
+            </div>
+            {folds.when
+                ? null
+                : (
+                    <ul className='model-when-list'>
+                        {rows.map((row) => (
+                            <li key={row.key} className='model-when-item'>
+                                <span className='model-when-name'>{row.name}</span>
+                                <span className='model-when-lag'>{row.when}</span>
+                                {row.first ? <span className='model-when-first'>{row.first}</span> : null}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+        </section>
+    );
+}
+
+WhenCard.propTypes = {
+    rows: PropTypes.arrayOf(PropTypes.shape({
+        key: PropTypes.string.isRequired,
+        name: PropTypes.string.isRequired,
+        when: PropTypes.string.isRequired,
+        first: PropTypes.string.isRequired,
+    })).isRequired,
 };
 
 class ModelPage extends Component {
@@ -820,11 +936,14 @@ class ModelPage extends Component {
                 ] : []);
 
         //
-        // whether attempts are said to be judged on the 1-day hold: a stock
-        // model with holds (#300). An options model's are judged on its loss,
-        // which adds up every hold that is on
+        // whether attempts are said to be judged on the 1-day hold, and why --
+        // see held -- and for a stock model the listing gives holds, which it
+        // predicts, and when one yet to switch on does (#300)
         //
-        const held = !tradesOptions(task) && Boolean(listedHolds(model).length || holdsOf(track).length);
+        const held = this.held(model, task);
+        const stock = !tradesOptions(task) && listedHolds(model).length > 0;
+        const today = newYorkToday();
+        const note = checksNote(model, today, stock);
 
         //
         // a taken-down model's live box on a phone: 'Taken down' its name and the
@@ -857,16 +976,21 @@ class ModelPage extends Component {
                             <span className='model-stat-label'>Live version</span>
                             <span className='model-stat-value'>{live.value}</span>
                             <span className='model-stat-detail'>{liveLine(model)}</span>
+                            {down ? <span className='model-stat-down'>{down}</span> : null}
                         </div>
-                        <CardRows rows={liveRows(model, history)}>{checks ? <ChecksTable table={checks} /> : null}</CardRows>
+                        <CardRows rows={liveRows(model, history, stock ? predictsLine(model, today) : '')}>
+                            {checks ? <Checks table={checks} note={note} /> : null}
+                        </CardRows>
                     </div>
                     <div className='model-stat'>
                         <div className='model-stat-head'>
                             <span className='model-stat-label'>Attempts that went live</span>
                             <span className='model-stat-value'>{went}</span>
-                            <span className='model-stat-detail'>{attemptsLine(history)}</span>
+                            <span className='model-stat-detail'>{ATTEMPTS_LINE}</span>
                         </div>
-                        <CardRows rows={attemptRows(history, held)} />
+                        <CardRows rows={attemptRows(history, held)}>
+                            {held && Array.isArray(history) && history.length ? <p className='model-stat-note'>{ATTEMPTS_NOTE}</p> : null}
+                        </CardRows>
                     </div>
                     <div className='model-stat'>
                         <div className='model-stat-head'>
@@ -922,7 +1046,7 @@ class ModelPage extends Component {
                         </p>
                         {lossBy}
                         {status === 'down' ? <p className='model-down-line'>{`${sentence(checkWords(model.down))} ${down}`}</p> : null}
-                        {checks ? <ChecksTable table={checks} /> : null}
+                        {checks ? <Checks table={checks} note={note} /> : null}
                         {trained
                             ? (
                                 <p className='model-trained-line'>
@@ -956,6 +1080,16 @@ class ModelPage extends Component {
         }
 
         return chart();
+    }
+
+    //
+    // whether a model's attempts are said to be judged on the 1-day hold: a
+    // stock model with holds (#300), whose held-out days have no longer results
+    // yet. An options model's are judged on its loss, which adds up every hold
+    // that is on
+    //
+    held(model, task) {
+        return !tradesOptions(task) && Boolean(listedHolds(model).length || holdsOf(this.state.track).length);
     }
 
     //
@@ -1017,7 +1151,7 @@ class ModelPage extends Component {
         }
 
         if (hold && !track.some((row) => scoreIn(row.score, columnOf(score, hold)) !== null)) {
-            return <TrackNone message={noResultsYet(task, hold)} />;
+            return <TrackNone title={trackTitle(score, hold)} message={noResultsYet(task, hold)} />;
         }
 
         //
@@ -1034,6 +1168,7 @@ class ModelPage extends Component {
                 score={score}
                 days={averageDays(model)}
                 hold={hold}
+                about={trackLine(task, hold)}
                 others={others}
                 other={offered}
                 otherRows={offered ? other_rows : undefined}
@@ -1103,6 +1238,12 @@ class ModelPage extends Component {
         const score = scoreOnHold(chosenScore(scores, task || { id: model.task }), holds.hold);
         const stock = !tradesOptions(task) && holds.holds.length > 0;
 
+        //
+        // a stock model the listing gives holds (#300): its scores on each, and
+        // last, when each one's results come in
+        //
+        const listed = stock && listedHolds(model).length > 0;
+
         return (
             <>
                 <div className='model-intro'>
@@ -1129,11 +1270,12 @@ class ModelPage extends Component {
                 </div>
                 {stock ? <p className='model-hold-line'>{holdLine(task, holds.hold)}</p> : null}
                 {this.summary(model, task, score, holds.hold)}
-                {stock && listedHolds(model).length ? <HoldsTable model={model} task={task} score={score} hold={holds.hold} /> : null}
+                {listed ? <HoldsTable model={model} task={task} score={score} hold={holds.hold} /> : null}
                 {this.report(history, 'nightly attempts', ATTEMPTS_CARD, () => (history.length
-                    ? <AttemptsChart rows={history} score={score} />
+                    ? <AttemptsChart rows={history} score={score} held={this.held(model, task)} />
                     : <p className='model-status model-status-empty'>No nightly attempts yet.</p>))}
                 {this.report(track, 'track record', TRACK_CARD, () => this.trackRecord(model, task, score, holds))}
+                {listed ? <WhenCard rows={whenRows(task, model, track, newYorkToday())} /> : null}
             </>
         );
     }

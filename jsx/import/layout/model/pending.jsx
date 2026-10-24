@@ -11,7 +11,7 @@
  * rather than pushing the page around underneath the reader.
  *
  * Note: nothing here invents a value. What is the same whatever the listing
- *       says is drawn as it will be -- the column headings, a figure's name, a
+ *       says is drawn as it will be -- a part's name, a figure's name, a
  *       chart's title, and on a model's page its name, which the address
  *       holds -- and every value is a gray bar, breathing as /graph's do.
  *
@@ -28,7 +28,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { PendingBar } from '../graph/pending.jsx';
-import { DEFAULT_SCORE, LOSS_PARTS, TREND_DAYS, WINDOW, scoreOf } from './scores.js';
+import { DEFAULT_SCORE, LOSS_PARTS, scoreOf } from './scores.js';
 
 //
 // how far apart, in milliseconds, two neighboring bars breathe -- /graph's own
@@ -86,13 +86,15 @@ export function PendingPicker() {
 }
 
 /**
- * one of /model's rows, or a phone's card, before the listing says whose: its
- * figures' names, and a bar for every value, in a row's order, its score last
- * (#283). The box that ticks it is drawn disabled, and there is no bell, since a
- * retired model has none. With `parts`, loss's three parts stand in the score's
- * place, each named over a bar, as a row of a list that shows them has them.
+ * one of /model's rows, or a phone's card, before the listing says whose, laid
+ * out as #300 lays a row out: a bar for its name and its status over
+ * its address and lines for its description, then bars for its score, the trend
+ * line's place, and when it went live. The box that ticks it is drawn disabled, and there is
+ * no bell, since a retired model has none. With `parts`, loss's three parts
+ * stand in the score's place, each named over a bar, as a row of a list that
+ * shows them has them (#283).
  */
-export function PendingRow({ score, at, parts = false }) {
+export function PendingRow({ at, parts = false }) {
     const delay = (step) => (at * 8 + step) * STAGGER;
 
     return (
@@ -114,42 +116,21 @@ export function PendingRow({ score, at, parts = false }) {
                     <PendingLines widths={['17rem', '9rem']} delay={delay(3)} />
                 </p>
             </div>
-            <div className='model-cell model-cell-alarm' />
-            <div className='model-cell model-cell-live'>
-                <span className='model-cell-label'>Live version</span>
-                <span className='model-figure'>
-                    <PendingBar width='3.5rem' delay={delay(5)} />
-                </span>
-                <span className='model-figure-detail'>
-                    <PendingBar width='6rem' delay={delay(6)} />
-                </span>
-            </div>
-            <div className='model-cell model-cell-went'>
-                <span className='model-cell-label'>Went live</span>
-                <span className='model-figure'>
-                    <PendingBar width='3rem' delay={delay(5)} />
-                </span>
-                <span className='model-figure-detail'>
-                    <PendingBar width='4rem' delay={delay(6)} />
-                </span>
-            </div>
-            <div className='model-cell model-cell-trend'>
-                <span className='model-cell-label'>{`Last ${TREND_DAYS} days`}</span>
-                <span className='model-trend-pending' style={{ animationDelay: `${delay(7)}ms` }} />
-            </div>
             {parts
                 ? (
                     <div className='model-cell model-cell-parts'>
-                        <span className='model-cell-label'>{scoreOf(score).label}</span>
+                        <span className='model-parts-note'>
+                            <PendingBar width='12rem' delay={delay(4)} />
+                        </span>
                         <ul className='model-part-cells'>
                             {LOSS_PARTS.map((part, step) => (
                                 <li key={part.key} className='model-part-cell'>
                                     <span className='model-part-cell-name'>{part.label}</span>
                                     <span className='model-part-cell-value'>
-                                        <PendingBar width='2.5rem' delay={delay(8 + step)} />
+                                        <PendingBar width='2.5rem' delay={delay(5 + step)} />
                                     </span>
                                     <span className='model-gap'>
-                                        <PendingBar width='4.5rem' delay={delay(9 + step)} />
+                                        <PendingBar width='4.5rem' delay={delay(6 + step)} />
                                     </span>
                                 </li>
                             ))}
@@ -157,69 +138,64 @@ export function PendingRow({ score, at, parts = false }) {
                     </div>
                 ) : (
                     <div className='model-cell model-cell-score'>
-                        <span className='model-cell-label'>{scoreOf(score).label}</span>
                         <span className='model-score-value'>
-                            <PendingBar width='3.5rem' delay={delay(8)} />
+                            <PendingBar width='3.5rem' delay={delay(4)} />
+                        </span>
+                        <span className='model-score-days'>
+                            <PendingBar width='5rem' delay={delay(5)} />
                         </span>
                         <span className='model-gap'>
-                            <PendingBar width='8.5rem' delay={delay(9)} />
+                            <PendingBar width='8.5rem' delay={delay(6)} />
                         </span>
                     </div>
                 )}
+            <div className='model-cell model-cell-trend'>
+                <span className='model-trend-pending' style={{ animationDelay: `${delay(7)}ms` }} />
+            </div>
+            <div className='model-cell model-cell-since'>
+                <span className='model-since'>
+                    <PendingBar width='6.5rem' delay={delay(8)} />
+                </span>
+                <span className='model-since-went'>
+                    <PendingBar width='9rem' delay={delay(9)} />
+                </span>
+            </div>
         </div>
     );
 }
 
 PendingRow.propTypes = {
-    score: PropTypes.string.isRequired,
     at: PropTypes.number.isRequired,
     parts: PropTypes.bool,
 };
 
 /**
- * /model's list before the listing names its task and its models: the task's
- * heading, its score picker (#279), the list's own column headings, and two
- * rows. On loss, as its three parts (#283): a list opens on loss, and the first
- * list is of stock models, whose list shows them. The score's heading names the
- * days a listing averages where it does not say, WINDOW: the listing that says
- * otherwise is not in yet (#293).
+ * /model's list before the listing names its task and its models, as #300
+ * lays a list out: the task's heading and its count over what it
+ * predicts, its score picker (#279), and two rows in their box. On loss, as its three parts
+ * (#283): a list opens on loss, and the first list is of stock models, whose
+ * list shows them.
  */
 export function PendingGroup({ score = DEFAULT_SCORE }) {
     const parts = score === DEFAULT_SCORE;
-    const scoreName = `${scoreOf(score).label}, last ${WINDOW} days`;
 
     return (
         <section className='model-group' aria-hidden='true'>
             <div className='model-group-head'>
                 <h5><PendingBar width='7.5rem' /></h5>
-                <span className='model-group-detail'>
-                    <PendingLines widths={['26rem', '12rem']} delay={STAGGER} />
-                </span>
                 <span className='model-group-count'>
-                    <PendingBar width='4rem' delay={2 * STAGGER} />
+                    <PendingBar width='4rem' delay={STAGGER} />
                 </span>
+                <p className='model-group-detail'>
+                    <PendingLines widths={['26rem', '12rem']} delay={STAGGER} />
+                </p>
             </div>
             <div className='model-controls model-group-controls'>
                 <PendingPicker />
             </div>
             <div className={parts ? 'model-list model-list-parts' : 'model-list'}>
-                <div className='model-list-head'>
-                    <span>Compare</span>
-                    <span>Model</span>
-                    <span />
-                    <span>Live version</span>
-                    <span>Went live</span>
-                    <span className='model-head-trend'>{`Last ${TREND_DAYS} days`}</span>
-                    {parts
-                        ? (
-                            <div className='model-parts-head'>
-                                <span className='model-noted'>{scoreName}</span>
-                                {LOSS_PARTS.map((part) => <span key={part.key}>{part.label}</span>)}
-                            </div>
-                        ) : <span>{scoreName}</span>}
-                </div>
                 <div>
-                    {[0, 1].map((at) => <PendingRow key={at} score={score} at={at} parts={parts} />)}
+                    {[0, 1].map((at) => <PendingRow key={at} at={at} parts={parts} />)}
                 </div>
             </div>
         </section>

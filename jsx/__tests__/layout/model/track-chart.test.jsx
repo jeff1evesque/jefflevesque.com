@@ -1,7 +1,8 @@
 /**
  * track-chart.test.jsx: a model's track record, on its own page (#243), and
  * another model of its task drawn beside it from a menu, on an options model's
- * holds (#279) and from format 5 a stock model's and Combined (#300).
+ * holds (#279) and from format 5 a stock model's and Combined (#300), under a
+ * title naming the hold and the score, and the line it is handed (#300).
  *
  * Note: recharts is drawn for real, in a container given a size -- see
  *       sizedRecharts in test-support/model-fixtures.js.
@@ -13,8 +14,19 @@ import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import TrackChart, { DayDot, NotInBand, TakenDownTick, WentLiveTick, notIn, trackPoints } from '../../../import/layout/model/track-chart.jsx';
-import { chartColors } from '../../../import/layout/model/scores.js';
+import TrackChart, {
+    DayDot,
+    HEIGHT,
+    NotInBand,
+    TITLE,
+    TakenDownTick,
+    TrackNone,
+    WentLiveTick,
+    notIn,
+    trackPoints,
+    trackTitle,
+} from '../../../import/layout/model/track-chart.jsx';
+import { chartColors, trackLine } from '../../../import/layout/model/scores.js';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
 import { heldTrackOf, optionsTrackOf, phoneScreen, pointAt, tapAt, trackOf, wideScreen, withTop10 } from '../../../test-support/model-fixtures.js';
@@ -100,11 +112,30 @@ describe('trackPoints', () => {
     });
 });
 
+describe('trackTitle (#300)', () => {
+    it('names the hold the record is drawn on, and the score', () => {
+        expect(trackTitle('loss', 5)).toBe('Track record, 5-day hold: Loss');
+        expect(trackTitle('loss', 1)).toBe('Track record, 1-day hold: Loss');
+        expect(trackTitle('auc_up', 'combined')).toBe('Track record, combined: Up/down AUC');
+    });
+
+    it('names the score alone for a model with no holds', () => {
+        expect(trackTitle('loss')).toBe('Track record: Loss');
+        expect(trackTitle('acc_up', null)).toBe('Track record: Up/down accuracy');
+    });
+
+    it('keeps the plain title, and a chart 300px tall, for the placeholder while the record is on its way', () => {
+        expect(TITLE).toBe('Track record');
+        expect(HEIGHT).toBe(300);
+    });
+});
+
 describe('DayDot', () => {
-    it('draws a day\'s score as a faint dot', () => {
+    it('draws a day\'s score as a faint dot, 6px across (#300)', () => {
         const { container } = render(<svg><DayDot cx={4} cy={5} payload={{ single: 1.6 }} color='#000' /></svg>);
 
-        expect(container.querySelector('circle')).toHaveAttribute('fill-opacity', '0.25');
+        expect(container.querySelector('circle')).toHaveAttribute('fill-opacity', '0.45');
+        expect(container.querySelector('circle')).toHaveAttribute('r', '3');
     });
 
     it('draws nothing on a day with no score', () => {
@@ -128,33 +159,42 @@ describe('the chart', () => {
         expect(container.querySelectorAll('.recharts-line')).toHaveLength(2);
     });
 
-    it('draws this model in the live version\'s green, and the baseline dashed in amber (#251)', () => {
+    it('draws this model in the charts\' blue, as #300 lays it out, and the baseline dashed in amber, a longer dash (#251)', () => {
         const { container } = draw({ rows: trackOf(6) });
         const colors = chartColors('light');
         const [baseline, average] = container.querySelectorAll('.recharts-line-curve');
 
-        expect(average).toHaveAttribute('stroke', colors.live);
+        expect(average).toHaveAttribute('stroke', colors.better);
+        expect(average).toHaveAttribute('stroke-width', '2.5');
         expect(baseline).toHaveAttribute('stroke', colors.baseline);
-        expect(baseline).toHaveAttribute('stroke-dasharray', '5 4');
-        expect(container.querySelector('.model-day-dot')).toHaveAttribute('fill', colors.live);
+        expect(baseline).toHaveAttribute('stroke-dasharray', '7 5');
+        expect(container.querySelector('.model-day-dot')).toHaveAttribute('fill', colors.better);
 
         const legend = within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem');
 
-        expect(legend[0].querySelector('line')).toHaveAttribute('stroke', colors.live);
+        expect(legend[0].querySelector('circle')).toHaveAttribute('fill', colors.better);
+        expect(legend[1].querySelector('line')).toHaveAttribute('stroke', colors.better);
         expect(legend[2].querySelector('line')).toHaveAttribute('stroke-dasharray', '5 4');
     });
 
-    it('flips the loss axis, and says so', () => {
+    it('names each day, the average and the baseline in its legend, by the days the averages take in (#300)', () => {
+        draw({ rows: trackOf(6) });
+
+        expect(within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem').map((item) => item.textContent))
+            .toEqual(['Each day', 'Last 20 days’ average', 'Baseline, last 20 days', 'Lower is better, so the axis is flipped: better is up.']);
+    });
+
+    it('flips the loss axis, and says so last in its legend (#300)', () => {
         const { container } = draw();
         const ticks = yTicks(container);
         const top = ticks.reduce((a, b) => (a.y < b.y ? a : b));
         const bottom = ticks.reduce((a, b) => (a.y > b.y ? a : b));
 
         expect(top.value).toBeLessThan(bottom.value);
-        expect(screen.getByText(/the loss axis is flipped/)).toBeInTheDocument();
+        expect(screen.getByText('Lower is better, so the axis is flipped: better is up.')).toHaveClass('model-legend-note');
     });
 
-    it('leaves another score\'s axis the right way up', () => {
+    it('leaves another score\'s axis the right way up, and says higher is better', () => {
         const { container } = draw({ score: 'auc_beats' });
         const ticks = yTicks(container);
         const top = ticks.reduce((a, b) => (a.y < b.y ? a : b));
@@ -162,6 +202,33 @@ describe('the chart', () => {
 
         expect(top.value).toBeGreaterThan(bottom.value);
         expect(screen.queryByText(/flipped/)).toBeNull();
+        expect(screen.getByText('Higher is better.')).toHaveClass('model-legend-note');
+    });
+});
+
+describe('the title and the line under it (#300)', () => {
+    it('names the score in the title of a model with no holds', () => {
+        draw();
+
+        expect(screen.getByRole('heading', { level: 5, name: 'Track record: Loss' })).toBeInTheDocument();
+    });
+
+    it('names the hold and the score the chart is drawn on', () => {
+        draw({ name: 'pt-options', rows: optionsTrackOf(30), score: 'top10_gain', others: [], hold: 5 });
+
+        expect(screen.getByRole('heading', { level: 5, name: 'Track record, 5-day hold: Top 10 gain' })).toBeInTheDocument();
+    });
+
+    it('says under the title the line it is handed: when each day is scored', () => {
+        const { container } = draw({ about: trackLine(undefined, null) });
+
+        expect(container.querySelector('.model-card-sub')).toHaveTextContent('Each day’s real predictions, scored once that day’s prices are in.');
+    });
+
+    it('says nothing under the title where it is handed nothing', () => {
+        const { container } = draw();
+
+        expect(container.querySelector('.model-card-sub')).toBeNull();
     });
 });
 
@@ -246,13 +313,13 @@ describe('the panel (#251)', () => {
         expect(container.querySelector('.recharts-tooltip-wrapper .model-tip')).toBeNull();
     });
 
-    it('marks this model\'s values in its green, and the baseline\'s dashed in amber', () => {
+    it('marks this model\'s values in its blue, and the baseline\'s dashed in amber', () => {
         const { container } = draw({ rows: trackOf(1) });
         const colors = chartColors('light');
         const rows = [...container.querySelectorAll('.model-tip-row')];
 
-        expect(rows[0].querySelector('circle')).toHaveAttribute('fill', colors.live);
-        expect(rows[1].querySelector('line')).toHaveAttribute('stroke', colors.live);
+        expect(rows[0].querySelector('circle')).toHaveAttribute('fill', colors.better);
+        expect(rows[1].querySelector('line')).toHaveAttribute('stroke', colors.better);
         expect(rows[2].querySelector('line')).toHaveAttribute('stroke', colors.baseline);
     });
 
@@ -317,7 +384,7 @@ describe('folding the track record (#253)', () => {
     beforeEach(() => window.localStorage.clear());
     afterEach(() => window.localStorage.clear());
 
-    const title = () => screen.getByRole('button', { name: 'Track record' });
+    const title = () => screen.getByRole('button', { name: 'Track record: Loss' });
 
     it('is open on a first visit, its title saying so', () => {
         const { container } = draw();
@@ -327,12 +394,14 @@ describe('folding the track record (#253)', () => {
     });
 
     it('folds down to its title: the line under it, its legend, the menu, the chart, its panel and its numbers', async () => {
-        const { container } = draw();
+        const { container } = draw({ about: trackLine(undefined, null) });
+
+        expect(container.querySelector('.model-card-sub')).not.toBeNull();
 
         await userEvent.click(title());
 
         expect(title()).toHaveAttribute('aria-expanded', 'false');
-        expect(screen.getByRole('heading', { level: 5, name: 'Track record' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 5, name: 'Track record: Loss' })).toBeInTheDocument();
         expect(container.querySelector('.model-card-sub')).toBeNull();
         expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
         expect(screen.queryByRole('combobox')).toBeNull();
@@ -387,7 +456,7 @@ describe('the numbers', () => {
 });
 
 describe('the nights a new version went live', () => {
-    it('stand as a short tick on the foot of the plot, in the better color', () => {
+    it('stand as a short tick on the foot of the plot, in the color they are handed', () => {
         const { container } = render(<svg><WentLiveTick x1={40} y1={10} y2={200} color='#1c5cab' /></svg>);
         const tick = container.querySelector('line');
 
@@ -403,12 +472,12 @@ describe('the nights a new version went live', () => {
         expect(container.querySelector('line')).toBeNull();
     });
 
-    it('are drawn on each such night the chart has a day for, and named in the legend', () => {
+    it('are drawn on each such night the chart has a day for, in the live version\'s green, and named in the legend', () => {
         const rows = trackOf(5);
         const { container } = draw({ rows: rows, wentLive: [rows[1].day, rows[3].day, '2025-01-02'] });
 
         expect(container.querySelectorAll('.model-went-live')).toHaveLength(2);
-        expect(container.querySelector('.model-went-live')).toHaveAttribute('stroke', chartColors('light').better);
+        expect(container.querySelector('.model-went-live')).toHaveAttribute('stroke', chartColors('light').live);
         expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('New version went live')).toBeInTheDocument();
     });
 
@@ -565,10 +634,12 @@ describe('an options model\'s holds (#279)', () => {
         expect(container.querySelectorAll('.model-day-dot')).toHaveLength(26);
     });
 
-    it('say each day is scored once each hold\'s sell day is in, and name the hold the chart and its table are on', async () => {
-        const { container } = held();
+    it('say each day is scored once the hold\'s sell day is in, and name the hold the title, the chart and its table are on (#300)', async () => {
+        const task = { id: 'options', scores: ['loss', 'profit_auc', 'top10_gain', 'top10_wins'] };
+        const { container } = held({ about: trackLine(task, 5) });
 
-        expect(screen.getByText(/^Each day’s real predictions, scored once each hold’s sell day is in\. Dots are single days/)).toBeInTheDocument();
+        expect(screen.getByText('Each day’s real predictions, scored once the 5-day hold’s sell day is in, 6 trading days later. The newest days aren’t in yet.')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 5, name: 'Track record, 5-day hold: Loss' })).toBeInTheDocument();
         expect(container.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringMatching(/^Loss on the 5-day hold of pt-options and the know-nothing baseline/));
 
         await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
@@ -600,10 +671,11 @@ describe('an options model\'s holds (#279)', () => {
         expect(within(screen.getByRole('list', { name: 'Legend' })).queryByText('Not in yet')).toBeNull();
     });
 
-    it('leave a stock model\'s line and panel as they were', () => {
-        draw();
+    it('leave a stock model\'s line and title as they were, naming no hold', () => {
+        draw({ about: trackLine(undefined, null) });
 
-        expect(screen.getByText(/^Each day’s real predictions, scored once that day’s prices are in\./)).toBeInTheDocument();
+        expect(screen.getByText('Each day’s real predictions, scored once that day’s prices are in.')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 5, name: 'Track record: Loss' })).toBeInTheDocument();
     });
 });
 
@@ -632,10 +704,12 @@ describe('the days each average takes in, the listing\'s average_days (#293)', (
         expect(readout(container).getByText('tables, 30 days')).toBeInTheDocument();
     });
 
-    it('are said under the title and to a screen reader', () => {
+    it('are said in the legend and to a screen reader (#300)', () => {
         const { container } = draw({ days: 30 });
+        const legend = within(screen.getByRole('list', { name: 'Legend' }));
 
-        expect(container.querySelector('.model-card-sub')).toHaveTextContent('Dots are single days, and lines are averages of the last 30 days.');
+        expect(legend.getByText('Last 30 days’ average')).toBeInTheDocument();
+        expect(legend.getByText('Baseline, last 30 days')).toBeInTheDocument();
         expect(container.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringContaining('as averages of the last 30 days, with single days as dots'));
     });
 
@@ -652,7 +726,7 @@ describe('the days each average takes in, the listing\'s average_days (#293)', (
         const { container } = draw({ rows: trackOf(25) });
 
         expect(readout(container).getByText('This model, 20 days')).toBeInTheDocument();
-        expect(container.querySelector('.model-card-sub')).toHaveTextContent('lines are averages of the last 20 days.');
+        expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('Last 20 days’ average')).toBeInTheDocument();
     });
 });
 
@@ -774,5 +848,33 @@ describe('NotInBand (#300)', () => {
         const { container } = band({ x: undefined });
 
         expect(container.querySelector('rect')).toBeNull();
+    });
+});
+
+describe('TrackNone (#300)', () => {
+    beforeEach(() => window.localStorage.clear());
+    afterEach(() => window.localStorage.clear());
+
+    it('heads the card with the title it is handed, and says in place of the chart, on a light tint, when results come in', () => {
+        const { container } = render(<TrackNone title='Track record, 20-day hold: Loss' message='No 20-day results yet.' />);
+
+        expect(screen.getByRole('heading', { level: 5, name: 'Track record, 20-day hold: Loss' })).toBeInTheDocument();
+        expect(container.querySelector('.model-track-none')).toHaveTextContent('No 20-day results yet.');
+        expect(container.querySelector('.model-chart')).toBeNull();
+    });
+
+    it('is headed Track record where it is handed no title', () => {
+        render(<TrackNone message='No 5-day results yet.' />);
+
+        expect(screen.getByRole('heading', { level: 5, name: 'Track record' })).toBeInTheDocument();
+    });
+
+    it('folds down to its title, as the chart\'s card does', async () => {
+        const { container } = render(<TrackNone title='Track record, combined: Loss' message='No combined scores yet.' />);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Track record, combined: Loss' }));
+
+        expect(screen.getByRole('button', { name: 'Track record, combined: Loss' })).toHaveAttribute('aria-expanded', 'false');
+        expect(container.querySelector('.model-track-none')).toBeNull();
     });
 });

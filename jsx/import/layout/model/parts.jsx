@@ -19,10 +19,13 @@ import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import {
     BASELINE_DASH,
     COMBINED,
+    DEFAULT_SCORE,
     HOLDS,
     SCORES,
     SCORING_OPACITY,
+    betterBy,
     formatGap,
+    formatScore,
     scoreOf,
     standing,
     statusOf,
@@ -164,6 +167,18 @@ export function gapWords(gap, key, than = ' than the baseline', level = 'level w
 }
 
 /**
+ * how a part of loss stands against the baseline's, in fewer words than the
+ * score's own line, since the parts stand one over another on a model's page and
+ * side by side on /model (#300): '▼ 0.013 worse', or 'level'. Compared as the
+ * two are printed, as scores.js's lossParts compares them.
+ */
+export function partGap(part) {
+    const printed = (value) => Number(formatScore(value, DEFAULT_SCORE));
+
+    return gapWords(betterBy(printed(part.value), printed(part.baseline), DEFAULT_SCORE), DEFAULT_SCORE, '', 'level');
+}
+
+/**
  * a model's status: Live, New with how far it is through the days it needs,
  * 'New · day 5 of 20' (#293), Behind baseline while its live version is down
  * (#263), or Retired.
@@ -239,6 +254,12 @@ AlarmBell.propTypes = {
     held: PropTypes.bool,
 };
 
+//
+// how much of its color a single day's dot takes on a track record, and in the
+// legend beside it: light enough that the average's line reads over it (#300)
+//
+export const FAINT_OPACITY = 0.45;
+
 /**
  * one mark, as a legend or a panel draws it beside its words -- the same shape,
  * size and stroke as the chart draws it, so the two look alike:
@@ -267,7 +288,7 @@ export function Mark({ kind, color }) {
         ring: <circle cx='8' cy='6' r='3.5' fill='none' stroke={color} strokeWidth='2' />,
         diamond: <polygon points={diamond(6.5)} fill={color} />,
         hollow: <polygon points={diamond(5.5)} fill='none' stroke={color} strokeWidth='2' />,
-        faint: <circle cx='8' cy='6' r='4' fill={color} fillOpacity='0.25' />,
+        faint: <circle cx='8' cy='6' r='4' fill={color} fillOpacity={FAINT_OPACITY} />,
         bar: <rect x='4' y='1' width='8' height='10' rx='2' fill={color} />,
         fade: <rect x='4' y='1' width='8' height='10' rx='2' fill={color} fillOpacity={SCORING_OPACITY} />,
         stack: (
@@ -293,9 +314,10 @@ Mark.propTypes = {
 };
 
 /**
- * a chart's legend: each mark, and what it stands for.
+ * a chart's legend: each mark, and what it stands for, and after them in gray,
+ * `note`, which way the chart's axis runs (#300).
  */
-export function Legend({ items, label = 'Legend' }) {
+export function Legend({ items, label = 'Legend', note = null }) {
     return (
         <ul className='model-legend' aria-label={label}>
             {items.map((item) => (
@@ -304,6 +326,7 @@ export function Legend({ items, label = 'Legend' }) {
                     <span>{item.label}</span>
                 </li>
             ))}
+            {note ? <li className='model-legend-note'>{note}</li> : null}
         </ul>
     );
 }
@@ -316,7 +339,16 @@ Legend.propTypes = {
         label: PropTypes.node.isRequired,
     })).isRequired,
     label: PropTypes.string,
+    note: PropTypes.string,
 };
+
+/**
+ * which way a chart's axis runs, as its legend's note says it (#300): flipped for
+ * a score where lower is better, so better is up on every chart.
+ */
+export function axisNote(score) {
+    return scoreOf(score).lower ? 'Lower is better, so the axis is flipped: better is up.' : 'Higher is better.';
+}
 
 //
 // the width the model pages lay out for a phone at -- see '_model.scss'
