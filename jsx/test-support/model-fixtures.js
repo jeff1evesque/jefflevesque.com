@@ -439,7 +439,7 @@ export function picksOf(holds = [1, 5, 20], count = 10, ticker = null) {
             rank: at + 1,
             ticker: stock,
             contract: `${stock.replace('.', '')}  261120${put ? 'P' : 'C'}00${String(200 + at * 5).padStart(3, '0')}000`,
-            call_put: put ? 'put' : 'call',
+            call_put: put ? 'p' : 'c',
             strike: 200 + at * 5,
             expiry: '2026-11-20',
             buy_on: '2026-10-22',
