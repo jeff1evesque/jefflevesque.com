@@ -11,16 +11,20 @@ Nothing here says how a model is built.
 Each model has a task, what it predicts. A stock model predicts the same three things
 about each of the roughly 500 stocks in the S&P 500 for the next trading day, the three
 that its loss scores: the chance its price goes up, the chance it beats the average
-stock, and how far it moves. An options model predicts, for every S&P 500 option, the
-chance it makes money if bought at 9:40 AM on the next trading day and sold at 3:40 PM
-1, 5 or 20 trading days later, after the gap between the buy and sell prices, and how
-much it makes. The api serves how those predictions score, and to a signed-in reader,
-each night's picks of an options model: the options it ranks best.
+stock, and how far it moves. From format 5 it predicts them for three holds: from
+9:40 AM to 3:40 PM on the next trading day, as before, and from 9:40 AM on the next
+trading day to 3:40 PM 5 or 20 trading days later. An options model predicts, for every
+S&P 500 option, the chance it makes money if bought at 9:40 AM on the next trading day
+and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and
+sell prices, and how much it makes. The api serves how those predictions score, and to
+a signed-in reader, each night's picks of an options model: the options it ranks best.
 
 Each night the trainer builds a new version of every model, then scores it and the
 live version on the same held-out days. The new version goes live only if its loss is
 no higher. Each day a model predicts is scored once that day's prices are in, an
-options model's once each hold's sell day is.
+options model's once each hold's sell day is, and from format 5 a stock model's 5 and
+20-day holds once their last day is. A new version is still judged on its 1-day hold
+alone.
 
 A model that keeps doing worse than the baseline has its live version taken down, and
 predicts nothing until a new version beats the baseline.
@@ -63,6 +67,27 @@ offers them. A task that names none has the four of the stock models. A stock mo
 | `acc_up` | the share of stocks whose direction was called right, 0 to 1 |
 | `top10_gain` | from format 3: the average gain of each night's top 10, the 10 stocks it is surest will go up, bought at the 9:40 AM ask and sold at the 3:40 PM bid the same day, as a share of what they cost |
 | `top10_wins` | from format 3: how many of each night's top 10 made money, 0 to 10 |
+
+From format 5, a stock model has each of these for each of three holds, scored on its
+own, beside its own baseline:
+
+| Hold | From 9:40 AM on the next trading day to | Its result comes in |
+|---|---|---|
+| 1-day | 3:40 PM the same day, as before | the next trading day |
+| 5-day | 3:40 PM 5 trading days later | 6 trading days after the prediction |
+| 20-day | 3:40 PM 20 trading days later | 21 trading days after the prediction |
+
+The 5 and 20-day holds run over the same days as an options model's. A hold's
+`top10_gain` and `top10_wins` are of its own top 10, bought at the 9:40 AM ask and sold
+at the 3:40 PM bid on the hold's last day. **Combined** averages each day's three holds:
+`loss`, its three parts, `auc_up`, `auc_beats` and `acc_up`. It comes in with the 20-day
+result, about a month after the day, and the top 10 has none: a 20-day gain and a 1-day
+gain aren't the same kind of number.
+
+If every trading day is built, the 5-day hold switches on at the retrain on Saturday,
+2026-10-31, and its first results come in on 2026-11-11. The 20-day hold switches on at
+the retrain on Saturday, 2026-11-21, and its first results, with Combined's first, come
+in on 2026-12-24. Until then their columns are empty, and their `holds` have no scores.
 
 An options model's, from format 3:
 
@@ -121,10 +146,11 @@ A **model** has:
 | `scored_days` | the rows of its track record. Under `average_days`, the model is New |
 | `live` | the version making its predictions: `since`, the night it went live, and `kind`, `first` while its first version is still live, or `nightly` or `weekly` for the update or retrain that made it. For a retired model, or one whose live version was taken down, the last version that predicted. From format 4, `days`, what it learned from, or `null` where the trainer has no record of it: `training`, how many days it trained on, `stopping`, how many decided when it stopped, and `first` and `last`, the oldest and newest of all those days |
 | `attempts` | the rows of its history: `total`, and `went_live`, those that replaced the live version |
-| `score` | each score averaged over the last `average_days` rows of its track record, or all of them while it has fewer; `null` while it has none. `loss`, `auc_up`, `auc_beats` and `acc_up` are always there, `null` where its task has none of them, and from format 3 `profit_auc`, `top10_gain` and `top10_wins` where it has them. An options model's are its 1-day hold's |
+| `score` | each score averaged over the last `average_days` rows of its track record, or all of them while it has fewer; `null` while it has none. `loss`, `auc_up`, `auc_beats` and `acc_up` are always there, `null` where its task has none of them, and from format 3 `profit_auc`, `top10_gain` and `top10_wins` where it has them. An options model's are its 1-day hold's, and from format 5 a stock model's too |
 | `baseline` | the baseline's scores averaged over the same days |
-| `down` | `null` while its live version is live. Otherwise `since`, the night it was taken down, and the check that did it: `days`, 1 for each scored day on its own or 5 or 20 for an average over its latest scored days, and `in_a_row`, how many scored days in a row it was worse. From format 3, `hold`: for an options model, the hold the check ran on, in trading days. From format 4, `reason`: `worse`, a check as above; `not_ahead`, its live version went live without beating the baseline; or `track_record`, its track record showed nothing better than the baseline. For the last two, no check did it, and `days` and `in_a_row` are `null` |
-| `behind` | one entry per check, as of the newest scored day: `days`; `in_a_row`, how many scored days in a row it has been worse, or `null` until it has enough days; and `limit`, the count that takes the live version down. From format 3, `hold`, as in `down`: an options model has every check for each hold |
+| `holds` | from format 5, the model's scores on each hold: `1d`, `5d` and `20d`, and for a stock model `combined`. Each has `days`, how many scored days it has, and `score` and `baseline`: its task's scores averaged over its own latest `average_days` scored days, or all of them while it has fewer, and `null` before its first. `combined` has no top 10 scores. The model's own `score` and `baseline` are its `1d`'s |
+| `down` | `null` while its live version is live. Otherwise `since`, the night it was taken down, and the check that did it: `days`, 1 for each scored day on its own or 5 or 20 for an average over its latest scored days, and `in_a_row`, how many scored days in a row it was worse. From format 3, `hold`: for an options model, the hold the check ran on, in trading days, and from format 5 for a stock model too. From format 4, `reason`: `worse`, a check as above; `not_ahead`, its live version went live without beating the baseline; or `track_record`, its track record showed nothing better than the baseline. For the last two, no check did it, and `days` and `in_a_row` are `null`. From format 5, a take-down for `worse` or `track_record` names its `hold`, and one for `not_ahead` none, since an attempt is judged on the 1-day hold |
+| `behind` | one entry per check, as of the newest scored day: `days`; `in_a_row`, how many scored days in a row it has been worse, or `null` until it has enough days; and `limit`, the count that takes the live version down. From format 3, `hold`, as in `down`: an options model has every check for each hold, and from format 5 a stock model too |
 
 The checks today: each day 5 days in a row, the 5-day average 10 days in a row, and the
 20-day average 5 days in a row. A version goes live again only if it beats the baseline
@@ -141,6 +167,7 @@ without it is format 0.
 | 2 | a model's `down` and `behind`, and a track record's `down_days` and `down_in_a_row` |
 | 3 | a task's `scores`; `top10_gain` and `top10_wins`, and an options model's `profit_auc` and its track record's columns for each hold; the `hold` of `down` and of each check in `behind`; and the picks |
 | 4 | the listing's `average_days`; `down`'s `reason`, with `days` and `in_a_row` `null` where no check did it; and `live`'s `days` |
+| 5 | a stock model's track record's columns for each hold and for Combined, and its `down_hold`; the `hold` of a stock model's `down` and of each check in its `behind`; and each model's `holds` |
 
 It goes up with any change to the reports' keys or columns, or to what a value means,
 added columns included. A listing is published after every model's reports, so its
@@ -171,7 +198,8 @@ A CSV string with a header row, oldest night first. Each row is one nightly atte
 
 `started`, `training_seconds` and `total_seconds` are empty for attempts made before
 2026-10-15. From format 3, a history carries every score its task names, an options
-model's as its plain scores, which decide what goes live.
+model's as its plain scores, which decide what goes live. From format 5 a stock model's
+history is as it was: an attempt is still judged on the 1-day hold alone.
 
 ## Response: a track record
 
@@ -191,10 +219,30 @@ each score again as `<score>_1d`, `<score>_5d` and `<score>_20d`, and the baseli
 written once its 1-day hold's sell day is in, and its 5 and 20-day columns are empty
 until theirs are: 6 and 21 trading days after the day it was predicted.
 
+From format 5, a stock model's track record has a set of columns for each hold too. Every
+column it had stays, with the same values, the 1-day hold's: among them `stocks`, how
+many stocks the day scored, and `all_gain`, the average gain of every stock with one.
+Then, where `<hold>` is `1d`, `5d` or `20d`:
+
+| Columns | |
+|---|---|
+| `stocks_<hold>` | how many stocks the hold scored |
+| `all_gain_<hold>` | the average gain of every stock with one over the hold: what a random pick got |
+| `<score>_<hold>` | each score on the hold, loss's three parts among them, and the baseline's as `baseline_<score>_<hold>` |
+| `<score>_combined` | **Combined**: `loss`, `up_log_loss`, `beats_log_loss`, `move_pinball`, `auc_up`, `auc_beats` and `acc_up`, each the average of the day's 1, 5 and 20-day ones, beside the same average of the baseline's, as `baseline_<score>_combined` |
+| `down_hold` | the hold, in trading days, of the check that took the live version down, beside `down_days` and `down_in_a_row`, as an options model's has it |
+
+The `_1d` columns repeat the plain ones. A day's 5 and 20-day columns are empty until
+their results are in, 6 and 21 trading days after the day, and its Combined columns
+until its 20-day result is, about a month after the day. The top 10 has no Combined: a
+20-day gain and a 1-day gain aren't the same kind of number.
+
 The pages work out each day's average themselves, over the model's own last
 `average_days` rows, so a day it was not running neither counts nor shortens the window.
 Loss's three parts are averaged over the same rows, so on a model's page they add up to
-its average loss.
+its average loss. A hold's columns are averaged over its own latest `average_days` days
+with its result in, as the listing's `holds` are, since a longer hold's newest days are
+always empty.
 
 An empty cell is a score the day does not have, and is left out of an average rather
 than read as zero.

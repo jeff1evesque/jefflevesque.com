@@ -400,6 +400,169 @@ describe('model.json, from format 3 on (#279)', () => {
     });
 });
 
+describe('model.json, from format 5 on (#300)', () => {
+    const operation = documentOf('model').paths['/model'].get;
+    const media = operation.responses['200'].content['application/json'];
+    const listing = media.schema.properties.report.anyOf[0];
+    const model = listing.properties.models.items;
+    const headerOf = (example) => media.examples[example].value.report.split('\n')[0].split(',');
+
+    //
+    // a stock model's scores, as its track record writes them, and the ones
+    // Combined has: every one but the top 10's
+    //
+    const STOCK = ['loss', 'auc_up', 'auc_beats', 'acc_up', 'top10_gain', 'top10_wins', 'up_log_loss', 'beats_log_loss', 'move_pinball'];
+    const COMBINED = ['loss', 'auc_up', 'auc_beats', 'acc_up', 'up_log_loss', 'beats_log_loss', 'move_pinball'];
+    const PARTS = ['up_log_loss', 'beats_log_loss', 'move_pinball'];
+    const named = (scores) => [...scores, ...scores.map((score) => `baseline_${score}`)];
+
+    //
+    // the format 5 track record's rows, each keyed by its header, every cell as
+    // written: an empty one is a result not in yet
+    //
+    const header = headerOf('track-record-holds');
+    const rows = media.examples['track-record-holds'].value.report.trim().split('\n').slice(1)
+        .map((line) => Object.fromEntries(line.split(',').map((cell, at) => [header[at], cell])));
+    const report = media.examples['list-holds'].value.report;
+    const held = report.models.find((each) => each.name === 'tables-gnn-2');
+
+    it('names format 5, and what it added', () => {
+        expect(listing.properties.format_version.description).toMatch(/5: a stock model's track record's hold and Combined columns, and its down_hold; the hold of a stock model's down and of each check in its behind; and each model's holds/);
+    });
+
+    it('documents each model\'s scores on each hold, which a listing before format 5 has none of', () => {
+        const holds = model.properties.holds;
+
+        expect(holds.type).toBe('object');
+        expect(holds.required).toEqual(['1d', '5d', '20d']);
+        expect(Object.keys(holds.properties)).toEqual(['1d', '5d', '20d', 'combined']);
+        expect(model.required).not.toContain('holds');
+        Object.entries(holds.properties).forEach(([key, hold]) => {
+            expect({ key, required: hold.required }).toEqual({ key, required: ['days', 'score', 'baseline'] });
+            expect(hold.properties.days).toMatchObject({ type: 'integer', minimum: 0 });
+            ['score', 'baseline'].forEach((side) => {
+                expect({ key, side, type: hold.properties[side].type }).toEqual({ key, side, type: ['object', 'null'] });
+            });
+        });
+        expect(holds.properties.combined.description).toMatch(/no top10_gain or top10_wins/);
+        expect(model.properties.score.description).toMatch(/An options model's are its 1-day hold's, and from format 5 a stock model's are too/);
+    });
+
+    it('says a stock model\'s take-down and each of its checks name their hold, and a take-down for not_ahead none', () => {
+        const down = model.properties.down.properties.hold.description;
+        const check = model.properties.behind.items.properties.hold.description;
+
+        [down, check].forEach((each) => expect(each).toMatch(/and from format 5 for a stock model too/));
+        expect(down).toMatch(/a take-down for worse or track_record names the hold it was on, and one for not_ahead names none, since an attempt is judged on the 1-day hold/);
+        expect(model.properties.behind.description).toMatch(/and a stock model from format 5/);
+    });
+
+    it('describes a stock model\'s holds, its track record\'s columns for each and for Combined, and its down_hold', () => {
+        const described = operation.responses['200'].description;
+
+        expect(described).toMatch(/From format 5, a stock model's track record has a set of columns for each hold too/);
+        expect(described).toMatch(/stocks, all_gain and each score, loss's three parts among them/);
+        expect(described).toMatch(/The _1d columns repeat the plain ones/);
+        expect(described).toMatch(/columns ending _combined: loss, up_log_loss, beats_log_loss, move_pinball, auc_up, auc_beats and acc_up, each the average of the day's 1, 5 and 20-day ones/);
+        expect(described).toMatch(/The top 10 has no Combined: a 20-day gain and a 1-day gain aren't the same kind of number/);
+        expect(described).toMatch(/And it has down_hold/);
+        expect(described).toMatch(/from 9:40 AM on the next trading day to 3:40 PM 5 or 20 trading days later/);
+        expect(described).toMatch(/An attempt is still judged on the 1-day hold alone, so a stock model's history is as it was/);
+    });
+
+    it('shows a format 5 listing: the stock task renamed under its id, and each model\'s holds, Combined a stock model\'s alone', () => {
+        const stocks = report.tasks.find((task) => task.id === 'next-day-move');
+
+        expect(report.format_version).toBe(5);
+        expect(media.examples.list.value.report.format_version).toBe(3);
+        expect(stocks.name).toBe('Stock moves');
+        expect(stocks.description).toMatch(/to 3:40 PM that day, or 5 or 20 trading days later/);
+        expect(report.models.map((each) => each.task).sort()).toEqual(['next-day-move', 'option-picks']);
+        report.models.forEach((each) => {
+            const holds = each.task === 'next-day-move' ? ['1d', '5d', '20d', 'combined'] : ['1d', '5d', '20d'];
+
+            expect({ name: each.name, holds: Object.keys(each.holds) }).toEqual({ name: each.name, holds: holds });
+            expect(each.holds['1d'].days).toBe(each.scored_days);
+            ['score', 'baseline'].forEach((side) => {
+                Object.entries(each.holds['1d'][side]).forEach(([key, value]) => {
+                    expect({ name: each.name, side, key, value: each[side][key] }).toEqual({ name: each.name, side, key, value });
+                });
+            });
+            expect(each.behind.map((check) => check.hold)).toEqual([1, 1, 1, 5, 5, 5, 20, 20, 20]);
+        });
+    });
+
+    it('shows a stock model\'s format 5 track record: every column it had, each hold\'s, Combined\'s with no top 10, and down_hold', () => {
+        expect(header).toEqual(expect.arrayContaining(headerOf('track-record')));
+        ['_1d', '_5d', '_20d'].forEach((hold) => {
+            expect(header).toEqual(expect.arrayContaining(['stocks', 'all_gain', ...named(STOCK)].map((name) => `${name}${hold}`)));
+        });
+        expect(header).toEqual(expect.arrayContaining(named(COMBINED).map((name) => `${name}_combined`)));
+        expect(header.filter((name) => name.endsWith('_combined') && name.includes('top10'))).toEqual([]);
+        expect(header).toEqual(expect.arrayContaining(['stocks', 'all_gain', 'down_days', 'down_in_a_row', 'down_hold']));
+        expect(rows.every((row) => header.every((name) => name in row))).toBe(true);
+    });
+
+    it('repeats the plain columns as the 1-day hold\'s', () => {
+        rows.forEach((row) => {
+            ['stocks', 'all_gain', ...named(STOCK)].forEach((name) => {
+                expect({ day: row.day, name, cell: row[`${name}_1d`] }).toEqual({ day: row.day, name, cell: row[name] });
+            });
+        });
+    });
+
+    it('leaves the newest five days\' 5-day columns empty, and every 20-day and Combined one, their results not in yet', () => {
+        const empty = (row, end) => header.filter((name) => name.endsWith(end)).every((name) => row[name] === '');
+        const full = (row, end) => header.filter((name) => name.endsWith(end)).every((name) => row[name] !== '');
+
+        rows.forEach((row, at) => {
+            const newest = at >= rows.length - 5;
+
+            expect({ day: row.day, in: full(row, '_5d'), out: empty(row, '_5d') }).toEqual({ day: row.day, in: !newest, out: newest });
+            expect({ day: row.day, twenty: empty(row, '_20d'), combined: empty(row, '_combined') }).toEqual({ day: row.day, twenty: true, combined: true });
+        });
+        expect(rows.filter((row) => row.loss_5d !== '')).toHaveLength(5);
+    });
+
+    it('adds up loss\'s three parts to its loss on every hold and Combined, the baseline\'s as well', () => {
+        rows.forEach((row) => {
+            ['', 'baseline_'].forEach((prefix) => {
+                ['', '_1d', '_5d', '_20d', '_combined'].forEach((end) => {
+                    const loss = row[`${prefix}loss${end}`];
+                    const parts = PARTS.map((part) => row[`${prefix}${part}${end}`]);
+                    const adds = loss === ''
+                        ? parts.every((part) => part === '')
+                        : Math.abs(parts.reduce((total, part) => total + Number(part), 0) - Number(loss)) < 0.00005;
+
+                    expect({ day: row.day, prefix, end, adds }).toEqual({ day: row.day, prefix, end, adds: true });
+                });
+            });
+        });
+    });
+
+    it('counts and averages each of the listing\'s holds over the track record\'s days with its result in', () => {
+        expect(held.scored_days).toBe(rows.length);
+        ['1d', '5d', '20d', 'combined'].forEach((hold) => {
+            const scored = rows.filter((row) => row[`loss_${hold}`] !== '').slice(-report.average_days);
+
+            expect({ hold, days: held.holds[hold].days }).toEqual({ hold, days: scored.length });
+
+            [['score', ''], ['baseline', 'baseline_']].forEach(([side, prefix]) => {
+                if (!scored.length) {
+                    expect({ hold, side, scores: held.holds[hold][side] }).toEqual({ hold, side, scores: null });
+                    return;
+                }
+
+                Object.entries(held.holds[hold][side]).forEach(([key, value]) => {
+                    const mean = scored.reduce((total, row) => total + Number(row[`${prefix}${key}_${hold}`]), 0) / scored.length;
+
+                    expect({ hold, side, key, close: Math.abs(mean - value) < 0.000005 }).toEqual({ hold, side, key, close: true });
+                });
+            });
+        });
+    });
+});
+
 describe('model.json, loss\'s three parts (#265)', () => {
     const PARTS = ['up_log_loss', 'beats_log_loss', 'move_pinball'];
     const responses = documentOf('model').paths['/model'].get.responses;
