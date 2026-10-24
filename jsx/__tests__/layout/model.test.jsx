@@ -677,93 +677,74 @@ describe('the lists', () => {
     });
 });
 
-describe('the title', () => {
-    it('says what the stock models and the options model predict, what they read, and what the pages show, linking the graph and the data (#251, #277, #279, #290)', async () => {
+describe('the title (#296)', () => {
+    //
+    // the docs' page on the models, which /model links in place of its intro
+    //
+    const GUIDE = 'https://jeff1evesque.github.io/jefflevesque.com/guide/models/';
+
+    it('has no intro under it, and nothing to fold one on a phone', async () => {
         answer();
         await open();
 
-        const lede = document.querySelector('.model-lede');
-
-        expect(lede).toHaveTextContent(
-            'For each of the roughly 500 stocks in the S&P 500, the stock models predict three things about the next trading '
-            + 'day: the chance its price goes up, the chance it beats the average stock, and how far it moves. The options '
-            + 'model predicts, for each of those stocks’ options, the chance it makes money if bought at 9:40 AM the next '
-            + 'trading day and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and sell '
-            + 'prices. Each night they read the day’s knowledge graph, built from the data this site collects. Once the '
-            + 'prices are in, every prediction is graded against a guess that knows nothing, to show whether the data can '
-            + 'predict the market at all. This page shows those grades. An options model’s picks are on a page of their '
-            + 'own, for signed-in readers.'
-        );
-        expect(within(lede).getByRole('link', { name: 'knowledge graph' })).toHaveAttribute('href', '/graph');
-        expect(within(lede).getByRole('link', { name: 'data this site collects' })).toHaveAttribute('href', '/stream');
-    });
-});
-
-describe('the intro on a phone (#287)', () => {
-    afterEach(wideScreen);
-
-    const fold = () => document.querySelector('.model-lede-fold');
-    const more = () => screen.getByRole('button', { name: 'More' });
-    const less = () => screen.getByRole('button', { name: 'Less' });
-
-    it('starts folded, More after it, its whole text still in the page', async () => {
-        phoneScreen();
-        answer();
-        await open();
-
-        expect(fold()).toHaveClass('model-lede-folded');
-        expect(more()).toHaveAttribute('aria-expanded', 'false');
-        expect(more()).toHaveAttribute('aria-controls', 'model-lede');
-        expect(screen.queryByRole('button', { name: 'Less' })).toBeNull();
-        expect(document.querySelector('#model-lede')).toHaveTextContent(/a page of their own, for signed-in readers\.$/);
-    });
-
-    it('opens on More, ending in Less, and folds again on Less', async () => {
-        phoneScreen();
-        answer();
-        await open();
-
-        await userEvent.click(more());
-
-        expect(fold()).toHaveClass('model-lede-open');
-        expect(less()).toHaveAttribute('aria-expanded', 'true');
-        expect(document.querySelector('#model-lede')).toContainElement(less());
+        expect(document.querySelector('.model-intro')).toHaveTextContent(/^Models4$/);
+        expect(document.querySelector('.model-lede')).toBeNull();
         expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
-
-        await userEvent.click(less());
-
-        expect(fold()).toHaveClass('model-lede-folded');
-        expect(more()).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Less' })).toBeNull();
     });
 
-    it('keeps the choice for the next visit, beside the filters\' band', async () => {
-        phoneScreen();
-        answer();
-
-        const { unmount } = await open();
-
-        await userEvent.click(more());
-
-        expect(readLayout('model', 'narrow').fold).toEqual({ filters: true, intro: false });
-
-        unmount();
+    it('links the docs\' page on the models from the Sort row and from the title\'s row, each in a new tab', async () => {
         answer();
         await open();
 
-        expect(fold()).toHaveClass('model-lede-open');
+        const sortRow = document.querySelector('.model-main > .model-controls');
+        const titleRow = document.querySelector('.model-heading');
 
-        await userEvent.click(less());
+        [sortRow, titleRow].forEach((row) => {
+            const link = within(row).getByRole('link', { name: 'How the models work' });
 
-        expect(readLayout('model', 'narrow').fold).toEqual({ filters: true, intro: true });
+            expect(link).toHaveAttribute('href', GUIDE);
+            expect(link).toHaveAttribute('target', '_blank');
+            expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+            expect(link).toHaveClass('api-link');
+            expect(link.querySelector('svg')).toHaveAttribute('data-testid', 'DescriptionOutlinedIcon');
+        });
     });
 
-    it('starts open where this browser kept it open', async () => {
-        phoneScreen();
-        writeLayout('model', 'narrow', { fold: { intro: false } });
+    it('draws the Sort row\'s large, as /stream\'s is on a computer, and the title row\'s medium, as on a phone', async () => {
         answer();
         await open();
 
-        expect(fold()).toHaveClass('model-lede-open');
+        expect(document.querySelector('.model-controls-docs svg')).toHaveClass('MuiSvgIcon-fontSizeLarge');
+        expect(document.querySelector('.model-heading-docs svg')).toHaveClass('MuiSvgIcon-fontSizeMedium');
+    });
+
+    it('names the link in a tooltip', async () => {
+        answer();
+        await open();
+
+        await userEvent.hover(within(document.querySelector('.model-controls')).getByRole('link', { name: 'How the models work' }));
+
+        expect(await screen.findByRole('tooltip')).toHaveTextContent('How the models work');
+    });
+
+    it('keeps the Sort row\'s link while the listing is on its way', async () => {
+        loadListing.mockReturnValue(new Promise(() => {}));
+        await open();
+
+        expect(within(document.querySelector('.model-controls')).getByRole('link', { name: 'How the models work' })).toHaveAttribute('href', GUIDE);
+    });
+
+    it('keeps no fold for an intro in the layout this browser keeps, on a phone', async () => {
+        phoneScreen();
+        writeLayout('model', 'narrow', { fold: { filters: true, intro: false } });
+        answer();
+        await open();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Filters 4 models' }));
+
+        expect(readLayout('model', 'narrow').fold).toEqual({ filters: false });
+        wideScreen();
     });
 });
 
@@ -1071,8 +1052,7 @@ describe('the filters, dragged and kept (#253)', () => {
 
         await userEvent.click(within(filters()).getByRole('button', { name: 'Filters 4 models' }));
 
-        // the intro's fold is kept beside it, on a phone alone (#287)
-        expect(readLayout('model', 'narrow').fold).toEqual({ filters: false, intro: true });
+        expect(readLayout('model', 'narrow').fold).toEqual({ filters: false });
         expect(readLayout('model', 'wide').fold).toEqual({});
 
         unmount();
