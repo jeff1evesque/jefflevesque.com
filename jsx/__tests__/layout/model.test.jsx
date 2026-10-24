@@ -424,6 +424,56 @@ describe('the lists', () => {
         expect(within(group('Next-day direction')).getByText('Up or down, scored the next day.')).toBeInTheDocument();
     });
 
+    describe('folding a list under its name (#300)', () => {
+        const foldOf = (name) => within(group(name)).getByRole('button', { name: name });
+
+        it('opens every list on a first visit, each name saying so', async () => {
+            answer();
+
+            await open();
+
+            expect(foldOf('Next-day direction')).toHaveAttribute('aria-expanded', 'true');
+            expect(foldOf('Beat the average')).toHaveAttribute('aria-expanded', 'true');
+        });
+
+        it('folds a list down to its name and count, and opens it again, leaving the other open', async () => {
+            answer();
+
+            await open();
+            await userEvent.click(foldOf('Next-day direction'));
+
+            const folded = group('Next-day direction');
+
+            expect(foldOf('Next-day direction')).toHaveAttribute('aria-expanded', 'false');
+            expect(within(folded).getByText('3 models')).toBeInTheDocument();
+            expect(folded.querySelector('.model-group-detail')).toBeNull();
+            expect(within(folded).queryByRole('group', { name: 'Score' })).toBeNull();
+            expect(screen.queryByRole('list', { name: 'Next-day direction models' })).toBeNull();
+            expect(screen.getByRole('list', { name: 'Beat the average models' })).toBeInTheDocument();
+
+            await userEvent.click(foldOf('Next-day direction'));
+
+            expect(foldOf('Next-day direction')).toHaveAttribute('aria-expanded', 'true');
+            expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
+        });
+
+        it('keeps each list\'s fold for the next visit, by its task', async () => {
+            answer();
+
+            const { unmount } = await open();
+
+            await userEvent.click(foldOf('Beat the average'));
+
+            expect(readLayout('model-list', 'wide').fold).toEqual({ beats: true });
+
+            unmount();
+            await open();
+
+            expect(foldOf('Beat the average')).toHaveAttribute('aria-expanded', 'false');
+            expect(foldOf('Next-day direction')).toHaveAttribute('aria-expanded', 'true');
+        });
+    });
+
     it('leaves out a task\'s line under its name where the listing has none', async () => {
         const listing = listingOf();
 
@@ -555,7 +605,7 @@ describe('the lists', () => {
         expect(namesIn('Next-day direction')).toEqual(['tables', 'pt-gnn', 'fresh']);
     });
 
-    it('lays each row out as the mockup of #300 does: the model, its score, its trend line and when it went live, with no headings over them', async () => {
+    it('lays each row out as #300 lays it out: the model, its score, its trend line and when it went live, with no headings over them', async () => {
         answer();
 
         await open({ scores: { direction: 'auc_up' } });
@@ -596,7 +646,7 @@ describe('the lists', () => {
     describe('on Loss, a list of stock models shows loss\'s three parts in its place (#283)', () => {
         const noteIn = () => group('Next-day direction').querySelector('.model-parts-note');
 
-        it('says over each row\'s parts what they add up to, and names each part, as the mockup of #300 does', async () => {
+        it('says over each row\'s parts what they add up to, and names each part, as #300 lays it out', async () => {
             answer();
 
             await open();

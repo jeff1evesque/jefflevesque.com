@@ -1,7 +1,9 @@
 /**
  * scores.test.js: what the model pages know about a score, a model's status and
  * its days (#243), which lists show loss's three parts (#283), and a model's
- * holds (#279), from format 5 a stock model's and Combined (#300).
+ * holds (#279), from format 5 a stock model's and Combined (#300), with what a
+ * model's page says of them: when each comes in and was first scored, which a
+ * model predicts, and the note under its checks (#300).
  *
  * The rule every chart and figure leans on is betterBy's: a difference is
  * positive where it is better, whichever way the score runs. Loss is lower-is-
@@ -17,9 +19,12 @@ import {
     COMPARE_MAX,
     DEFAULT_HOLD,
     DEFAULT_SCORE,
+    HELD_OUT,
     HOLDS,
+    HOLD_SCHEDULE,
     KNOWN_SCORES,
     LOSS_PARTS,
+    PAGE_DASH,
     SCORES,
     SCORING_OPACITY,
     STATUSES,
@@ -30,11 +35,14 @@ import {
     betterBy,
     chartColors,
     checkWords,
+    checksNote,
     checksTable,
     chosenScore,
     columnOf,
     comesIn,
+    comesInLine,
     compareBlocked,
+    firstResult,
     formatDuration,
     formatGap,
     formatScore,
@@ -59,6 +67,7 @@ import {
     noResultsYet,
     noteOf,
     onThe,
+    predictsLine,
     recentDays,
     resultDays,
     resultLag,
@@ -76,10 +85,12 @@ import {
     statusLabel,
     statusOf,
     takenDown,
+    trackLine,
     tradesOptions,
     trainedOn,
     newYorkToday,
     weekDay,
+    whenRows,
 } from '../../../import/layout/model/scores.js';
 import { colors_categorical, themeColors } from '../../../import/general/colors.js';
 import {
@@ -486,9 +497,10 @@ describe('chartColors', () => {
         expect(chartColors('dark')).toMatchObject({ live: '#4a993e', baseline: '#eda100', took: '#199e70' });
     });
 
-    it('dashes the baseline, and lightens an attempt\'s scoring to the same share in both themes', () => {
+    it('dashes the baseline, a longer dash on a model\'s page (#300), and lightens an attempt\'s scoring to half in both themes', () => {
         expect(BASELINE_DASH).toBe('5 4');
-        expect(SCORING_OPACITY).toBe(0.4);
+        expect(PAGE_DASH).toBe('7 5');
+        expect(SCORING_OPACITY).toBe(0.5);
     });
 
     it('compares in three fixed colors, the same in either theme', () => {
@@ -871,6 +883,23 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
         expect(resultLag(stocks, COMBINED)).toBe('with the 20-day result');
     });
 
+    it('say after whose prediction a result comes in, where a line names no one prediction', () => {
+        const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+        expect(comesIn(stocks, 20, 'the')).toBe('21 trading days after the prediction');
+        expect(comesIn(stocks, 1, 'the')).toBe('the next trading day');
+    });
+
+    it('say when a hold\'s results come in, as a line under its name on a model\'s page', () => {
+        const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+        expect(comesInLine(stocks, 1)).toBe('Comes in the next trading day');
+        expect(comesInLine(stocks, 5)).toBe('Comes in 6 trading days after the prediction');
+        expect(comesInLine(stocks, 20)).toBe('Comes in 21 trading days after the prediction');
+        expect(comesInLine(stocks, COMBINED)).toBe('Comes in with the day’s 20-day result');
+        expect(comesInLine(OPTIONS_TASK, 1)).toBe('Comes in 2 trading days after the prediction');
+    });
+
     it('say a hold has no results yet, and when each comes in', () => {
         const stocks = { id: 'direction', scores: STOCK_SCORES };
 
@@ -883,7 +912,7 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
     it('say what a stock model\'s hold is, and when its results come in, under the pickers', () => {
         const stocks = { id: 'direction', scores: STOCK_SCORES };
 
-        expect(holdLine(stocks, 5)).toBe('5-day hold: bought at 9:40 AM on the next trading day and sold at 3:40 PM 5 trading days later. Each result comes in 6 trading days after its prediction.');
+        expect(holdLine(stocks, 5)).toBe('5-day hold: bought at 9:40 AM on the next trading day and sold at 3:40 PM 5 trading days later, the days the options models’ 5-day hold uses. Each result comes in 6 trading days after its prediction.');
         expect(holdLine(stocks, 1)).toBe('1-day hold: from 9:40 AM to 3:40 PM on the next trading day, as the model predicts today. Each result comes in the next trading day.');
         expect(holdLine(stocks, 20)).toMatch(/sold at 3:40 PM 20 trading days later\. Each result comes in 21 trading days after its prediction, about a month\.$/);
         expect(holdLine(stocks, COMBINED)).toMatch(/^Combined: the average of the 1, 5 and 20-day scores/);
@@ -951,5 +980,235 @@ describe('listLine, what the hold a list of /model is on is (#300)', () => {
     it('says a list of options\' hold in its own words', () => {
         expect(listLine(OPTIONS_TASK, 1)).toBe('1-day hold: bought at the 9:40 AM ask on the next trading day and sold at the 3:40 PM bid the day after.');
         expect(listLine(OPTIONS_TASK, 20)).toBe('20-day hold: sold at the 3:40 PM bid 20 trading days after the buy day.');
+    });
+});
+
+describe('trackLine, what a track record says of its days (#300)', () => {
+    const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+    it('says a model with no holds is scored once each day\'s prices are in', () => {
+        expect(trackLine(stocks, null)).toBe('Each day’s real predictions, scored once that day’s prices are in.');
+        expect(trackLine(undefined)).toBe('Each day’s real predictions, scored once that day’s prices are in.');
+    });
+
+    it('says a stock model\'s 1-day hold is scored the next trading day', () => {
+        expect(trackLine(stocks, 1)).toBe('Each day’s real predictions, scored the next trading day.');
+    });
+
+    it('says a longer hold is scored once its sell day is in, and that its newest days are not yet', () => {
+        expect(trackLine(stocks, 5)).toBe('Each day’s real predictions, scored once the 5-day hold’s sell day is in, 6 trading days later. The newest days aren’t in yet.');
+        expect(trackLine(stocks, 20)).toBe('Each day’s real predictions, scored once the 20-day hold’s sell day is in, 21 trading days later. The newest days aren’t in yet.');
+    });
+
+    it('says an options model\'s 1-day hold is scored a day after its sell day', () => {
+        expect(trackLine(OPTIONS_TASK, 1)).toBe('Each day’s real predictions, scored once the 1-day hold’s sell day is in, 2 trading days later. The newest days aren’t in yet.');
+    });
+
+    it('says Combined is the average of each day\'s three, in with its 20-day result', () => {
+        expect(trackLine(stocks, COMBINED)).toBe('The average of each day’s 1, 5 and 20-day scores, in once its 20-day result is.');
+    });
+});
+
+describe('when a stock model\'s holds switch on and first come in (#300)', () => {
+    it('are the api\'s docs\' days: the 5-day hold at the Oct 31 retrain, the 20-day at the Nov 21, Combined with it', () => {
+        expect(HOLD_SCHEDULE).toEqual({
+            5: { on: '2026-10-31', first: '2026-11-11' },
+            20: { on: '2026-11-21', first: '2026-12-24' },
+            combined: { on: null, first: '2026-12-24' },
+        });
+    });
+
+    it('hold out the newest 3 days from each night\'s attempt', () => {
+        expect(HELD_OUT).toBe(3);
+    });
+});
+
+describe('predictsLine, the holds a stock model predicts (#300)', () => {
+    it('lists every hold that has switched on', () => {
+        expect(predictsLine(heldModelOf(), '2027-01-07')).toBe('1, 5 and 20 days');
+        expect(predictsLine(heldModelOf(), '2026-11-21')).toBe('1, 5 and 20 days');
+    });
+
+    it('says when a hold yet to switch on does', () => {
+        const unscored = modelOf({ holds: { '1d': { days: 30 }, '5d': { days: 0 }, '20d': { days: 0 } } });
+
+        expect(predictsLine(heldModelOf(), '2026-11-13')).toBe('1 and 5 days; 20 days from the Nov 21 retrain');
+        expect(predictsLine(unscored, '2026-10-24')).toBe('1 day; 5 days from the Oct 31 retrain; 20 days from the Nov 21 retrain');
+    });
+
+    it('reads a hold with scored days as switched on, whatever day it was due to', () => {
+        const early = modelOf({ holds: { '1d': { days: 30 }, '5d': { days: 3 }, '20d': { days: 2 } } });
+
+        expect(predictsLine(early, '2026-10-24')).toBe('1, 5 and 20 days');
+        expect(predictsLine(heldModelOf(), '2026-10-24')).toBe('1 and 5 days; 20 days from the Nov 21 retrain');
+    });
+
+    it('names a single hold in the singular only for one day', () => {
+        expect(predictsLine(modelOf({ holds: { '5d': { days: 3 } } }), '2027-01-07')).toBe('5 days');
+        expect(predictsLine(modelOf({ holds: { '1d': { days: 3 } } }), '2027-01-07')).toBe('1 day');
+    });
+
+    it('says only when it switches on, where no hold it has is on yet', () => {
+        expect(predictsLine(modelOf({ holds: { '20d': { days: 0 } } }), '2026-11-13')).toBe('20 days from the Nov 21 retrain');
+    });
+
+    it('says nothing of a model the listing gives no holds', () => {
+        expect(predictsLine(modelOf(), '2027-01-07')).toBe('');
+    });
+});
+
+describe('firstResult, the day a hold\'s first result came in (#300)', () => {
+    const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+    it('is the row as many rows after the first day scored on the hold as its results take to come in', () => {
+        const rows = heldTrackOf(30);
+
+        expect(firstResult(rows, stocks, 1)).toEqual({ day: '2026-09-02', predicted: '2026-09-01' });
+        expect(firstResult(rows, stocks, 5)).toEqual({ day: '2026-09-09', predicted: '2026-09-01' });
+    });
+
+    it('reads the 20-day hold and Combined, each in 21 trading days', () => {
+        const rows = heldTrackOf(30, { twenty: 30 });
+
+        expect(firstResult(rows, stocks, 20)).toEqual({ day: '2026-09-30', predicted: '2026-09-01' });
+        expect(firstResult(rows, stocks, COMBINED)).toEqual({ day: '2026-09-30', predicted: '2026-09-01' });
+    });
+
+    it('starts from the first day that has the hold\'s result, not the record\'s first', () => {
+        const rows = heldTrackOf(30).map((row, at) => (at < 3 ? { ...row, score: { ...row.score, loss_5d: null } } : row));
+
+        expect(firstResult(rows, stocks, 5)).toEqual({ day: '2026-09-14', predicted: '2026-09-04' });
+    });
+
+    it('reads the 1-day hold from the record\'s own columns, a day after an options model\'s sell day', () => {
+        expect(firstResult(optionsTrackOf(30), OPTIONS_TASK, 1)).toEqual({ day: '2026-09-03', predicted: '2026-09-01' });
+        expect(firstResult(trackOf(5), stocks, 1)).toEqual({ day: '2026-09-02', predicted: '2026-09-01' });
+    });
+
+    it('is none for a hold with no day scored, a record without the row its result came in on, or one not in', () => {
+        expect(firstResult(heldTrackOf(30), stocks, 20)).toBeNull();
+        expect(firstResult(heldTrackOf(4, { notIn: 0 }), stocks, 5)).toBeNull();
+        expect(firstResult(undefined, stocks, 1)).toBeNull();
+        expect(firstResult(null, stocks, 1)).toBeNull();
+        expect(firstResult([], stocks, 1)).toBeNull();
+    });
+});
+
+describe('whenRows, when each of a stock model\'s holds\' results come in (#300)', () => {
+    const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+    it('lists each hold the listing gives, with when its results come in', () => {
+        const rows = whenRows(stocks, heldModelOf(), heldTrackOf(), '2026-11-13');
+
+        expect(rows.map((row) => [row.key, row.name, row.when])).toEqual([
+            ['1d', '1 day', 'Comes in the next trading day'],
+            ['5d', '5 days', 'Comes in 6 trading days after the prediction'],
+            ['20d', '20 days', 'Comes in 21 trading days after the prediction'],
+            ['combined', 'Combined', 'Comes in with the day’s 20-day result'],
+        ]);
+    });
+
+    it('says when a hold with results was first scored, from its track record', () => {
+        const rows = whenRows(stocks, heldModelOf(), heldTrackOf(), '2026-11-13');
+
+        expect(rows[0].first).toBe('First scored Sep 2');
+        expect(rows[1].first).toBe('First scored Sep 9');
+    });
+
+    it('says when a hold scored before the day it was due to switch on was first scored, as of any hold with results', () => {
+        const rows = heldTrackOf(30, { twenty: 30 });
+        const when = whenRows(stocks, heldModelOf({}, rows), rows, '2026-10-24');
+
+        expect(when[2].first).toBe('First scored Sep 30');
+    });
+
+    it('says while a hold has no results when it switches on and is first due, or only when it is due once it is on', () => {
+        const rows = whenRows(stocks, heldModelOf(), heldTrackOf(), '2026-11-13');
+
+        expect(rows[2].first).toBe('Switches on at the Nov 21 retrain; first scored Dec 24');
+        expect(rows[3].first).toBe('First scored Dec 24');
+        expect(whenRows(stocks, heldModelOf(), heldTrackOf(), '2026-12-01')[2].first).toBe('First scored Dec 24');
+        expect(whenRows(stocks, heldModelOf(), heldTrackOf(), '2026-12-24')[2].first).toBe('First scored Dec 24');
+    });
+
+    it('names the retrain a hold switched on at, where its first day scored came in the week after it', () => {
+        const rows = heldTrackOf(30, { from: '2026-11-02', twenty: 30 });
+        const when = whenRows(stocks, heldModelOf({}, rows), rows, '2027-01-07');
+
+        expect(when.map((row) => row.first)).toEqual([
+            'First scored Nov 3',
+            'First scored Nov 10, from the Oct 31 retrain',
+            'First scored Dec 1',
+            'First scored Dec 1',
+        ]);
+    });
+
+    it('names the 20-day hold\'s retrain, and none for a hold first scored weeks after its own', () => {
+        const rows = heldTrackOf(30, { from: '2026-11-23', twenty: 30 });
+        const when = whenRows(stocks, heldModelOf({}, rows), rows, '2027-02-01');
+
+        expect(when[1].first).toBe('First scored Dec 1');
+        expect(when[2].first).toBe('First scored Dec 22, from the Nov 21 retrain');
+    });
+
+    it('says nothing of a day due that has gone by with no result, or of a record still on its way', () => {
+        const passed = whenRows(stocks, heldModelOf(), heldTrackOf(), '2027-01-07');
+
+        expect(passed[2].first).toBe('');
+        expect(passed[3].first).toBe('');
+
+        const waiting = whenRows(stocks, heldModelOf(), undefined, '2026-11-13');
+
+        expect(waiting[0].first).toBe('');
+        expect(waiting[1].first).toBe('');
+        expect(waiting[2].first).toBe('Switches on at the Nov 21 retrain; first scored Dec 24');
+    });
+
+    it('says nothing of a 1-day hold with no day scored, which has no day due', () => {
+        const model = modelOf({ holds: { '1d': { days: 0, score: null, baseline: null } } });
+
+        expect(whenRows(stocks, model, [], '2026-11-13')).toEqual([
+            { key: '1d', name: '1 day', when: 'Comes in the next trading day', first: '' },
+        ]);
+    });
+
+    it('lists nothing for a model the listing gives no holds', () => {
+        expect(whenRows(stocks, modelOf(), trackOf(5), '2026-11-13')).toEqual([]);
+    });
+});
+
+describe('checksNote, the note under the take-down checks (#300)', () => {
+    it('says what "not yet" means of a model with holds, and what a hold at its limit does', () => {
+        expect(checksNote(heldModelOf({ behind: holdsBehindOf() }), '2027-01-07', true))
+            .toBe('A check says “not yet” until its hold has the scored days it needs. A hold that reaches its limit takes the version down.');
+    });
+
+    it('says first when a stock model\'s hold yet to switch on does', () => {
+        const unscored = modelOf({ holds: { '1d': { days: 30 }, '5d': { days: 0 }, '20d': { days: 0 } }, behind: holdsBehindOf() });
+
+        expect(checksNote(heldModelOf({ behind: holdsBehindOf() }), '2026-11-13', true))
+            .toBe('The 20-day hold switches on at the Nov 21 retrain. A check says “not yet” until its hold has the scored days it needs. A hold that reaches its limit takes the version down.');
+        expect(checksNote(unscored, '2026-10-24', true))
+            .toMatch(/^The 5-day hold switches on at the Oct 31 retrain\. The 20-day hold switches on at the Nov 21 retrain\. A check/);
+    });
+
+    it('says nothing of switching on for a hold already scored, whatever day it was due to', () => {
+        const early = modelOf({ holds: { '1d': { days: 30 }, '5d': { days: 3 }, '20d': { days: 2 } }, behind: holdsBehindOf() });
+
+        expect(checksNote(early, '2026-10-24', true)).toMatch(/^A check says/);
+        expect(checksNote(heldModelOf({ behind: holdsBehindOf() }), '2026-10-24', true)).toMatch(/^The 20-day hold switches on at the Nov 21 retrain\. A check/);
+    });
+
+    it('says nothing of switching on for a model that is not a stock model', () => {
+        expect(checksNote(heldModelOf({ behind: holdsBehindOf() }), '2026-11-13', false)).toMatch(/^A check says/);
+        expect(checksNote(heldModelOf({ behind: holdsBehindOf() }), '2026-11-13')).toMatch(/^A check says/);
+    });
+
+    it('says it of its checks alone for a model with no holds', () => {
+        const plain = 'A check says “not yet” until it has the scored days it needs. One that reaches its limit takes the version down.';
+
+        expect(checksNote(modelOf({ behind: behindOf() }), '2026-11-13', false)).toBe(plain);
+        expect(checksNote(modelOf(), '2026-11-13', false)).toBe(plain);
+        expect(checksNote(modelOf({ behind: undefined }), '2026-11-13', false)).toBe(plain);
     });
 });

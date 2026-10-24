@@ -1,6 +1,6 @@
 /**
  * model-row.test.jsx: one model in /model's list (#243), and its trend line, as
- * the mockup of #300 lays a row out.
+ * #300 lays a row out.
  *
  * Note: the trend line is as wide as the room its row gives it, measured in the
  *       browser; under jsdom nothing measures, so it is drawn at its 132px, and
@@ -190,7 +190,7 @@ describe('a row', () => {
         expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES[0].note);
     });
 
-    it('lays out its cells as the mockup of #300 does: the compare box, the model, its score, its trend line, and when it went live', () => {
+    it('lays out its cells as #300 lays it out: the compare box, the model, its score, its trend line, and when it went live', () => {
         expect(cellsOf(draw().container)).toEqual([
             'model-cell-compare',
             'model-cell-model',
@@ -475,7 +475,7 @@ describe('TrendLine', () => {
         expect(container.querySelectorAll('.recharts-line')).toHaveLength(2);
     });
 
-    it('draws the score in the charts\' better blue and the baseline dashed in their amber, 44px tall, as the mockup of #300 does', () => {
+    it('draws the score in the charts\' better blue and the baseline dashed in their amber, 44px tall, as #300 lays it out', () => {
         const { container } = trend();
         const colors = chartColors('dark');
         const [baseline, value] = container.querySelectorAll('.recharts-line-curve');

@@ -1,12 +1,12 @@
 /**
- * model-row.jsx: one model in /model's list (#243), laid out as the mockup of #300
- * draws a row: its name and status, with its address and description under them,
+ * model-row.jsx: one model in /model's list (#243), laid out as #300 lays a
+ * row out: its name and status, with its address and description under them,
  * then its latest score -- over the listing's `average_days` (#293), against the
  * know-nothing baseline -- or, in a list that shows them, loss's three parts in
  * place of it (#283), then a trend line of its score, and last when its live
  * version went live and how many of its nightly attempts did. The box that ticks
  * it for the comparison comes first, and its bell, which leads to its alarm page
- * (#255), after its status; the mockup draws neither. A retired model has no
+ * (#255), after its status; #300 draws neither. A retired model has no
  * bell. A model whose live version the trainer took down says when, and why --
  * which check did it, or from format 4 that it went live without beating the
  * baseline, or its track record showed nothing better (#295) -- in place of when
@@ -39,7 +39,7 @@ import Tooltip from '@mui/material/Tooltip';
 import { isMobile } from 'react-device-detect';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import InfoNote from '../../general/info-note.jsx';
-import { AlarmBell, Mark, StatusPill, gapWords } from './parts.jsx';
+import { AlarmBell, Mark, StatusPill, gapWords, partGap } from './parts.jsx';
 import { PendingBar } from '../graph/pending.jsx';
 import {
     BASELINE_DASH,
@@ -72,7 +72,7 @@ import {
 
 //
 // the trend line's size, in px: as wide as the room its row gives it, and 44px
-// tall, as the mockup of #300 draws it. TREND_WIDTH where the room cannot be
+// tall, as #300 lays it out. TREND_WIDTH where the room cannot be
 // measured, as under jsdom
 //
 const TREND_WIDTH = 132;
@@ -291,7 +291,7 @@ TrendLine.propTypes = {
 };
 
 //
-// how many days the score's figure takes in, as the mockup of #300 says it under
+// how many days the score's figure takes in, as #300 says it under
 // the figure: 'last 20 days', '9 days so far', 'no scored days yet' on a hold
 // that has none, and 'last 20 days before retiring' for a retired model -- the
 // listing's `average_days` (#293), or on a hold, the hold's own days
@@ -338,20 +338,9 @@ function sinceOf(model, status) {
     };
 }
 
-//
-// how a part of loss stands against the baseline's, in fewer words than the
-// score's own line, since the three stand side by side: '▼ 0.013 worse'.
-// Compared as the two are printed, as lossParts compares them
-//
-function partGap(part) {
-    const printed = (value) => Number(formatScore(value, DEFAULT_SCORE));
-
-    return gapWords(betterBy(printed(part.value), printed(part.baseline), DEFAULT_SCORE), DEFAULT_SCORE, '', 'level');
-}
-
 /**
- * loss's three parts in place of its sum (#283), as the mockup of #300 draws
- * them: a line over them, 'Loss 1.602, part by part, last 20 days', and a column
+ * loss's three parts in place of its sum (#283), as #300 lays them out: a line
+ * over them, 'Loss 1.602, part by part, last 20 days', and a column
  * each across a wide screen -- its name, its average, and how it stands against
  * the baseline's -- or on a phone's card a line each. From the newest day of the
  * model's track record, as its own page has them (#265), on the hold the list is
@@ -436,10 +425,10 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
     );
 
     //
-    // the mockup's row (#300): the name and its status over the description,
+    // #300's row: the name and its status over the description,
     // the score -- or loss's parts -- the trend line, and when the live version
     // went live. The box that ticks it for the comparison comes first, and its
-    // bell after its status, as the mockup draws neither
+    // bell after its status, as #300 draws neither
     //
     return (
         <div className={`model-row${status === 'retired' ? ' model-row-retired' : ''}`} role='listitem'>

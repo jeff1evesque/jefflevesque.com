@@ -17,7 +17,7 @@
  * its models' own pages -- see redux/container/model.jsx -- and a sort menu
  * orders every list alike. While Loss is picked, a list of stock models shows
  * loss's three parts in its place, each under its own name (#283). From #300 a
- * list is laid out as its mockup draws it: the task's name, its count and what
+ * list is laid out as #300 lays it out: the task's name, its count and what
  * it predicts, its pickers, then its rows in a box, with no headings over them.
  *
  * From format 5, where the listing gives its models' scores on each hold, a
@@ -59,7 +59,7 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import ErrorFallback from '../formatter/boundary-error.jsx';
 import ModelRow from './model/model-row.jsx';
 import CompareChart from './model/compare-chart.jsx';
-import { HoldPicker, ScorePicker, isPhone, modelsHeld } from './model/parts.jsx';
+import { FoldTitle, HoldPicker, ScorePicker, isPhone, modelsHeld, useFolds } from './model/parts.jsx';
 import { PendingGroup, STAGGER } from './model/pending.jsx';
 import { PendingBar } from './graph/pending.jsx';
 import { readLayout, writeLayout } from '../general/layout-preference.js';
@@ -201,6 +201,39 @@ export function DocsLink({ size }) {
 
 DocsLink.propTypes = {
     size: PropTypes.oneOf(['medium', 'large']).isRequired,
+};
+
+/**
+ * one task's list (#279), under the task's name and how many models it has (#300):
+ * the name folds the list away and opens it again, as a model's page's sections
+ * fold, kept between visits -- see parts.jsx's useFolds. Folded, the name and the
+ * count stay, and what the task predicts, its pickers and its rows go.
+ */
+export function TaskGroup({ task, index, count, children }) {
+    const [folds, toggle] = useFolds('model-list');
+    const folded = Boolean(folds[task.id]);
+
+    return (
+        <section className='model-group' aria-labelledby={`model-group-${index}`}>
+            <div className='model-group-head'>
+                <FoldTitle as='h5' id={`model-group-${index}`} title={task.name} folded={folded} onFold={() => toggle(task.id)} />
+                <span className='model-group-count'>{`${count} ${count === 1 ? 'model' : 'models'}`}</span>
+                {task.description && !folded ? <p className='model-group-detail'>{task.description}</p> : null}
+            </div>
+            {folded ? null : children}
+        </section>
+    );
+}
+
+TaskGroup.propTypes = {
+    task: PropTypes.shape({
+        id: PropTypes.string.isRequired,
+        name: PropTypes.string.isRequired,
+        description: PropTypes.string,
+    }).isRequired,
+    index: PropTypes.number.isRequired,
+    count: PropTypes.number.isRequired,
+    children: PropTypes.node.isRequired,
 };
 
 class ModelLayout extends Component {
@@ -712,18 +745,13 @@ class ModelLayout extends Component {
             const parts = showsParts(score, task);
 
             //
-            // the mockup's list (#300): the task's name over what it predicts,
+            // a list as #300 lays it out: the task's name over what it predicts,
             // its pickers, a line saying what the hold picked is, and its rows in
             // a box of their own, with no headings over them -- each row's figures
             // say what they are
             //
             return (
-                <section key={task.id} className='model-group' aria-labelledby={`model-group-${index}`}>
-                    <div className='model-group-head'>
-                        <h5 id={`model-group-${index}`}>{task.name}</h5>
-                        <span className='model-group-count'>{`${models.length} ${models.length === 1 ? 'model' : 'models'}`}</span>
-                        {task.description ? <p className='model-group-detail'>{task.description}</p> : null}
-                    </div>
+                <TaskGroup key={task.id} task={task} index={index} count={models.length}>
                     <div className='model-controls model-group-controls'>
                         <ScorePicker
                             score={score}
@@ -758,7 +786,7 @@ class ModelLayout extends Component {
                             })}
                         </div>
                     </div>
-                </section>
+                </TaskGroup>
             );
         });
     }

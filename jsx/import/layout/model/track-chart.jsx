@@ -21,7 +21,9 @@
  *
  * From format 5 a stock model's has too, and Combined, their average (#300). A
  * light band lies over the newest days whose result on the hold is not in yet,
- * and the legend says how many there are.
+ * and the legend says how many there are. The title names the hold and the
+ * score, the line under it says when each day is scored, and the legend says
+ * which way the axis runs.
  *
  * Note: the baseline is the model's own, its record's average (#263).
  *       Each model's track record carries the baseline's scores on its own
@@ -45,11 +47,11 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisStyle, tickGap, useFolds, usePanelDay } from './parts.jsx';
+import { FAINT_OPACITY, FoldTitle, Legend, Mark, NoBox, Numbers, Readout, axisNote, axisStyle, tickGap, useFolds, usePanelDay } from './parts.jsx';
 import {
-    BASELINE_DASH,
     COMBINED,
     COMPARE_COLORS,
+    PAGE_DASH,
     WINDOW,
     alignDays,
     chartColors,
@@ -59,6 +61,7 @@ import {
     formatTick,
     holdsOf,
     longDay,
+    namedHold,
     onThe,
     resultName,
     scoreIn,
@@ -70,8 +73,17 @@ import {
 // the chart's height, in px, and the card's title, which are its placeholder's
 // as well while the track record is on its way (#274) -- see pending.jsx
 //
-export const HEIGHT = 280;
+export const HEIGHT = 300;
 export const TITLE = 'Track record';
+
+/**
+ * the card's title once the track record is in, naming the hold it is drawn on
+ * and the score (#300): 'Track record, 5-day hold: Loss', or for a model with no
+ * holds, 'Track record: Loss'.
+ */
+export function trackTitle(score, hold = null) {
+    return `${TITLE}${namedHold(hold)}: ${scoreOf(score).label}`;
+}
 
 //
 // the color the model added from the menu is drawn in: the first of the
@@ -87,7 +99,7 @@ export function DayDot({ cx, cy, payload, color }) {
         return null;
     }
 
-    return <circle className='model-day-dot' cx={cx} cy={cy} r={3.5} fill={color} fillOpacity={0.25} />;
+    return <circle className='model-day-dot' cx={cx} cy={cy} r={3} fill={color} fillOpacity={FAINT_OPACITY} />;
 }
 
 DayDot.propTypes = {
@@ -269,7 +281,7 @@ export function notIn(points, hold) {
         : null;
 }
 
-function TrackChart({ name, rows, score, others, other, otherRows, onOther, wentLive = [], hold = null, days = WINDOW }) {
+function TrackChart({ name, rows, score, others, other, otherRows, onOther, wentLive = [], hold = null, days = WINDOW, about = '' }) {
     const { theme } = useContext(ThemeModeContext);
     const colors = chartColors(theme);
     const lower = scoreOf(score).lower;
@@ -369,7 +381,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                     <FoldTitle
                         as='h5'
                         id='model-track-title'
-                        title={TITLE}
+                        title={trackTitle(score, hold)}
                         folded={Boolean(folds.track)}
                         onFold={() => toggle('track')}
                     />
@@ -386,19 +398,13 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                 </div>
                 {folds.track ? null : (
                     <>
-                        <p className='model-card-sub'>
-                            {hold
-                                ? 'Each day’s real predictions, scored once each hold’s sell day is in. '
-                                : 'Each day’s real predictions, scored once that day’s prices are in. '}
-                            {`Dots are single days, and lines are averages of the last ${days} days. Up is better`}
-                            {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
-                        </p>
+                        {about ? <p className='model-card-sub'>{about}</p> : null}
                         <Legend
                             items={[
-                                { key: 'average', kind: 'line', color: colors.better, label: 'This model' },
-                                { key: 'single', kind: 'faint', color: colors.better, label: 'Single day' },
+                                { key: 'single', kind: 'faint', color: colors.better, label: 'Each day' },
+                                { key: 'average', kind: 'line', color: colors.better, label: `Last ${days} days’ average` },
                                 ...(shown ? [{ key: 'other', kind: 'line', color: OTHER_COLOR, label: <span className='model-legend-name'>{shown}</span> }] : []),
-                                { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
+                                { key: 'baseline', kind: 'dashed', color: colors.baseline, label: `Baseline, last ${days} days` },
                                 ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.live, label: 'New version went live' }] : []),
                                 ...(downs.length ? [{ key: 'down', kind: 'tick', color: colors.worse, label: 'Live version taken down' }] : []),
                                 ...(waiting
@@ -409,6 +415,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                                         label: 'Not in yet',
                                     }] : []),
                             ]}
+                            note={axisNote(score)}
                         />
                     </>
                 )}
@@ -448,7 +455,7 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                                     isAnimationActive={false}
                                     shape={(props) => <DayDot {...props} color={colors.better} />}
                                 />
-                                <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={BASELINE_DASH} dot={false} isAnimationActive={false} />
+                                <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={PAGE_DASH} dot={false} isAnimationActive={false} />
                                 {shown
                                     ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
                                     : null}
@@ -501,26 +508,28 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
 
 /**
  * the track record's card on a hold that has no result in yet (#300): its title,
- * which folds it as the chart's does, and in place of the chart, `message`, when
- * each of the hold's results comes in. The card had given way to the line alone,
- * and the page lost its Track record heading on that hold.
+ * `title`, which folds it as the chart's does, and in place of the chart, on a
+ * light tint, `message`, when each of the hold's results comes in. The card had
+ * given way to the line alone, and the page lost its Track record heading on
+ * that hold.
  */
-export function TrackNone({ message }) {
+export function TrackNone({ title = TITLE, message }) {
     const [folds, toggle] = useFolds('model-page');
 
     return (
         <section className='model-card model-track' aria-labelledby='model-track-title'>
             <div className='model-card-head'>
                 <div className='model-card-title'>
-                    <FoldTitle as='h5' id='model-track-title' title={TITLE} folded={Boolean(folds.track)} onFold={() => toggle('track')} />
+                    <FoldTitle as='h5' id='model-track-title' title={title} folded={Boolean(folds.track)} onFold={() => toggle('track')} />
                 </div>
             </div>
-            {folds.track ? null : <p className='model-status model-status-empty'>{message}</p>}
+            {folds.track ? null : <p className='model-track-none'>{message}</p>}
         </section>
     );
 }
 
 TrackNone.propTypes = {
+    title: PropTypes.string,
     message: PropTypes.string.isRequired,
 };
 
@@ -558,6 +567,11 @@ TrackChart.propTypes = {
     // `average_days` (#293)
     //
     days: PropTypes.number,
+    //
+    // when each day is scored, under the title (#300) -- see scores.js's
+    // trackLine
+    //
+    about: PropTypes.string,
 };
 
 export default TrackChart;

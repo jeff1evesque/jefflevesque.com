@@ -168,6 +168,13 @@ export const DEFAULT_SCORE = 'loss';
 export const WINDOW = 20;
 
 //
+// how many of the newest days each night's attempt and the live version are
+// scored on, held out of the attempt's training (#300): a model's page says so,
+// and that those days have no 5 or 20-day results yet
+//
+export const HELD_OUT = 3;
+
+//
 // how many days a row's trend line spans, on the one axis every row shares
 //
 export const TREND_DAYS = 60;
@@ -205,6 +212,18 @@ export const DEFAULT_HOLD = 1;
 export const COMBINED = 'combined';
 
 export const COMBINED_HOLD = { days: COMBINED, label: 'Combined' };
+
+//
+// when a stock model's 5 and 20-day holds switch on, each at a Saturday's weekly
+// retrain, and when each one's first result comes in if every trading day is
+// built (#300), as the api's docs give them, with Combined's first in with the
+// 20-day hold's. A model's page says so until its own results say otherwise
+//
+export const HOLD_SCHEDULE = {
+    5: { on: '2026-10-31', first: '2026-11-11' },
+    20: { on: '2026-11-21', first: '2026-12-24' },
+    [COMBINED]: { on: null, first: '2026-12-24' },
+};
 
 //
 // every hold a picker can offer, in its order
@@ -325,12 +344,22 @@ export function resultDays(task, hold) {
 
 /**
  * when each of a hold's results comes in, after its prediction (#300): 'the next
- * trading day', or '6 trading days after its prediction'.
+ * trading day', or '6 trading days after its prediction' -- or after `whose`,
+ * 'the prediction', where a line names no one prediction.
  */
-export function comesIn(task, hold) {
+export function comesIn(task, hold, whose = 'its') {
     const days = resultDays(task, hold);
 
-    return days === 1 ? 'the next trading day' : `${days} trading days after its prediction`;
+    return days === 1 ? 'the next trading day' : `${days} trading days after ${whose} prediction`;
+}
+
+/**
+ * when a hold's results come in, as a line under its name says it on a model's
+ * page (#300): 'Comes in 6 trading days after the prediction', or Combined's
+ * 'Comes in with the day’s 20-day result'.
+ */
+export function comesInLine(task, hold) {
+    return `Comes in ${hold === COMBINED ? 'with the day’s 20-day result' : comesIn(task, hold, 'the')}`;
 }
 
 /**
@@ -380,9 +409,10 @@ export function onThe(hold) {
 
 /**
  * what a stock model's hold is, and when its results come in, as the line
- * under its pickers says it (#300): '5-day hold: bought at 9:40 AM on the next
- * trading day and sold at 3:40 PM 5 trading days later. Each result comes in 6
- * trading days after its prediction.'
+ * under its pickers says it (#300): '20-day hold: bought at 9:40 AM on the next
+ * trading day and sold at 3:40 PM 20 trading days later. Each result comes in 21
+ * trading days after its prediction, about a month.' The 5-day hold's says it
+ * runs over the days an options model's 5-day hold does.
  */
 export function holdLine(task, hold) {
     if (hold === COMBINED) {
@@ -393,13 +423,15 @@ export function holdLine(task, hold) {
         return `1-day hold: from 9:40 AM to 3:40 PM on the next trading day, as the model predicts today. Each result comes in ${comesIn(task, hold)}.`;
     }
 
-    return `${holdName(hold)}: bought at 9:40 AM on the next trading day and sold at 3:40 PM ${hold} trading days later. Each result comes in ${comesIn(task, hold)}${hold === 20 ? ', about a month' : ''}.`;
+    const days = hold === 5 ? ', the days the options models’ 5-day hold uses' : '';
+
+    return `${holdName(hold)}: bought at 9:40 AM on the next trading day and sold at 3:40 PM ${hold} trading days later${days}. Each result comes in ${comesIn(task, hold)}${hold === 20 ? ', about a month' : ''}.`;
 }
 
 /**
  * what the hold a list of /model is on is, as the line under its pickers says
- * it in the mockup of #300: a task of stocks' and a task of options' in their own
- * words, '5-day hold: sold at the 3:40 PM bid 5 trading days after the buy day.'
+ * it (#300): a task of stocks' and a task of options' in their own words,
+ * '5-day hold: sold at the 3:40 PM bid 5 trading days after the buy day.'
  */
 export function listLine(task, hold) {
     if (tradesOptions(task)) {
@@ -429,6 +461,158 @@ export function scoresOn(model, hold = null) {
     return held
         ? { score: held.score, baseline: held.baseline, days: held.days, hold: hold }
         : { score: model.score, baseline: model.baseline, days: model.scored_days, hold: null };
+}
+
+/**
+ * what a model's track record says of its days on a hold, under the record's
+ * title (#300): when each day is scored -- 'Each day’s real predictions, scored
+ * the next trading day', or on a longer hold once its sell day is in, and that
+ * its newest days are not yet -- or Combined's average. For no hold, once the
+ * day's prices are in.
+ */
+export function trackLine(task, hold) {
+    if (!hold) {
+        return 'Each day’s real predictions, scored once that day’s prices are in.';
+    }
+
+    if (hold === COMBINED) {
+        return 'The average of each day’s 1, 5 and 20-day scores, in once its 20-day result is.';
+    }
+
+    if (resultDays(task, hold) === 1) {
+        return 'Each day’s real predictions, scored the next trading day.';
+    }
+
+    return `Each day’s real predictions, scored once the ${holdName(hold)}’s sell day is in, ${resultLag(task, hold)}. The newest days aren’t in yet.`;
+}
+
+//
+// a few holds' days in a line of text: '1 day', '1 and 5 days', '1, 5 and 20
+// days', or nothing for none
+//
+function listDays(days) {
+    if (!days.length) {
+        return '';
+    }
+
+    const words = days.length === 1 ? String(days[0]) : `${days.slice(0, -1).join(', ')} and ${days[days.length - 1]}`;
+
+    return `${words} ${days.length === 1 && days[0] === 1 ? 'day' : 'days'}`;
+}
+
+//
+// a stock model's hold that has yet to switch on, on `today`, by HOLD_SCHEDULE:
+// never one with a day scored, which its model's results say is on
+//
+function notOnYet(model, hold, today) {
+    const plan = HOLD_SCHEDULE[hold];
+
+    return Boolean(plan && plan.on && today < plan.on && !scoresOn(model, hold).days);
+}
+
+/**
+ * the holds a stock model predicts, as its Live version card's Predicts row says
+ * it (#300): '1, 5 and 20 days', or while one has yet to switch on, when it does
+ * -- '1 and 5 days; 20 days from the Nov 21 retrain'. `today` is New York's,
+ * 'YYYY-MM-DD'. Nothing for a model the listing gives no holds.
+ */
+export function predictsLine(model, today) {
+    const holds = listedHolds(model).map((hold) => hold.days).filter((days) => days !== COMBINED);
+    const waiting = holds.filter((days) => notOnYet(model, days, today));
+
+    return [listDays(holds.filter((days) => !waiting.includes(days)))]
+        .concat(waiting.map((days) => `${days} days from the ${shortDay(HOLD_SCHEDULE[days].on)} retrain`))
+        .filter(Boolean)
+        .join('; ');
+}
+
+/**
+ * the day a hold's first result came in (#300), from a model's track record,
+ * `rows`: the day of the row that many rows after the first day scored on the
+ * hold as its results take trading days to come in -- the record has a row for
+ * each trading day the model predicted -- and that first day, `predicted`. The
+ * 1-day hold's are the record's own columns. Null for a record not in, one with
+ * no day scored on the hold, or none yet on the day its result came in.
+ */
+export function firstResult(rows, task, hold) {
+    const column = hold === DEFAULT_HOLD ? DEFAULT_SCORE : columnOf(DEFAULT_SCORE, hold);
+    const first = Array.isArray(rows) ? rows.findIndex((row) => scoreIn(row.score, column) !== null) : -1;
+    const came = first < 0 ? null : rows[first + resultDays(task, hold)];
+
+    return came ? { day: came.day, predicted: rows[first].day } : null;
+}
+
+//
+// the day `count` days after `day`, each 'YYYY-MM-DD'
+//
+function daysAfter(day, count) {
+    const date = noonOf(day);
+
+    date.setUTCDate(date.getUTCDate() + count);
+
+    return date.toISOString().slice(0, 10);
+}
+
+//
+// when a stock model's hold was first scored, or will be (#300) -- see whenRows
+//
+function firstLine(task, model, rows, hold, today) {
+    const plan = HOLD_SCHEDULE[hold];
+
+    if (scoresOn(model, hold).days) {
+        const first = firstResult(rows, task, hold);
+        const retrain = first && plan && plan.on && first.predicted >= plan.on && first.predicted < daysAfter(plan.on, 7);
+
+        return first ? `First scored ${shortDay(first.day)}${retrain ? `, from the ${shortDay(plan.on)} retrain` : ''}` : '';
+    }
+
+    if (!plan || plan.first < today) {
+        return '';
+    }
+
+    return notOnYet(model, hold, today)
+        ? `Switches on at the ${shortDay(plan.on)} retrain; first scored ${shortDay(plan.first)}`
+        : `First scored ${shortDay(plan.first)}`;
+}
+
+/**
+ * when each of a stock model's holds' results come in (#300), as its page's last
+ * card lists them: { key, name: '5 days', when: 'Comes in 6 trading days after
+ * the prediction', first }, a row for each hold the listing gives it, and one
+ * for Combined.
+ *
+ * `first` is when the hold was first scored, from its track record, `rows` --
+ * 'First scored Nov 11, from the Oct 31 retrain', the retrain named where its
+ * first day scored came in the week after it -- or while it has no result in,
+ * when its first is due, as HOLD_SCHEDULE has it: 'Switches on at the Nov 21
+ * retrain; first scored Dec 24'. Nothing where neither says: a record still on
+ * its way, or a day due that has gone by.
+ */
+export function whenRows(task, model, rows, today) {
+    return listedHolds(model).map((hold) => ({
+        key: holdKey(hold.days),
+        name: hold.label,
+        when: comesInLine(task, hold.days),
+        first: firstLine(task, model, rows, hold.days, today),
+    }));
+}
+
+/**
+ * the note under the take-down checks (#300): what 'not yet' means, and what a
+ * check that reaches its limit does -- and while a stock model, `stock`, has a
+ * hold yet to switch on, when it does: 'The 20-day hold switches on at the Nov 21
+ * retrain.' A model with no holds says it of its checks alone.
+ */
+export function checksNote(model, today, stock = false) {
+    const held = Array.isArray(model.behind) && model.behind.some((check) => check.hold);
+    const waiting = stock ? listedHolds(model).filter((hold) => notOnYet(model, hold.days, today)) : [];
+
+    return waiting
+        .map((hold) => `The ${holdName(hold.days)} switches on at the ${shortDay(HOLD_SCHEDULE[hold.days].on)} retrain.`)
+        .concat(held
+            ? 'A check says “not yet” until its hold has the scored days it needs. A hold that reaches its limit takes the version down.'
+            : 'A check says “not yet” until it has the scored days it needs. One that reaches its limit takes the version down.')
+        .join(' ');
 }
 
 //
@@ -951,9 +1135,16 @@ export function checksTable(behind) {
 export const BASELINE_DASH = '5 4';
 
 //
-// how much of its bar's color the scoring on top of an attempt's training takes
+// the same on a model's own page's two charts, a longer dash for their longer
+// lines (#300)
 //
-export const SCORING_OPACITY = 0.4;
+export const PAGE_DASH = '7 5';
+
+//
+// how much of its bar's color the scoring on top of an attempt's training takes:
+// half, a lighter teal that still reads beside the training's (#300)
+//
+export const SCORING_OPACITY = 0.5;
 
 /**
  * the colors every chart draws in, for `theme`: its text and muted gray, its

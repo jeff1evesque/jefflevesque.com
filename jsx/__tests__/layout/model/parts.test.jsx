@@ -1,7 +1,8 @@
 /**
  * parts.test.jsx: what both model pages draw alike (#243): the score picker, a
- * model's status and its bell (#255), a legend's marks, a panel's day and how it
- * is chosen, a chart's table, and a chart's title that folds it, with the folds it
+ * model's status and its bell (#255), a legend's marks and the note on which way
+ * its axis runs (#300), how a part of loss stands, a panel's day and how it is
+ * chosen, a chart's table, and a chart's title that folds it, with the folds it
  * keeps.
  */
 
@@ -12,6 +13,7 @@ import { MemoryRouter } from 'react-router-dom';
 
 import {
     AlarmBell,
+    FAINT_OPACITY,
     FoldTitle,
     HoldPicker,
     Legend,
@@ -22,9 +24,11 @@ import {
     ScorePicker,
     StatusPill,
     TipBox,
+    axisNote,
     axisStyle,
     gapWords,
     isPhone,
+    partGap,
     tickGap,
     modelsHeld,
     useFolds,
@@ -194,6 +198,32 @@ describe('gapWords (#274, #300)', () => {
     });
 });
 
+describe('partGap (#300)', () => {
+    const gap = (part) => render(<span className='holder'>{partGap(part)}</span>).container.querySelector('.holder');
+
+    it('says how far a part of loss stands from the baseline\'s, in the fewest words, after the arrow', () => {
+        expect(gap({ value: 0.723, baseline: 0.713 })).toHaveTextContent(/^▼ 0\.010 worse$/);
+        expect(gap({ value: 0.41, baseline: 0.414 })).toHaveTextContent(/^▲ 0\.004 better$/);
+        expect(gap({ value: 0.41, baseline: 0.414 }).querySelector('.model-gap-arrow')).toHaveTextContent('▲');
+    });
+
+    it('compares the two as they are printed: a hair apart is level, and two printed apart are not', () => {
+        expect(gap({ value: 0.7231, baseline: 0.7229 })).toHaveTextContent(/^level$/);
+        expect(gap({ value: 0.26018, baseline: 0.26065 })).toHaveTextContent(/^▲ 0\.001 better$/);
+    });
+});
+
+describe('axisNote (#300)', () => {
+    it('says a score where lower is better has its axis flipped, so better is up', () => {
+        expect(axisNote('loss')).toBe('Lower is better, so the axis is flipped: better is up.');
+    });
+
+    it('says a score where higher is better is the right way up', () => {
+        expect(axisNote('auc_up')).toBe('Higher is better.');
+        expect(axisNote('top10_gain')).toBe('Higher is better.');
+    });
+});
+
 describe('tickGap (#300)', () => {
     it('stands a phone\'s days further apart, so a narrow chart names fewer', () => {
         expect(tickGap(false)).toBe(24);
@@ -348,14 +378,22 @@ describe('Mark', () => {
         expect(dashed).toHaveAttribute('stroke-width', '2');
     });
 
-    it('draws scoring as a lighter bar, and a whole attempt as training under its lighter scoring', () => {
+    it('draws scoring as a lighter bar, half its color, and a whole attempt as training under its lighter scoring (#300)', () => {
         const fade = render(<Mark kind='fade' color='#123456' />).container.querySelector('rect');
         const [scoring, training] = render(<Mark kind='stack' color='#123456' />).container.querySelectorAll('rect');
 
-        expect(fade).toHaveAttribute('fill-opacity', '0.4');
-        expect(scoring).toHaveAttribute('fill-opacity', '0.4');
+        expect(fade).toHaveAttribute('fill-opacity', '0.5');
+        expect(scoring).toHaveAttribute('fill-opacity', '0.5');
         expect(training).not.toHaveAttribute('fill-opacity');
         expect(Number(training.getAttribute('y'))).toBeGreaterThan(Number(scoring.getAttribute('y')));
+    });
+
+    it('draws a single day as a faint dot, as light as a track record draws its days (#300)', () => {
+        const faint = render(<Mark kind='faint' color='#123456' />).container.querySelector('circle');
+
+        expect(FAINT_OPACITY).toBe(0.45);
+        expect(faint).toHaveAttribute('fill', '#123456');
+        expect(faint).toHaveAttribute('fill-opacity', '0.45');
     });
 });
 
@@ -380,6 +418,23 @@ describe('Legend', () => {
         render(<Legend label='Legend, bars' items={[]} />);
 
         expect(screen.getByRole('list', { name: 'Legend, bars' })).toBeInTheDocument();
+    });
+
+    it('says last, with no mark, which way the axis runs, where it is handed a note (#300)', () => {
+        render(<Legend items={[{ key: 'a', kind: 'line', color: '#ff0000', label: 'Live version' }]} note={axisNote('loss')} />);
+
+        const items = within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem');
+
+        expect(items).toHaveLength(2);
+        expect(items[1]).toHaveClass('model-legend-note');
+        expect(items[1]).toHaveTextContent('Lower is better, so the axis is flipped: better is up.');
+        expect(items[1].querySelector('svg')).toBeNull();
+    });
+
+    it('has no note where it is handed none', () => {
+        const { container } = render(<Legend items={[{ key: 'a', kind: 'line', color: '#ff0000', label: 'Live version' }]} />);
+
+        expect(container.querySelector('.model-legend-note')).toBeNull();
     });
 });
 

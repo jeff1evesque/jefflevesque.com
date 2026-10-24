@@ -58,7 +58,7 @@ describe('PendingRow', () => {
         return render(drawn).container.querySelector('.model-row');
     }
 
-    it('wears a row\'s classes, cell for cell, as the mockup of #300 lays a row out, so the list lays it out as one', () => {
+    it('wears a row\'s classes, cell for cell, as #300 lays a row out, so the list lays it out as one', () => {
         expect([...row().children].map((cell) => cell.className)).toEqual([
             'model-cell model-cell-compare',
             'model-cell model-cell-model',
@@ -115,7 +115,7 @@ describe('PendingRow', () => {
 });
 
 describe('PendingGroup', () => {
-    it('draws two rows in the list\'s box, with no headings over them, as the mockup of #300 draws a list (#283)', () => {
+    it('draws two rows in the list\'s box, with no headings over them, as #300 lays a list out (#283)', () => {
         const { container } = render(<PendingGroup score='acc_up' />);
         const list = container.querySelector('.model-list');
 

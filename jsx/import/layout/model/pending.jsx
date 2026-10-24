@@ -87,7 +87,7 @@ export function PendingPicker() {
 
 /**
  * one of /model's rows, or a phone's card, before the listing says whose, laid
- * out as the mockup of #300 draws a row: a bar for its name and its status over
+ * out as #300 lays a row out: a bar for its name and its status over
  * its address and lines for its description, then bars for its score, the trend
  * line's place, and when it went live. The box that ticks it is drawn disabled, and there is
  * no bell, since a retired model has none. With `parts`, loss's three parts
@@ -170,8 +170,8 @@ PendingRow.propTypes = {
 };
 
 /**
- * /model's list before the listing names its task and its models, as the
- * mockup of #300 draws a list: the task's heading and its count over what it
+ * /model's list before the listing names its task and its models, as #300
+ * lays a list out: the task's heading and its count over what it
  * predicts, its score picker (#279), and two rows in their box. On loss, as its three parts
  * (#283): a list opens on loss, and the first list is of stock models, whose
  * list shows them.

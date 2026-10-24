@@ -1,16 +1,17 @@
 /**
  * stylesheet.test.js: what '_model.scss' promises about /model's lists, their
- * rows, their pickers and a phone's cards as the mockup of #300 draws them, about
+ * rows, their pickers and a phone's cards as #300 lays them out, about
  * the pill of a model taken down (#263), about where loss's three parts go on a
  * model's page (#265), about the rows that page's three cards share (#267), about
  * a phone's controls and the room around them (#272), about the arrow before how
  * a score stands, and what both pages hold while the listing is on its way
- * (#274), and about loss's three parts in /model's list (#283), read out of the
- * partial.
+ * (#274), about loss's three parts in /model's list (#283), and about a model's
+ * own page as #300 lays it out -- its column, its cards, its charts' panel, when
+ * its results come in, and a phone's boxes -- read out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see where a
  * cell lands. What can be held is what each rule says: a wide row's cells side
- * by side, each with the room the mockup gives it, and a phone's card placing
+ * by side, each with the room #300 gives it, and a phone's card placing
  * each cell by name, whatever their order -- see model-row.test.jsx.
  *
  * Note: read the way layout/stream/stylesheet.test.js reads '_stream.scss': the
@@ -72,7 +73,7 @@ function whole(selector) {
 const ruleOf = (selector, property) => RULES.find((each) => each.selectors.join() === selector && declared(each, property));
 const rulesOf = (selector) => RULES.filter((each) => each.selectors.join() === selector);
 
-describe('a list of /model, as the mockup of #300 draws one', () => {
+describe('a list of /model, as #300 lays one out', () => {
     it('rules each list off from the one over it, its pickers, its line and its rows under its name, 14px apart', () => {
         const group = whole('.model-group');
 
@@ -82,7 +83,7 @@ describe('a list of /model, as the mockup of #300 draws one', () => {
         expect(declared(group, 'gap')).toBe('14px');
         expect(declared(group, 'margin-top')).toBe('22px');
         expect(declared(group, 'padding-top')).toBe('18px');
-        expect(declared(ruleOf('> .model-hold-line', 'margin'), 'margin')).toBe('-4px 0 0');
+        expect(group.body).toMatch(/> \.model-hold-line \{\s*margin: -4px 0 0;/);
     });
 
     it('names its task at 20px, how many models it has beside it, and what they predict under them in a 14px gray', () => {
@@ -116,7 +117,7 @@ describe('a list of /model, as the mockup of #300 draws one', () => {
         expect(declared(row, 'align-items')).toBe('center');
     });
 
-    it('gives each part the room the mockup gives it, the model twice a figure\'s share, and loss\'s parts the most', () => {
+    it('gives each part the room #300 gives it, the model twice a figure\'s share, and loss\'s parts the most', () => {
         expect(['compare', 'model', 'score', 'parts', 'trend', 'since'].map((cell) => [cell, declared(ruleOf(`.model-cell-${cell}`, 'flex'), 'flex')]))
             .toEqual([
                 ['compare', 'none'],
@@ -173,7 +174,7 @@ describe('a list of /model, as the mockup of #300 draws one', () => {
     });
 });
 
-describe('the pickers, as the mockup of #300 draws them', () => {
+describe('the pickers, as #300 lays them out', () => {
     it('name each picker over its buttons', () => {
         const scores = whole('.model-scores');
 
@@ -238,7 +239,7 @@ describe('the status pill of a model taken down (#263)', () => {
     });
 });
 
-describe('/model on a phone, as the mockup of #300 draws it (#274)', () => {
+describe('/model on a phone, as #300 lays it out (#274)', () => {
     const card = ruleOf('.model-row', 'grid-template-areas');
 
     it('draws each model a card of its own, 12px apart, with no box around them all', () => {
@@ -391,7 +392,21 @@ describe('loss\'s three parts on a model\'s page (#265)', () => {
         const list = RULES.find((rule) => rule.selectors.join() === '.model-parts');
 
         expect(declared(list, 'container-type')).toBe('inline-size');
-        expect(source).toMatch(/@container \(max-width: 30em\) \{\s*\.model-part \{\s*display: grid;/);
+        expect(source).toMatch(/@container \(max-width: 20em\) \{\s*\.model-part \{\s*display: grid;/);
+        expect(source).not.toMatch(/@container \(max-width: 30em\)/);
+    });
+
+    it('stand a line each, as the cards\' rows do: a light rule under each, the figure in the figures\' ink, how it stands in gray (#300)', () => {
+        const list = RULES.find((rule) => rule.selectors.join() === '.model-parts');
+        const part = RULES.find((rule) => rule.selectors.join() === '.model-part' && declared(rule, 'border-bottom'));
+
+        expect(declared(list, 'gap')).toBe('7px');
+        expect(declared(list, 'font-size')).toBe('14px');
+        expect(declared(list, 'color')).toBe('$gray-6');
+        expect(declared(part, 'border-bottom')).toBe('1px solid $gray-1');
+        expect(declared(part, 'padding-bottom')).toBe('7px');
+        expect(declared(RULES.find((rule) => rule.selectors.join() === '.model-part-value'), 'font-weight')).toBeNull();
+        expect(source).not.toMatch(/\.model-part-baseline/);
     });
 });
 
@@ -411,8 +426,186 @@ describe('a model\'s three cards on a wide screen (#267)', () => {
     });
 
     it('rule each card\'s rows off from its top part, and keep its top part\'s lines together', () => {
-        expect(declared(rule('.model-stat-body'), 'border-top')).toBe('1px solid $gray-2');
+        expect(declared(rule('.model-stat-body'), 'border-top')).toBe('1px solid $gray-1');
         expect(declared(rule('.model-stat-head'), 'align-content')).toBe('start');
+    });
+
+    it('stand as many across as fit at 280px or more, 16px apart (#300)', () => {
+        expect(declared(rule('.model-summary-cards'), 'grid-template-columns')).toBe('repeat(auto-fit, minmax(280px, 1fr))');
+        expect(declared(rule('.model-summary-cards'), 'gap')).toBe('16px');
+    });
+
+    it('frame each card 14px by 16px inside, its rows 10px under its top part and 10px under the rule, its foot 14px under them (#300)', () => {
+        const body = rule('.model-stat-body');
+
+        expect(declared(rule('.model-stat'), 'padding')).toBe('14px 16px');
+        expect(declared(rule('.model-stat-head'), 'gap')).toBe('4px');
+        expect(declared(body, 'margin-top')).toBe('10px');
+        expect(declared(body, 'padding-top')).toBe('10px');
+        expect(declared(body, 'gap')).toBe('14px');
+        expect(declared(body, 'justify-content')).toBe('space-between');
+    });
+
+    it('name each card in 14px gray over its 26px figure, and its line in the page\'s dark gray (#300)', () => {
+        expect(declared(rule('.model-stat-label'), 'font-size')).toBe('14px');
+        expect(declared(rule('.model-stat-label'), 'color')).toBe('$gray-6');
+        expect(declared(rule('.model-stat-value'), 'font-size')).toBe('26px');
+        expect(declared(rule('.model-stat-detail'), 'color')).toBe('$gray-7');
+        expect(declared(rule('.model-stat-detail'), 'line-height')).toBe('1.45');
+    });
+
+    it('rule off each row 7px under it, its value in the figures\' ink and no heavier than its name (#300)', () => {
+        const rows = rule('.model-stat-rows');
+        const row = rule('.model-stat-row');
+
+        expect(declared(rows, 'flex-direction')).toBe('column');
+        expect(declared(rows, 'gap')).toBe('7px');
+        expect(declared(rows, 'color')).toBe('$gray-6');
+        expect(declared(row, 'padding-bottom')).toBe('7px');
+        expect(declared(row, 'border-bottom')).toBe('1px solid $gray-1');
+        expect(declared(rule('.model-stat-row-value'), 'color')).toBe('$gray-9');
+        expect(declared(rule('.model-stat-row-value'), 'font-weight')).toBeNull();
+        expect(source).not.toMatch(/model-stat-row-head/);
+    });
+
+    it('set the checks\' table in 13px type, a note under it in gray, and the Attempts card\'s note alike (#300)', () => {
+        const notes = rule('.model-stat-note,.model-checks-note');
+
+        expect(declared(rule('.model-checks-block'), 'gap')).toBe('6px');
+        expect(declared(whole('.model-checks'), 'font-size')).toBe('13px');
+        expect(declared(notes, 'font-size')).toBe('13px');
+        expect(declared(notes, 'color')).toBe('$gray-6');
+        expect(declared(rule('.model-stat-down'), 'color')).toBe('$gray-6');
+    });
+});
+
+describe('a model\'s own page, as #300 lays it out', () => {
+    const rule = (selector) => RULES.find((each) => each.selectors.join() === selector);
+
+    it('stands its parts in one column, 22px apart, none with a margin of its own', () => {
+        const page = whole('.model-page');
+
+        expect(declared(page, 'display')).toBe('flex');
+        expect(declared(page, 'flex-direction')).toBe('column');
+        expect(declared(page, 'gap')).toBe('22px');
+        expect(declared(rule('> .model-intro,> .model-controls,> .model-summary,> .model-card'), 'margin')).toBe('0');
+    });
+
+    it('sets the line saying what the hold is 14px under the pickers', () => {
+        expect(whole('.model-page').body).toMatch(/> \.model-hold-line \{\s*margin: -8px 0 0;/);
+    });
+
+    it('leads with the way back at 14px, ununderlined, then the model\'s name at 28px over a 15px line', () => {
+        const back = rule('> .model-back');
+        const lede = RULES.find((each) => each.selectors.join() === '.model-lede' && declared(each, 'font-size'));
+
+        expect(declared(back, 'font-size')).toBe('14px');
+        expect(declared(back, 'text-decoration')).toBe('none');
+        expect(declared(back, 'align-self')).toBe('flex-start');
+        expect(declared(RULES.find((each) => each.selectors.join() === '.model-heading h4' && declared(each, 'font-size')), 'font-size')).toBe('28px');
+        expect(declared(lede, 'font-size')).toBe('15px');
+        expect(declared(lede, 'max-width')).toBe('860px');
+    });
+
+    it('frames each card 16px inside, its parts 12px apart, its title at 18px over a gray line, and 12px inside on a phone', () => {
+        const cards = rulesOf('.model-page .model-card');
+
+        expect(declared(cards[0], 'padding')).toBe('16px');
+        expect(declared(cards[0], 'gap')).toBe('12px');
+        expect(declared(cards[1], 'padding')).toBe('12px');
+        expect(whole('.model-page .model-card-head').body).toMatch(/h5 \{\s*color: \$gray-9;\s*font-size: 18px;\s*font-weight: 600;/);
+        expect(declared(rule('.model-page .model-card-sub'), 'color')).toBe('$gray-6');
+        expect(declared(rule('.model-page .model-card-sub'), 'font-size')).toBe('14px');
+    });
+
+    it('sets each legend in 13px type, 20px between its marks, and which way its axis runs in gray', () => {
+        expect(declared(rule('.model-page .model-legend'), 'font-size')).toBe('13px');
+        expect(declared(rule('.model-page .model-legend'), 'gap')).toBe('8px 20px');
+        expect(declared(rule('.model-legend-note'), 'color')).toBe('$gray-6');
+    });
+
+    it('titles the attempts\' second and third charts at 14px, with no rule over them, set in as far as the charts\' axis is wide', () => {
+        const minor = rule('.model-page .model-card-minor');
+
+        expect(declared(minor, 'border-top')).toBe('0');
+        expect(declared(minor, 'font-size')).toBe('14px');
+        expect(declared(minor, 'margin')).toBe('0 0 0 56px');
+        expect(declared(rule('.model-page .model-attempts > .model-card-sub'), 'margin-left')).toBe('56px');
+    });
+
+    it('holds a night\'s numbers in one panel on a light tint under the attempts\' charts', () => {
+        const panel = rule('.model-attempt-panel');
+
+        expect(declared(panel, 'background-color')).toBe('color-mix(in srgb, $gray-1 45%, $white-1)');
+        expect(declared(panel, 'border-radius')).toBe('6px');
+        expect(declared(panel, 'padding')).toBe('10px 12px');
+        expect(declared(panel, 'flex-direction')).toBe('column');
+        expect(declared(panel, 'gap')).toBe('4px');
+        expect(declared(rule('.model-attempt-panel-title'), 'font-weight')).toBe('600');
+    });
+
+    it('says in the middle of a light tint, where the track record\'s chart would be, when a hold\'s results come in', () => {
+        const none = rule('.model-track-none');
+
+        expect(declared(none, 'padding')).toBe('28px 16px');
+        expect(declared(none, 'text-align')).toBe('center');
+        expect(declared(none, 'font-size')).toBe('15px');
+    });
+
+    it('lists when each hold\'s results come in as boxes, as many across as fit at 230px or more', () => {
+        const list = rule('.model-when-list');
+        const item = rule('.model-when-item');
+
+        expect(declared(list, 'display')).toBe('grid');
+        expect(declared(list, 'grid-template-columns')).toBe('repeat(auto-fit, minmax(230px, 1fr))');
+        expect(declared(list, 'gap')).toBe('12px');
+        expect(declared(item, 'padding')).toBe('10px 12px');
+        expect(declared(item, 'border-radius')).toBe('6px');
+        expect(declared(rule('.model-when-name'), 'font-weight')).toBe('600');
+        expect(declared(rule('.model-when-first'), 'color')).toBe('$gray-6');
+    });
+
+    it('shades the hold picked in a lighter wash of the charts\' blue, and gives the table\'s columns their room', () => {
+        const table = whole('.model-holds-table');
+
+        expect(declared(rule('.model-holds-picked > th,.model-holds-picked > td,.model-holds-list > .model-holds-picked'), 'background-color'))
+            .toBe('color-mix(in srgb, var(--stream-shade-0) 6%, transparent)');
+        expect(table.body).toMatch(/tbody th \{\s*min-width: 170px;/);
+        expect(table.body).toMatch(/td \{\s*min-width: 112px;/);
+    });
+
+    describe('on a phone', () => {
+        it('draws the three figures as boxes 8px apart, a name over its value at its left, on a light tint', () => {
+            const box = rule('.model-summary-boxes .stream-focus-figure');
+
+            expect(declared(rule('.model-summary-boxes .stream-focus-figures'), 'gap')).toBe('8px');
+            expect(declared(box, 'align-items')).toBe('flex-start');
+            expect(declared(box, 'background-color')).toBe('color-mix(in srgb, $gray-1 60%, $white-1)');
+            expect(declared(box, 'border')).toBe('0');
+            expect(declared(box, 'border-radius')).toBe('8px');
+            expect(declared(box, 'padding')).toBe('10px');
+        });
+
+        it('washes the score\'s box in the charts\' blue where it is better, and in their red where it is worse', () => {
+            expect(declared(rule('.model-summary-boxes .stream-focus-figure:has(.stream-focus-figure-good)'), 'background-color'))
+                .toBe('color-mix(in srgb, var(--stream-shade-0) 9%, $white-1)');
+            expect(declared(rule('.model-summary-boxes .stream-focus-figure:has(.stream-focus-figure-bad)'), 'background-color'))
+                .toBe('color-mix(in srgb, var(--stream-missed) 9%, $white-1)');
+        });
+
+        it('names each box in 12px gray, over its 17px value in the figures\' ink, whatever its tone', () => {
+            const value = rule('.model-summary-boxes .stream-focus-figure-value');
+
+            expect(declared(rule('.model-summary-boxes .stream-focus-figure-label'), 'font-size')).toBe('12px');
+            expect(declared(value, 'font-size')).toBe('17px');
+            expect(declared(value, 'font-weight')).toBe('600');
+            expect(declared(value, 'color')).toBe('$gray-9');
+        });
+
+        it('sets \'<score> by hold\' in a closer card, its title a size smaller', () => {
+            expect(declared(rule('.model-page .model-by-hold'), 'gap')).toBe('6px');
+            expect(declared(rule('.model-page .model-by-hold .model-card-head h5'), 'font-size')).toBe('17px');
+        });
     });
 });
 
@@ -450,9 +643,9 @@ describe('the controls on a phone (#272)', () => {
         expect(declared(rule('.model-sort select', 'width'), 'width')).toBe('100%');
     });
 
-    it('stand 0.75rem apart, and 0.75rem over a model page\'s figures', () => {
+    it('stand 0.75rem apart, with no margin under them on a model\'s page, whose column sets its parts apart (#300)', () => {
         expect(declared(rule('.model-controls', 'grid-template-columns'), 'row-gap')).toBe('0.75rem');
-        expect(declared(rule('.model-page .model-controls', 'margin-bottom'), 'margin-bottom')).toBe('0.75rem');
+        expect(RULES.find((each) => each.selectors.join() === '.model-page .model-controls')).toBeUndefined();
     });
 
     it('put a card\'s Compare with on a line of its own, 0.75rem under the title and 1rem over the line under it, its dropdown running to the card\'s edge', () => {
@@ -564,7 +757,7 @@ describe('an options model\'s picks page (#290)', () => {
     });
 });
 
-describe('loss\'s three parts in /model\'s list (#283), as the mockup of #300 draws them', () => {
+describe('loss\'s three parts in /model\'s list (#283), as #300 lays them out', () => {
     it('stand under a line saying what they add up to, three columns across a wide row', () => {
         const [cells] = rulesOf('.model-part-cells');
 
