@@ -24,6 +24,10 @@
  * is named for, and from schema 1.7 each type says how many it stores. What is
  * held is the Variant row, which says Multi-D where they differ (#237).
  *
+ * Both panels show the nightly job's steps as ranges of times, each label with a
+ * note saying what the step is (#289). What is held is whenRange, which writes a
+ * range, and which rows carry a note.
+ *
  * Note: jest.config.js runs this suite in New York time, which is what lets the
  *       zone tests below tell a run read as UTC from one read in the local zone.
  */
@@ -38,6 +42,7 @@ import {
     mixedWidths,
     outsideGraph,
     sourceTypes,
+    whenRange,
 } from '../../../import/layout/graph/source.js';
 import SCHEMA from '../../fixtures/graph-schema-1.7.mock.json';
 
@@ -361,5 +366,57 @@ describe('the Variant row (#237)', () => {
         //
         expect(BUILDS.widths).toBe(true);
         expect(RETRIEVAL.widths).toBe(false);
+    });
+});
+
+describe('the job\'s steps, each a range (#289)', () => {
+    it('writes the day once where both ends fall on it, and the zone once, after the end', () => {
+        expect(whenRange('2026-10-23T05:00:12Z', '2026-10-23T07:21:40Z')).toBe('2026-10-23 05:00 – 07:21 UTC');
+        expect(whenRange('2026-10-23T07:21:40+00:00', '2026-10-23T09:32:05.118+00:00'))
+            .toBe('2026-10-23 07:21 – 09:32 UTC');
+    });
+
+    it('writes both days for a range across midnight UTC', () => {
+        expect(whenRange('2026-10-23T23:50:00Z', '2026-10-24T00:40:00Z')).toBe('2026-10-23 23:50 – 2026-10-24 00:40 UTC');
+    });
+
+    it('reads an end that was not recorded as n/a, and a step with neither end as n/a alone', () => {
+        expect(whenRange('2026-09-15T06:37:02Z', null)).toBe('2026-09-15 06:37 UTC – n/a');
+        expect(whenRange(null, '2026-09-24T05:41:57Z')).toBe('n/a – 2026-09-24 05:41 UTC');
+        expect(whenRange(null, undefined)).toBe('n/a');
+    });
+
+    it('claims no zone for times published without one, and writes each end whole where the two differ', () => {
+        expect(whenRange('2026-09-15T05:00:43', '2026-09-15T06:37:02')).toBe('2026-09-15 05:00 – 06:37');
+        expect(whenRange('2026-09-15T05:00:43', '2026-09-15T06:37:02Z')).toBe('2026-09-15 05:00 – 2026-09-15 06:37 UTC');
+    });
+
+    it('carries a note on each step\'s label, and on a day\'s Published, and on no other row', () => {
+        const noted = (rows) => rows.filter((row) => row.note).map((row) => row.label);
+
+        expect(noted(DETAILS)).toEqual(['Processing data', 'Building graph']);
+        expect(noted(DAY_DETAILS)).toEqual(['Processing data', 'Published']);
+    });
+
+    it('says each step in words with no number and no source in them, so they never need updating', () => {
+        const notes = [...DETAILS, ...DAY_DETAILS].filter((row) => row.note).map((row) => row.note);
+
+        expect(new Set(notes)).toEqual(new Set([
+            'The job reads all of the day’s data, combines it, and saves the result.',
+            'The job turns the combined data into this graph, which the model trains on.',
+            'When the job started putting this graph on the site.',
+        ]));
+        notes.forEach((note) => expect(note).not.toMatch(/\d|bls|sec\b|noaa|market/i));
+    });
+
+    it('reads the day panel\'s range from its run to its tables\' finish, and not their start', () => {
+        const range = DAY_DETAILS.find((row) => row.label === 'Processing data');
+        const day = {
+            run: '2026-10-23T05:00:31Z',
+            tables_started: '2026-10-23T06:50:02Z',
+            tables_finished: '2026-10-23T07:19:44Z',
+        };
+
+        expect(range.read(day)).toBe('2026-10-23 05:00 – 07:19 UTC');
     });
 });

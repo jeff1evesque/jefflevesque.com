@@ -21,7 +21,7 @@
  * page around underneath the reader.
  *
  * Note: nothing here invents a value. The build panel's stand-in carries the
- *       row LABELS, which are the same nine whatever build loads, and leaves
+ *       row LABELS, which are the same eight whatever build loads, and leaves
  *       every value blank; a placeholder that guessed '10.4M' would be a wrong
  *       answer on screen rather than an honest wait.
  *
@@ -44,6 +44,7 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import * as d3 from 'd3';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { GRAPH_NODE_TYPES } from '../../animation/filter-schema.js';
 import {
     frameSize,
@@ -109,30 +110,34 @@ PendingPicker.propTypes = {
 };
 
 //
-// what each of the build panel's nine values roughly measures, in the order
-// the panel lists them: a day, three timestamps, a source list, two counts, a
-// dataset name and a variant.
+// what each of the build panel's eight values roughly measures, in the order
+// the panel lists them: a day, two ranges of times, a source list, two counts,
+// a dataset name and a variant.
 //
 // Note: by position, so this follows DETAILS in source.js row for row. Out of
 //       step, every bar takes another row's width: when the run's times moved
 //       up under Day, a list left as it was would have drawn them as counts,
 //       and the Sources row, which waits for the schema, as a timestamp.
 //
-const DETAIL_WIDTHS = ['6rem', '9rem', '9rem', '9rem', '7rem', '4.5rem', '5.5rem', '6rem', '3.5rem'];
+// Note: a range is 15rem (#289): '2026-10-23 05:00 – 07:21 UTC' measured 211px
+//       in Safari's engine, in the panel's 14px tabular digits. The day panel
+//       draws its own range at it too -- see DAY_DETAILS in source.js.
+//
+const DETAIL_WIDTHS = ['6rem', '15rem', '15rem', '7rem', '4.5rem', '5.5rem', '6rem', '3.5rem'];
 
 /**
  * one of the build panel's values that has not arrived, by its row.
  *
  * The whole panel's stand-in draws one of these in every row. The real panel
- * draws one in its Finished, Sources and Variant rows alone, which wait for the
- * schema a round trip after the rest of the panel has filled in from the listing
- * -- see buildFinished, graphSources and buildVariant in source.js -- so each row
- * keeps the bar it had rather than changing size twice.
+ * draws one in its Building graph, Sources and Variant rows alone, which wait for
+ * the schema a round trip after the rest of the panel has filled in from the
+ * listing -- see buildRange, graphSources and buildVariant in source.js -- so
+ * each row keeps the bar it had rather than changing size twice.
  *
  * Note: `width` is for a panel whose values are not the build panel's. A day's
- *       rows are a date and four totals, and each says what it measures -- see
- *       DAY_DETAILS in source.js. Without one, the row's index picks the width
- *       the build panel's value in that row measures.
+ *       rows are a date, a range, a timestamp and totals, and each says what it
+ *       measures -- see DAY_DETAILS in source.js. Without one, the row's index
+ *       picks the width the build panel's value in that row measures.
  */
 export function PendingDetail({ index, width = null }) {
     return (
@@ -160,13 +165,27 @@ PendingDetail.propTypes = {
  * two abreast, and rules them off, where the panel will. A stand-in giving each
  * pair's rows a line apiece would be taller than the panel that replaces it,
  * and the column would shrink under the reader as the data arrived.
+ *
+ * And which labels carry a note, `noted`, so each of those has the info icon
+ * the panel's label will (#289). Only the icon: the stand-in is hidden from a
+ * screen reader and from the keyboard, so there is no note to reach, and a
+ * label it drew without the icon would be narrower than the panel's.
  */
-export function PendingDetails({ labels, widths = [], classes = [] }) {
+export function PendingDetails({ labels, widths = [], classes = [], noted = [] }) {
     return (
         <dl className='graph-details graph-pending' aria-hidden='true'>
             {labels.map((label, index) => (
                 <div key={label} className={classes[index] || 'graph-details-row'}>
-                    <dt>{label}</dt>
+                    <dt>
+                        {noted[index]
+                            ? (
+                                <span className='graph-details-label-noted'>
+                                    {label}
+                                    <InfoOutlinedIcon fontSize='inherit' />
+                                </span>
+                            )
+                            : label}
+                    </dt>
                     <dd>
                         <PendingDetail index={index} width={widths[index] || null} />
                     </dd>
@@ -180,6 +199,7 @@ PendingDetails.propTypes = {
     labels: PropTypes.arrayOf(PropTypes.string).isRequired,
     widths: PropTypes.arrayOf(PropTypes.string),
     classes: PropTypes.arrayOf(PropTypes.string),
+    noted: PropTypes.arrayOf(PropTypes.bool),
 };
 
 //

@@ -507,6 +507,23 @@ $graph-held-edge: $green-4;
   }
 }
 
+//
+// a label that carries a note: each of the job's steps, and a day's Published,
+// with the note in a tooltip -- see details in graph.jsx (#289). The icon is the
+// noted name's, at the size of the label's text, but in the label's own gray,
+// whichever gray the column gives its labels, so the two read as one.
+//
+.graph-details .graph-details-label-noted {
+  white-space: nowrap;
+
+  svg {
+    color: inherit;
+    font-size: 1em;
+    margin-left: 0.2em;
+    vertical-align: -0.125em;
+  }
+}
+
 .graph-legend {
   ul {
     list-style: none;

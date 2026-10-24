@@ -504,4 +504,29 @@ describe('PendingDetails', () => {
 
         expect(classes(container)).toEqual(['graph-details-row', 'graph-details-row', 'graph-details-row']);
     });
+
+    //
+    // the panel draws an info icon after a label that carries a note (#289), so
+    // the stand-in draws one in the same place, or the label would widen when
+    // the panel arrived. Only the icon: the stand-in is hidden from a screen
+    // reader, and takes no focus, so there is no note to reach
+    //
+    it('draws the info icon after each label it is told carries a note, and after no other', () => {
+        const { container } = render(
+            <PendingDetails labels={['Day', 'Processing data', 'Published']} noted={[false, true, true]} />
+        );
+        const iconed = [...container.querySelectorAll('dt')]
+            .filter((dt) => dt.querySelector('.graph-details-label-noted svg'))
+            .map((dt) => dt.textContent);
+
+        expect(iconed).toEqual(['Processing data', 'Published']);
+        expect(container.querySelector('[tabindex]')).toBeNull();
+        expect(container.querySelector('dl')).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('draws no icon where it is told nothing of notes', () => {
+        const { container } = render(<PendingDetails labels={['Day', 'Nodes']} />);
+
+        expect(container.querySelector('dt svg')).toBeNull();
+    });
 });

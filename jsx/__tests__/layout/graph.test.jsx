@@ -450,6 +450,28 @@ describe('while the build is still on its way', () => {
         expect(rowLabels(waiting.container)).toContain('Nodes');
     });
 
+    it('draws the info icon on the same labels the build panel will, and no other (#289)', async () => {
+        //
+        // a label drawn without its icon would be narrower than the one that
+        // replaces it. The stand-in's is only the icon: it is hidden from a
+        // screen reader, and from the keyboard, so there is no note to reach
+        //
+        const iconed = (root) => [...root.querySelectorAll('.graph-details-row dt')]
+            .filter((dt) => dt.querySelector('.graph-details-label-noted svg'))
+            .map((dt) => dt.textContent);
+
+        getGraphListing.mockReturnValue(new Promise(() => {}));
+        const waiting = await setup();
+
+        expect(iconed(waiting.container)).toEqual(['Processing data', 'Building graph']);
+        expect(waiting.container.querySelector('.graph-pending .graph-details-label-noted[tabindex]')).toBeNull();
+
+        getGraphListing.mockResolvedValue(LISTING);
+        const loaded = await setup();
+
+        expect(iconed(loaded.container)).toEqual(['Processing data', 'Building graph']);
+    });
+
     it('leaves every one of those values blank', async () => {
         //
         // a placeholder that guessed at '10.4M' would be a wrong answer on
@@ -467,8 +489,8 @@ describe('while the build is still on its way', () => {
     it('fills the build panel a round trip before the legend', async () => {
         //
         // the two columns are waiting on different requests. Everything the
-        // build panel says but its Finished, Sources and Variant rows is in the
-        // LISTING; the legend needs the schema behind it. A page holding both
+        // build panel says but its Building graph, Sources and Variant rows is in
+        // the LISTING; the legend needs the schema behind it. A page holding both
         // until the last response arrived would be sitting on an answer it
         // already had.
         //
@@ -508,32 +530,33 @@ describe('while the build is still on its way', () => {
         expect(detail('Dataset')).toBe('all-sources');
     });
 
-    it('holds the Finished row\'s place until the schema says when the build finished', async () => {
+    it('holds the Building graph row\'s place until the schema says when the build finished', async () => {
         //
-        // only a schema of 1.10 or later says. An 'n/a' put up in the meantime
-        // would change to a time under the reader when one of those landed
+        // only a schema of 1.10 or later says. A range ending 'n/a' put up in the
+        // meantime would change to a time under the reader when one of those
+        // landed
         //
         getGraphById.mockReturnValue(new Promise(() => {}));
 
         await setup();
 
-        expect(detail('Finished')).toBe('');
-        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
+        expect(detail('Building graph')).toBe('');
+        expect(detail('Processing data')).toBe('2026-09-15 05:00 – 06:37 UTC');
     });
 
     it('draws each row\'s stand-in at that row\'s own width', async () => {
         //
         // the stand-in takes its widths by position, so a row that moves has to
-        // take its width with it. Run, Started and Finished are timestamps, and
-        // Sources a list of names -- drawn at any other width, each would change
-        // size when the listing landed.
+        // take its width with it. Processing data and Building graph are ranges,
+        // and Sources a list of names -- drawn at any other width, each would
+        // change size when the listing landed.
         //
         getGraphListing.mockReturnValue(new Promise(() => {}));
 
         await setup();
 
         expect(barWidths()).toMatchObject({
-            Day: '6rem', Run: '9rem', Started: '9rem', Finished: '9rem', Sources: '7rem',
+            Day: '6rem', 'Processing data': '15rem', 'Building graph': '15rem', Sources: '7rem',
         });
     });
 
@@ -553,12 +576,12 @@ describe('while the build is still on its way', () => {
         expect(labels('.graph-details-ruled')).toEqual(['Sources']);
     });
 
-    it('keeps the Finished, Sources and Variant rows\' bars those widths while the schema is on its way', async () => {
+    it('keeps the Building graph, Sources and Variant rows\' bars those widths while the schema is on its way', async () => {
         getGraphById.mockReturnValue(new Promise(() => {}));
 
         await setup();
 
-        expect(barWidths()).toEqual({ Finished: '9rem', Sources: '7rem', Variant: '3.5rem' });
+        expect(barWidths()).toEqual({ 'Building graph': '15rem', Sources: '7rem', Variant: '3.5rem' });
     });
 
     it('stands in for a legend of about the size the build will need', async () => {
@@ -1001,47 +1024,49 @@ describe('the build details', () => {
     it('leads with the day the picker names the build by', async () => {
         //
         // the panel is still the build's: every other row describes the build,
-        // and Run still says when it ran, which is not the day it holds.
+        // and Processing data still starts when its run did, which is not the
+        // day it holds.
         //
         await setup();
 
         expect(document.querySelector('.graph-details-row dt').textContent).toBe('Day');
         expect(detail('Day')).toBe('2026-09-14');
         expect(picker()).toHaveTextContent(/^2026-09-14\b/);
-        expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
+        expect(detail('Processing data')).toBe('2026-09-15 05:00 – 06:37 UTC');
     });
 
-    it('puts when its run started, and when the build started and finished, directly under its day', async () => {
+    it('puts the job\'s two steps, each a range, directly under its day (#289)', async () => {
         //
-        // the four dates together, where the Retrieval graph's panel has its
-        // own: one day shows the same Run on both pages, and a reader lines the
-        // two up by it.
+        // where the Retrieval graph's panel has its own Processing data: a day's
+        // two ranges start at the same run, and a reader lines the two pages up
+        // by it.
         //
         getGraphById.mockResolvedValue(finishing('1.10'));
 
         await setup();
 
-        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 5).map((dt) => dt.textContent))
-            .toEqual(['Day', 'Run', 'Started', 'Finished', 'Sources']);
-        expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
-        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
-        expect(detail('Finished')).toBe('2026-09-15 08:12 UTC');
+        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 4).map((dt) => dt.textContent))
+            .toEqual(['Day', 'Processing data', 'Building graph', 'Sources']);
+        expect(detail('Processing data')).toBe('2026-09-15 05:00 – 06:37 UTC');
+        expect(detail('Building graph')).toBe('2026-09-15 06:37 – 08:12 UTC');
     });
 
     //
     // the listing's `built` is the builder's build_timestamp, which it stamps as
-    // the build begins, and the row that read it was called Built, which read as
-    // the finish. From schema 1.10 a build says when it finished as well, in
-    // build_metadata.build_finished_timestamp.
+    // the build begins, so it ends one step and starts the next. A row once read
+    // it as Built, which read as the finish, and then as Started, beside a Run
+    // that sounded like the same thing (#289). From schema 1.10 a build says when
+    // it finished as well, in build_metadata.build_finished_timestamp.
     //
-    it('reads Started off the listing\'s built, and calls no row Built', async () => {
+    it('ends Processing data and starts Building graph at the listing\'s built, and keeps none of the old rows', async () => {
         await setup();
 
-        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
-        expect(detail('Built')).toBeUndefined();
+        expect(detail('Processing data')).toBe('2026-09-15 05:00 – 06:37 UTC');
+        expect(detail('Building graph')).toBe('2026-09-15 06:37 UTC – n/a');
+        ['Built', 'Run', 'Started', 'Finished'].forEach((label) => expect(detail(label)).toBeUndefined());
     });
 
-    it.each(['1.10', '1.11', '2.0'])('reads Finished off a %s schema', async (version) => {
+    it.each(['1.10', '1.11', '2.0'])('ends Building graph at the finish a %s schema records', async (version) => {
         //
         // compared a part at a time. As text or as one float, 1.10 comes out
         // below 1.9.
@@ -1050,54 +1075,105 @@ describe('the build details', () => {
 
         await setup();
 
-        expect(detail('Finished')).toBe('2026-09-15 08:12 UTC');
+        expect(detail('Building graph')).toBe('2026-09-15 06:37 – 08:12 UTC');
     });
 
-    it('reads n/a for Finished on a 1.9 build, whatever its schema holds', async () => {
+    it('ends Building graph n/a on a 1.9 build, whatever its schema holds', async () => {
         //
         // the version says what a field means, as it does for Sources. Below
-        // 1.10 the builder records no finish.
+        // 1.10 the builder records no finish. The row stays, so the panel keeps
+        // its height.
         //
         getGraphById.mockResolvedValue(finishing('1.9'));
 
         await setup();
 
-        expect(detail('Finished')).toBe('n/a');
-        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
+        expect(detail('Building graph')).toBe('2026-09-15 06:37 UTC – n/a');
+        expect(detail('Processing data')).toBe('2026-09-15 05:00 – 06:37 UTC');
     });
 
-    it('reads n/a for Finished on a 1.10 build that carries no metadata, rather than failing', async () => {
+    it('ends Building graph n/a on a 1.10 build that carries no metadata, rather than failing', async () => {
         getGraphById.mockResolvedValue({ ...schemaOf(4), version: '1.10' });
 
         await setup();
 
-        expect(detail('Finished')).toBe('n/a');
+        expect(detail('Building graph')).toBe('2026-09-15 06:37 UTC – n/a');
         expect(explorer()).toBeTruthy();
     });
 
-    it('reads n/a for Finished on a build that could not be loaded, and keeps Started', async () => {
+    it('ends Building graph n/a on a build that could not be loaded, and keeps where it started', async () => {
         //
-        // with no schema there is no finish to read. Started is the listing's,
-        // and stays.
+        // with no schema there is no finish to read. The start is the
+        // listing's, and stays.
         //
         getGraphById.mockResolvedValue(null);
 
         await setup();
 
-        expect(detail('Finished')).toBe('n/a');
-        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
+        expect(detail('Building graph')).toBe('2026-09-15 06:37 UTC – n/a');
+        expect(detail('Processing data')).toBe('2026-09-15 05:00 – 06:37 UTC');
     });
 
-    it('reads Finished again for another build', async () => {
+    it('reads Building graph again for another build', async () => {
         getGraphById.mockResolvedValue(finishing('1.10'));
 
         await setup();
+
+        expect(detail('Building graph')).toBe('2026-09-15 06:37 – 08:12 UTC');
 
         getGraphById.mockResolvedValue(finishing('1.9'));
 
         await chooseBuild('build-b');
 
-        expect(detail('Finished')).toBe('n/a');
+        expect(detail('Building graph')).toBe('2026-09-15 06:37 UTC – n/a');
+    });
+
+    it('writes both days for a step that runs past midnight UTC', async () => {
+        getGraphListing.mockResolvedValue({
+            default: 'build-a',
+            graphs: [{ ...BUILD_A, run: '2026-10-22T23:50:12Z', built: '2026-10-23T00:41:05Z' }],
+        });
+        getGraphById.mockResolvedValue(finishing('1.10', '2026-10-23T02:03:44.218507+00:00'));
+
+        await setup();
+
+        expect(detail('Processing data')).toBe('2026-10-22 23:50 – 2026-10-23 00:41 UTC');
+        expect(detail('Building graph')).toBe('2026-10-23 00:41 – 02:03 UTC');
+    });
+
+    //
+    // each step's label carries a note saying what the step is, as an info
+    // icon after it, which a pointer, the keyboard or a tap shows. Nothing in
+    // the notes needs updating as the data grows: no number, and no source
+    //
+    const labelNote = (label) => [...document.querySelectorAll('.graph-details-row dt')]
+        .find((dt) => dt.textContent === label)
+        .querySelector('.graph-details-label-noted');
+
+    it('notes on each step\'s label what the step is, and on no other label (#289)', async () => {
+        await setup();
+
+        expect(labelNote('Processing data').querySelector('svg')).not.toBeNull();
+        expect(labelNote('Processing data')).toHaveAccessibleDescription(
+            'The job reads all of the day’s data, combines it, and saves the result.'
+        );
+        expect(labelNote('Building graph')).toHaveAccessibleDescription(
+            'The job turns the combined data into this graph, which the model trains on.'
+        );
+        expect([...document.querySelectorAll('.graph-details-row dt')]
+            .filter((dt) => dt.querySelector('.graph-details-label-noted'))
+            .map((dt) => dt.textContent))
+            .toEqual(['Processing data', 'Building graph']);
+    });
+
+    it('shows a step\'s note under the pointer, and from the keyboard', async () => {
+        await setup();
+
+        fireEvent.mouseOver(labelNote('Building graph'));
+
+        expect(await screen.findByRole('tooltip'))
+            .toHaveTextContent('The job turns the combined data into this graph, which the model trains on.');
+        expect(labelNote('Processing data')).toHaveAttribute('tabindex', '0');
     });
 
     it('reads the same day off the published days for a build too old to record one', async () => {
@@ -1107,7 +1183,7 @@ describe('the build details', () => {
 
         expect(detail('Day')).toBe('2026-09-09');
         expect(picker()).toHaveTextContent('2026-09-09 · run 2026-09-13 15:04 UTC');
-        expect(detail('Run')).toBe('2026-09-13 15:04 UTC');
+        expect(detail('Processing data')).toMatch(/^2026-09-13 15:04 – /);
     });
 
     it('reads n/a for the day of a build that records none', async () => {
@@ -1241,14 +1317,14 @@ describe('the build details', () => {
 
         expect(detail('Period')).toBeUndefined();
         expect([...document.querySelectorAll('.graph-details-row dt')].map(d => d.textContent))
-            .toEqual(['Day', 'Run', 'Started', 'Finished', 'Sources', 'Nodes', 'Edges', 'Dataset', 'Variant']);
+            .toEqual(['Day', 'Processing data', 'Building graph', 'Sources', 'Nodes', 'Edges', 'Dataset', 'Variant']);
     });
 
     it('pairs what the build holds, Nodes beside Edges and Dataset beside Variant', async () => {
         //
         // below Sources both panels run two abreast where the column has room --
         // a day's six totals in three pairs, and a build's four rows in two. The
-        // dates and Sources keep a line each.
+        // day, the steps and Sources keep a line each.
         //
         await setup();
 
@@ -1258,7 +1334,7 @@ describe('the build details', () => {
             .map((row) => row.querySelector('dt').textContent);
 
         expect(labels(true)).toEqual(['Nodes', 'Edges', 'Dataset', 'Variant']);
-        expect(labels(false)).toEqual(['Day', 'Run', 'Started', 'Finished', 'Sources']);
+        expect(labels(false)).toEqual(['Day', 'Processing data', 'Building graph', 'Sources']);
     });
 
     it('rules off Sources from what the build holds, where the day panel rules off its own', async () => {
@@ -1272,14 +1348,13 @@ describe('the build details', () => {
             .toEqual(['Sources']);
     });
 
-    it('marks the run and build times as UTC', async () => {
+    it('marks each step\'s range as UTC, once, after its end', async () => {
         getGraphById.mockResolvedValue(finishing('1.10'));
 
         await setup();
 
-        expect(detail('Run')).toBe('2026-09-15 05:00 UTC');
-        expect(detail('Started')).toBe('2026-09-15 06:37 UTC');
-        expect(detail('Finished')).toBe('2026-09-15 08:12 UTC');
+        expect(detail('Processing data')).toBe('2026-09-15 05:00 – 06:37 UTC');
+        expect(detail('Building graph')).toBe('2026-09-15 06:37 – 08:12 UTC');
     });
 
     it('does not claim a zone for a time published without one', async () => {
@@ -1291,9 +1366,8 @@ describe('the build details', () => {
 
         await setup();
 
-        expect(detail('Run')).toBe('2026-09-15 05:00');
-        expect(detail('Started')).toBe('n/a');
-        expect(detail('Finished')).toBe('2026-09-15 08:12');
+        expect(detail('Processing data')).toBe('2026-09-15 05:00 – n/a');
+        expect(detail('Building graph')).toBe('n/a – 2026-09-15 08:12');
     });
 
     it('reads n/a for a total the listing did not carry', async () => {
