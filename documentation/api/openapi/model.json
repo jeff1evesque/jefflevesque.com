@@ -67,7 +67,7 @@
                             "format_version": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. 2: a model's down and behind, and a track record's down_days and down_in_a_row. 3: a task's scores; the top 10's scores, profit_auc and an options model's track record's hold columns; the hold of down and of each check in behind; and the picks. 4: the listing's average_days. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
+                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. 2: a model's down and behind, and a track record's down_days and down_in_a_row. 3: a task's scores; the top 10's scores, profit_auc and an options model's track record's hold columns; the hold of down and of each check in behind; and the picks. 4: the listing's average_days; a down's reason, and its days and in_a_row null where no check did it; and a live version's days. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
                             },
                             "average_days": {
                               "type": "integer",
@@ -170,6 +170,39 @@
                                           "weekly"
                                         ],
                                         "description": "first, while the model's first version is still live; otherwise whether a nightly update or a weekly retrain made it."
+                                      },
+                                      "days": {
+                                        "type": [
+                                          "object",
+                                          "null"
+                                        ],
+                                        "description": "From format 4: what the live version learned from, or null where the trainer has no record of it. An update learns from the newest day and older days drawn at random, so its days can be spread out between first and last.",
+                                        "required": [
+                                          "training",
+                                          "stopping",
+                                          "first",
+                                          "last"
+                                        ],
+                                        "properties": {
+                                          "training": {
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "description": "How many days it trained on."
+                                          },
+                                          "stopping": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "How many days decided when it stopped training."
+                                          },
+                                          "first": {
+                                            "type": "string",
+                                            "description": "The oldest of all those days, as YYYY-MM-DD."
+                                          },
+                                          "last": {
+                                            "type": "string",
+                                            "description": "The newest of all those days, as YYYY-MM-DD."
+                                          }
+                                        }
                                       }
                                     }
                                   },
@@ -320,7 +353,7 @@
                                       "object",
                                       "null"
                                     ],
-                                    "description": "From format 2: null while its live version is live. Otherwise the trainer took the live version down for doing worse than the know-nothing baseline, and the model predicts nothing until a new version beats the baseline on the days it was tested on.",
+                                    "description": "From format 2: null while its live version is live. Otherwise the trainer took the live version down, and the model predicts nothing until a new version beats the baseline on the days it was tested on. From format 4, reason says why.",
                                     "required": [
                                       "since",
                                       "days",
@@ -331,15 +364,30 @@
                                         "type": "string",
                                         "description": "The night it was taken down, as YYYY-MM-DD."
                                       },
+                                      "reason": {
+                                        "type": "string",
+                                        "enum": [
+                                          "worse",
+                                          "not_ahead",
+                                          "track_record"
+                                        ],
+                                        "description": "From format 4: why it was taken down. worse: it kept doing worse than the baseline, and days and in_a_row name the check. not_ahead: its live version went live without beating the baseline. track_record: its track record showed nothing better than the baseline, even on the days the live version predicted itself. Left out before format 4, where every take-down is worse."
+                                      },
                                       "days": {
-                                        "type": "integer",
+                                        "type": [
+                                          "integer",
+                                          "null"
+                                        ],
                                         "minimum": 1,
-                                        "description": "The check that took it down: 1 for each scored day on its own, or 5 or 20 for an average over its latest scored days."
+                                        "description": "The check that took it down: 1 for each scored day on its own, or 5 or 20 for an average over its latest scored days. From format 4, null for a reason other than worse."
                                       },
                                       "in_a_row": {
-                                        "type": "integer",
+                                        "type": [
+                                          "integer",
+                                          "null"
+                                        ],
                                         "minimum": 1,
-                                        "description": "How many scored days in a row it was worse."
+                                        "description": "How many scored days in a row it was worse. From format 4, null for a reason other than worse."
                                       },
                                       "hold": {
                                         "type": [
