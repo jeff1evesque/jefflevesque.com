@@ -11,8 +11,9 @@
  *         with the reader's ID token                           -> { report: '<csv>' }
  *
  * Each answer is read in a worker -- see worker/model/report.js -- which hands
- * back what the pages draw: the listing's tasks and models, or a report's rows,
- * with a track record's 20-day averages worked out.
+ * back what the pages draw: the listing's tasks and models, and how many scored
+ * days a model's scores average (#293), or a report's rows, with a track record's
+ * averages worked out over that many days.
  *
  * Note: the public answers' envelope is read by get-graph-schema.js's `report`,
  *       as the tables' is. Every api answers in it, and one reading of it means
@@ -52,13 +53,15 @@ function logged(what, e) {
 
 /**
  * what the worker makes of one answer: { kind, name, ... } as it posts it, or
- * null where the worker could not run.
+ * null where the worker could not run. `averageDays` is how many scored days a
+ * track record's averages take in, the listing's `average_days` (#293): the
+ * worker takes 20 for none.
  *
  * Note: a worker for each answer, let go once it has answered. A row's trend
  *       line and the compare chart ask for one track record each, at once, and
  *       none of them waits on another.
  */
-export function readInWorker(kind, value, name = null) {
+export function readInWorker(kind, value, name = null, averageDays = null) {
     return new Promise((resolve) => {
         const worker = new WorkerBuilder(workerModelReport);
 
@@ -74,18 +77,21 @@ export function readInWorker(kind, value, name = null) {
             resolve(null);
         };
 
-        worker.postMessage({ kind: kind, report: value, name: name });
+        worker.postMessage({ kind: kind, report: value, name: name, average_days: averageDays });
     });
 }
 
 /**
- * the listing: { tasks, models }, or null where it cannot be had.
+ * the listing: { tasks, models, average_days }, or null where it cannot be had.
+ * `average_days` is how many scored days a model's scores average, and how many
+ * it has to have before it is no longer New (#293): the listing's from format 4,
+ * and 20 before it.
  */
 export function loadListing(base = MODEL) {
     return envelope(modelUrl(null, null, base))
         .then((value) => readInWorker('list', value))
         .then((read) => (read && Array.isArray(read.models)
-            ? { tasks: read.tasks, models: read.models }
+            ? { tasks: read.tasks, models: read.models, average_days: read.average_days }
             : Promise.reject(read)))
         .catch((e) => logged(`${base} listing`, e));
 }
@@ -93,16 +99,18 @@ export function loadListing(base = MODEL) {
 /**
  * one of a model's reports, 'history' or 'track-record': its rows, oldest
  * first, or null where they cannot be had. A model with none yet has an empty
- * list, which is not a failure.
+ * list, which is not a failure. A track record's averages are over the last
+ * `averageDays` of its days, the listing's `average_days` (#293), and the last 20
+ * for none.
  */
-export function loadReport(name, kind, base = MODEL) {
+export function loadReport(name, kind, averageDays = null, base = MODEL) {
     //
     // the url built inside the chain, so a request modelUrl refuses -- a report
     // the api does not keep -- is a failure like any other rather than a throw
     //
     return Promise.resolve()
         .then(() => envelope(modelUrl(name, kind, base)))
-        .then((value) => readInWorker(kind, value, name))
+        .then((value) => readInWorker(kind, value, name, averageDays))
         .then((read) => (read && Array.isArray(read.rows) ? read.rows : Promise.reject(read)))
         .catch((e) => logged(`${base} Model=${name} Report=${kind}`, e));
 }
