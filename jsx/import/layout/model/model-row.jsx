@@ -30,11 +30,12 @@
 import React, { useContext } from 'react';
 import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis } from 'recharts';
+import { LineChart, Line, Tooltip as ChartTip, XAxis, YAxis } from 'recharts';
 import Tooltip from '@mui/material/Tooltip';
+import { isMobile } from 'react-device-detect';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import InfoNote from '../../general/info-note.jsx';
-import { AlarmBell, StatusPill } from './parts.jsx';
+import { AlarmBell, Mark, StatusPill } from './parts.jsx';
 import { PendingBar } from '../graph/pending.jsx';
 import {
     COMPARE_COLORS,
@@ -67,10 +68,21 @@ import {
 const TREND_WIDTH = 132;
 const TREND_HEIGHT = 36;
 
+//
+// how far above the line's top the box of the day under the pointer stands, in
+// px: its own height and a few more, so it clears the row's figures beside it
+//
+const TIP_ABOVE = -62;
+
 /**
  * a model's average score over the days on `axis`, beside the baseline's: each
  * day's average of its last `days` scored days, the listing's `average_days`
  * (#293).
+ *
+ * On a computer, the day under the pointer has a dot on each line and, over the
+ * line, a small box of its numbers: the day, the score, and the baseline's
+ * (#296). A day the model has no score has none. A phone, with no pointer, has
+ * neither.
  *
  * `rows` is the model's track record: undefined while it is on its way, null
  * where it could not be had.
@@ -103,6 +115,36 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW }) {
         );
     }
 
+    //
+    // the box of the day under the pointer, as the model page's panels say a
+    // day, each number after its line's mark (#296)
+    //
+    const tip = ({ active, label }) => {
+        const point = active ? data.find((each) => each.day === label) : null;
+
+        if (!point || point.value === null) {
+            return null;
+        }
+
+        return (
+            <div className='model-tip model-trend-tip'>
+                <div className='model-tip-title'>{shortDay(point.day)}</div>
+                <div className='model-tip-row'>
+                    <Mark kind='line' color={colors.muted} />
+                    <span className='model-tip-name'>{scoreOf(score).label}</span>
+                    <span className='model-tip-value'>{formatScore(point.value, score)}</span>
+                </div>
+                {point.baseline === null ? null : (
+                    <div className='model-tip-row'>
+                        <Mark kind='line' color={colors.grid} />
+                        <span className='model-tip-name'>Baseline</span>
+                        <span className='model-tip-value'>{formatScore(point.baseline, score)}</span>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     return (
         <span
             className='model-trend'
@@ -112,11 +154,22 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW }) {
             <LineChart width={TREND_WIDTH} height={TREND_HEIGHT} data={data} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
                 <XAxis dataKey='day' hide />
                 <YAxis hide domain={['dataMin', 'dataMax']} reversed={scoreOf(score).lower} />
+                {isMobile ? null : (
+                    <ChartTip
+                        content={tip}
+                        cursor={false}
+                        isAnimationActive={false}
+                        allowEscapeViewBox={{ x: true, y: true }}
+                        position={{ y: TIP_ABOVE }}
+                        wrapperStyle={{ zIndex: 10, pointerEvents: 'none' }}
+                    />
+                )}
                 <Line
                     dataKey='baseline'
                     stroke={colors.grid}
                     strokeWidth={1.5}
                     dot={false}
+                    activeDot={isMobile ? false : { r: 2.5, fill: colors.grid, stroke: 'none' }}
                     isAnimationActive={false}
                 />
                 <Line
@@ -124,6 +177,7 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW }) {
                     stroke={colors.muted}
                     strokeWidth={1.5}
                     dot={false}
+                    activeDot={isMobile ? false : { r: 3, fill: colors.muted, stroke: 'none' }}
                     isAnimationActive={false}
                 />
             </LineChart>
