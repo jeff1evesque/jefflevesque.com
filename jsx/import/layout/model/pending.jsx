@@ -150,6 +150,9 @@ export function PendingRow({ at, parts = false }) {
                     </div>
                 )}
             <div className='model-cell model-cell-trend'>
+                <span className='model-trend-span'>
+                    <PendingBar width='9rem' delay={delay(7)} />
+                </span>
                 <span className='model-trend-pending' style={{ animationDelay: `${delay(7)}ms` }} />
             </div>
             <div className='model-cell model-cell-since'>

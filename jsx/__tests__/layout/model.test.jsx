@@ -424,6 +424,18 @@ describe('the lists', () => {
         expect(within(group('Next-day direction')).getByText('Up or down, scored the next day.')).toBeInTheDocument();
     });
 
+    it('says over every row\'s trend line the same span, the axis they share (#300)', async () => {
+        answer();
+
+        await open();
+
+        const spans = [...document.querySelectorAll('.model-cell-trend > .model-trend-span')].map((span) => span.textContent);
+
+        expect(spans).toHaveLength(4);
+        expect(spans[0]).toMatch(/^20-day average, \w{3} \d+ – \w{3} \d+$/);
+        expect(new Set(spans).size).toBe(1);
+    });
+
     describe('folding a list under its name (#300)', () => {
         const foldOf = (name) => within(group(name)).getByRole('button', { name: name });
 
@@ -525,7 +537,7 @@ describe('the lists', () => {
 
             expect(rowOf('tables').querySelector('.model-parts-note')).toHaveTextContent(/, last 30 days$/);
             expect(rowOf('pt-gnn').querySelector('.model-parts-note')).toHaveTextContent(/, 25 days so far$/);
-            expect(screen.getByRole('img', { name: 'pt-gnn\'s 30-day Loss, over the last 60 days' })).toBeInTheDocument();
+            expect(screen.getByRole('img', { name: /^pt-gnn's Loss, 30-day average, \w{3} \d+ – \w{3} \d+$/ })).toBeInTheDocument();
         });
 
         it('keeps a model New until it has that many scored days, its pill counting to them, and only New before its first', async () => {
@@ -572,7 +584,7 @@ describe('the lists', () => {
 
         await open();
 
-        expect(screen.getByRole('img', { name: 'pt-gnn\'s 20-day Loss, over the last 60 days' })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /^pt-gnn's Loss, 20-day average, \w{3} \d+ – \w{3} \d+$/ })).toBeInTheDocument();
         expect(group('Next-day direction').querySelector('.model-trend-none')).toHaveAttribute('title', 'Could not be loaded');
     });
 
@@ -1466,7 +1478,7 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
         expect(row.querySelector('.model-score-value')).toHaveTextContent(formatScore(heldModelOf().holds['5d'].score.auc_up, 'auc_up'));
         expect(row.querySelector('.model-score-days')).toHaveTextContent(/^last 20 days$/);
         expect(group('Next-day direction').querySelector('.model-hold-line')).toHaveTextContent(/^5-day hold: bought at 9:40 AM on the next trading day/);
-        expect(within(row).getByRole('img', { name: 'tables-gnn\'s 20-day Up/down AUC, 5-day hold, over the last 60 days' })).toBeInTheDocument();
+        expect(within(row).getByRole('img', { name: /^tables-gnn's Up\/down AUC, 5-day hold, 20-day average, \w{3} \d+ – \w{3} \d+$/ })).toBeInTheDocument();
     });
 
     it('puts loss\'s three parts on the hold, from its own columns', async () => {

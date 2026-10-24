@@ -117,6 +117,23 @@ function useTrendWidth() {
 }
 
 /**
+ * what a row's trend line spans, over it (#300): the average each of its points
+ * is, of the listing's `average_days`, and the first and last days of the axis
+ * every row shares -- '20-day average, Oct 12 – Oct 23' -- so the line's length
+ * reads as days. Nothing while no record has a day on the axis.
+ */
+export function trendSpan(axis, days = WINDOW) {
+    if (!axis.length) {
+        return '';
+    }
+
+    const first = shortDay(axis[0]);
+    const last = shortDay(axis[axis.length - 1]);
+
+    return `${days}-day average, ${first === last ? first : `${first} – ${last}`}`;
+}
+
+/**
  * a model's average score over the days on `axis`, beside the baseline's: each
  * day's average of its last `days` scored days, the listing's `average_days`
  * (#293). On a `hold` (#300), the hold's own averages, each day once its result
@@ -223,7 +240,7 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW, hold = null 
             ref={box}
             className='model-trend'
             role='img'
-            aria-label={`${name}'s ${days}-day ${label}, over the last ${TREND_DAYS} days`}
+            aria-label={`${name}'s ${label}, ${trendSpan(axis, days)}`}
         >
             <LineChart
                 width={width}
@@ -464,6 +481,7 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                     </div>
                 )}
             <div className='model-cell model-cell-trend'>
+                {axis.length ? <span className='model-trend-span'>{trendSpan(axis, averageDays(model))}</span> : null}
                 <TrendLine name={model.name} rows={rows} axis={axis} score={score} days={averageDays(model)} hold={hold} />
             </div>
             <div className='model-cell model-cell-since'>
