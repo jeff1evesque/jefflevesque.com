@@ -152,8 +152,9 @@ export const LOSS_PARTS = [
 export const DEFAULT_SCORE = 'loss';
 
 //
-// how many of a model's scored days its 20-day score takes in, and how many it
-// has to have before it is no longer New
+// how many of a model's scored days its score takes in, and how many it has to
+// have before it is no longer New, where the listing does not say: before format
+// 4, which gives it as `average_days` (#293) -- see averageDays
 //
 export const WINDOW = 20;
 
@@ -456,7 +457,7 @@ export function standing(gap, key) {
 }
 
 /**
- * the three parts of a track record's day's 20-day loss (#265): each part's
+ * the three parts of a track record's day's average loss (#265): each part's
  * average, `value`, the baseline's over the same days, `baseline`, and how the
  * part stands against it, `stands` -- better, worse or level, as loss is
  * compared, or null where the baseline has none. The newest day's are over the
@@ -501,9 +502,21 @@ export function showsParts(score, task) {
 }
 
 /**
+ * how many scored days a model's scores average, and how many it has to have
+ * before it is no longer New (#293): the listing's `average_days`, which the
+ * worker gives the listing and every model in it, or WINDOW for one without it.
+ */
+export function averageDays(source) {
+    const days = source ? source.average_days : null;
+
+    return Number.isInteger(days) && days >= 1 ? days : WINDOW;
+}
+
+/**
  * a model's status: Retired once it has stopped being trained, Behind baseline
  * while the trainer has its live version down for doing worse than the baseline
- * (#263), New while it has fewer than 20 scored days, and Live otherwise.
+ * (#263), New while it has fewer scored days than its scores average (#293), and
+ * Live otherwise.
  */
 export function statusOf(model) {
     if (model.retired) {
@@ -514,17 +527,19 @@ export function statusOf(model) {
         return 'down';
     }
 
-    return model.scored_days < WINDOW ? 'new' : 'live';
+    return model.scored_days < averageDays(model) ? 'new' : 'live';
 }
 
 /**
- * the status as a model's pill says it: New says how many days it has so far.
+ * the status as a model's pill says it. New says how far it is through the days
+ * it needs to be Live (#293), 'New · day 5 of 20', and is only 'New' before its
+ * first day is scored.
  */
 export function statusLabel(model) {
     const status = statusOf(model);
 
     if (status === 'new') {
-        return `New · ${model.scored_days} ${model.scored_days === 1 ? 'day' : 'days'}`;
+        return model.scored_days ? `New · day ${model.scored_days} of ${averageDays(model)}` : 'New';
     }
 
     return STATUSES.find((each) => each.key === status).label;
@@ -812,7 +827,7 @@ export function formatStarted(text) {
 /**
  * the models in the order `sort` names, for the score on screen:
  *
- *     score    the best latest 20-day score first, which is the lowest loss
+ *     score    the best latest score first, which is the lowest loss
  *              and the highest of the rest. A model with none yet comes last
  *     name     by name
  *     went     the most attempts gone live first
