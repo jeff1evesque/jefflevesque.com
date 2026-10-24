@@ -378,6 +378,24 @@ describe('a source outside the graph, in a day\'s Sources', () => {
     });
 });
 
+describe('a step\'s label, with a note (#289)', () => {
+    //
+    // the label and an info icon after it. See the note above
+    // '.graph-details-label-noted'.
+    //
+    const [noted] = blocks(source, '.graph-details .graph-details-label-noted');
+    const [icon] = noted ? blocks(noted, 'svg') : [];
+
+    it('never leaves its icon on a line of its own', () => {
+        expect(noted).toMatch(/white-space\s*:\s*nowrap\s*;/);
+    });
+
+    it('draws the icon the size of the label, in the label\'s own gray, whichever the column gives it', () => {
+        expect(icon).toMatch(/font-size\s*:\s*1em\s*;/);
+        expect(icon).toMatch(/color\s*:\s*inherit\s*;/);
+    });
+});
+
 describe('the tables\' rows', () => {
     const table = blocks(source, '.graph-tables').join('\n');
     const [shaded] = blocks(table, 'tbody tr:nth-of-type(even)');
