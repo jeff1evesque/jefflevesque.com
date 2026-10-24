@@ -591,6 +591,55 @@ describe('an options model\'s holds (#279)', () => {
     });
 });
 
+describe('the days each average takes in, the listing\'s average_days (#293)', () => {
+    //
+    // a record whose days each count as many rows as the worker counts over a
+    // listing of 30: every row so far, up to 30
+    //
+    const counted = (count) => trackOf(count).map((row, at) => ({ ...row, days: Math.min(at + 1, 30) }));
+    const readout = (container) => within(container.querySelector('.model-readout'));
+
+    it('name a full window by them, and one still filling by its own days', () => {
+        const full = draw({ rows: counted(32), days: 30 }).container;
+
+        expect(readout(full).getByText('This model, 30 days')).toBeInTheDocument();
+        expect(readout(full).getByText('Know-nothing baseline, 30 days')).toBeInTheDocument();
+
+        const filling = draw({ rows: counted(25), days: 30 }).container;
+
+        expect(readout(filling).getByText('This model, 25 days')).toBeInTheDocument();
+    });
+
+    it('name the other model\'s line by them', () => {
+        const { container } = draw({ rows: counted(2), other: 'tables', otherRows: counted(2), days: 30 });
+
+        expect(readout(container).getByText('tables, 30 days')).toBeInTheDocument();
+    });
+
+    it('are said under the title and to a screen reader', () => {
+        const { container } = draw({ days: 30 });
+
+        expect(container.querySelector('.model-card-sub')).toHaveTextContent('Dots are single days, and lines are averages of the last 30 days.');
+        expect(container.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringContaining('as averages of the last 30 days, with single days as dots'));
+    });
+
+    it('head the table\'s columns', async () => {
+        draw({ rows: counted(2), other: 'tables', otherRows: counted(1), days: 30 });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        expect(within(screen.getByRole('table', { name: 'Loss, track record' })).getAllByRole('columnheader').map((cell) => cell.textContent))
+            .toEqual(['Day', 'This day', '30 days', 'tables, 30 days', 'Baseline, 30 days']);
+    });
+
+    it('are 20 where the chart is handed none', () => {
+        const { container } = draw({ rows: trackOf(25) });
+
+        expect(readout(container).getByText('This model, 20 days')).toBeInTheDocument();
+        expect(container.querySelector('.model-card-sub')).toHaveTextContent('lines are averages of the last 20 days.');
+    });
+});
+
 describe('the model\'s own baseline (#263)', () => {
     it('is drawn from its own record, and the other model\'s baseline is not drawn', () => {
         const { container } = draw({ rows: trackOf(2, '2026-09-01', undefined, () => 1.7), other: 'tables', otherRows: trackOf(2) });
