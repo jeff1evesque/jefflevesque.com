@@ -1,24 +1,22 @@
 /**
- * stylesheet.test.js: what '_model.scss' promises about a row of /model's list --
- * its columns, the bell's among them (#255, #259) -- about the pill of a model
- * taken down (#263), about where loss's three parts go on a model's page (#265),
- * about the rows that page's three cards share (#267), about a phone's
- * controls, their dropdowns and the room around them (#272), about a phone's
- * card, the arrow before how a score stands, and what both pages hold while the
- * listing is on its way (#274), and about loss's three parts in /model's list,
- * the score last, and a list too narrow for its columns (#283), read out of the
+ * stylesheet.test.js: what '_model.scss' promises about /model's lists, their
+ * rows, their pickers and a phone's cards as the mockup of #300 draws them, about
+ * the pill of a model taken down (#263), about where loss's three parts go on a
+ * model's page (#265), about the rows that page's three cards share (#267), about
+ * a phone's controls and the room around them (#272), about the arrow before how
+ * a score stands, and what both pages hold while the listing is on its way
+ * (#274), and about loss's three parts in /model's list (#283), read out of the
  * partial.
  *
- * jsdom lays nothing out and resolves no stylesheet, so no suite can see which
- * column a cell lands in. A wide screen places a row's cells by their order, so
- * what can be held is that the columns come in the order the cells do -- see
- * model-row.test.jsx -- with the bell's 2.5rem third, after the model's name, as a
- * /stream row's bell comes after the stream's name. A phone's card places each
- * cell by name instead, so its bell is held at the card's top right whatever the
- * order.
+ * jsdom lays nothing out and resolves no stylesheet, so no suite can see where a
+ * cell lands. What can be held is what each rule says: a wide row's cells side
+ * by side, each with the room the mockup gives it, and a phone's card placing
+ * each cell by name, whatever their order -- see model-row.test.jsx.
  *
  * Note: read the way layout/stream/stylesheet.test.js reads '_stream.scss': the
- *       comments taken out, and each rule found by its selectors.
+ *       comments taken out, and each rule found by its selectors. A rule that
+ *       holds rules of its own, as a row's holds its last row's, is read whole --
+ *       see whole.
  */
 
 import fs from 'fs';
@@ -43,40 +41,184 @@ function declared(rule, property) {
 }
 
 //
-// a grid's tracks, one per column: 'minmax(12rem, 2fr)' is one
+// a rule's text, the rules it holds and all, from its selector to the brace that
+// closes it: RULES has only the rules that hold none. The partial's first for
+// `selector`, a wide screen's, as a phone's come after it
 //
-function tracks(value) {
-    return value.match(/minmax\([^)]*\)|\S+/g);
+function whole(selector) {
+    const start = source.indexOf(`${selector} {`);
+    const open = source.indexOf('{', start);
+    let depth = 0;
+
+    for (let at = open; start >= 0 && at < source.length; at += 1) {
+        if (source[at] === '{') {
+            depth += 1;
+        } else if (source[at] === '}') {
+            depth -= 1;
+        }
+
+        if (!depth) {
+            return { selectors: [selector], body: source.slice(open + 1, at) };
+        }
+    }
+
+    return null;
 }
 
-describe('a row of the list, on a wide screen', () => {
-    const grid = RULES.find((rule) => rule.selectors.join() === '.model-list-head,.model-row');
+//
+// the first rule for `selector` that declares `property`, and every rule for it,
+// a wide screen's first
+//
+const ruleOf = (selector, property) => RULES.find((each) => each.selectors.join() === selector && declared(each, property));
+const rulesOf = (selector) => RULES.filter((each) => each.selectors.join() === selector);
 
-    it('heads the columns with the rows\' own grid, so each heading stays over its column', () => {
-        expect(declared(grid, 'display')).toBe('grid');
+describe('a list of /model, as the mockup of #300 draws one', () => {
+    it('rules each list off from the one over it, its pickers, its line and its rows under its name, 14px apart', () => {
+        const group = whole('.model-group');
+
+        expect(declared(group, 'border-top')).toBe('1px solid $gray-2');
+        expect(declared(group, 'display')).toBe('flex');
+        expect(declared(group, 'flex-direction')).toBe('column');
+        expect(declared(group, 'gap')).toBe('14px');
+        expect(declared(group, 'margin-top')).toBe('22px');
+        expect(declared(group, 'padding-top')).toBe('18px');
+        expect(declared(ruleOf('> .model-hold-line', 'margin'), 'margin')).toBe('-4px 0 0');
     });
 
-    it('has a column for each of a row\'s seven cells', () => {
-        expect(tracks(declared(grid, 'grid-template-columns'))).toHaveLength(7);
+    it('names its task at 20px, how many models it has beside it, and what they predict under them in a 14px gray', () => {
+        const detail = ruleOf('.model-group-detail', 'flex-basis');
+
+        expect(declared(RULES.find((each) => each.selectors.join() === 'h5' && declared(each, 'font-size') === '20px'), 'font-weight')).toBe('600');
+        expect(declared(ruleOf('.model-group-count', 'font-size'), 'font-size')).toBe('14px');
+        expect(declared(detail, 'flex-basis')).toBe('100%');
+        expect(declared(detail, 'font-size')).toBe('14px');
+        expect(declared(detail, 'color')).toBe('$gray-6');
     });
 
-    it('gives the bell its 2.5rem third, after the model\'s name, as /stream does (#259)', () => {
-        //
-        // the model's name and description take the second, the one that grows.
-        // The bell's was last, at the far right, where /stream has a row's figures
-        //
-        const [compare, model, bell] = tracks(declared(grid, 'grid-template-columns'));
+    it('holds its rows in a box of their own, a light rule between them', () => {
+        const [list] = rulesOf('.model-list');
+        const row = whole('.model-row');
 
-        expect(compare).toBe('4.5rem');
-        expect(model).toBe('minmax(12rem, 2fr)');
-        expect(bell).toBe('2.5rem');
+        expect(declared(list, 'border')).toBe('1px solid $gray-2');
+        expect(declared(list, 'border-radius')).toBe('8px');
+        expect(declared(list, 'overflow')).toBe('hidden');
+        expect(declared(row, 'border-bottom')).toBe('1px solid $gray-1');
+        expect(row.body).toMatch(/&:last-child \{\s*border-bottom: 0;/);
     });
 
-    it('puts the live version, the attempts and the 60-day line after the bell, and the score last (#283)', () => {
-        const [, , , live, went, trend, score] = tracks(declared(grid, 'grid-template-columns'));
+    it('lays a row\'s parts side by side, 24px apart, each wrapping under the one before where the list is too narrow', () => {
+        const row = whole('.model-row');
 
-        expect([live, went, trend]).toEqual(['8rem', '6rem', '140px']);
-        expect(score).toBe('minmax(9rem, 1fr)');
+        expect(declared(row, 'display')).toBe('flex');
+        expect(declared(row, 'flex-wrap')).toBe('wrap');
+        expect(declared(row, 'gap')).toBe('12px 24px');
+        expect(declared(row, 'padding')).toBe('14px 16px');
+        expect(declared(row, 'align-items')).toBe('center');
+    });
+
+    it('gives each part the room the mockup gives it, the model twice a figure\'s share, and loss\'s parts the most', () => {
+        expect(['compare', 'model', 'score', 'parts', 'trend', 'since'].map((cell) => [cell, declared(ruleOf(`.model-cell-${cell}`, 'flex'), 'flex')]))
+            .toEqual([
+                ['compare', 'none'],
+                ['model', '2 1 240px'],
+                ['score', '1 1 170px'],
+                ['parts', '3 1 440px'],
+                ['trend', '1 1 170px'],
+                ['since', '1 1 160px'],
+            ]);
+    });
+
+    it('has no headings over its rows, nor a grid of columns for them', () => {
+        expect(source).not.toMatch(/model-list-head|model-parts-head|model-head-trend|grid-template-columns: 4\.5rem/);
+        expect(source).not.toMatch(/@container \(max-width: (72|62)rem\)/);
+    });
+
+    it('names a model at 17px, over its address at 13px and its description in a 14px gray', () => {
+        const description = ruleOf('.model-description', 'margin');
+
+        expect(declared(ruleOf('.model-name', 'font-weight'), 'font-size')).toBe('17px');
+        expect(declared(ruleOf('.model-address', 'color'), 'font-size')).toBe('13px');
+        expect(declared(description, 'font-size')).toBe('14px');
+        expect(declared(description, 'color')).toBe('$gray-6');
+    });
+
+    it('keeps the bell on the name\'s line, its round button no taller than the line', () => {
+        expect(source).toMatch(/\.model-name-line \{\s*align-items: center;\s*display: flex;\s*flex-wrap: wrap;\s*gap: 4px 10px;\s*\.model-bell \{\s*margin: -0\.6rem 0;/);
+        expect(source).not.toMatch(/model-cell-alarm/);
+    });
+
+    it('puts a score\'s 20px figure over how it stands, and the days it takes in last', () => {
+        const days = ruleOf('.model-score-days', 'order');
+
+        expect(declared(ruleOf('.model-score-value', 'font-weight'), 'font-size')).toBe('20px');
+        expect(declared(ruleOf('.model-cell-score > .model-gap', 'order'), 'order')).toBe('1');
+        expect(declared(days, 'order')).toBe('2');
+        expect(declared(days, 'font-size')).toBe('13px');
+    });
+
+    it('says when the live version went live in the figures\' ink, and how many attempts did in gray', () => {
+        expect(declared(rulesOf('.model-since')[0], 'color')).toBe('$gray-9');
+        expect(declared(rulesOf('.model-since-went')[0], 'color')).toBe('$gray-6');
+    });
+
+    it('draws the trend line as wide as its room and 44px tall, as model-row.jsx draws it', () => {
+        const row = fs.readFileSync(path.resolve(__dirname, '../../../import/layout/model/model-row.jsx'), 'utf8');
+        const box = ruleOf('.model-trend,.model-trend-pending,.model-trend-none', 'height');
+
+        expect(declared(box, 'height')).toBe(`${row.match(/const TREND_HEIGHT = (\d+);/)[1]}px`);
+        expect(declared(box, 'height')).toBe('44px');
+        expect(declared(box, 'width')).toBe('100%');
+        expect(declared(ruleOf('.model-trend-none', 'line-height'), 'line-height')).toBe('44px');
+        expect(source).not.toMatch(/\$model-trend-width/);
+    });
+});
+
+describe('the pickers, as the mockup of #300 draws them', () => {
+    it('name each picker over its buttons', () => {
+        const scores = whole('.model-scores');
+
+        expect(declared(scores, 'display')).toBe('flex');
+        expect(declared(scores, 'flex-direction')).toBe('column');
+        expect(declared(scores, 'gap')).toBe('6px');
+        expect(declared(ruleOf('> .model-control-label', 'font-size'), 'font-size')).toBe('12px');
+    });
+
+    it('join a picker\'s buttons in one box with a rule between each, each 44px tall', () => {
+        const [box] = rulesOf('.model-score-buttons');
+        const button = whole('.model-score');
+
+        expect(declared(box, 'border')).toBe('1px solid $gray-3');
+        expect(declared(box, 'border-radius')).toBe('8px');
+        expect(declared(box, 'overflow')).toBe('hidden');
+        expect(declared(button, 'border-radius')).toBe('0');
+        expect(declared(button, 'border-right')).toBe('1px solid $gray-3');
+        expect(declared(button, 'min-height')).toBe('44px');
+        expect(declared(button, 'padding')).toBe('10px 14px');
+        expect(button.body).toMatch(/&:last-child \{\s*border-right: 0;/);
+        expect(declared(ruleOf('.model-holds .model-score', 'padding'), 'padding')).toBe('10px 16px');
+    });
+
+    it('fill the one picked in the page\'s dark gray, and fade one that can\'t be picked', () => {
+        const button = whole('.model-score');
+
+        expect(button.body).toMatch(/&\[aria-pressed='true'\] \{\s*background-color: \$gray-7;\s*color: \$white-1;/);
+        expect(button.body).toMatch(/&:disabled \{\s*color: \$gray-5;\s*cursor: not-allowed;/);
+    });
+
+    it('stand side by side, wrapping where there is no room, a list\'s 28px apart', () => {
+        const [controls] = rulesOf('.model-controls');
+        const group = ruleOf('.model-group-controls', 'gap');
+
+        expect(declared(controls, 'display')).toBe('flex');
+        expect(declared(controls, 'flex-wrap')).toBe('wrap');
+        expect(declared(controls, 'align-items')).toBe('flex-start');
+        expect(declared(controls, 'gap')).toBe('16px 32px');
+        expect(declared(group, 'gap')).toBe('12px 28px');
+        expect(declared(group, 'margin')).toBe('0');
+    });
+
+    it('answer the pointer with no highlight over a picker\'s buttons while the listing is on its way', () => {
+        expect(source).toMatch(/\.model-score\.model-score-pending \{[^}]*cursor: default;[^}]*&:hover \{\s*background-color: \$white-1;/);
     });
 });
 
@@ -96,117 +238,75 @@ describe('the status pill of a model taken down (#263)', () => {
     });
 });
 
-describe('a row on a phone, as a card', () => {
-    const card = RULES.find((rule) => rule.selectors.join() === '.model-row' && declared(rule, 'grid-template-areas'));
-    const placed = (cell) => declared(RULES.find((rule) => rule.selectors.join() === `.model-cell-${cell}`
-        && declared(rule, 'grid-area')), 'grid-area');
+describe('/model on a phone, as the mockup of #300 draws it (#274)', () => {
+    const card = ruleOf('.model-row', 'grid-template-areas');
 
-    it('places each cell by name, so a row\'s order on a wide screen moves nothing on it', () => {
-        ['compare', 'score', 'trend', 'since', 'alarm'].forEach((cell) => {
-            expect({ cell, area: placed(cell) }).toEqual({ cell, area: cell });
-        });
+    it('draws each model a card of its own, 12px apart, with no box around them all', () => {
+        const list = rulesOf('.model-list')[1];
+        const rows = ruleOf('.model-list > [role=\'list\']', 'gap');
+
+        expect(declared(list, 'border')).toBe('0');
+        expect(declared(list, 'border-radius')).toBe('0');
+        expect(declared(list, 'overflow')).toBe('visible');
+        expect(declared(rows, 'flex-direction')).toBe('column');
+        expect(declared(rows, 'gap')).toBe('12px');
+        expect(declared(ruleOf('.model-group', 'gap'), 'gap')).toBe('12px');
     });
 
-    it('keeps its bell at the top right, after the box that ticks it, on the name\'s line (#274)', () => {
-        const [top] = declared(card, 'grid-template-areas').match(/'[^']*'/g);
-
-        expect(top).toBe('\'name name name compare alarm\'');
-    });
-});
-
-describe('a phone\'s card (#274)', () => {
-    //
-    // the rule for a selector that declares a property: a phone's rules repeat
-    // selectors the wide screen's declare other things under
-    //
-    const rule = (selector, property) => RULES.find((each) => each.selectors.join() === selector && declared(each, property));
-    const card = rule('.model-row', 'grid-template-areas');
-
-    it('is padded 1rem inside its edge, where 0.75rem crowded it', () => {
-        expect(declared(card, 'padding')).toBe('1rem');
+    it('frames each card 12px inside its edge, its parts 8px apart', () => {
+        expect(declared(card, 'border')).toBe('1px solid $gray-2');
+        expect(declared(card, 'border-radius')).toBe('8px');
+        expect(declared(card, 'padding')).toBe('12px');
+        expect(declared(card, 'row-gap')).toBe('8px');
     });
 
-    it('lets the model\'s cell give up its box: its name\'s line beside the box and the bell, the rest the card\'s width', () => {
-        //
-        // the address and the description stopped at the box's column, and left
-        // the card's right side empty
-        //
-        const rows = declared(card, 'grid-template-areas').match(/'[^']*'/g);
-
-        expect(declared(rule('.model-cell-model', 'display'), 'display')).toBe('contents');
-        expect(declared(rule('.model-name-line', 'grid-area'), 'grid-area')).toBe('name');
-        expect(declared(rule('.model-address', 'grid-area'), 'grid-area')).toBe('address');
-        expect(declared(rule('.model-description', 'grid-area'), 'grid-area')).toBe('about');
-        expect(rows.slice(1, 3)).toEqual(['\'address address address address address\'', '\'about about about about about\'']);
+    it('places each part by name: the model beside the box that ticks it, then its score, its line and when it went live', () => {
+        expect(declared(card, 'grid-template-areas')).toBe('\'model compare\' \'score score\' \'trend trend\' \'since since\'');
+        expect(declared(card, 'grid-template-columns')).toBe('minmax(0, 1fr) auto');
+        expect([
+            declared(ruleOf('.model-cell-model', 'grid-area'), 'grid-area'),
+            declared(ruleOf('.model-cell-compare', 'grid-area'), 'grid-area'),
+            declared(ruleOf('.model-cell-score,.model-cell-parts', 'grid-area'), 'grid-area'),
+            declared(ruleOf('.model-cell-trend', 'grid-area'), 'grid-area'),
+            declared(ruleOf('.model-cell-since', 'grid-area'), 'grid-area'),
+        ]).toEqual(['model', 'compare', 'score', 'trend', 'since']);
     });
 
-    it('puts the score across the card, the 60-day line under it as wide as the card, and a line of when it went live last (#300)', () => {
-        //
-        // the live version and the attempts had stood beside the line, which
-        // was squeezed to 132px; the line of when it went live says both
-        //
-        const rows = declared(card, 'grid-template-areas').match(/'[^']*'/g);
-        const widths = RULES.filter((each) => each.selectors.join() === '.model-trend,.model-trend-pending,.model-trend-none' && declared(each, 'width'));
-
-        //
-        // under the description, an options model's link to its picks, a line
-        // no other row fills (#290)
-        //
-        expect(rows.slice(3)).toEqual([
-            '\'picks picks picks picks picks\'',
-            '\'score score score score score\'',
-            '\'trend trend trend trend trend\'',
-            '\'since since since since since\'',
-        ]);
-        expect(declared(card, 'grid-template-columns')).toBe('auto auto minmax(0, 1fr) auto auto');
-        expect(declared(card, 'column-gap')).toBe('0.75rem');
-        expect(widths.map((each) => declared(each, 'width'))).toEqual(['$model-trend-width', '100%']);
-        expect(declared(rule('.model-cell-live,.model-cell-went', 'display'), 'display')).toBe('none');
-        expect(declared(rule('.model-cell-since', 'grid-area'), 'display')).toBe('flex');
-        expect(source).toMatch(/\$model-trend-width: 132px;/);
+    it('keeps the model\'s cell a box of its own, its name, address and description together', () => {
+        expect(rulesOf('.model-cell-model').some((each) => declared(each, 'display') === 'contents')).toBe(false);
     });
 
-    it('draws the line of when it went live on a phone\'s card alone (#300)', () => {
-        expect(declared(RULES.find((each) => each.selectors.join() === '.model-cell-since'), 'display')).toBe('none');
+    it('puts the score\'s figure beside the days it takes in, and how it stands under them', () => {
+        const score = ruleOf('.model-cell-score', 'grid-template-areas');
+
+        expect(declared(score, 'display')).toBe('grid');
+        expect(declared(score, 'grid-template-areas')).toBe('\'value days\' \'gap gap\'');
+        expect(declared(score, 'justify-content')).toBe('space-between');
+        expect(declared(ruleOf('.model-score-value', 'grid-area'), 'font-size')).toBe('18px');
     });
 
-    it('rules the score off from the figures over it, whichever score it is (#283)', () => {
-        const score = rule('.model-cell-score,.model-list-parts .model-cell-parts', 'border-top');
+    it('says when it went live and how many attempts did as one line, a dot between them', () => {
+        const since = ruleOf('.model-cell-since', 'grid-area');
 
-        expect(declared(score, 'border-top')).toBe('1px solid $gray-2');
-        expect(declared(score, 'padding-top')).toBe('0.6rem');
-        expect(declared(score, 'grid-area')).toBe('score');
+        expect(declared(since, 'display')).toBe('block');
+        expect(declared(since, 'font-size')).toBe('13px');
+        expect(declared(ruleOf('.model-since,.model-since-went', 'display'), 'display')).toBe('inline');
+        expect(declared(ruleOf('.model-since-went::before', 'content'), 'content')).toBe('\' · \'');
     });
 
-    it('lays a narrower phone\'s card out as a wider one\'s, the line across it on either (#300)', () => {
+    it('draws the trend line across the card by a wide row\'s rule, with none of its own', () => {
+        expect(rulesOf('.model-trend,.model-trend-pending,.model-trend-none')).toHaveLength(1);
+    });
+
+    it('lays a narrower phone\'s card out as a wider one\'s (#300)', () => {
         expect(source).not.toMatch(/@media \(max-width: 374\.98px\)/);
     });
 
-    it('keeps the model\'s lines together, and puts 0.6rem over each row of figures', () => {
-        expect(declared(card, 'gap')).toBeNull();
-        expect(declared(card, 'row-gap')).toBeNull();
-        expect(declared(rule('.model-cell-score,.model-cell-trend,.model-cell-since', 'margin-top'), 'margin-top'))
-            .toBe('0.6rem');
-    });
+    it('keeps the bell a finger wide', () => {
+        const button = RULES.find((each) => each.selectors[0] === '#bootstrap-override .model-layout .control-tray .control-button'
+            && declared(each, 'height') === '2.75rem');
 
-    it('makes the box\'s cell as tall as the name\'s line, so the box sits at its middle', () => {
-        expect(declared(rule('.model-cell-compare', 'height'), 'height')).toBe('1.5rem');
-    });
-
-    it('raises the bell by half of what its button is taller than the line, takes as much off its foot, and brings it nearer the box', () => {
-        //
-        // so its glyph is at the line's middle as well, level with the box, and
-        // 16px from it rather than 26px
-        //
-        const button = RULES.find((each) => each.selectors[0] === '#bootstrap-override .model-layout .control-tray .control-button');
-        const line = parseFloat(declared(rule('.model-cell-compare', 'height'), 'height'));
-        const [top, right, bottom, left] = declared(rule('.model-cell-alarm', 'margin'), 'margin').split(' ');
-
-        expect(parseFloat(top)).toBeCloseTo(-(parseFloat(declared(button, 'height')) - line) / 2);
-        expect(top).toMatch(/rem$/);
-        expect(bottom).toBe(top);
-        expect(right).toBe('0');
-        expect(left).toBe('-0.75rem');
+        expect(declared(button, 'width')).toBe('2.75rem');
     });
 });
 
@@ -221,8 +321,8 @@ describe('the arrow before how a score stands against the baseline (#274)', () =
         expect(source).toMatch(/\.model-gap-worse \.model-gap-arrow \{\s*color: \$red-2;\s*@include dark \{\s*color: var\(--stream-missed\);\s*\}/);
     });
 
-    it('colors the arrow alone, the words staying in the page\'s gray', () => {
-        expect(declared(rule('.model-gap'), 'color')).toBe('$gray-7');
+    it('colors the arrow alone, the words staying in the row\'s lighter gray (#300)', () => {
+        expect(declared(rule('.model-gap'), 'color')).toBe('$gray-6');
         expect(rule('.model-gap-better')).toBeUndefined();
         expect(rule('.model-gap-worse')).toBeUndefined();
     });
@@ -323,19 +423,36 @@ describe('the controls on a phone (#272)', () => {
     //
     const rule = (selector, property) => RULES.find((each) => each.selectors.join() === selector && declared(each, property));
 
-    it('put the score picker\'s and the sort\'s names in one column and their dropdowns in the next, each running to the line\'s end', () => {
-        const pickers = rule('.model-scores,.model-sort', 'grid-template-columns');
+    it('put each picker\'s name over its menu, a Score menu and a Hold menu side by side, one alone across the line (#300)', () => {
+        const controls = rule('.model-controls', 'grid-template-columns');
 
-        expect(declared(rule('.model-controls', 'grid-template-columns'), 'grid-template-columns')).toBe('auto minmax(0, 1fr)');
-        expect(declared(pickers, 'grid-template-columns')).toBe('subgrid');
-        expect(declared(pickers, 'grid-column')).toBe('1 / -1');
+        expect(declared(controls, 'display')).toBe('grid');
+        expect(declared(controls, 'grid-template-columns')).toBe('repeat(2, minmax(0, 1fr))');
+        expect(declared(controls, 'column-gap')).toBe('10px');
+        expect(declared(rule('.model-scores', 'grid-column'), 'grid-column')).toBe('1 / -1');
+        expect(declared(rule('.model-controls:has(> .model-holds) > .model-scores', 'grid-column'), 'grid-column')).toBe('auto');
         expect(declared(rule('.model-score-menu', 'min-width'), 'display')).toBe('flex');
-        expect(declared(rule('.model-score-menu select,.model-sort select', 'width'), 'width')).toBe('100%');
     });
 
-    it('stand 0.75rem apart, and 1rem over a model page\'s figures', () => {
+    it('draw each picker\'s menu 44px tall in an 8px box, running to its column\'s end', () => {
+        const menu = rule('.model-score-menu select', 'width');
+
+        expect(declared(menu, 'width')).toBe('100%');
+        expect(declared(menu, 'min-height')).toBe('44px');
+        expect(declared(menu, 'border-radius')).toBe('8px');
+    });
+
+    it('keep the sort\'s name beside its menu, which runs to the line\'s end', () => {
+        const sort = rule('.model-sort', 'grid-template-columns');
+
+        expect(declared(sort, 'grid-template-columns')).toBe('auto minmax(0, 1fr)');
+        expect(declared(sort, 'grid-column')).toBe('1 / -1');
+        expect(declared(rule('.model-sort select', 'width'), 'width')).toBe('100%');
+    });
+
+    it('stand 0.75rem apart, and 0.75rem over a model page\'s figures', () => {
         expect(declared(rule('.model-controls', 'grid-template-columns'), 'row-gap')).toBe('0.75rem');
-        expect(declared(rule('.model-page .model-controls', 'margin-bottom'), 'margin-bottom')).toBe('1rem');
+        expect(declared(rule('.model-page .model-controls', 'margin-bottom'), 'margin-bottom')).toBe('0.75rem');
     });
 
     it('put a card\'s Compare with on a line of its own, 0.75rem under the title and 1rem over the line under it, its dropdown running to the card\'s edge', () => {
@@ -355,15 +472,6 @@ describe('the controls on a phone (#272)', () => {
 
 describe('the pickers and the picks of #279', () => {
     const rule = (selector, property) => RULES.find((each) => each.selectors.join() === selector && declared(each, property));
-
-    it('put each list\'s score picker 0.75rem under its task\'s heading, over its list', () => {
-        expect(declared(rule('.model-group-controls', 'margin'), 'margin')).toBe('0.75rem 0 0.25rem');
-    });
-
-    it('answer the pointer with no highlight over a picker\'s outlines while the listing is on its way', () => {
-        expect(declared(RULES.find((each) => each.selectors.join() === '&:hover' && /border-color: \$gray-3/.test(each.body)), 'border-color')).toBe('$gray-3');
-        expect(source).toMatch(/\.model-score\.model-score-pending \{[^}]*cursor: default;/);
-    });
 
     it('put the box a stock is looked up by on a line of its own on a phone, running to the card\'s edge', () => {
         expect(declared(rule('.model-card-title .model-picks-lookup', 'flex'), 'flex')).toBe('1 1 100%');
@@ -449,106 +557,43 @@ describe('an options model\'s picks page (#290)', () => {
     });
 
     describe('/model\'s link to it', () => {
-        it('runs across a phone\'s card under the description, a line no other row fills', () => {
-            const areas = declared(RULES.filter((each) => each.selectors.join() === '.model-row' && declared(each, 'grid-template-areas'))[0], 'grid-template-areas');
-
-            expect(areas).toMatch(/'about about about about about' 'picks picks picks picks picks'/);
-            expect(declared(rule('.model-picks-link', 'grid-area'), 'grid-area')).toBe('picks');
+        it('sits under the description, in the model\'s own cell, on a wide row and a phone\'s card alike (#300)', () => {
+            expect(rulesFor('.model-picks-link').some((each) => declared(each, 'grid-area'))).toBe(false);
+            expect(declared(rule('.model-cell-model', 'flex'), 'flex')).toBe('2 1 240px');
         });
     });
 });
 
-describe('loss\'s three parts in /model\'s list (#283)', () => {
-    //
-    // every rule for `selector`, in the partial's order: a wide screen's, then a
-    // narrower list's, then the narrowest's, then a phone's
-    //
-    const rulesFor = (selector) => RULES.filter((each) => each.selectors.join() === selector);
-    const rule = (selector) => rulesFor(selector)[0];
-    const grids = rulesFor('.model-list-parts .model-list-head,.model-list-parts .model-row');
+describe('loss\'s three parts in /model\'s list (#283), as the mockup of #300 draws them', () => {
+    it('stand under a line saying what they add up to, three columns across a wide row', () => {
+        const [cells] = rulesOf('.model-part-cells');
 
-    //
-    // the text of the container query that opens at `query`, up to the next one
-    //
-    const within = (query) => source.slice(source.indexOf(query), source.indexOf('@container', source.indexOf(query) + 1));
-
-    it('measure the list they are in, rather than the screen', () => {
-        expect(declared(rule('.model-list'), 'container-type')).toBe('inline-size');
+        expect(declared(rulesOf('.model-parts-note')[0], 'text-align')).toBe('center');
+        expect(declared(cells, 'display')).toBe('grid');
+        expect(declared(cells, 'grid-template-columns')).toBe('repeat(3, minmax(0, 1fr))');
+        expect(declared(cells, 'gap')).toBe('12px');
     });
 
-    it('take a column each, of a set width, after the 60-day line, so the headings and every row line up', () => {
-        //
-        // the headings and each row are grids of their own: columns sized to
-        // what each holds had left the rows' figures off their headings
-        //
-        const columns = tracks(declared(grids[0], 'grid-template-columns'));
+    it('name each part over its figure and how it stands, in the open, as no heading names them now', () => {
+        const [name] = rulesOf('.model-part-cell-name');
 
-        expect(columns).toHaveLength(9);
-        expect(columns.slice(3, 6)).toEqual(['8rem', '6rem', '140px']);
-        expect(columns.slice(6)).toEqual(['6.5rem', '10rem', '7rem']);
+        expect(declared(rulesOf('.model-part-cell')[0], 'flex-direction')).toBe('column');
+        expect(declared(name, 'color')).toBe('$gray-6');
+        expect(declared(name, 'clip-path')).toBeNull();
+        expect(declared(name, 'position')).toBeNull();
+        expect(declared(rulesOf('.model-part-cell-value')[0], 'font-size')).toBe('18px');
+        expect(source).not.toMatch(/@mixin model-part-lines|@include model-part-lines/);
     });
 
-    it('span the three by subgrid, the score\'s heading centered over a rule across them, every heading on the parts\' names\' line', () => {
-        const spans = rule('.model-parts-head,.model-list-parts .model-cell-parts,.model-part-cells');
-        const heading = rulesFor('> .model-noted')[0];
+    it('lay out a line each on a phone\'s card, a light rule under each: the name at the left, the figure and how it stands at the right', () => {
+        const [, lines] = rulesOf('.model-part-cells');
+        const part = ruleOf('.model-part-cell', 'grid-template-columns');
 
-        expect(declared(spans, 'grid-column')).toBe('span 3');
-        expect(declared(spans, 'grid-template-columns')).toBe('subgrid');
-        expect(declared(heading, 'border-bottom')).toBe('1px solid $gray-3');
-        expect(declared(heading, 'grid-column')).toBe('1 / -1');
-        expect(declared(heading, 'text-align')).toBe('center');
-        expect(declared(rule('.model-list-parts .model-list-head'), 'align-items')).toBe('end');
-    });
-
-    it('keep each part\'s name on one line over its column', () => {
-        expect(declared(rulesFor('> span')[0], 'white-space')).toBe('nowrap');
-    });
-
-    it('name each part for a screen reader where the headings name them to the eye', () => {
-        const name = rule('.model-part-cell-name');
-
-        expect(declared(name, 'clip-path')).toBe('inset(50%)');
-        expect(declared(name, 'position')).toBe('absolute');
-        expect(declared(name, 'display')).toBeNull();
-    });
-
-    it('lay out as a phone\'s card\'s lines through one mixin, on a phone and in a narrower list', () => {
-        const lines = rulesFor('.model-part-cells').find((each) => declared(each, 'grid-template-columns') === 'minmax(0, 1fr) auto auto');
-
-        expect(source).toMatch(/@mixin model-part-lines \{/);
-        expect(source.match(/@include model-part-lines;/g)).toHaveLength(2);
-        expect(lines).toBeDefined();
-        expect(declared(rulesFor('.model-part-cell-name')[1], 'position')).toBe('static');
-    });
-
-    it('make a list under 72rem one column of lines, on a screen too wide for a phone\'s card, its heading still centered over its rule', () => {
-        //
-        // at 1280px wide with the filters open, each part's name had broken
-        // over three lines under its column
-        //
-        const narrower = within('@container (max-width: 72rem)');
-
-        expect(source).toMatch(/@media \(min-width: 768px\) \{\s*@container \(max-width: 72rem\) \{/);
-        expect(declared(grids[1], 'grid-template-columns')).toBe('4.5rem minmax(9rem, 1fr) 2.5rem 7rem 5rem 140px 19.5rem');
-        expect(narrower).toMatch(/\.model-parts-head \{\s*display: block;\s*grid-column: auto;\s*> \.model-noted \{\s*display: block;\s*\}\s*> span:not\(\.model-noted\) \{\s*display: none;/);
-        expect(narrower).toMatch(/@include model-part-lines;/);
-    });
-
-    it('drop the 60-day line from every list under 62rem, which ran past its column', () => {
-        //
-        // 90px past it from 992px to 1199px wide with the filters open, and the
-        // page scrolled sideways
-        //
-        const narrowest = within('@container (max-width: 62rem)');
-
-        expect(narrowest).toMatch(/\.model-head-trend,\s*\.model-cell-trend \{\s*display: none;/);
-        expect(narrowest).toMatch(/\.model-list-head,\s*\.model-row \{\s*grid-template-columns: 4\.5rem minmax\(12rem, 2fr\) 2\.5rem 8rem 6rem minmax\(9rem, 1fr\);/);
-        expect(declared(grids[2], 'grid-template-columns')).toBe('4.5rem minmax(9rem, 1fr) 2.5rem 7rem 5rem 19.5rem');
-    });
-
-    it('give way to a phone\'s card, whose areas place each cell', () => {
-        expect(grids).toHaveLength(3);
-        expect(declared(rule('.model-list-parts .model-row'), 'grid-template-columns')).toBe('auto auto minmax(0, 1fr) auto auto');
+        expect(declared(lines, 'display')).toBe('flex');
+        expect(declared(lines, 'flex-direction')).toBe('column');
+        expect(declared(part, 'grid-template-columns')).toBe('minmax(0, 1fr) auto auto');
+        expect(declared(part, 'border-bottom')).toBe('1px solid $gray-1');
+        expect(declared(rulesOf('.model-parts-note')[1], 'text-align')).toBe('left');
     });
 });
 

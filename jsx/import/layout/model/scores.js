@@ -397,6 +397,27 @@ export function holdLine(task, hold) {
 }
 
 /**
+ * what the hold a list of /model is on is, as the line under its pickers says
+ * it in the mockup of #300: a task of stocks' and a task of options' in their own
+ * words, '5-day hold: sold at the 3:40 PM bid 5 trading days after the buy day.'
+ */
+export function listLine(task, hold) {
+    if (tradesOptions(task)) {
+        return hold === DEFAULT_HOLD
+            ? '1-day hold: bought at the 9:40 AM ask on the next trading day and sold at the 3:40 PM bid the day after.'
+            : `${holdName(hold)}: sold at the 3:40 PM bid ${hold} trading days after the buy day.`;
+    }
+
+    if (hold === COMBINED) {
+        return 'Combined: the average of the 1, 5 and 20-day scores of the same prediction days, in with the 20-day result. The top 10 has none.';
+    }
+
+    return hold === DEFAULT_HOLD
+        ? '1-day hold: from 9:40 AM to 3:40 PM on the next trading day, as the stock models predict today.'
+        : `${holdName(hold)}: bought at 9:40 AM on the next trading day and sold at 3:40 PM ${hold} trading days later. Each result comes in ${comesIn(task, hold)}.`;
+}
+
+/**
  * a model's scores on a hold (#300): the listing's `holds` entry's, `score`,
  * `baseline` and `days`, with `hold` the one they are of -- or, for no hold, or
  * one the listing gives none of, as a listing before format 5, its own scores

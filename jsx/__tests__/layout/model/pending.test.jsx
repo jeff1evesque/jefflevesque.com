@@ -52,35 +52,35 @@ describe('PendingLines', () => {
 });
 
 describe('PendingRow', () => {
-    function row(score = 'loss', at = 0, parts = false) {
-        const drawn = parts ? <PendingRow score={score} at={at} parts /> : <PendingRow score={score} at={at} />;
+    function row(at = 0, parts = false) {
+        const drawn = parts ? <PendingRow at={at} parts /> : <PendingRow at={at} />;
 
         return render(drawn).container.querySelector('.model-row');
     }
 
-    it('wears a row\'s classes, cell for cell, so a wide screen\'s grid and a phone\'s card lay it out as one', () => {
+    it('wears a row\'s classes, cell for cell, as the mockup of #300 lays a row out, so the list lays it out as one', () => {
         expect([...row().children].map((cell) => cell.className)).toEqual([
             'model-cell model-cell-compare',
             'model-cell model-cell-model',
-            'model-cell model-cell-alarm',
-            'model-cell model-cell-live',
-            'model-cell model-cell-went',
-            'model-cell model-cell-trend',
             'model-cell model-cell-score',
+            'model-cell model-cell-trend',
+            'model-cell model-cell-since',
         ]);
     });
 
-    it('names its figures for a phone\'s card, the score as the one picked, last (#283)', () => {
-        expect(textsOf(row('auc_up'), '.model-cell-label')).toEqual(['Live version', 'Went live', 'Last 60 days', 'Up/down AUC']);
+    it('names no figure, as the picker over the list names the score (#300)', () => {
+        expect(row()).toHaveTextContent(/^$/);
     });
 
-    it('puts loss\'s three parts in the score\'s place with `parts`, each named over a bar for its figure and one for how it stands (#283)', () => {
-        const drawn = row('loss', 0, true);
-        const parts = [...drawn.querySelectorAll('.model-part-cell')];
+    it('puts loss\'s three parts in the score\'s place with `parts`, under a bar for what they add up to, each named over a bar for its figure and one for how it stands (#283, #300)', () => {
+        const drawn = row(0, true);
+        const parts = [...drawn.querySelectorAll('.model-part-cells > .model-part-cell')];
 
-        expect(drawn.lastElementChild).toHaveClass('model-cell', 'model-cell-parts');
+        expect(drawn.children[2]).toHaveClass('model-cell', 'model-cell-parts');
         expect(drawn.querySelector('.model-cell-score')).toBeNull();
+        expect(drawn.querySelector('.model-parts-note > .graph-pending-bar')).not.toBeNull();
         expect(textsOf(drawn, '.model-part-cell-name')).toEqual(['Up or down', 'Beats the average stock', 'Size of the move']);
+        expect(parts).toHaveLength(3);
         parts.forEach((part) => {
             expect(part.querySelector('.model-part-cell-value > .graph-pending-bar')).not.toBeNull();
             expect(part.querySelector('.model-gap > .graph-pending-bar')).not.toBeNull();
@@ -91,59 +91,54 @@ describe('PendingRow', () => {
         const drawn = row();
 
         expect(drawn.querySelector('input[type="checkbox"]')).toBeDisabled();
-        expect(drawn.querySelector('.model-cell-alarm')).toBeEmptyDOMElement();
+        expect(drawn.querySelector('.model-bell')).toBeNull();
+        expect([...drawn.querySelector('.model-name-line').children].every((each) => each.classList.contains('graph-pending-bar'))).toBe(true);
     });
 
     it('draws a bar for every value, and the trend line\'s waiting block', () => {
         const drawn = row();
 
         expect(drawn.querySelectorAll('.model-name-line > .graph-pending-bar')).toHaveLength(2);
-        ['.model-address', '.model-score-value', '.model-gap'].forEach((value) => {
+        expect(drawn.querySelectorAll('.model-description .model-pending-line')).toHaveLength(2);
+        ['.model-score-value', '.model-score-days', '.model-gap', '.model-since', '.model-since-went'].forEach((value) => {
             expect(drawn.querySelector(`${value} > .graph-pending-bar`)).not.toBeNull();
         });
-        expect(drawn.querySelectorAll('.model-description .model-pending-line')).toHaveLength(2);
-        expect(drawn.querySelectorAll('.model-figure > .graph-pending-bar')).toHaveLength(2);
-        expect(drawn.querySelectorAll('.model-figure-detail > .graph-pending-bar')).toHaveLength(2);
-        expect(drawn.querySelector('.model-trend-pending')).not.toBeNull();
+        expect(drawn.querySelector('.model-cell-trend > .model-trend-pending')).not.toBeNull();
     });
 
     it('breathes a row later than the one over it, so the wave runs down the list', () => {
-        const first = row('loss', 0).querySelector('.graph-pending-bar').style.animationDelay;
-        const second = row('loss', 1).querySelector('.graph-pending-bar').style.animationDelay;
+        const first = row(0).querySelector('.graph-pending-bar').style.animationDelay;
+        const second = row(1).querySelector('.graph-pending-bar').style.animationDelay;
 
         expect(parseInt(second, 10)).toBeGreaterThan(parseInt(first, 10));
     });
 });
 
 describe('PendingGroup', () => {
-    it('heads two rows with the list\'s own headings, the score\'s as the one picked, last (#283)', () => {
+    it('draws two rows in the list\'s box, with no headings over them, as the mockup of #300 draws a list (#283)', () => {
         const { container } = render(<PendingGroup score='acc_up' />);
+        const list = container.querySelector('.model-list');
 
-        expect([...container.querySelector('.model-list-head').children].map((heading) => heading.textContent))
-            .toEqual(['Compare', 'Model', '', 'Live version', 'Went live', 'Last 60 days', 'Up/down accuracy, last 20 days']);
-        expect(container.querySelector('.model-list')).not.toHaveClass('model-list-parts');
+        expect(list).not.toHaveClass('model-list-parts');
+        expect(list.querySelectorAll(':scope > div > .model-row')).toHaveLength(2);
+        expect(container.querySelector('.model-list-head')).toBeNull();
         expect(container.querySelectorAll('.model-row .model-cell-score')).toHaveLength(2);
-        expect(container.querySelector('.model-head-trend')).toHaveTextContent('Last 60 days');
     });
 
     it('draws loss as its three parts, as the first list, of stock models, opens on it (#283)', () => {
         const { container } = render(<PendingGroup />);
-        const head = container.querySelector('.model-parts-head');
 
         expect(container.querySelector('.model-list')).toHaveClass('model-list-parts');
-        expect(container.querySelector('.model-list-head').lastElementChild).toBe(head);
-        expect(textsOf(head, ':scope > span')).toEqual(['Loss, last 20 days', 'Up or down', 'Beats the average stock', 'Size of the move']);
-        expect(head.firstElementChild).toHaveClass('model-noted');
         expect(container.querySelectorAll('.model-row .model-cell-parts')).toHaveLength(2);
+        expect(container.querySelector('.model-row .model-cell-score')).toBeNull();
     });
 
-    it('draws the task\'s heading, its line and its count as bars', () => {
+    it('draws the task\'s heading and its line as bars', () => {
         const { container } = render(<PendingGroup score='loss' />);
         const head = container.querySelector('.model-group-head');
 
         expect(head.querySelector('h5 > .graph-pending-bar')).not.toBeNull();
         expect(head.querySelectorAll('.model-group-detail .model-pending-line')).toHaveLength(2);
-        expect(head.querySelector('.model-group-count > .graph-pending-bar')).not.toBeNull();
         expect(head).toHaveTextContent(/^$/);
     });
 
@@ -156,13 +151,12 @@ describe('PendingGroup', () => {
         group.querySelectorAll('input').forEach((input) => expect(input).toBeDisabled());
     });
 
-    it('draws its list\'s score picker as its name over bars, under its heading, and names loss over its column (#279)', () => {
+    it('draws its list\'s score picker as its name over bars, between its heading and its list (#279)', () => {
         const { container } = render(<PendingGroup />);
         const group = container.querySelector('.model-group');
 
         expect([...group.children].map((part) => part.className)).toEqual(['model-group-head', 'model-controls model-group-controls', 'model-list model-list-parts']);
         expect(group.querySelector('.model-group-controls .model-picker-pending')).not.toBeNull();
-        expect(group.querySelector('.model-list-head')).toHaveTextContent('Loss, last 20 days');
     });
 });
 

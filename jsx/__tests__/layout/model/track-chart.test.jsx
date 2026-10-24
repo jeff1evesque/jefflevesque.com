@@ -128,19 +128,19 @@ describe('the chart', () => {
         expect(container.querySelectorAll('.recharts-line')).toHaveLength(2);
     });
 
-    it('draws this model in the live version\'s green, and the baseline dashed in amber (#251)', () => {
+    it('draws this model in the charts\' blue, as the mockup of #300 does, and the baseline dashed in amber (#251)', () => {
         const { container } = draw({ rows: trackOf(6) });
         const colors = chartColors('light');
         const [baseline, average] = container.querySelectorAll('.recharts-line-curve');
 
-        expect(average).toHaveAttribute('stroke', colors.live);
+        expect(average).toHaveAttribute('stroke', colors.better);
         expect(baseline).toHaveAttribute('stroke', colors.baseline);
         expect(baseline).toHaveAttribute('stroke-dasharray', '5 4');
-        expect(container.querySelector('.model-day-dot')).toHaveAttribute('fill', colors.live);
+        expect(container.querySelector('.model-day-dot')).toHaveAttribute('fill', colors.better);
 
         const legend = within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem');
 
-        expect(legend[0].querySelector('line')).toHaveAttribute('stroke', colors.live);
+        expect(legend[0].querySelector('line')).toHaveAttribute('stroke', colors.better);
         expect(legend[2].querySelector('line')).toHaveAttribute('stroke-dasharray', '5 4');
     });
 
@@ -246,13 +246,13 @@ describe('the panel (#251)', () => {
         expect(container.querySelector('.recharts-tooltip-wrapper .model-tip')).toBeNull();
     });
 
-    it('marks this model\'s values in its green, and the baseline\'s dashed in amber', () => {
+    it('marks this model\'s values in its blue, and the baseline\'s dashed in amber', () => {
         const { container } = draw({ rows: trackOf(1) });
         const colors = chartColors('light');
         const rows = [...container.querySelectorAll('.model-tip-row')];
 
-        expect(rows[0].querySelector('circle')).toHaveAttribute('fill', colors.live);
-        expect(rows[1].querySelector('line')).toHaveAttribute('stroke', colors.live);
+        expect(rows[0].querySelector('circle')).toHaveAttribute('fill', colors.better);
+        expect(rows[1].querySelector('line')).toHaveAttribute('stroke', colors.better);
         expect(rows[2].querySelector('line')).toHaveAttribute('stroke', colors.baseline);
     });
 
@@ -387,7 +387,7 @@ describe('the numbers', () => {
 });
 
 describe('the nights a new version went live', () => {
-    it('stand as a short tick on the foot of the plot, in the better color', () => {
+    it('stand as a short tick on the foot of the plot, in the color they are handed', () => {
         const { container } = render(<svg><WentLiveTick x1={40} y1={10} y2={200} color='#1c5cab' /></svg>);
         const tick = container.querySelector('line');
 
@@ -403,12 +403,12 @@ describe('the nights a new version went live', () => {
         expect(container.querySelector('line')).toBeNull();
     });
 
-    it('are drawn on each such night the chart has a day for, and named in the legend', () => {
+    it('are drawn on each such night the chart has a day for, in the live version\'s green, and named in the legend', () => {
         const rows = trackOf(5);
         const { container } = draw({ rows: rows, wentLive: [rows[1].day, rows[3].day, '2025-01-02'] });
 
         expect(container.querySelectorAll('.model-went-live')).toHaveLength(2);
-        expect(container.querySelector('.model-went-live')).toHaveAttribute('stroke', chartColors('light').better);
+        expect(container.querySelector('.model-went-live')).toHaveAttribute('stroke', chartColors('light').live);
         expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('New version went live')).toBeInTheDocument();
     });
 

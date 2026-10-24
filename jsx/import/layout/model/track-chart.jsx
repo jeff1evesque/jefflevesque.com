@@ -325,10 +325,10 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
 
         if (point.single !== null) {
             tipRows.push(
-                { key: 'single', mark: <Mark kind='faint' color={colors.live} />, name: 'This model, this day', value: formatScore(point.single, score) },
+                { key: 'single', mark: <Mark kind='faint' color={colors.better} />, name: 'This model, this day', value: formatScore(point.single, score) },
                 {
                     key: 'average',
-                    mark: <Mark kind='line' color={colors.live} />,
+                    mark: <Mark kind='line' color={colors.better} />,
                     name: `This model, ${point.days < days ? point.days : days} days`,
                     value: formatScore(point.average, score),
                 },
@@ -395,11 +395,11 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                         </p>
                         <Legend
                             items={[
-                                { key: 'average', kind: 'line', color: colors.live, label: 'This model' },
-                                { key: 'single', kind: 'faint', color: colors.live, label: 'Single day' },
+                                { key: 'average', kind: 'line', color: colors.better, label: 'This model' },
+                                { key: 'single', kind: 'faint', color: colors.better, label: 'Single day' },
                                 ...(shown ? [{ key: 'other', kind: 'line', color: OTHER_COLOR, label: <span className='model-legend-name'>{shown}</span> }] : []),
                                 { key: 'baseline', kind: 'dashed', color: colors.baseline, label: 'Know-nothing baseline' },
-                                ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.better, label: 'New version went live' }] : []),
+                                ...(ticks.length ? [{ key: 'went', kind: 'tick', color: colors.live, label: 'New version went live' }] : []),
                                 ...(downs.length ? [{ key: 'down', kind: 'tick', color: colors.worse, label: 'Live version taken down' }] : []),
                                 ...(waiting
                                     ? [{
@@ -446,18 +446,18 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                                 <Scatter
                                     dataKey='single'
                                     isAnimationActive={false}
-                                    shape={(props) => <DayDot {...props} color={colors.live} />}
+                                    shape={(props) => <DayDot {...props} color={colors.better} />}
                                 />
                                 <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={BASELINE_DASH} dot={false} isAnimationActive={false} />
                                 {shown
                                     ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
                                     : null}
-                                <Line dataKey='average' stroke={colors.live} strokeWidth={2} dot={false} isAnimationActive={false} />
+                                <Line dataKey='average' stroke={colors.better} strokeWidth={2.5} dot={false} isAnimationActive={false} />
                                 {ticks.map((day) => (
                                     <ReferenceLine
                                         key={day}
                                         x={day}
-                                        shape={(props) => <WentLiveTick {...props} color={colors.better} />}
+                                        shape={(props) => <WentLiveTick {...props} color={colors.live} />}
                                     />
                                 ))}
                                 {downs.map((day) => (

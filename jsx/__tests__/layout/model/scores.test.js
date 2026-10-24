@@ -50,6 +50,7 @@ import {
     holdsOf,
     isHold,
     isScore,
+    listLine,
     listedHolds,
     liveKind,
     longDay,
@@ -935,5 +936,20 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
             .toBe('its 20-day hold’s track record showed nothing better than the baseline, even on the days this version predicted itself');
         expect(checkWords({ reason: 'not_ahead', days: null, in_a_row: null, hold: 5 })).toBe('it went live without beating the baseline');
         expect(checkWords({ reason: 'track_record', days: null, in_a_row: null, hold: 20 })).not.toMatch(/null|undefined|NaN/);
+    });
+});
+
+describe('listLine, what the hold a list of /model is on is (#300)', () => {
+    const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+    it('says a list of stocks\' hold in its own words', () => {
+        expect(listLine(stocks, 1)).toBe('1-day hold: from 9:40 AM to 3:40 PM on the next trading day, as the stock models predict today.');
+        expect(listLine(stocks, 5)).toBe('5-day hold: bought at 9:40 AM on the next trading day and sold at 3:40 PM 5 trading days later. Each result comes in 6 trading days after its prediction.');
+        expect(listLine(stocks, COMBINED)).toBe('Combined: the average of the 1, 5 and 20-day scores of the same prediction days, in with the 20-day result. The top 10 has none.');
+    });
+
+    it('says a list of options\' hold in its own words', () => {
+        expect(listLine(OPTIONS_TASK, 1)).toBe('1-day hold: bought at the 9:40 AM ask on the next trading day and sold at the 3:40 PM bid the day after.');
+        expect(listLine(OPTIONS_TASK, 20)).toBe('20-day hold: sold at the 3:40 PM bid 20 trading days after the buy day.');
     });
 });

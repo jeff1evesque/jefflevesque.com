@@ -1,8 +1,10 @@
 /**
- * model-row.test.jsx: one model in /model's list (#243), and its trend line.
+ * model-row.test.jsx: one model in /model's list (#243), and its trend line, as
+ * the mockup of #300 lays a row out.
  *
- * Note: the trend line is a fixed-size recharts chart, not a responsive one,
- *       so recharts draws it for real under jsdom without a size given to it.
+ * Note: the trend line is as wide as the room its row gives it, measured in the
+ *       browser; under jsdom nothing measures, so it is drawn at its 132px, and
+ *       recharts draws it for real without a size given to it.
  */
 
 //
@@ -25,8 +27,8 @@ import { MemoryRouter } from 'react-router-dom';
 
 import ModelRow, { PartCells, TrendLine } from '../../../import/layout/model/model-row.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
-import { COMPARE_COLORS, SCORES, formatScore, noteOf, recentDays, shortDay } from '../../../import/layout/model/scores.js';
-import { STOCK_SCORES, heldModelOf, heldTrackOf, phoneScreen, tapAt, wideScreen } from '../../../test-support/model-fixtures.js';
+import { COMPARE_COLORS, SCORES, chartColors, formatScore, noteOf, recentDays, shortDay } from '../../../import/layout/model/scores.js';
+import { STOCK_SCORES, heldModelOf, heldTrackOf, tapAt } from '../../../test-support/model-fixtures.js';
 import { OPTIONS_TASK, downModelOf, modelOf, olderTrackOf, optionsModelOf, pointAt, trackOf } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
@@ -53,6 +55,19 @@ function draw(props = {}) {
     return { ...view, onPick };
 }
 
+//
+// a row's score by its parts: its name, read out to a screen reader alone, as
+// the picker over the list names it to the eye; the days it takes in, which
+// carry the score's note; and the lines at the row's foot, of when its live
+// version went live and how many attempts did, their spaces read as a reader
+// sees them, as 'Taken down Oct 19' keeps its day on one line with a no-break
+// space
+//
+const nameOf = (container) => container.querySelector('.model-cell-score .visually-hidden');
+const daysOf = (container) => container.querySelector('.model-cell-score .model-score-days');
+const sinceOf = (container) => [...container.querySelectorAll('.model-cell-since > span')].map((line) => line.textContent.replace(/\s/g, ' '));
+const cellsOf = (container) => [...container.querySelectorAll('.model-row > .model-cell')].map((cell) => cell.classList[1]);
+
 describe('a row', () => {
     it('links the model\'s name to its page, and prints its address and description', () => {
         draw();
@@ -74,22 +89,22 @@ describe('a row', () => {
         expect(container.querySelector('.model-description')).toBeNull();
     });
 
-    it('prints the 20-day score, and how it stands against the baseline', () => {
+    it('prints the 20-day score, and how it stands against the baseline\'s, beside the baseline\'s own', () => {
         const { container } = draw();
 
         expect(container.querySelector('.model-score-value')).toHaveTextContent('1.600');
-        expect(container.querySelector('.model-gap')).toHaveTextContent('▲ 0.060 better than the baseline');
+        expect(container.querySelector('.model-gap')).toHaveTextContent(/^▲ 0\.060 better than the baseline, 1\.660$/);
         expect(container.querySelector('.model-gap')).toHaveClass('model-gap-better');
     });
 
     it('says when it is worse than the baseline, or level with it', () => {
         const worse = draw({ model: modelOf({ score: { loss: 1.7 } }) }).container;
 
-        expect(worse.querySelector('.model-gap')).toHaveTextContent('▼ 0.040 worse than the baseline');
+        expect(worse.querySelector('.model-gap')).toHaveTextContent(/^▼ 0\.040 worse than the baseline, 1\.660$/);
 
         const level = draw({ model: modelOf({ score: { loss: 1.66 } }) }).container;
 
-        expect(level.querySelector('.model-gap')).toHaveTextContent('level with the baseline');
+        expect(level.querySelector('.model-gap')).toHaveTextContent(/^level with the baseline, 1\.660$/);
     });
 
     it('puts the arrow in a span of its own, so it alone takes the color of better or worse (#274)', () => {
@@ -110,25 +125,26 @@ describe('a row', () => {
         expect(container.querySelector('.model-gap')).toHaveTextContent(/^$/);
     });
 
-    it('names the score\'s figure for a phone\'s card, as its status reads it', () => {
-        const live = draw().container;
-        const fresh = draw({ model: modelOf({ scored_days: 3 }) }).container;
-        const one = draw({ model: modelOf({ scored_days: 1 }) }).container;
-        const retired = draw({ model: modelOf({ retired: '2026-10-01' }) }).container;
-
-        expect(live.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, last 20 days');
-        expect(fresh.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, 3 days so far');
-        expect(one.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, 1 day so far');
-        expect(retired.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, last 20 days before retiring');
+    it('names the score for a screen reader alone, as the picker over the list names it to the eye (#300)', () => {
+        expect(nameOf(draw().container)).toHaveTextContent(/^Loss:$/);
+        expect(nameOf(draw({ score: 'auc_up' }).container)).toHaveTextContent(/^Up\/down AUC:$/);
+        expect(nameOf(draw().container)).toHaveClass('visually-hidden');
     });
 
-    it('names the score\'s figure by the days the listing says its scores average, from format 4 (#293)', () => {
-        const label = (model) => draw({ model: model }).container.querySelector('.model-cell-score .model-cell-label');
+    it('says under the figure how many days it takes in, as its status reads it', () => {
+        expect(daysOf(draw().container)).toHaveTextContent(/^last 20 days$/);
+        expect(daysOf(draw({ model: modelOf({ scored_days: 3 }) }).container)).toHaveTextContent(/^3 days so far$/);
+        expect(daysOf(draw({ model: modelOf({ scored_days: 1 }) }).container)).toHaveTextContent(/^1 day so far$/);
+        expect(daysOf(draw({ model: modelOf({ retired: '2026-10-01' }) }).container)).toHaveTextContent(/^last 20 days before retiring$/);
+    });
 
-        expect(label(modelOf({ average_days: 30 }))).toHaveTextContent(/^Loss, last 30 days$/);
-        expect(label(modelOf({ average_days: 30, scored_days: 25 }))).toHaveTextContent(/^Loss, 25 days so far$/);
-        expect(label(modelOf({ average_days: 30, retired: '2026-10-01' }))).toHaveTextContent(/^Loss, last 30 days before retiring$/);
-        expect(label(modelOf({ average_days: 10, scored_days: 12 }))).toHaveTextContent(/^Loss, last 10 days$/);
+    it('says the days by those the listing says its scores average, from format 4 (#293)', () => {
+        const days = (model) => daysOf(draw({ model: model }).container);
+
+        expect(days(modelOf({ average_days: 30 }))).toHaveTextContent(/^last 30 days$/);
+        expect(days(modelOf({ average_days: 30, scored_days: 25 }))).toHaveTextContent(/^25 days so far$/);
+        expect(days(modelOf({ average_days: 30, retired: '2026-10-01' }))).toHaveTextContent(/^last 30 days before retiring$/);
+        expect(days(modelOf({ average_days: 10, scored_days: 12 }))).toHaveTextContent(/^last 10 days$/);
     });
 
     it('names its trend line by those days (#293)', () => {
@@ -137,26 +153,25 @@ describe('a row', () => {
         expect(screen.getByRole('img', { name: 'pt-gnn\'s 30-day Loss, over the last 60 days' })).toBeInTheDocument();
     });
 
-    it.each(SCORES.map((score) => [score.key, score.note]))('names the score\'s figure on a phone\'s card with %s\'s note (#265)', (key, note) => {
-        const { container } = draw({ score: key });
-        const label = container.querySelector('.model-cell-score .model-cell-label');
+    it.each(SCORES.map((score) => [score.key, score.note]))('gives the days under the figure %s\'s note (#265)', (key, note) => {
+        const days = daysOf(draw({ score: key }).container);
 
-        expect(label).toHaveAccessibleDescription(note);
-        expect(label).toHaveAttribute('tabindex', '0');
-        expect(label.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+        expect(days).toHaveAccessibleDescription(note);
+        expect(days).toHaveAttribute('tabindex', '0');
+        expect(days.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
     });
 
-    it('names an options model\'s score with its task\'s note, and prints its top 10\'s gain as a percent (#279)', () => {
+    it('gives an options model\'s score its task\'s note, and prints its top 10\'s gain as a percent (#279)', () => {
         const loss = draw({ model: optionsModelOf(), task: OPTIONS_TASK }).container;
 
-        expect(loss.querySelector('.model-cell-score .model-cell-label')).toHaveAccessibleDescription(noteOf('loss', OPTIONS_TASK));
+        expect(daysOf(loss)).toHaveAccessibleDescription(noteOf('loss', OPTIONS_TASK));
         expect(loss.querySelector('.model-score-value')).toHaveTextContent('0.840');
 
         const gain = draw({ model: optionsModelOf(), task: OPTIONS_TASK, score: 'top10_gain' }).container;
 
         expect(gain.querySelector('.model-score-value')).toHaveTextContent('3.10%');
-        expect(gain.querySelector('.model-gap')).toHaveTextContent('▲ 7.30 pts better than the baseline');
-        expect(gain.querySelector('.model-cell-score .model-cell-label')).toHaveAccessibleDescription(noteOf('top10_gain', OPTIONS_TASK));
+        expect(gain.querySelector('.model-gap')).toHaveTextContent(/^▲ 7\.30 pts better than the baseline, −4\.20%$/);
+        expect(daysOf(gain)).toHaveAccessibleDescription(noteOf('top10_gain', OPTIONS_TASK));
     });
 
     it('prints a dash for a score the listing gives a model none of, as one before format 3 (#279)', () => {
@@ -167,32 +182,41 @@ describe('a row', () => {
         expect(container.querySelector('.model-trend-none')).toHaveAttribute('title', 'Not scored in the last 60 days');
     });
 
-    it('shows the score\'s note under the pointer, on a phone\'s card (#265)', async () => {
+    it('shows the score\'s note under the pointer, over the days under the figure (#265)', async () => {
         const { container } = draw();
 
-        await userEvent.hover(container.querySelector('.model-cell-score .model-cell-label'));
+        await userEvent.hover(daysOf(container));
 
         expect(await screen.findByRole('tooltip')).toHaveTextContent(SCORES[0].note);
     });
 
-    it('says when the live version went live and how, and how many attempts did', () => {
-        const { container } = draw();
-
-        expect(container.querySelector('.model-cell-live')).toHaveTextContent('Oct 9nightly update');
-        expect(container.querySelector('.model-cell-went')).toHaveTextContent('4 of 30attempts');
+    it('lays out its cells as the mockup of #300 does: the compare box, the model, its score, its trend line, and when it went live', () => {
+        expect(cellsOf(draw().container)).toEqual([
+            'model-cell-compare',
+            'model-cell-model',
+            'model-cell-score',
+            'model-cell-trend',
+            'model-cell-since',
+        ]);
     });
 
-    it('says a retired model is no longer trained, and dims it', () => {
+    it('says at its foot when the live version went live and how, and how many attempts did, a line each (#300)', () => {
+        expect(sinceOf(draw().container)).toEqual(['Live since Oct 9, nightly update', '4 of 30 attempts went live']);
+        expect(sinceOf(draw({ model: modelOf({ live: { since: '2026-10-05', kind: 'first' } }) }).container))
+            .toEqual(['Live since Oct 5, first version', '4 of 30 attempts went live']);
+    });
+
+    it('says when a retired model retired, and dims it', () => {
         const { container } = draw({ model: modelOf({ retired: '2026-10-02' }) });
 
         expect(container.querySelector('.model-row')).toHaveClass('model-row-retired');
-        expect(container.querySelector('.model-cell-live')).toHaveTextContent('Retired Oct 2no longer trained');
+        expect(sinceOf(container)).toEqual(['Retired Oct 2', '4 of 30 attempts went live']);
     });
 
-    it('prints a dash for a live version with no day', () => {
-        const { container } = draw({ model: modelOf({ live: { since: null, kind: null } }) });
-
-        expect(container.querySelector('.model-cell-live .model-figure')).toHaveTextContent('–');
+    it('says there is no live version yet where there is no day, and leaves out how it went live where the listing does not say', () => {
+        expect(sinceOf(draw({ model: modelOf({ live: { since: null, kind: null } }) }).container))
+            .toEqual(['No live version yet', '4 of 30 attempts went live']);
+        expect(sinceOf(draw({ model: modelOf({ live: { since: '2026-10-09', kind: null } }) }).container)[0]).toBe('Live since Oct 9');
     });
 });
 
@@ -231,35 +255,28 @@ describe('a model whose live version was taken down (#263)', () => {
         expect(screen.getByText('Behind baseline')).toHaveClass('model-pill', 'model-pill-down');
     });
 
-    it('says when, and the check that did it, in place of when it went live', () => {
-        const { container } = draw({ model: downModelOf() });
-
-        expect(container.querySelector('.model-cell-live .model-figure')).toHaveTextContent(/^Taken down Oct 19$/);
-        expect(container.querySelector('.model-cell-live .model-figure-detail'))
-            .toHaveTextContent(/^worse than the baseline 5 scored days in a row$/);
+    it('says at its foot when, and the check that did it, in place of when it went live', () => {
+        expect(sinceOf(draw({ model: downModelOf() }).container))
+            .toEqual(['Taken down Oct 19', '4 of 30 attempts went live', 'Worse than the baseline 5 scored days in a row.']);
     });
 
     it('words an average\'s check as an average\'s', () => {
         const { container } = draw({ model: downModelOf({ down: { since: '2026-10-19', days: 5, in_a_row: 10 } }) });
 
-        expect(container.querySelector('.model-cell-live .model-figure-detail'))
-            .toHaveTextContent('its 5-day average was worse than the baseline’s 10 days in a row');
+        expect(sinceOf(container)[2]).toBe('Its 5-day average was worse than the baseline’s 10 days in a row.');
     });
 
     it.each([
-        ['not_ahead', 'it went live without beating the baseline'],
-        ['track_record', 'its track record showed nothing better than the baseline'],
+        ['not_ahead', 'It went live without beating the baseline.'],
+        ['track_record', 'Its track record showed nothing better than the baseline.'],
     ])('says why where no check did it, from format 4 (%s, #295)', (reason, why) => {
         const { container } = draw({ model: downModelOf({ down: { since: '2026-10-23', reason: reason, days: null, in_a_row: null } }) });
 
-        expect(container.querySelector('.model-cell-live .model-figure')).toHaveTextContent(/^Taken down Oct 23$/);
-        expect(container.querySelector('.model-cell-live .model-figure-detail')).toHaveTextContent(new RegExp(`^${why}$`));
+        expect(sinceOf(container)).toEqual(['Taken down Oct 23', '4 of 30 attempts went live', why]);
     });
 
-    it('names its score so far where it was taken down before its 20th scored day', () => {
-        const { container } = draw({ model: downModelOf({ scored_days: 7 }) });
-
-        expect(container.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Loss, 7 days so far');
+    it('says the days its score takes in so far where it was taken down before its 20th scored day', () => {
+        expect(daysOf(draw({ model: downModelOf({ scored_days: 7 }) }).container)).toHaveTextContent(/^7 days so far$/);
     });
 
     it('keeps its bell, as it can go live again, and is not dimmed', () => {
@@ -305,10 +322,9 @@ describe('the compare box', () => {
 
 describe('the bell (#255)', () => {
     //
-    // at the end of the row, and at the top of a phone's card -- see '_model.scss'
-    // -- leading to the model's alarm page
+    // the bell's icon, on the model's name's line after its status (#300)
     //
-    const bellIn = (container) => container.querySelector('.model-cell-alarm svg');
+    const bellIn = (container) => container.querySelector('.model-name-line .model-bell svg');
 
     it('is plain for a reader who holds nothing, and leads to the model\'s alarm page', () => {
         const { container } = draw();
@@ -325,33 +341,18 @@ describe('the bell (#255)', () => {
         expect(bellIn(container)).toHaveClass('subscribed');
     });
 
-    it('is left off a retired model, whose cell stays, so the columns still line up', () => {
+    it('is left off a retired model', () => {
         const { container } = draw({ model: modelOf({ retired: '2026-10-02' }), held: true });
 
-        expect(container.querySelector('.model-cell-alarm')).toBeEmptyDOMElement();
+        expect(container.querySelector('.model-bell')).toBeNull();
         expect(screen.queryByRole('link', { name: /^Alarm for/ })).toBeNull();
     });
 
-    it('comes after the model\'s name and before its figures, as a stream\'s does on /stream (#259), the score last (#283)', () => {
-        //
-        // a wide screen places a row's cells by their order, into the columns
-        // '_model.scss' gives them -- see stylesheet.test.js beside this one. It
-        // came last, at the far right, where /stream has a row's figures. The
-        // score came before the figures, where a phone's card has it after them
-        //
-        const { container } = draw();
-        const cells = [...container.querySelectorAll('.model-row > .model-cell')];
+    it('comes after the model\'s name and status, on their line, as a stream\'s does on /stream (#259, #300)', () => {
+        const line = draw().container.querySelector('.model-name-line');
 
-        expect(cells.map((cell) => cell.classList[1])).toEqual([
-            'model-cell-compare',
-            'model-cell-model',
-            'model-cell-alarm',
-            'model-cell-live',
-            'model-cell-went',
-            'model-cell-trend',
-            'model-cell-score',
-            'model-cell-since',
-        ]);
+        expect([...line.children].map((each) => each.classList[0])).toEqual(['model-name', 'model-pill', 'control-tray']);
+        expect(line.lastElementChild).toHaveClass('model-bell');
     });
 });
 
@@ -382,26 +383,33 @@ describe('loss\'s three parts, in place of its sum (#283)', () => {
         expect(textsOf(container, '.model-part-cell .model-gap-arrow')).toEqual(['▼', '▲', '▼']);
     });
 
-    it('name each part, for a phone\'s card and a list too narrow for their columns', () => {
+    it('name each part over its figure, in a list named for them (#300)', () => {
         const { container } = draw({ parts: true });
 
+        expect(screen.getByRole('list', { name: 'Loss, part by part' })).toHaveClass('model-part-cells');
         expect(textsOf(container, '.model-part-cell-name')).toEqual(['Up or down', 'Beats the average stock', 'Size of the move']);
     });
 
-    it('name the score over them on a phone\'s card, as its status reads it, with loss\'s note', () => {
-        const live = draw({ parts: true }).container.querySelector('.model-cell-parts .model-cell-label');
-        const fresh = draw({ parts: true, model: modelOf({ scored_days: 3 }) }).container.querySelector('.model-cell-parts .model-cell-label');
+    it('say over them what they add up to, and over how many days, with loss\'s note (#300)', () => {
+        const live = draw({ parts: true }).container.querySelector('.model-cell-parts .model-parts-note');
+        const fresh = draw({ parts: true, model: modelOf({ scored_days: 3 }) }).container.querySelector('.model-cell-parts .model-parts-note');
 
-        expect(live).toHaveTextContent('Loss, last 20 days');
+        expect(live).toHaveTextContent(/^Loss 1\.600, part by part, last 20 days$/);
         expect(live).toHaveAccessibleDescription(noteOf('loss'));
         expect(live).toHaveAttribute('tabindex', '0');
-        expect(fresh).toHaveTextContent('Loss, 3 days so far');
+        expect(fresh).toHaveTextContent(/^Loss 1\.600, part by part, 3 days so far$/);
     });
 
-    it('name the score over them by the days the listing says its scores average (#293)', () => {
-        const over = draw({ parts: true, model: modelOf({ average_days: 30 }) }).container.querySelector('.model-cell-parts .model-cell-label');
+    it('say the days over them by those the listing says its scores average (#293)', () => {
+        const over = draw({ parts: true, model: modelOf({ average_days: 30 }) }).container.querySelector('.model-cell-parts .model-parts-note');
 
-        expect(over).toHaveTextContent(/^Loss, last 30 days$/);
+        expect(over).toHaveTextContent(/^Loss 1\.600, part by part, last 30 days$/);
+    });
+
+    it('say a dash over them for a model with no score yet', () => {
+        const over = draw({ parts: true, model: modelOf({ score: null, baseline: null }) }).container.querySelector('.model-parts-note');
+
+        expect(over).toHaveTextContent(/^Loss –, part by part, last 20 days$/);
     });
 
     it('say level, with no arrow, for a part printed as the baseline\'s is', () => {
@@ -440,11 +448,14 @@ describe('loss\'s three parts, in place of its sum (#283)', () => {
         expect(textsOf(container, '.model-part-cell .model-gap')).toEqual(['', '', '']);
     });
 
-    it('come last in the row, where the score comes', () => {
-        const { container } = draw({ parts: true });
-
-        expect([...container.querySelectorAll('.model-row > .model-cell')].map((cell) => cell.classList[1]).slice(-3))
-            .toEqual(['model-cell-trend', 'model-cell-parts', 'model-cell-since']);
+    it('stand where the score does, between the model and its trend line', () => {
+        expect(cellsOf(draw({ parts: true }).container)).toEqual([
+            'model-cell-compare',
+            'model-cell-model',
+            'model-cell-parts',
+            'model-cell-trend',
+            'model-cell-since',
+        ]);
     });
 });
 
@@ -462,6 +473,18 @@ describe('TrendLine', () => {
 
         expect(screen.getByRole('img', { name: 'pt-gnn\'s 20-day Loss, over the last 60 days' })).toBeInTheDocument();
         expect(container.querySelectorAll('.recharts-line')).toHaveLength(2);
+    });
+
+    it('draws the score in the charts\' better blue and the baseline dashed in their amber, 44px tall, as the mockup of #300 does', () => {
+        const { container } = trend();
+        const colors = chartColors('dark');
+        const [baseline, value] = container.querySelectorAll('.recharts-line-curve');
+
+        expect(value).toHaveAttribute('stroke', colors.better);
+        expect(value).toHaveAttribute('stroke-width', '2');
+        expect(baseline).toHaveAttribute('stroke', colors.baseline);
+        expect(baseline).toHaveAttribute('stroke-dasharray', '5 4');
+        expect(container.querySelector('.model-trend svg')).toHaveAttribute('height', '44');
     });
 
     it('is named by the days it is handed, the listing\'s average_days (#293)', () => {
@@ -518,6 +541,19 @@ describe('TrendLine', () => {
                 ['Baseline', formatScore(last.baseline_average.loss, 'loss')],
             ]);
             expect(tip.querySelectorAll('.model-mark')).toHaveLength(2);
+        });
+
+        it('marks the score in the line\'s blue and the baseline dashed in its amber', () => {
+            const { container } = trend({ rows: trackOf(10) });
+            const colors = chartColors('dark');
+
+            pointAtLastDay(container);
+
+            const [value, baseline] = container.querySelectorAll('.model-trend-tip .model-mark line');
+
+            expect(value).toHaveAttribute('stroke', colors.better);
+            expect(baseline).toHaveAttribute('stroke', colors.baseline);
+            expect(baseline).toHaveAttribute('stroke-dasharray', '5 4');
         });
 
         it('names the score picked', () => {
@@ -585,48 +621,51 @@ describe('a row on a hold, from format 5 on (#300)', () => {
     const on = (hold, props = {}) => draw({ model: model, task: task, rows: rows, axis: axis, hold: hold, ...props });
     const textOf = (container, selector) => container.querySelector(selector).textContent;
 
-    it('prints the hold\'s score as the listing gives it, named with the hold, and how it stands', () => {
+    it('prints the hold\'s score as the listing gives it, named with the hold for a screen reader, and how it stands', () => {
         const { container } = on(5);
         const held = model.holds['5d'];
 
         expect(textOf(container, '.model-score-value')).toBe(formatScore(held.score.loss, 'loss'));
-        expect(textOf(container, '.model-cell-score .model-cell-label')).toBe('Loss, 5-day hold, last 20 days');
+        expect(nameOf(container)).toHaveTextContent(/^Loss, 5-day hold:$/);
+        expect(daysOf(container)).toHaveTextContent(/^last 20 days$/);
         expect(container.querySelector('.model-cell-score .model-gap')).toHaveClass('model-gap-better');
         expect(container.querySelector('.model-cell-score .model-gap .model-gap-arrow')).toHaveTextContent('▲');
     });
 
-    it('reads as a list before format 5 did on the 1-day hold: its scores, unnamed', () => {
+    it('reads as a list before format 5 did on the 1-day hold: its scores, the hold unnamed', () => {
         const { container } = on(1);
 
         expect(textOf(container, '.model-score-value')).toBe(formatScore(model.score.loss, 'loss'));
-        expect(textOf(container, '.model-cell-score .model-cell-label')).toBe('Loss, last 20 days');
+        expect(nameOf(container)).toHaveTextContent(/^Loss:$/);
+        expect(daysOf(container)).toHaveTextContent(/^last 20 days$/);
     });
 
     it('names Combined, and says a hold with no scored day yet has none', () => {
         const { container } = on(20);
 
         expect(textOf(container, '.model-score-value')).toBe('–');
-        expect(textOf(container, '.model-cell-score .model-cell-label')).toBe('Loss, 20-day hold, no scored days yet');
+        expect(daysOf(container)).toHaveTextContent(/^no scored days yet$/);
 
         const combined = draw({ model: model, task: task, rows: rows, axis: axis, hold: 'combined', score: 'auc_up' });
 
-        expect(combined.container.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Up/down AUC, combined, no scored days yet');
+        expect(nameOf(combined.container)).toHaveTextContent(/^Up\/down AUC, combined:$/);
+        expect(daysOf(combined.container)).toHaveTextContent(/^no scored days yet$/);
     });
 
     it('counts a hold\'s days so far by its own days', () => {
         const fewer = heldTrackOf(30, { notIn: 20 });
         const { container } = draw({ model: heldModelOf({}, fewer), task: task, rows: fewer, axis: axis, hold: 5 });
 
-        expect(textOf(container, '.model-cell-score .model-cell-label')).toBe('Loss, 5-day hold, 10 days so far');
+        expect(daysOf(container)).toHaveTextContent(/^10 days so far$/);
     });
 
     it('carries the note of the score on the hold', () => {
-        draw({ model: model, task: task, rows: rows, axis: axis, hold: 5, score: 'top10_gain' });
+        const { container } = draw({ model: model, task: task, rows: rows, axis: axis, hold: 5, score: 'top10_gain' });
 
-        expect(screen.getByText('Top 10 gain, 5-day hold, last 20 days')).toHaveAccessibleDescription(noteOf('top10_gain', task, 5));
+        expect(daysOf(container)).toHaveAccessibleDescription(noteOf('top10_gain', task, 5));
     });
 
-    it('shows loss\'s three parts on the hold, from its own columns', () => {
+    it('shows loss\'s three parts on the hold, from its own columns, under what they add up to on it', () => {
         const { container } = on(5, { parts: true });
         const newest = rows[rows.length - 1];
 
@@ -635,7 +674,9 @@ describe('a row on a hold, from format 5 on (#300)', () => {
             formatScore(newest.average.beats_log_loss_5d, 'loss'),
             formatScore(newest.average.move_pinball_5d, 'loss'),
         ]);
-        expect(textOf(container, '.model-cell-parts .model-cell-label')).toBe('Loss, 5-day hold, last 20 days');
+        expect(textOf(container, '.model-cell-parts .model-parts-note'))
+            .toBe(`Loss ${formatScore(model.holds['5d'].score.loss, 'loss')}, part by part, last 20 days`);
+        expect(container.querySelector('.model-parts-note')).toHaveAccessibleDescription(noteOf('loss', task, 5));
     });
 
     it('draws its trend line on the hold, named with it', () => {
@@ -644,24 +685,11 @@ describe('a row on a hold, from format 5 on (#300)', () => {
         expect(screen.getByRole('img', { name: 'tables-gnn\'s 20-day Loss, 5-day hold, over the last 60 days' })).toBeInTheDocument();
     });
 
-    it('says when its live version went live and how many attempts did, in a line a phone\'s card shows', () => {
-        const { container } = draw();
-
-        expect(container.querySelector('.model-cell-since')).toHaveTextContent('Live since Oct 9 · 4 of 30 attempts went live');
-    });
-
-    it('says when a live version was taken down, and why, in that line', () => {
+    it('says when a live version was taken down on its hold, and why', () => {
         const { container } = draw({ model: downModelOf({ down: { since: '2026-10-19', days: 1, in_a_row: 5, hold: 5 } }) });
 
-        expect(container.querySelector('.model-cell-since')).toHaveTextContent('Taken down Oct 19 · 4 of 30 attempts went live');
-        expect(container.querySelector('.model-cell-since')).toHaveTextContent('Its 5-day hold did worse than the baseline 5 scored days in a row.');
-    });
-
-    it('says when a retired model retired, and just the attempts where there is no live version', () => {
-        expect(draw({ model: modelOf({ retired: '2026-10-02' }) }).container.querySelector('.model-cell-since'))
-            .toHaveTextContent('Retired Oct 2 · 4 of 30 attempts went live');
-        expect(draw({ model: modelOf({ live: { since: null, kind: null } }) }).container.querySelector('.model-cell-since'))
-            .toHaveTextContent(/^4 of 30 attempts went live$/);
+        expect(sinceOf(container))
+            .toEqual(['Taken down Oct 19', '4 of 30 attempts went live', 'Its 5-day hold did worse than the baseline 5 scored days in a row.']);
     });
 });
 
@@ -802,19 +830,17 @@ describe('TrendLine\'s width (#300)', () => {
     const widthOf = (container) => Number(container.querySelector('.model-trend svg').getAttribute('width'));
 
     afterEach(() => {
-        wideScreen();
         delete window.ResizeObserver;
     });
 
-    it('is its column\'s 132px on a wide screen', () => {
+    it('is 132px where the room its row gives it cannot be measured', () => {
         expect(widthOf(trend().container)).toBe(132);
     });
 
-    it('is the card\'s on a phone, followed as the card is resized, and no narrower than 132px', () => {
+    it('is as wide as the room its row gives it, on any screen, followed as the row is resized, and no narrower than 132px', () => {
         let resized;
         const disconnect = jest.fn();
 
-        phoneScreen();
         window.ResizeObserver = jest.fn((callback) => {
             resized = callback;
 
@@ -833,10 +859,9 @@ describe('TrendLine\'s width (#300)', () => {
         expect(disconnect).toHaveBeenCalled();
     });
 
-    it('measures the card once the record is in, after the line\'s placeholder', () => {
+    it('measures its room once the record is in, after the line\'s placeholder', () => {
         let resized;
 
-        phoneScreen();
         window.ResizeObserver = jest.fn((callback) => {
             resized = callback;
 
@@ -858,12 +883,6 @@ describe('TrendLine\'s width (#300)', () => {
 
         expect(widthOf(container)).toBe(340);
     });
-
-    it('stays 132px on a phone that cannot measure the card', () => {
-        phoneScreen();
-
-        expect(widthOf(trend().container)).toBe(132);
-    });
 });
 
 describe('PartCells on its own (#283, #300)', () => {
@@ -872,6 +891,7 @@ describe('PartCells on its own (#283, #300)', () => {
         const { container } = render(<PartCells model={modelOf()} rows={rows} />);
 
         expect(container.querySelector('.model-part-cell-value')).toHaveTextContent(formatScore(rows[9].average.up_log_loss, 'loss'));
-        expect(container.querySelector('.model-cell-label')).toHaveTextContent('Loss, last 20 days');
+        expect(container.querySelector('.model-parts-note')).toHaveTextContent(/^Loss 1\.600, part by part, last 20 days$/);
+        expect(container.querySelector('.model-parts-note')).toHaveAccessibleDescription(noteOf('loss'));
     });
 });

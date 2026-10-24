@@ -1,29 +1,24 @@
 /**
- * model-row.jsx: one model in /model's list (#243): a box to tick it for the
- * comparison, its name, status, address and description, its bell, which leads to
- * its alarm page (#255), when its live version went live, how many of its nightly
- * attempts did, a trend line of its score, and last its latest score, over the
- * listing's `average_days` (#293), against the know-nothing baseline -- or, in a
- * list that shows them, loss's three
- * parts in place of it (#283). A retired model has no bell. A model whose live
- * version the trainer took down says when, and why -- which check did it, or from
- * format 4 that it went live without beating the baseline, or its track record
- * showed nothing better (#295) -- in place of when it went live (#263). An options
- * model still trained, and not taken down, has a link to its picks page under its
- * description, for every reader: signed out, the page asks them to sign in, so a
- * visitor learns the picks are there without seeing any (#290). One taken down
- * has none: its last picks are still on file, and they are not this night's (#295).
+ * model-row.jsx: one model in /model's list (#243), laid out as the mockup of #300
+ * draws a row: its name and status, with its address and description under them,
+ * then its latest score -- over the listing's `average_days` (#293), against the
+ * know-nothing baseline -- or, in a list that shows them, loss's three parts in
+ * place of it (#283), then a trend line of its score, and last when its live
+ * version went live and how many of its nightly attempts did. The box that ticks
+ * it for the comparison comes first, and its bell, which leads to its alarm page
+ * (#255), after its status; the mockup draws neither. A retired model has no
+ * bell. A model whose live version the trainer took down says when, and why --
+ * which check did it, or from format 4 that it went live without beating the
+ * baseline, or its track record showed nothing better (#295) -- in place of when
+ * it went live (#263). An options model still trained, and not taken down, has a
+ * link to its picks page under its description, for every reader: signed out, the
+ * page asks them to sign in, so a visitor learns the picks are there without
+ * seeing any (#290). One taken down has none: its last picks are still on file,
+ * and they are not this night's (#295).
  *
- * The bell comes after the name, as a stream's comes after the stream's name on
- * /stream, so the two pages put it on one side (#259). The score comes last, as it
- * does on a phone's card, so changing it moves nothing else (#283).
- *
- * A row across a wide screen, under the list's headings, and a card on a phone,
- * where each figure carries its own name instead -- see '_model.scss'. There the
- * score's name carries a note on what the score measures, as the heading over
- * its column does on a wide screen (#265). From #300 a phone's card is its name
- * and status, its description, its score, the trend line across the card, and a
- * line of when its live version went live and how many attempts did.
+ * A row's parts sit side by side across a wide screen, wrapping as room runs out,
+ * and stack in a card on a phone -- see '_model.scss'. The days under the score's
+ * figure carry a note on what the score measures (#265).
  *
  * From format 5 each list has a hold picker (#300), and a row's score, how it
  * stands, its days, its trend line and loss's parts are on the hold picked: the
@@ -44,9 +39,10 @@ import Tooltip from '@mui/material/Tooltip';
 import { isMobile } from 'react-device-detect';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import InfoNote from '../../general/info-note.jsx';
-import { AlarmBell, Mark, StatusPill, gapWords, usePhone } from './parts.jsx';
+import { AlarmBell, Mark, StatusPill, gapWords } from './parts.jsx';
 import { PendingBar } from '../graph/pending.jsx';
 import {
+    BASELINE_DASH,
     COMBINED,
     COMPARE_COLORS,
     DEFAULT_SCORE,
@@ -75,11 +71,12 @@ import {
 } from './scores.js';
 
 //
-// the trend line's size, in px: as wide as its column, and about a row's text
-// tall. A phone's card draws it across the card, as wide as that is (#300)
+// the trend line's size, in px: as wide as the room its row gives it, and 44px
+// tall, as the mockup of #300 draws it. TREND_WIDTH where the room cannot be
+// measured, as under jsdom
 //
 const TREND_WIDTH = 132;
-const TREND_HEIGHT = 36;
+const TREND_HEIGHT = 44;
 
 //
 // how far above the line's top the box of the day under the pointer stands, in
@@ -88,20 +85,20 @@ const TREND_HEIGHT = 36;
 const TIP_ABOVE = -62;
 
 //
-// how wide the trend line is drawn, in px: TREND_WIDTH, or on a phone's card
-// the width of the box it is drawn in, followed as the card is resized (#300).
-// TREND_WIDTH wherever the box cannot be measured, as under jsdom.
+// how wide the trend line is drawn, in px: the width of the box it is drawn in,
+// followed as the row is resized (#300), or TREND_WIDTH wherever the box cannot
+// be measured, as under jsdom.
 //
 // The box is kept by a ref callback rather than a ref object: it is drawn only
 // once the track record is in, after the line's placeholder, and an effect
 // keyed on a ref object would have measured nothing and never looked again
 //
-function useTrendWidth(phone) {
+function useTrendWidth() {
     const [box, setBox] = useState(null);
     const [width, setWidth] = useState(TREND_WIDTH);
 
     useEffect(() => {
-        if (!phone || !box || typeof window.ResizeObserver !== 'function') {
+        if (!box || typeof window.ResizeObserver !== 'function') {
             setWidth(TREND_WIDTH);
 
             return undefined;
@@ -114,7 +111,7 @@ function useTrendWidth(phone) {
         observer.observe(box);
 
         return () => observer.disconnect();
-    }, [phone, box]);
+    }, [box]);
 
     return [setBox, width];
 }
@@ -137,8 +134,7 @@ function useTrendWidth(phone) {
 export function TrendLine({ name, rows, axis, score, days = WINDOW, hold = null }) {
     const { theme } = useContext(ThemeModeContext);
     const colors = chartColors(theme);
-    const phone = usePhone();
-    const [box, width] = useTrendWidth(phone);
+    const [box, width] = useTrendWidth();
     const [tapped, setTapped] = useState(null);
 
     if (rows === undefined) {
@@ -193,13 +189,13 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW, hold = null 
             <div className='model-tip model-trend-tip'>
                 <div className='model-tip-title'>{shortDay(point.day)}</div>
                 <div className='model-tip-row'>
-                    <Mark kind='line' color={colors.muted} />
+                    <Mark kind='line' color={colors.better} />
                     <span className='model-tip-name'>{label}</span>
                     <span className='model-tip-value'>{formatScore(point.value, score)}</span>
                 </div>
                 {point.baseline === null ? null : (
                     <div className='model-tip-row'>
-                        <Mark kind='line' color={colors.grid} />
+                        <Mark kind='dashed' color={colors.baseline} />
                         <span className='model-tip-name'>Baseline</span>
                         <span className='model-tip-value'>{formatScore(point.baseline, score)}</span>
                     </div>
@@ -249,18 +245,19 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW, hold = null 
                 />
                 <Line
                     dataKey='baseline'
-                    stroke={colors.grid}
+                    stroke={colors.baseline}
                     strokeWidth={1.5}
+                    strokeDasharray={BASELINE_DASH}
                     dot={false}
-                    activeDot={showing ? { r: 2.5, fill: colors.grid, stroke: 'none' } : false}
+                    activeDot={showing ? { r: 2.5, fill: colors.baseline, stroke: 'none' } : false}
                     isAnimationActive={false}
                 />
                 <Line
                     dataKey='value'
-                    stroke={colors.muted}
-                    strokeWidth={1.5}
+                    stroke={colors.better}
+                    strokeWidth={2}
                     dot={false}
-                    activeDot={showing ? { r: 3, fill: colors.muted, stroke: 'none' } : false}
+                    activeDot={showing ? { r: 3, fill: colors.better, stroke: 'none' } : false}
                     isAnimationActive={false}
                 />
             </LineChart>
@@ -294,63 +291,51 @@ TrendLine.propTypes = {
 };
 
 //
-// what the score's figure is called on a phone's card, where there are no
-// headings: over the last of the days its scores average (#293), before it
-// retired for a retired one, and so far for one with fewer scored days than that
-// -- a new model, or one taken down before it had them (#263). On a hold (#300),
-// named with the hold, by the hold's own days
+// how many days the score's figure takes in, as the mockup of #300 says it under
+// the figure: 'last 20 days', '9 days so far', 'no scored days yet' on a hold
+// that has none, and 'last 20 days before retiring' for a retired model -- the
+// listing's `average_days` (#293), or on a hold, the hold's own days
 //
-function scoreLabel(model, score, hold) {
+function daysLabel(model, hold) {
     const on = scoresOn(model, hold);
-    const label = `${scoreOf(score).label}${namedHold(on.hold, true)}`;
     const days = averageDays(model);
 
     if (on.hold && !on.days) {
-        return `${label}, no scored days yet`;
+        return 'no scored days yet';
     }
 
     if (statusOf(model) === 'retired') {
-        return `${label}, last ${days} days before retiring`;
+        return `last ${days} days before retiring`;
     }
 
-    return on.days < days
-        ? `${label}, ${on.days} ${on.days === 1 ? 'day' : 'days'} so far`
-        : `${label}, last ${days} days`;
+    return on.days < days ? `${on.days} ${on.days === 1 ? 'day' : 'days'} so far` : `last ${days} days`;
 }
 
 //
-// the Live version cell's figure, and the line under it: when the live version
-// went live and how, when a retired model retired, or when a model's live
-// version was taken down and the check that did it (#263)
+// when the live version went live and how, and how many attempts did, as the
+// foot of a row says it (#300): 'Live since Oct 9, nightly update', '4 of 30
+// attempts went live'. A retired model's says when it retired, and one taken
+// down when it was, and why (#263)
 //
-function liveCell(model, status) {
+function sinceOf(model, status) {
+    const went = `${model.attempts.went_live} of ${model.attempts.total} attempts went live`;
+
     if (status === 'retired') {
-        return { figure: `Retired ${shortDay(model.retired)}`, detail: 'no longer trained' };
+        return { since: `Retired ${shortDay(model.retired)}`, went: went };
     }
 
     if (status === 'down') {
-        return { figure: takenDown(model.down.since), detail: checkWords(model.down) };
+        const why = checkWords(model.down);
+
+        return { since: takenDown(model.down.since), went: went, why: `${why.charAt(0).toUpperCase()}${why.slice(1)}.` };
     }
 
-    return { figure: shortDay(model.live.since) || '–', detail: liveKind(model.live.kind) };
-}
+    const kind = liveKind(model.live.kind);
 
-//
-// the same two in a line at the foot of a phone's card (#300), with how many
-// attempts went live: 'Live since Oct 9 · 4 of 30 attempts went live'
-//
-function sinceLine(model, status) {
-    const went = `${model.attempts.went_live} of ${model.attempts.total} attempts went live`;
-    const figure = {
-        retired: () => `Retired ${shortDay(model.retired)}`,
-        down: () => takenDown(model.down.since),
-    }[status];
-
-    if (figure) {
-        return `${figure()} · ${went}`;
-    }
-
-    return model.live.since ? `Live since ${shortDay(model.live.since)} · ${went}` : went;
+    return {
+        since: model.live.since ? `Live since ${shortDay(model.live.since)}${kind ? `, ${kind}` : ''}` : 'No live version yet',
+        went: went,
+    };
 }
 
 //
@@ -365,13 +350,13 @@ function partGap(part) {
 }
 
 /**
- * loss's three parts in place of its sum (#283): a cell each across a wide
- * screen, under one heading -- see model.jsx -- and on a phone's card, or in a
- * list too narrow for the three columns, a line each, naming its part. Each is
- * the part's average, and how it stands against the baseline's, from the
- * newest day of the model's track record, as its own page has them (#265), on
- * the hold the list is on (#300). Bars while the record is on its way, and
- * dashes where it could not be had or has no parts.
+ * loss's three parts in place of its sum (#283), as the mockup of #300 draws
+ * them: a line over them, 'Loss 1.602, part by part, last 20 days', and a column
+ * each across a wide screen -- its name, its average, and how it stands against
+ * the baseline's -- or on a phone's card a line each. From the newest day of the
+ * model's track record, as its own page has them (#265), on the hold the list is
+ * on (#300). Bars while the record is on its way, and dashes where it could not
+ * be had or has no parts.
  */
 export function PartCells({ model, rows, task = undefined, hold = undefined }) {
     const on = scoresOn(model, hold);
@@ -379,7 +364,9 @@ export function PartCells({ model, rows, task = undefined, hold = undefined }) {
 
     return (
         <div className='model-cell model-cell-parts'>
-            <InfoNote note={noteOf(DEFAULT_SCORE, task, on.hold)} className='model-cell-label model-noted'>{scoreLabel(model, DEFAULT_SCORE, hold)}</InfoNote>
+            <InfoNote note={noteOf(DEFAULT_SCORE, task, on.hold)} className='model-parts-note model-noted'>
+                {`Loss ${formatScore(scoreIn(on.score, DEFAULT_SCORE), DEFAULT_SCORE)}, part by part, ${daysLabel(model, hold)}`}
+            </InfoNote>
             <ul className='model-part-cells' aria-label='Loss, part by part'>
                 {LOSS_PARTS.map((each) => {
                     const part = parts.find((one) => one.key === each.key);
@@ -423,10 +410,11 @@ PartCells.propTypes = {
 
 function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false, task = undefined, parts = false, hold = null }) {
     const status = statusOf(model);
-    const live = liveCell(model, status);
+    const since = sinceOf(model, status);
     const on = scoresOn(model, hold);
     const value = scoreIn(on.score, score);
-    const gap = betterBy(value, scoreIn(on.baseline, score), score);
+    const baseline = scoreIn(on.baseline, score);
+    const gap = betterBy(value, baseline, score);
     const ticked = picked !== null;
     const address = `/model/${encodeURIComponent(model.name)}`;
 
@@ -447,6 +435,12 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
         </span>
     );
 
+    //
+    // the mockup's row (#300): the name and its status over the description,
+    // the score -- or loss's parts -- the trend line, and when the live version
+    // went live. The box that ticks it for the comparison comes first, and its
+    // bell after its status, as the mockup draws neither
+    //
     return (
         <div className={`model-row${status === 'retired' ? ' model-row-retired' : ''}`} role='listitem'>
             <div className='model-cell model-cell-compare'>
@@ -459,6 +453,7 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                 <div className='model-name-line'>
                     <Link className='model-name' to={address}>{model.name}</Link>
                     <StatusPill model={model} />
+                    <AlarmBell model={model} held={held} />
                 </div>
                 <span className='model-address'>{address}</span>
                 {model.description ? <p className='model-description'>{model.description}</p> : null}
@@ -466,37 +461,26 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                     ? <Link className='model-picks-link' to={`${address}/picks`}>See its picks &rsaquo;</Link>
                     : null}
             </div>
-            <div className='model-cell model-cell-alarm'>
-                <AlarmBell model={model} held={held} />
-            </div>
-            <div className='model-cell model-cell-live'>
-                <span className='model-cell-label'>Live version</span>
-                <span className='model-figure'>{live.figure}</span>
-                <span className='model-figure-detail'>{live.detail}</span>
-            </div>
-            <div className='model-cell model-cell-went'>
-                <span className='model-cell-label'>Went live</span>
-                <span className='model-figure'>{`${model.attempts.went_live} of ${model.attempts.total}`}</span>
-                <span className='model-figure-detail'>attempts</span>
-            </div>
-            <div className='model-cell model-cell-trend'>
-                <span className='model-cell-label'>{`Last ${TREND_DAYS} days`}</span>
-                <TrendLine name={model.name} rows={rows} axis={axis} score={score} days={averageDays(model)} hold={hold} />
-            </div>
             {parts
                 ? <PartCells model={model} rows={rows} task={task} hold={hold} />
                 : (
                     <div className='model-cell model-cell-score'>
-                        <InfoNote note={noteOf(score, task, on.hold)} className='model-cell-label model-noted'>{scoreLabel(model, score, hold)}</InfoNote>
+                        <span className='visually-hidden'>{`${scoreOf(score).label}${namedHold(on.hold, true)}: `}</span>
                         <span className='model-score-value'>{formatScore(value, score)}</span>
-                        <span className={`model-gap model-gap-${standing(gap, score)}`}>{gapWords(gap, score)}</span>
+                        <InfoNote note={noteOf(score, task, on.hold)} className='model-score-days model-noted'>{daysLabel(model, hold)}</InfoNote>
+                        <span className={`model-gap model-gap-${standing(gap, score)}`}>
+                            {gapWords(gap, score)}
+                            {gap === null ? '' : `, ${formatScore(baseline, score)}`}
+                        </span>
                     </div>
                 )}
+            <div className='model-cell model-cell-trend'>
+                <TrendLine name={model.name} rows={rows} axis={axis} score={score} days={averageDays(model)} hold={hold} />
+            </div>
             <div className='model-cell model-cell-since'>
-                <span className='model-figure-detail'>{sinceLine(model, status)}</span>
-                {status === 'down'
-                    ? <span className='model-figure-detail'>{`${live.detail.charAt(0).toUpperCase()}${live.detail.slice(1)}.`}</span>
-                    : null}
+                <span className='model-since'>{since.since}</span>
+                <span className='model-since-went'>{since.went}</span>
+                {since.why ? <span className='model-since-why'>{since.why}</span> : null}
             </div>
         </div>
     );

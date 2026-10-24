@@ -464,14 +464,16 @@
 }
 
 //
-// the score picker and the sort: pills in /stream's rate buttons' look, and a
-// menu in place of the buttons on a phone
+// the score picker and the hold picker, as the mockup of #300 draws them: the
+// picker's name over its buttons, joined in one box with a rule between each,
+// the one picked filled in the page's dark gray -- and a menu in place of the
+// buttons on a phone. The sort keeps its name beside its menu
 //
 .model-controls {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
+  gap: 16px 32px;
   margin-bottom: 0.5rem;
 }
 
@@ -483,7 +485,6 @@
   text-transform: uppercase;
 }
 
-.model-scores,
 .model-sort,
 .model-other {
   align-items: center;
@@ -493,31 +494,56 @@
   margin: 0;
 }
 
+.model-scores {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+
+  > .model-control-label {
+    font-size: 12px;
+    font-weight: normal;
+    letter-spacing: 0.04em;
+  }
+}
+
 .model-score-buttons {
+  border: 1px solid $gray-3;
+  border-radius: 8px;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  overflow: hidden;
 }
 
 .model-score {
-  background: none;
-  border: 1px solid $gray-3;
-  border-radius: 999px;
+  background-color: $white-1;
+  border: 0;
+  border-radius: 0;
+  border-right: 1px solid $gray-3;
   color: $gray-7;
   cursor: pointer;
   font: inherit;
-  min-height: 2.25rem;
-  padding: 0.3rem 0.9rem;
+  font-size: 14px;
+  min-height: 44px;
+  padding: 10px 14px;
+
+  &:last-child {
+    border-right: 0;
+  }
 
   &[aria-pressed='true'] {
-    background-color: $gray-9;
-    border-color: $gray-9;
+    background-color: $gray-7;
     color: $white-1;
   }
 
-  &:hover,
+  &:hover:not([aria-pressed='true']):not(:disabled),
   &:focus-visible {
-    border-color: $gray-7;
+    background-color: rgba(var(--ink-rgb), 0.04);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: -2px;
   }
 
   //
@@ -527,11 +553,11 @@
   &:disabled {
     color: $gray-5;
     cursor: not-allowed;
-
-    &:hover {
-      border-color: $gray-3;
-    }
   }
+}
+
+.model-holds .model-score {
+  padding: 10px 16px;
 }
 
 .model-score-menu {
@@ -545,8 +571,10 @@
 //
 .model-hold-line {
   color: $gray-7;
-  margin: 0 0 1rem;
-  max-width: 72ch;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0.4rem 0 1rem;
+  max-width: 860px;
 }
 
 .model-score-menu select,
@@ -579,7 +607,8 @@
 // as one more of '.model-scores'
 //
 .model-group-controls {
-  margin: 0.75rem 0 0.25rem;
+  gap: 12px 28px;
+  margin: 0;
 }
 
 .model-compare-controls {
@@ -597,7 +626,7 @@
   display: inline-flex;
 
   &:hover {
-    border-color: $gray-3;
+    background-color: $white-1;
   }
 }
 
@@ -630,69 +659,76 @@
 }
 
 //
-// a list per task
+// a list per task, as the mockup of #300 draws one: a rule over it, its task's
+// name and how many models it has over what they predict, its pickers, the
+// line saying what the hold is, then its rows in a box of their own
 //
 .model-group {
-  margin-top: 0.5rem;
-}
+  border-top: 1px solid $gray-2;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 22px;
+  padding-top: 18px;
 
-//
-// and each after the first further from the one over it (#287), so its heading
-// does not read as one more row of that list: 42px between them, '.model-main's
-// 1rem gap and this, where 21px was
-//
-.model-group + .model-group {
-  margin-top: 2rem;
+  > .model-hold-line {
+    margin: -4px 0 0;
+  }
 }
 
 .model-group-head {
   align-items: baseline;
-  border-bottom: 1px solid $gray-2;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  padding-bottom: 0.4rem;
+  gap: 4px 12px;
 
   h5 {
+    color: $gray-9;
+    font-size: 20px;
+    font-weight: 600;
     margin: 0;
   }
 }
 
 .model-group-detail {
   color: $gray-6;
-  flex: 1;
+  flex-basis: 100%;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 860px;
 }
 
 .model-group-count {
   color: $gray-6;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 
 //
-// a row's columns, the same under the headings as in every row. The third is the
-// bell's (#255), as wide as its button and empty for a retired model: after the
-// model's name, as a /stream row's bell comes after the stream's name (#259).
-// Then the live version, how many attempts went live and the 60-day line, and
-// the score last, as a phone's card has them, so nothing moves when the score
-// picked is changed (#283)
+// a list's rows in a box, a light rule between them, each row its parts side by
+// side as room allows: the model, its score -- or loss's parts -- its trend
+// line, and when its live version went live, each wrapping under the one before
+// where the list is too narrow for them, as the mockup's do
 //
-.model-list-head,
+.model-list {
+  border: 1px solid $gray-2;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 .model-row {
   align-items: center;
-  column-gap: 1rem;
-  display: grid;
-  grid-template-columns: 4.5rem minmax(12rem, 2fr) 2.5rem 8rem 6rem 140px minmax(9rem, 1fr);
-}
+  background-color: $white-1;
+  border-bottom: 1px solid $gray-1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 14px 16px;
 
-.model-list-head {
-  color: $gray-6;
-  font-size: 0.85rem;
-  padding: 0.5rem 0;
-}
-
-.model-row {
-  border-bottom: 1px solid $gray-2;
-  padding: 0.75rem 0;
+  &:last-child {
+    border-bottom: 0;
+  }
 }
 
 .model-row-retired .model-name,
@@ -706,22 +742,36 @@
   min-width: 0;
 }
 
-.model-cell-label {
-  display: none;
-}
-
-//
-// a phone card's line of when the live version went live and how many
-// attempts did (#300), which a wide row says in two columns of its own
-//
-.model-cell-since {
-  display: none;
-}
-
 .model-cell-compare {
   align-items: center;
+  flex: none;
   flex-direction: row;
   gap: 0.5rem;
+}
+
+.model-cell-model {
+  flex: 2 1 240px;
+  gap: 4px;
+}
+
+.model-cell-score {
+  flex: 1 1 170px;
+  gap: 2px;
+}
+
+.model-cell-parts {
+  flex: 3 1 440px;
+  gap: 6px;
+}
+
+.model-cell-trend {
+  flex: 1 1 170px;
+}
+
+.model-cell-since {
+  flex: 1 1 160px;
+  font-size: 14px;
+  gap: 2px;
 }
 
 //
@@ -779,39 +829,77 @@
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.6rem;
+  gap: 4px 10px;
+
+  //
+  // the bell after the status, its round button as tall as the name's line,
+  // where the mockup draws none
+  //
+  .model-bell {
+    margin: -0.6rem 0;
+  }
 }
 
 .model-name {
+  font-size: 17px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
 .model-address {
   color: $gray-6;
-  font-size: 0.85rem;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 
 .model-description {
-  color: $gray-7;
-  margin: 0.15rem 0 0;
+  color: $gray-6;
+  font-size: 14px;
+  margin: 0;
 }
 
+//
+// the score: its figure, how it stands against the baseline's, then the days
+// it takes in, as the mockup has them -- a phone's card puts the days beside the
+// figure
+//
 .model-score-value {
   color: $gray-9;
-  font-size: 1.15rem;
+  font-size: 20px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
+.model-cell-score > .model-gap {
+  order: 1;
+}
+
+.model-score-days {
+  color: $gray-6;
+  font-size: 13px;
+  order: 2;
+}
+
 .model-gap {
-  color: $gray-7;
-  font-size: 0.85rem;
+  color: $gray-6;
+  font-size: 13px;
 }
 
 .model-gap-level {
   color: $gray-6;
+}
+
+.model-since {
+  color: $gray-9;
+}
+
+.model-since-went {
+  color: $gray-6;
+}
+
+.model-since-why {
+  color: $gray-6;
+  font-size: 13px;
 }
 
 //
@@ -836,65 +924,22 @@
   }
 }
 
-.model-figure {
-  color: $gray-8;
-  font-variant-numeric: tabular-nums;
-}
-
-.model-figure-detail {
+//
+// loss's three parts in place of its sum (#283), as the mockup of #300 draws
+// them: a line over them saying what they add up to, and a column each, its
+// name over its figure over how it stands. A phone's card lays them out a line
+// each -- see below
+//
+.model-parts-note {
   color: $gray-6;
-  font-size: 0.85rem;
+  font-size: 13px;
+  text-align: center;
 }
 
-//
-// a list that shows loss's three parts in place of its sum (#283): a column
-// each, under the score's heading, centered over a rule across the three, and
-// each column under its part's name, kept to one line. Set widths rather than
-// each column sized to what it holds, since the headings and every row are
-// grids of their own, and would size theirs apart. The list is what its
-// columns are measured against -- see the container queries below
-//
-.model-list {
-  container-type: inline-size;
-}
-
-.model-list-parts .model-list-head,
-.model-list-parts .model-row {
-  grid-template-columns: 4.5rem minmax(9rem, 1fr) 2.5rem 8rem 6rem 140px 6.5rem 10rem 7rem;
-}
-
-//
-// every heading on the line the parts' names stand on, under the score's
-//
-.model-list-parts .model-list-head {
-  align-items: end;
-}
-
-.model-parts-head,
-.model-list-parts .model-cell-parts,
 .model-part-cells {
   display: grid;
-  grid-column: span 3;
-  grid-template-columns: subgrid;
-}
-
-.model-parts-head {
-  row-gap: 0.2rem;
-
-  > .model-noted {
-    border-bottom: 1px solid $gray-3;
-    grid-column: 1 / -1;
-    padding-bottom: 0.2rem;
-    text-align: center;
-  }
-
-  > span {
-    white-space: nowrap;
-  }
-}
-
-.model-part-cells {
-  grid-column: 1 / -1;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
@@ -903,143 +948,34 @@
 .model-part-cell {
   display: flex;
   flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
-//
-// out of sight where the columns' headings name the parts, though still read
-// out, as the headings are hidden from a screen reader
-//
 .model-part-cell-name {
-  clip-path: inset(50%);
-  height: 1px;
-  overflow: hidden;
-  position: absolute;
-  white-space: nowrap;
-  width: 1px;
+  color: $gray-6;
+  font-size: 13px;
 }
 
 .model-part-cell-value {
   color: $gray-9;
-  font-size: 1.15rem;
+  font-size: 18px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
 //
-// the parts as a phone's card lays them out: a line each, the part's name at
-// the left, its figure and how it stands at the right, each in a column the
-// three lines share
+// a trend line's box: as wide as the room its row gives it, and 44px tall --
+// model-row.jsx's TREND_HEIGHT -- as the mockup of #300 draws it
 //
-@mixin model-part-lines {
-  .model-list-parts .model-cell-parts {
-    display: block;
-  }
-
-  .model-part-cells {
-    column-gap: 0.6rem;
-    font-size: 0.85rem;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    row-gap: 0.15rem;
-  }
-
-  .model-part-cell {
-    align-items: baseline;
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: subgrid;
-  }
-
-  .model-part-cell-name {
-    clip-path: none;
-    color: $gray-7;
-    height: auto;
-    overflow: visible;
-    position: static;
-    white-space: normal;
-    width: auto;
-  }
-
-  .model-part-cell-value {
-    font-size: 0.95rem;
-    text-align: right;
-  }
-}
-
-@media (min-width: 768px) {
-  //
-  // a list too narrow for the three columns with each name on one line, as at
-  // 1280px wide with the filters open: one column under the score's heading,
-  // still centered over its rule, and the parts in lines as a phone's card has
-  // them, each naming its part, where the names had broken over three lines
-  //
-  @container (max-width: 72rem) {
-    .model-list-parts .model-list-head,
-    .model-list-parts .model-row {
-      column-gap: 0.75rem;
-      grid-template-columns: 4.5rem minmax(9rem, 1fr) 2.5rem 7rem 5rem 140px 19.5rem;
-    }
-
-    .model-parts-head {
-      display: block;
-      grid-column: auto;
-
-      > .model-noted {
-        display: block;
-      }
-
-      > span:not(.model-noted) {
-        display: none;
-      }
-    }
-
-    .model-list-parts .model-cell-parts {
-      grid-column: auto;
-    }
-
-    @include model-part-lines;
-  }
-
-  //
-  // a list too narrow for the 60-day line as well, as from 992px to 1199px wide
-  // with the filters open: every list without it, where the list had run 90px
-  // past its column and the page had scrolled sideways
-  //
-  @container (max-width: 62rem) {
-    .model-list-head,
-    .model-row {
-      grid-template-columns: 4.5rem minmax(12rem, 2fr) 2.5rem 8rem 6rem minmax(9rem, 1fr);
-    }
-
-    .model-list-parts .model-list-head,
-    .model-list-parts .model-row {
-      grid-template-columns: 4.5rem minmax(9rem, 1fr) 2.5rem 7rem 5rem 19.5rem;
-    }
-
-    .model-head-trend,
-    .model-cell-trend {
-      display: none;
-    }
-  }
-}
-
-//
-// a trend line's box: model-row.jsx's TREND_WIDTH and TREND_HEIGHT
-//
-$model-trend-width: 132px;
-
 .model-trend,
 .model-trend-pending,
 .model-trend-none {
   display: block;
-  height: 36px;
-  width: $model-trend-width;
+  height: 44px;
+  width: 100%;
 }
 
-//
-// a trend line's place while its track record is on its way, a block in
-// /graph's waiting gray, breathing as its bars do -- see '.graph-pending-bar'
-//
 .model-trend-pending {
   animation: graph-pending-breathe 1.4s ease-in-out infinite;
   background-color: $gray-2;
@@ -1088,7 +1024,7 @@ $model-trend-width: 132px;
 
 .model-trend-none {
   color: $gray-6;
-  line-height: 36px;
+  line-height: 44px;
 }
 
 //
@@ -1138,10 +1074,6 @@ $model-trend-width: 132px;
   .control-tray .control-button:hover:before {
     display: none;
   }
-}
-
-.model-cell-alarm {
-  align-items: center;
 }
 
 //
@@ -2402,25 +2334,33 @@ $model-trend-width: 132px;
   }
 
   //
-  // the score picker and the sort in a label column and a dropdown column the
-  // two share, so the dropdowns start at the one point, past the wider label,
-  // and each runs to the line's end (#272): they stopped partway across, one
-  // further in than the other. 0.75rem between the two, as between any
-  // controls stacked one over another, and 1rem under a model page's, as
-  // under any row of controls: 7px each had run them together
+  // the pickers as the mockup of #300 draws them on a phone: each picker's name
+  // over its menu, a Score menu and a Hold menu side by side, and one on its
+  // own across the line. The sort keeps its name beside its menu, which runs
+  // to the line's end (#272)
   //
   .model-controls {
-    column-gap: 0.5rem;
+    column-gap: 10px;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 0.75rem;
   }
 
-  .model-scores,
+  .model-scores {
+    gap: 4px;
+    grid-column: 1 / -1;
+  }
+
+  .model-controls:has(> .model-holds) > .model-scores {
+    grid-column: auto;
+  }
+
   .model-sort {
+    align-items: center;
+    column-gap: 0.5rem;
     display: grid;
     grid-column: 1 / -1;
-    grid-template-columns: subgrid;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .model-score-menu {
@@ -2428,35 +2368,18 @@ $model-trend-width: 132px;
     min-width: 0;
   }
 
-  .model-score-menu select,
+  .model-score-menu select {
+    border-radius: 8px;
+    font-size: 15px;
+    min-height: 44px;
+    width: 100%;
+  }
+
   .model-sort select {
     width: 100%;
   }
 
   .model-page .model-controls {
-    margin-bottom: 1rem;
-  }
-
-  //
-  // a Score menu and a Hold menu side by side, each under its name (#300),
-  // where they stacked: on a model's page with holds, and over each list that
-  // has them. The line under them comes 0.75rem after, as any line under a row
-  // of controls
-  //
-  .model-controls:has(> .model-holds) {
-    column-gap: 0.75rem;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-
-    > .model-scores {
-      align-items: stretch;
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      grid-column: auto;
-    }
-  }
-
-  .model-page .model-controls:has(> .model-holds) {
     margin-bottom: 0.75rem;
   }
 
@@ -2610,123 +2533,166 @@ $model-trend-width: 132px;
     text-transform: uppercase;
   }
 
-  .model-list-head {
-    display: none;
+  //
+  // /model's lists on a phone, as the mockup of #300 draws them: each under its
+  // rule, its name, count and what it predicts in smaller type, its line under
+  // the pickers too, and each model a card of its own, 12px apart, with no box
+  // round them all
+  //
+  .model-group {
+    gap: 12px;
+    padding-top: 16px;
   }
 
-  .model-group-detail {
-    flex-basis: 100%;
-    order: 3;
+  .model-group-head h5 {
+    font-size: 19px;
+  }
+
+  .model-group-detail,
+  .model-group > .model-hold-line {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .model-group > .model-hold-line {
+    margin: 0;
+  }
+
+  .model-list {
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .model-list > [role='list'] {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
 
   //
-  // the bell at the card's top right, after the box that ticks it (#255). Each
-  // cell is placed by name here, so the row's order on a wide screen (#259)
-  // moves nothing on a card.
-  //
-  // The model's cell gives up its own box, so its name's line keeps beside the
-  // box and the bell, and its address and description run the card's whole
-  // width under them: they stopped at the box's column, and left the card's
-  // right side empty (#274). 1rem inside the card's edge, where 0.75rem crowded
-  // it. The model's lines keep their own spacing, so 0.6rem goes over each row
-  // of figures rather than between every row.
-  //
-  // Under them, across the card, the score (#283), then the 60-day line as wide
-  // as the card, and last a line of when the live version went live and how
-  // many attempts did (#300), which take the place of their two figures: the
-  // figures and the line had stood side by side, the line squeezed to 132px
+  // a card, 8px between each of its parts: its name, status and bell, with the
+  // box that ticks it at the right, over its address and description; its score
+  // -- the figure with its days beside it, and how it stands under them -- or
+  // loss's parts a line each; the trend line as wide as the card; and a line of
+  // when its live version went live and how many attempts did
   //
   .model-row {
+    align-items: stretch;
     border: 1px solid $gray-2;
     border-radius: 8px;
-    column-gap: 0.75rem;
+    column-gap: 8px;
+    display: grid;
     grid-template-areas:
-      'name name name compare alarm'
-      'address address address address address'
-      'about about about about about'
-      'picks picks picks picks picks'
-      'score score score score score'
-      'trend trend trend trend trend'
-      'since since since since since';
-    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
-    margin-top: 0.6rem;
-    padding: 1rem;
+      'model compare'
+      'score score'
+      'trend trend'
+      'since since';
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 12px;
+    row-gap: 8px;
   }
 
-  .model-cell-model { display: contents; }
-  .model-name-line { grid-area: name; }
-  .model-address { grid-area: address; }
-  .model-description { grid-area: about; }
+  .model-row:last-child {
+    border-bottom: 1px solid $gray-2;
+  }
 
-  //
-  // an options model's link to its picks (#290), across the card under its
-  // description. A row without one leaves its line empty, and no taller
-  //
-  .model-picks-link { grid-area: picks; justify-self: start; }
-
-  //
-  // as tall as the name's line, so the box sits at its middle, level with the
-  // bell's glyph: it sat at the line's top, 3px over the glyph
-  //
-  .model-cell-compare { grid-area: compare; align-self: start; height: 1.5rem; }
-
-  //
-  // raised so its glyph sits on the name's line rather than under it: the
-  // button is a finger tall, and its glyph is at its middle. As much off its
-  // foot, so the line keeps its height and the address stays under it, and
-  // 0.75rem into the gap before it: with the room the button keeps around its
-  // glyph, the gap had put 26px between the box and the glyph
-  //
-  .model-cell-alarm { grid-area: alarm; align-self: start; margin: -0.625rem 0 -0.625rem -0.75rem; }
-
+  .model-cell-model { grid-area: model; }
+  .model-cell-compare { grid-area: compare; align-self: start; height: 1.75rem; }
   .model-cell-score,
-  .model-cell-trend,
-  .model-cell-since {
-    margin-top: 0.6rem;
-  }
-
-  .model-cell-score { grid-area: score; }
+  .model-cell-parts { grid-area: score; }
   .model-cell-trend { grid-area: trend; }
-  .model-cell-since { display: flex; grid-area: since; }
 
-  .model-cell-live,
-  .model-cell-went {
-    display: none;
+  .model-name {
+    font-size: 16px;
   }
 
-  .model-trend,
-  .model-trend-pending,
-  .model-trend-none {
-    width: 100%;
+  .model-description {
+    font-size: 13px;
+    line-height: 1.45;
   }
 
-  //
-  // the score under a light rule, so the figures over it and the score read as
-  // two parts of the card (#283), and loss's parts a line each, across the card.
-  // A wide screen's grid for them gives way to the card's
-  //
-  .model-list-parts .model-row {
-    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  .model-cell-score {
+    align-items: baseline;
+    column-gap: 8px;
+    display: grid;
+    grid-template-areas:
+      'value days'
+      'gap gap';
+    justify-content: space-between;
   }
 
-  @include model-part-lines;
+  .model-score-value {
+    font-size: 18px;
+    grid-area: value;
+  }
 
-  .model-cell-score,
-  .model-list-parts .model-cell-parts {
-    border-top: 1px solid $gray-2;
-    grid-area: score;
-    margin-top: 0.75rem;
-    padding-top: 0.6rem;
+  .model-score-days {
+    grid-area: days;
+    text-align: right;
+  }
+
+  .model-cell-score > .model-gap {
+    grid-area: gap;
+  }
+
+  .model-parts-note {
+    text-align: left;
   }
 
   .model-part-cells {
-    margin-top: 0.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
-  .model-cell-label {
-    color: $gray-6;
+  .model-part-cell {
+    align-items: baseline;
+    border-bottom: 1px solid $gray-1;
+    column-gap: 8px;
+    display: grid;
+    font-size: 14px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    padding-bottom: 6px;
+  }
+
+  .model-part-cell-name {
+    font-size: 14px;
+  }
+
+  .model-part-cell-value {
+    font-size: 14px;
+    font-weight: normal;
+    text-align: right;
+  }
+
+  .model-part-cell .model-gap {
+    font-size: 14px;
+  }
+
+  //
+  // when its live version went live and how many attempts did, as one line:
+  // 'Live since Oct 23 · 7 of 11 attempts went live'
+  //
+  .model-cell-since {
     display: block;
-    font-size: 0.8rem;
+    font-size: 13px;
+    grid-area: since;
+  }
+
+  .model-since,
+  .model-since-went {
+    color: $gray-6;
+    display: inline;
+  }
+
+  .model-since-went::before {
+    content: ' · ';
+  }
+
+  .model-since-why {
+    display: block;
+    margin-top: 2px;
   }
 
   .model-card {
