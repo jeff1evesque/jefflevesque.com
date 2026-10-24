@@ -63,6 +63,7 @@ import {
     noteOf,
     scoreIn,
     scoreOf,
+    scoresAt,
     scoresOn,
     shortDay,
     standing,
@@ -317,8 +318,8 @@ TrendLine.propTypes = {
 // that has none, and 'last 20 days before retiring' for a retired model -- the
 // listing's `average_days` (#293), or on a hold, the hold's own days
 //
-function daysLabel(model, hold) {
-    const on = scoresOn(model, hold);
+function daysLabel(model, hold, rows) {
+    const on = scoresAt(model, hold, rows);
     const days = averageDays(model);
 
     if (on.hold && !on.days) {
@@ -421,7 +422,7 @@ PartCells.propTypes = {
 function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = false, task = undefined, parts = false, hold = null }) {
     const status = statusOf(model);
     const since = sinceOf(model, status);
-    const on = scoresOn(model, hold);
+    const on = scoresAt(model, hold, rows);
     const value = scoreIn(on.score, score);
     const baseline = scoreIn(on.baseline, score);
     const gap = betterBy(value, baseline, score);
@@ -475,8 +476,10 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
                 : (
                     <div className='model-cell model-cell-score'>
                         <span className='visually-hidden'>{`${scoreOf(score).label}${namedHold(on.hold, true)}: `}</span>
-                        <span className='model-score-value'>{formatScore(value, score)}</span>
-                        <InfoNote note={noteOf(score, task, on.hold)} className='model-score-days model-noted'>{daysLabel(model, hold)}</InfoNote>
+                        <span className='model-score-value'>{on.pending ? <PendingBar width='3.5rem' /> : formatScore(value, score)}</span>
+                        <InfoNote note={noteOf(score, task, on.hold)} className='model-score-days model-noted'>
+                            {on.pending ? <PendingBar width='5rem' /> : daysLabel(model, hold, rows)}
+                        </InfoNote>
                         <span className={`model-gap model-gap-${standing(gap, score)}`}>
                             {gapWords(gap, score)}
                             {gap === null ? '' : `, ${formatScore(baseline, score)}`}

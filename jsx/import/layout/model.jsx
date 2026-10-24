@@ -68,6 +68,7 @@ import { listSubscriptions } from '../general/account-api.js';
 import { GUIDES } from '../general/api-url.js';
 import { loadListing, loadReport } from './model/source.js';
 import {
+    HOLDS,
     STATUSES,
     averageDays,
     chosenScore,
@@ -82,6 +83,7 @@ import {
     showsParts,
     sortModels,
     statusOf,
+    tradesOptions,
 } from './model/scores.js';
 
 //
@@ -445,12 +447,15 @@ class ModelLayout extends Component {
 
     //
     // the holds a task's list offers, from format 5 on (#300): those the
-    // listing gives any of its models' scores on, and none before. And the one
-    // it is on: the one picked for the task, where it is offered, and the first
+    // listing gives any of its models' scores on -- and before then, for a task
+    // that trades options, its three, whose scores each row reads from its
+    // model's track record, as the model's own page does (#279). And the one it
+    // is on: the one picked for the task, where it is offered, and the first
     // otherwise, 1 day
     //
     holdFor(task) {
-        const holds = holdsAmong(this.state.listing.models.filter((model) => model.task === task.id));
+        const listed = holdsAmong(this.state.listing.models.filter((model) => model.task === task.id));
+        const holds = !listed.length && tradesOptions(task) ? HOLDS : listed;
         const picked = this.props.holds[task.id];
         const offered = holds.some((each) => each.days === picked);
 
@@ -762,7 +767,7 @@ class ModelLayout extends Component {
                     {holds.length ? <p className='model-hold-line'>{listLine(task, hold)}</p> : null}
                     <div className={parts ? 'model-list model-list-parts' : 'model-list'}>
                         <div role='list' aria-label={`${task.name} models`}>
-                            {sortModels(models, 'score', score, hold).map((model) => {
+                            {sortModels(models, 'score', score, hold, records).map((model) => {
                                 const tick = picked.find((each) => each.name === model.name);
 
                                 return (

@@ -1511,14 +1511,73 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
         expect(namesIn('Next-day direction')).toEqual(['tables-gnn', 'pt-gnn']);
     });
 
-    it('draws no hold picker on a list whose models the listing gives no holds, as before format 5', async () => {
+    it('draws no hold picker on a list of stock models the listing gives no holds, as before format 5', async () => {
         answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(5) : withTop10(trackOf(5))));
         await open({ holds: { direction: 5 } });
 
         expect(within(group('Next-day direction')).queryByRole('group', { name: 'Hold' })).toBeNull();
-        expect(within(group('Option picks')).queryByRole('group', { name: 'Hold' })).toBeNull();
         expect(group('Next-day direction').querySelector('.model-hold-line')).toBeNull();
         expect(group('Next-day direction').querySelector('.model-parts-note')).toHaveTextContent(/, last 20 days$/);
+    });
+
+    describe('an options list before format 5, its holds from its models\' track records (#300)', () => {
+        const optionsRow = () => rowOf('pt-options');
+        const valueIn = () => optionsRow().querySelector('.model-score-value');
+        const daysIn = () => optionsRow().querySelector('.model-score-days');
+
+        it('offers its three holds on 1 day, with the line saying what the hold is', async () => {
+            answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(30) : withTop10(trackOf(5))));
+            await open();
+
+            expect(buttons('Option picks', 'Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days']);
+            expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
+            expect(group('Option picks').querySelector('.model-hold-line'))
+                .toHaveTextContent('1-day hold: bought at the 9:40 AM ask on the next trading day and sold at the 3:40 PM bid the day after.');
+        });
+
+        it('shows each row\'s score on a longer hold as its track record has it, and its days', async () => {
+            const rows = optionsTrackOf(30);
+            const scored = (hold) => rows.filter((row) => row.score[`loss_${hold}d`] !== null);
+            const newest = (hold) => scored(hold)[scored(hold).length - 1];
+
+            const onHold = jest.fn();
+
+            answer(optionsListingOf(), (name) => (name === 'pt-options' ? rows : withTop10(trackOf(5))));
+
+            const { unmount } = await open({ holds: { 'option-picks': 5 }, onHold: onHold });
+
+            expect(valueIn()).toHaveTextContent(formatScore(newest(5).average.loss_5d, 'loss'));
+            expect(daysIn()).toHaveTextContent('last 20 days');
+            expect(optionsRow().querySelector('.model-cell-score .model-gap')).toHaveTextContent(`, ${formatScore(newest(5).baseline_average.loss_5d, 'loss')}`);
+            expect(group('Option picks').querySelector('.model-hold-line')).toHaveTextContent('5-day hold: sold at the 3:40 PM bid 5 trading days after the buy day.');
+
+            await userEvent.click(within(within(group('Option picks')).getByRole('group', { name: 'Hold' })).getByRole('button', { name: '20 days' }));
+
+            expect(onHold).toHaveBeenCalledWith('option-picks', 20);
+
+            unmount();
+            await open({ holds: { 'option-picks': 20 } });
+
+            expect(valueIn()).toHaveTextContent(formatScore(newest(20).average.loss_20d, 'loss'));
+            expect(daysIn()).toHaveTextContent(`${scored(20).length} days so far`);
+        });
+
+        it('holds bars in a row\'s figures on a longer hold while its track record is on its way', async () => {
+            loadListing.mockResolvedValue(optionsListingOf());
+            loadReport.mockImplementation((name) => (name === 'pt-options' ? new Promise(() => {}) : Promise.resolve(withTop10(trackOf(5)))));
+            await open({ holds: { 'option-picks': 5 } });
+
+            expect(valueIn().querySelector('.graph-pending-bar')).not.toBeNull();
+            expect(daysIn().querySelector('.graph-pending-bar')).not.toBeNull();
+        });
+
+        it('shows a dash where the track record could not be had', async () => {
+            answer(optionsListingOf(), (name) => (name === 'pt-options' ? null : withTop10(trackOf(5))));
+            await open({ holds: { 'option-picks': 5 } });
+
+            expect(valueIn()).toHaveTextContent('–');
+            expect(daysIn()).toHaveTextContent('no scored days yet');
+        });
     });
 
     it('draws each model ticked on its list\'s hold in the comparison, named with it', async () => {
