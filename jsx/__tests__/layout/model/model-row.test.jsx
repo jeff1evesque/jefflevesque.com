@@ -214,6 +214,13 @@ describe('the link to an options model\'s picks (#290)', () => {
         draw({ model: optionsModelOf({ retired: '2026-10-19' }), task: OPTIONS_TASK, rows: [] });
         expect(screen.queryByRole('link', { name: 'See its picks ›' })).toBeNull();
     });
+
+    it('is not on the row of an options model taken down, whose last picks are not this night\'s (#295)', () => {
+        draw({ model: optionsModelOf({ down: { since: '2026-10-23', reason: 'track_record', days: null, in_a_row: null } }), task: OPTIONS_TASK, rows: [] });
+
+        expect(screen.getByText('Behind baseline')).toHaveClass('model-pill-down');
+        expect(screen.queryByRole('link', { name: 'See its picks ›' })).toBeNull();
+    });
 });
 
 describe('a model whose live version was taken down (#263)', () => {
@@ -236,6 +243,16 @@ describe('a model whose live version was taken down (#263)', () => {
 
         expect(container.querySelector('.model-cell-live .model-figure-detail'))
             .toHaveTextContent('its 5-day average was worse than the baseline’s 10 days in a row');
+    });
+
+    it.each([
+        ['not_ahead', 'it went live without beating the baseline'],
+        ['track_record', 'its track record showed nothing better than the baseline'],
+    ])('says why where no check did it, from format 4 (%s, #295)', (reason, why) => {
+        const { container } = draw({ model: downModelOf({ down: { since: '2026-10-23', reason: reason, days: null, in_a_row: null } }) });
+
+        expect(container.querySelector('.model-cell-live .model-figure')).toHaveTextContent(/^Taken down Oct 23$/);
+        expect(container.querySelector('.model-cell-live .model-figure-detail')).toHaveTextContent(new RegExp(`^${why}$`));
     });
 
     it('names its score so far where it was taken down before its 20th scored day', () => {
