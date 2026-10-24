@@ -71,6 +71,7 @@ jest.mock('../../import/navigation/menu-items/login.jsx', () => mockProbe('login
 jest.mock('../../import/content/login.jsx', () => mockProbe('login'));
 jest.mock('../../import/layout/model.jsx', () => mockProbe('model'));
 jest.mock('../../import/layout/model/model-page.jsx', () => mockProbe('model-page'));
+jest.mock('../../import/layout/model/picks-page.jsx', () => mockProbe('picks-page'));
 jest.mock('../../import/layout/page.jsx', () => mockProbe('page'));
 jest.mock('../../import/navigation/menu-items/register.jsx', () => mockProbe('register-link'));
 jest.mock('../../import/layout/register/content/webform.jsx', () => mockProbe('register'));
@@ -86,7 +87,7 @@ import HeaderMenuState from '../../import/redux/container/header-menu.jsx';
 import HomePageState from '../../import/redux/container/home-page.jsx';
 import LoginLinkState from '../../import/redux/container/login-link.jsx';
 import LoginState from '../../import/redux/container/login.jsx';
-import ModelLayoutState, { ModelPageState } from '../../import/redux/container/model.jsx';
+import ModelLayoutState, { ModelPageState, ModelPicksState } from '../../import/redux/container/model.jsx';
 import PageLayoutState from '../../import/redux/container/page.jsx';
 import RegisterLinkState from '../../import/redux/container/register-link.jsx';
 import RegisterState from '../../import/redux/container/register.jsx';
@@ -315,6 +316,27 @@ describe('the model container\'s hold, for a model\'s page (#279)', () => {
 
         expect(store.getState().model).toEqual({ scores: {}, hold: 20 });
         expect(mockSeen['model-page'].hold).toBe(20);
+    });
+});
+
+describe('the model container\'s hold, for an options model\'s picks page (#290)', () => {
+    it('maps the picks page the hold and the way to pick one, and nothing else', () => {
+        const { props } = propsOf(ModelPicksState, { user: { name: 'jeff' } }, 'picks-page');
+
+        expect(Object.keys(props).sort()).toEqual(['hold', 'onHold']);
+    });
+
+    it('hands it the hold the model\'s page holds, so a hold picked on one is the other\'s', () => {
+        expect(propsOf(ModelPicksState, { model: { scores: {}, hold: 5 } }, 'picks-page').props.hold).toBe(5);
+        expect(propsOf(ModelPicksState, {}, 'picks-page').props.hold).toBe(1);
+
+        const store = realStore();
+
+        render(<Provider store={store}><ModelPicksState /></Provider>);
+        act(() => mockSeen['picks-page'].onHold(20));
+
+        expect(store.getState().model).toEqual({ scores: {}, hold: 20 });
+        expect(mockSeen['picks-page'].hold).toBe(20);
     });
 });
 
