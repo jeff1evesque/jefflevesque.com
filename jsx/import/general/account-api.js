@@ -5,6 +5,7 @@
  *
  *     signedIn()                             whether there is a reader at all, asking no one
  *     readerToken()                          the reader's own ID token, for them to copy
+ *     readAsReader(url)                      another api's private GET, as the reader (#290)
  *     listSubscriptions()                    the reader's subscriptions, every stream's and model's
  *     subscribe(stream, alarm, terms)        subscribe, having accepted that version of the terms
  *     unsubscribe(stream, alarm)             unsubscribe
@@ -154,6 +155,22 @@ export async function signedIn() {
  */
 export async function readerToken() {
     return amplifyCurrentUser();
+}
+
+/**
+ * a GET of another of the site's apis as the signed-in reader (#290), asked as every
+ * call here is: the ID token as a bearer token, no request at all while signed out,
+ * and a 401 read as a session that has ended. Resolves to { report }, or null signed
+ * out. Any other refusal rejects with an AccountError carrying its status.
+ *
+ * The model api serves an options model's picks this way -- see model/source.js's
+ * loadOptionPicks -- on a private path of its own, as this api serves a reader's
+ * subscriptions.
+ */
+export async function readAsReader(url) {
+    const result = await asReader(url, 'GET');
+
+    return result === SIGNED_OUT ? null : result;
 }
 
 /**
