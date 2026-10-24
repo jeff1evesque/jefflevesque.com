@@ -574,15 +574,19 @@ describe('a model\'s own page, as #300 lays it out', () => {
         expect(declared(rule('.model-page .model-attempts > .model-card-sub'), 'margin-left')).toBe('56px');
     });
 
-    it('holds a night\'s numbers in one panel on a light tint under the attempts\' charts', () => {
-        const panel = rule('.model-attempt-panel');
+    it('draws a day\'s numbers in a popup by the chart\'s pointer, a shadow under it, no wider than a phone\'s chart holds (#300)', () => {
+        const popup = rule('.model-chart-tip');
 
-        expect(declared(panel, 'background-color')).toBe('color-mix(in srgb, $gray-1 45%, $white-1)');
-        expect(declared(panel, 'border-radius')).toBe('6px');
-        expect(declared(panel, 'padding')).toBe('10px 12px');
-        expect(declared(panel, 'flex-direction')).toBe('column');
-        expect(declared(panel, 'gap')).toBe('4px');
-        expect(declared(rule('.model-attempt-panel-title'), 'font-weight')).toBe('600');
+        expect(declared(popup, 'box-shadow')).toBe('0 1px 3px rgba(0, 0, 0, 0.18)');
+        expect(declared(popup, 'font-size')).toBe('13px');
+        expect(declared(popup, 'line-height')).toBe('1.35');
+        expect(declared(popup, 'max-width')).toBe('260px');
+        expect(declared(popup, 'padding')).toBe('6px 10px');
+        expect(declared(popup, 'width')).toBe('max-content');
+    });
+
+    it('holds no panel under the attempts\' charts, which the popups took the place of (#300)', () => {
+        expect(source).not.toMatch(/model-attempt-panel/);
     });
 
     it('says in the middle of a light tint, where the track record\'s chart would be, when a hold\'s results come in', () => {
@@ -616,33 +620,24 @@ describe('a model\'s own page, as #300 lays it out', () => {
     });
 
     describe('on a phone', () => {
-        it('sets the charts 40px in, at their values\' axis, and the attempts\' headings and lines over them with them (#300)', () => {
-            expect(declared(rule('.model-page .model-card-minor,.model-page .model-attempts > .model-card-sub'), 'margin-left')).toBe('40px');
+        it('starts the attempts\' headings and lines at the card\'s edge, as its title does, the charts\' values inside them (#300)', () => {
+            expect(declared(rule('.model-page .model-card-minor,.model-page .model-attempts > .model-card-sub'), 'margin-left')).toBe('0');
         });
 
-        it('lays a legend out in two columns, which way the axis runs on a line of its own (#300)', () => {
-            const legend = rulesOf('.model-page .model-legend').find((each) => declared(each, 'display') === 'grid');
-
-            expect(declared(legend, 'grid-template-columns')).toBe('repeat(2, minmax(0, 1fr))');
-            expect(declared(legend, 'gap')).toBe('6px 12px');
-            expect(declared(rule('.model-page .model-legend-note'), 'grid-column')).toBe('1 / -1');
+        it('keeps of a legend only which way the axis runs: the popup a tap opens names every line and mark (#300)', () => {
+            expect(declared(rule('.model-page .model-legend > li:not(.model-legend-note)'), 'display')).toBe('none');
+            expect(rulesOf('.model-page .model-legend').some((each) => declared(each, 'display') === 'grid')).toBe(false);
+            expect(rule('.model-page .model-legend-note')).toBeUndefined();
         });
 
-        it('rules each line of the attempts\' panel off from the one before, so a line that wraps reads as one (#300)', () => {
-            const line = rule('.model-attempt-panel > span + span');
-
-            expect(declared(line, 'border-top')).toBe('1px solid $gray-2');
-            expect(declared(line, 'padding-top')).toBe('6px');
-        });
-
-        it('draws the three figures as boxes 8px apart, a name over its value in the middle, on a light tint (#300)', () => {
+        it('draws the three figures as boxes 8px apart, a name over its value in the middle, on a light tint inside a light rule (#300)', () => {
             const box = rule('.model-summary-boxes .stream-focus-figure');
 
             expect(declared(rule('.model-summary-boxes .stream-focus-figures'), 'gap')).toBe('8px');
             expect(declared(box, 'align-items')).toBe('center');
             expect(declared(box, 'text-align')).toBe('center');
             expect(declared(box, 'background-color')).toBe('color-mix(in srgb, $gray-1 60%, $white-1)');
-            expect(declared(box, 'border')).toBe('0');
+            expect(declared(box, 'border')).toBe('1px solid $gray-2');
             expect(declared(box, 'border-radius')).toBe('8px');
             expect(declared(box, 'padding')).toBe('10px');
         });
