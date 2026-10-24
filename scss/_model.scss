@@ -2970,6 +2970,15 @@
     padding: 12px;
   }
 
+  //
+  // a model's name at 22px on a phone, about /model's title, so its status and
+  // its bell stay on its line: at 28px, 'tables-options' and 'New · day 4 of 20'
+  // left the bell no room on a 390px phone (#300)
+  //
+  .model-page .model-heading h4 {
+    font-size: 22px;
+  }
+
   .model-summary-cards {
     display: none;
   }

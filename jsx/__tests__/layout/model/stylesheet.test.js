@@ -135,6 +135,14 @@ describe('a list of /model, as #300 lays one out', () => {
         expect(source).not.toMatch(/flex: (2 1 240px|1 1 170px|3 1 440px|1 1 160px)/);
     });
 
+    it('names a model at 22px on a phone\'s page, and 28px on a wider screen\'s, so its status and bell keep to its line (#300)', () => {
+        const sizes = source.match(/\.model-page \.model-heading h4 \{\s*font-size: (\d+px);/g) || [];
+
+        expect(sizes.map((rule) => rule.match(/(\d+px)/)[1])).toEqual(['22px']);
+        expect(source).toMatch(/\.model-heading h4 \{\s*color: \$gray-9;\s*font-size: 28px;/);
+        expect(source.indexOf('.model-page .model-heading h4 {')).toBeGreaterThan(source.indexOf('@media (max-width: 767.98px) {\n  .model-columns'));
+    });
+
     it('stacks a row\'s parts under its model, each at the model\'s left edge, in a list too narrow for its score beside it (#300)', () => {
         const narrow = source.match(/@container \(max-width: 680px\) \{\s*\.model-row \{([^}]*)\}/);
 
