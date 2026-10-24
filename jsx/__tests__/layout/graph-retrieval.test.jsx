@@ -361,14 +361,15 @@ describe('the day details', () => {
 
         expect([...document.querySelectorAll('.graph-details-row dt')].map((dt) => dt.textContent))
             .toEqual([
-                'Day', 'Run', 'Started', 'Finished', 'Published', 'Sources',
+                'Day', 'Processing data', 'Published', 'Sources',
                 'Entities', 'Facts', 'Node types', 'Nodes', 'Edge types', 'Edges',
             ]);
     });
 
-    it('stands in for each of the day\'s times at the width of a timestamp', async () => {
+    it('stands in for the day\'s range and its time at the widths of a range and a timestamp', async () => {
         //
-        // the build panel's own times are drawn at that width, and so are these
+        // the build panel draws its own ranges at that width, and a timestamp
+        // was 9rem there
         //
         getTableDays.mockReturnValue(new Promise(() => {}));
 
@@ -377,7 +378,18 @@ describe('the day details', () => {
         const widths = Object.fromEntries([...document.querySelectorAll('.graph-details-row')]
             .map((row) => [row.querySelector('dt').textContent, row.querySelector('.graph-pending-bar').style.width]));
 
-        expect(widths).toMatchObject({ Run: '9rem', Started: '9rem', Finished: '9rem', Published: '9rem' });
+        expect(widths).toMatchObject({ 'Processing data': '15rem', Published: '9rem' });
+    });
+
+    it('draws the info icon on the labels that carry a note while the days are on their way (#289)', async () => {
+        getTableDays.mockReturnValue(new Promise(() => {}));
+
+        await setup();
+
+        expect([...document.querySelectorAll('.graph-details-row dt')]
+            .filter((dt) => dt.querySelector('.graph-details-label-noted svg'))
+            .map((dt) => dt.textContent))
+            .toEqual(['Processing data', 'Published']);
     });
 
     //
@@ -396,7 +408,7 @@ describe('the day details', () => {
             .map((row) => row.querySelector('dt').textContent);
 
         expect(labels(true)).toEqual(['Entities', 'Facts', 'Node types', 'Nodes', 'Edge types', 'Edges']);
-        expect(labels(false)).toEqual(['Day', 'Run', 'Started', 'Finished', 'Published', 'Sources']);
+        expect(labels(false)).toEqual(['Day', 'Processing data', 'Published', 'Sources']);
     });
 
     it('rules off Sources, where the rows that take a line each give way to the pairs', async () => {
@@ -573,46 +585,42 @@ describe('the day details', () => {
 
     //
     // the two graphs of one day are one run's work. The build panel on the
-    // Training graph says when its run started, and when its build started and
-    // finished; the day panel says which run published the day, when that run
-    // began and finished writing the day's tables, and when it began uploading
-    // them.
+    // Training graph says when the job processed the day's data and when it
+    // built the graph; the day panel says when the run that published the day
+    // processed its data, up to its tables written, and when it began
+    // uploading them (#289).
     //
-    it('follows the day with the run that published it, when it wrote the tables, and when it uploaded them', async () => {
+    it('follows the day with when its data was processed, and when it was published', async () => {
         //
-        // Run directly under the Day, and Started and Finished under it, where
-        // the Training graph's panel has its own build's: one day shows the
-        // same Run on both pages.
+        // Processing data directly under the Day, where the Training graph's
+        // panel has its own: a day's two ranges start at the same run.
         //
         getTableDays.mockResolvedValue(TIMED);
 
         await setup();
 
-        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 6).map((dt) => dt.textContent))
-            .toEqual(['Day', 'Run', 'Started', 'Finished', 'Published', 'Sources']);
-        expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
-        expect(detail('Started')).toBe('2026-09-24 05:03 UTC');
-        expect(detail('Finished')).toBe('2026-09-24 05:41 UTC');
+        expect([...document.querySelectorAll('.graph-details-row dt')].slice(0, 4).map((dt) => dt.textContent))
+            .toEqual(['Day', 'Processing data', 'Published', 'Sources']);
+        expect(detail('Processing data')).toBe('2026-09-24 05:00 – 05:41 UTC');
         expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
+        ['Run', 'Started', 'Finished'].forEach((label) => expect(detail(label)).toBeUndefined());
     });
 
-    it('reads n/a for Started and Finished on a day published before the builder recorded them', async () => {
+    it('ends Processing data n/a on a day published before the builder recorded its tables\' times', async () => {
         //
-        // such a day's row says nothing of either, and never will: a day is not
-        // published again. The rows stay, so the panel is the same height on
+        // such a day's row says nothing of them, and never will: a day is not
+        // published again. The row stays, so the panel is the same height on
         // every day.
         //
         await setup();
 
-        expect(detail('Started')).toBe('n/a');
-        expect(detail('Finished')).toBe('n/a');
-        expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
+        expect(detail('Processing data')).toBe('2026-09-24 05:00 UTC – n/a');
         expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
     });
 
-    it('reads all four off the days, above the totals still on their way', async () => {
+    it('reads both off the days, above the totals still on their way', async () => {
         //
-        // they come with the picker, as a build's Run and Started come with the
+        // they come with the picker, as a build's Processing data comes with the
         // listing -- not a round trip later, with the totals. So what is filled
         // in is one block at the top of the panel, and what waits is the block
         // below it.
@@ -622,13 +630,11 @@ describe('the day details', () => {
 
         await setup();
 
-        expect(detail('Run')).toBe('2026-09-24 05:00 UTC');
-        expect(detail('Started')).toBe('2026-09-24 05:03 UTC');
-        expect(detail('Finished')).toBe('2026-09-24 05:41 UTC');
+        expect(detail('Processing data')).toBe('2026-09-24 05:00 – 05:41 UTC');
         expect(detail('Published')).toBe('2026-09-24 06:41 UTC');
         expect([...document.querySelectorAll('.graph-details-row')]
             .map((row) => Boolean(row.querySelector('.graph-pending-bar'))))
-            .toEqual([false, false, false, false, false, true, true, true, true, true, true, true]);
+            .toEqual([false, false, false, true, true, true, true, true, true, true]);
     });
 
     it('follows the picker to another day', async () => {
@@ -638,13 +644,30 @@ describe('the day details', () => {
 
         await chooseDay('2026-09-21');
 
-        expect(detail('Run')).toBe('2026-09-22 05:00 UTC');
-        expect(detail('Started')).toBe('n/a');
-        expect(detail('Finished')).toBe('n/a');
+        expect(detail('Processing data')).toBe('2026-09-22 05:00 UTC – n/a');
         expect(detail('Published')).toBe('2026-09-22 06:40 UTC');
     });
 
-    it('reads n/a for all four when the days say nothing of them', async () => {
+    it('notes on Processing data and Published what each is, and on no other label (#289)', async () => {
+        await setup();
+
+        const labelNote = (label) => [...document.querySelectorAll('.graph-details-row dt')]
+            .find((dt) => dt.textContent === label)
+            .querySelector('.graph-details-label-noted');
+
+        expect(labelNote('Processing data')).toHaveAccessibleDescription(
+            'The job reads all of the day’s data, combines it, and saves the result.'
+        );
+        expect(labelNote('Published')).toHaveAccessibleDescription(
+            'When the job started putting this graph on the site.'
+        );
+        expect([...document.querySelectorAll('.graph-details-row dt')]
+            .filter((dt) => dt.querySelector('.graph-details-label-noted'))
+            .map((dt) => dt.textContent))
+            .toEqual(['Processing data', 'Published']);
+    });
+
+    it('reads n/a for both when the days say nothing of them', async () => {
         //
         // every day's row carried only the day before the api said where each
         // came from. The rest of the panel is as it was.
@@ -655,9 +678,7 @@ describe('the day details', () => {
 
         await setup();
 
-        expect(detail('Run')).toBe('n/a');
-        expect(detail('Started')).toBe('n/a');
-        expect(detail('Finished')).toBe('n/a');
+        expect(detail('Processing data')).toBe('n/a');
         expect(detail('Published')).toBe('n/a');
         expect(detail('Day')).toBe('2026-09-23');
         expect(detail('Entities')).toBe('4,934');
