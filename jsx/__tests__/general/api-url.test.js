@@ -36,6 +36,7 @@ import {
     MODEL_PICKS,
     DOCUMENTATION,
     API_DOCS,
+    GUIDES,
     DATASETS,
     PERFORMANCE_STREAMS,
     TABLES_VALUES,
@@ -603,6 +604,18 @@ describe('the endpoints and the documentation', () => {
         Object.values(API_DOCS).forEach(link => {
             const page = link.slice(`${DOCUMENTATION}/api/`.length, -1);
             expect({ page, exists: fs.existsSync(path.join(pages, `${page}.md`)) })
+                .toEqual({ page, exists: true });
+        });
+    });
+
+    it('links the models\' guide, which /model links in place of its intro (#296), to a page that exists', () => {
+        const guides = path.join(__dirname, '..', '..', '..', 'documentation', 'guide');
+
+        expect(GUIDES).toEqual({ models: `${DOCUMENTATION}/guide/models/` });
+
+        Object.values(GUIDES).forEach(link => {
+            const page = link.slice(`${DOCUMENTATION}/guide/`.length, -1);
+            expect({ page, exists: fs.existsSync(path.join(guides, `${page}.md`)) })
                 .toEqual({ page, exists: true });
         });
     });
