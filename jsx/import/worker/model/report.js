@@ -8,7 +8,8 @@
  *                     model's live version down for doing worse than the baseline,
  *                     and how close each of its checks is to doing so (#263). From
  *                     format 4, how many scored days a model's scores average
- *                     (#293)
+ *                     (#293), why a live version was taken down, and what it
+ *                     learned from (#295)
  *     history         a model's csv, one row per nightly training attempt: the
  *                     attempt's scores, the live version's and the know-nothing
  *                     baseline's, on the same held-out days, and from 2026-10-15
@@ -107,6 +108,12 @@ export default () => {
     // update, or a weekly retrain
     //
     const LIVE_KINDS = ['first', 'nightly', 'weekly'];
+
+    //
+    // why the trainer took a live version down, from format 4 on (#295) -- see
+    // downOf
+    //
+    const REASONS = ['worse', 'not_ahead', 'track_record'];
 
     const DAY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
@@ -216,8 +223,18 @@ export default () => {
     // the night it was, and the check that did it -- `days`, 1 for each day on
     // its own or 5 or 20 for an average over its latest scored days, and
     // `in_a_row`, how many scored days in a row it was worse than the baseline --
-    // and from format 3, the hold it was of (#279). Null while it is live, and
-    // for one that names no night or no whole numbers
+    // and from format 3, the hold it was of (#279).
+    //
+    // From format 4, why (#295): `worse`, the check that `days` and `in_a_row`
+    // name; `not_ahead`, a live version that went live without beating the
+    // baseline; and `track_record`, a track record no better than the
+    // baseline's. Neither of the last two names a check, so their counts are
+    // null. Every take-down before format 4 is `worse`, and so is a reason this
+    // does not know.
+    //
+    // Null while it is live, and for one that names no night. A night is enough
+    // to be down: a count or a hold that cannot be read is none, rather than a
+    // model taken down read as live
     //
     function downOf(value) {
         if (!isRecord(value)) {
@@ -225,12 +242,38 @@ export default () => {
         }
 
         const since = dayOf(value.since);
-        const days = wholeOf(value.days, 1);
-        const inARow = wholeOf(value.in_a_row, 1);
         const hold = holdOf(value);
 
-        return since && days !== null && inARow !== null && hold !== undefined
-            ? withHold({ since: since, days: days, in_a_row: inARow }, hold)
+        if (!since) {
+            return null;
+        }
+
+        return withHold({
+            since: since,
+            reason: REASONS.indexOf(value.reason) >= 0 ? value.reason : 'worse',
+            days: wholeOf(value.days, 1),
+            in_a_row: wholeOf(value.in_a_row, 1),
+        }, hold === undefined ? null : hold);
+    }
+
+    //
+    // what a live version learned from, from format 4 on (#295): `training`, the
+    // days it trained on, `stopping`, those that decided when it stopped, and
+    // `first` and `last`, the oldest and newest of all of them. None where the
+    // listing gives none, as one before format 4 does, or gives them unreadable.
+    // A version learns from a day at least, so none trained on is none read
+    //
+    function liveDaysOf(value) {
+        if (!isRecord(value)) {
+            return null;
+        }
+
+        const training = wholeOf(value.training, 1);
+        const first = dayOf(value.first);
+        const last = dayOf(value.last);
+
+        return training !== null && first && last
+            ? { training: training, stopping: wholeOf(value.stopping, 0), first: first, last: last }
             : null;
     }
 
@@ -414,6 +457,7 @@ export default () => {
                 live: {
                     since: dayOf(live.since),
                     kind: LIVE_KINDS.indexOf(live.kind) >= 0 ? live.kind : null,
+                    days: liveDaysOf(live.days),
                 },
                 attempts: {
                     total: countOf(attempts.total),

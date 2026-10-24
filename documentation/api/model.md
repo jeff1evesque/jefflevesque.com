@@ -119,11 +119,11 @@ A **model** has:
 | `started` | the first day it predicted, as `YYYY-MM-DD` |
 | `retired` | the day it stopped being trained, or `null` while it still is |
 | `scored_days` | the rows of its track record. Under `average_days`, the model is New |
-| `live` | the version making its predictions: `since`, the night it went live, and `kind`, `first` while its first version is still live, or `nightly` or `weekly` for the update or retrain that made it. For a retired model, or one whose live version was taken down, the last version that predicted |
+| `live` | the version making its predictions: `since`, the night it went live, and `kind`, `first` while its first version is still live, or `nightly` or `weekly` for the update or retrain that made it. For a retired model, or one whose live version was taken down, the last version that predicted. From format 4, `days`, what it learned from, or `null` where the trainer has no record of it: `training`, how many days it trained on, `stopping`, how many decided when it stopped, and `first` and `last`, the oldest and newest of all those days |
 | `attempts` | the rows of its history: `total`, and `went_live`, those that replaced the live version |
 | `score` | each score averaged over the last `average_days` rows of its track record, or all of them while it has fewer; `null` while it has none. `loss`, `auc_up`, `auc_beats` and `acc_up` are always there, `null` where its task has none of them, and from format 3 `profit_auc`, `top10_gain` and `top10_wins` where it has them. An options model's are its 1-day hold's |
 | `baseline` | the baseline's scores averaged over the same days |
-| `down` | `null` while its live version is live. Otherwise `since`, the night it was taken down, and the check that did it: `days`, 1 for each scored day on its own or 5 or 20 for an average over its latest scored days, and `in_a_row`, how many scored days in a row it was worse. From format 3, `hold`: for an options model, the hold the check ran on, in trading days |
+| `down` | `null` while its live version is live. Otherwise `since`, the night it was taken down, and the check that did it: `days`, 1 for each scored day on its own or 5 or 20 for an average over its latest scored days, and `in_a_row`, how many scored days in a row it was worse. From format 3, `hold`: for an options model, the hold the check ran on, in trading days. From format 4, `reason`: `worse`, a check as above; `not_ahead`, its live version went live without beating the baseline; or `track_record`, its track record showed nothing better than the baseline. For the last two, no check did it, and `days` and `in_a_row` are `null` |
 | `behind` | one entry per check, as of the newest scored day: `days`; `in_a_row`, how many scored days in a row it has been worse, or `null` until it has enough days; and `limit`, the count that takes the live version down. From format 3, `hold`, as in `down`: an options model has every check for each hold |
 
 The checks today: each day 5 days in a row, the 5-day average 10 days in a row, and the
@@ -140,7 +140,7 @@ without it is format 0.
 | 1 | a history's `started`, `training_seconds` and `total_seconds` |
 | 2 | a model's `down` and `behind`, and a track record's `down_days` and `down_in_a_row` |
 | 3 | a task's `scores`; `top10_gain` and `top10_wins`, and an options model's `profit_auc` and its track record's columns for each hold; the `hold` of `down` and of each check in `behind`; and the picks |
-| 4 | the listing's `average_days` |
+| 4 | the listing's `average_days`; `down`'s `reason`, with `days` and `in_a_row` `null` where no check did it; and `live`'s `days` |
 
 It goes up with any change to the reports' keys or columns, or to what a value means,
 added columns included. A listing is published after every model's reports, so its

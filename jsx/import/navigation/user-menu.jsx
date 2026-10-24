@@ -26,7 +26,9 @@ import { statusOf, tradesOptions } from '../layout/model/scores.js';
 
 /**
  * the options models whose picks the menu links to (#290): every one the listing
- * has that is still trained, by name. None where the listing could not be had.
+ * has that is still trained and not taken down, by name. A model taken down
+ * makes no picks, and its last ones are not this night's (#295). None where the
+ * listing could not be had.
  */
 export function pickModels(listing) {
     if (!listing) {
@@ -34,7 +36,7 @@ export function pickModels(listing) {
     }
 
     return listing.models
-        .filter((model) => statusOf(model) !== 'retired'
+        .filter((model) => statusOf(model) !== 'retired' && statusOf(model) !== 'down'
             && tradesOptions(listing.tasks.find((task) => task.id === model.task) || { id: model.task }))
         .map((model) => model.name)
         .sort();

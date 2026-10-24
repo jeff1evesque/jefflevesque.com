@@ -553,6 +553,26 @@ export function liveKind(kind) {
 }
 
 /**
+ * what a live version learned from, from format 4 on (#295): '7 days, Oct 5 to
+ * Oct 19' -- the days it trained on, then the oldest and newest of every day it
+ * read, the days it stopped on among them -- or '1 day, Oct 5' for one, and
+ * nothing where the listing gives none, as one before format 4.
+ */
+export function trainedOn(live) {
+    const days = live ? live.days : null;
+
+    if (!days) {
+        return '';
+    }
+
+    const count = `${days.training} ${days.training === 1 ? 'day' : 'days'}`;
+
+    return days.first === days.last
+        ? `${count}, ${shortDay(days.first)}`
+        : `${count}, ${shortDay(days.first)} to ${shortDay(days.last)}`;
+}
+
+/**
  * when a live version was taken down, as its figure says it (#263): 'Taken down
  * Oct 19', the day held on one line where a narrow cell wraps the figure.
  */
@@ -561,21 +581,42 @@ export function takenDown(day) {
 }
 
 /**
- * the check that took a live version down, in words (#263): 'worse than the
- * baseline 5 scored days in a row' for the check of each day on its own, and
- * 'its 5-day average was worse than the baseline’s 10 days in a row' for an
- * average's. `check` is { days, in_a_row }, as the listing's `down` gives it,
- * and as a track record gives the day whose score set it off. A count it does
- * not have is left out.
+ * why a live version was taken down, in words (#263).
+ *
+ * A check of its scores -- a take-down's `reason` of `worse`, and every one
+ * before format 4 -- says which: 'worse than the baseline 5 scored days in a
+ * row' for the check of each day on its own, and 'its 5-day average was worse
+ * than the baseline’s 10 days in a row' for an average's. A count it does not
+ * have is left out, and a check it cannot name is said without one: 'worse than
+ * the baseline'.
  *
  * An options model's checks run on each hold, and say which (#279): 'the 5-day
  * hold did worse than the baseline 5 scored days in a row', and 'the 5-day
  * hold’s 20-day average was worse than the baseline’s 5 days in a row'.
+ *
+ * From format 4 a take-down that no check did says why (#295): 'it went live
+ * without beating the baseline' for `not_ahead`, and 'its track record showed
+ * nothing better than the baseline' for `track_record`.
+ *
+ * `down` is the listing's, or { days, in_a_row } as a track record gives the
+ * day whose score set it off.
  */
-export function checkWords({ days, in_a_row: inARow, hold = null }) {
+export function checkWords({ reason = 'worse', days, in_a_row: inARow, hold = null }) {
+    if (reason === 'not_ahead') {
+        return 'it went live without beating the baseline';
+    }
+
+    if (reason === 'track_record') {
+        return 'its track record showed nothing better than the baseline';
+    }
+
     const count = finite(inARow)
         ? ` ${inARow} ${days === 1 ? 'scored ' : ''}${inARow === 1 ? 'day' : 'days'} in a row`
         : '';
+
+    if (!finite(days)) {
+        return hold ? `the ${holdName(hold)} did worse than the baseline${count}` : `worse than the baseline${count}`;
+    }
 
     if (hold) {
         return days === 1

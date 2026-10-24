@@ -103,7 +103,7 @@ describe('the listing', () => {
             retired: null,
             scored_days: 30,
             average_days: 20,
-            live: { since: '2026-10-10', kind: 'nightly' },
+            live: { since: '2026-10-10', kind: 'nightly', days: null },
             attempts: { total: 30, went_live: 4 },
             score: { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54, ...NO_PARTS },
             baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52, ...NO_PARTS },
@@ -191,7 +191,7 @@ describe('the listing', () => {
     it('reads a live block or an attempts block that is not an object as empty', () => {
         const [model] = run({ kind: 'list', report: listingOf([entry({ live: 'x', attempts: null })]) }).models;
 
-        expect(model.live).toEqual({ since: null, kind: null });
+        expect(model.live).toEqual({ since: null, kind: null, days: null });
         expect(model.attempts).toEqual({ total: 0, went_live: 0 });
     });
 
@@ -312,10 +312,10 @@ describe('the listing', () => {
         //
         const read = (overrides) => run({ kind: 'list', report: listingOf([entry(overrides)]) }).models[0];
 
-        it('keeps the night it was taken down, the check that did it, and every check', () => {
+        it('keeps the night it was taken down, the check that did it, and every check, as one taken down for doing worse', () => {
             const model = read({ down: DOWN, behind: BEHIND });
 
-            expect(model.down).toEqual(DOWN);
+            expect(model.down).toEqual({ ...DOWN, reason: 'worse' });
             expect(model.behind).toEqual(BEHIND);
         });
 
@@ -327,15 +327,20 @@ describe('the listing', () => {
         it.each([
             ['names no night', { ...DOWN, since: null }],
             ['names a night that is not a day', { ...DOWN, since: 'last night' }],
-            ['gives its check as text', { ...DOWN, days: '1' }],
-            ['gives a check of no days', { ...DOWN, days: 0 }],
-            ['gives a fraction of a day', { ...DOWN, days: 1.5 }],
-            ['gives none in a row', { ...DOWN, in_a_row: 0 }],
-            ['gives its count as text', { ...DOWN, in_a_row: '5' }],
             ['is not an object', 'yes'],
             ['is a list', [DOWN]],
         ])('reads one that %s as none, rather than as a guess', (name, down) => {
             expect(read({ down: down }).down).toBeNull();
+        });
+
+        it.each([
+            ['gives its check as text', { ...DOWN, days: '1' }, { days: null }],
+            ['gives a check of no days', { ...DOWN, days: 0 }, { days: null }],
+            ['gives a fraction of a day', { ...DOWN, days: 1.5 }, { days: null }],
+            ['gives none in a row', { ...DOWN, in_a_row: 0 }, { in_a_row: null }],
+            ['gives its count as text', { ...DOWN, in_a_row: '5' }, { in_a_row: null }],
+        ])('reads one that %s as taken down, with that count as none, rather than as live (#295)', (name, down, counts) => {
+            expect(read({ down: down }).down).toEqual({ ...DOWN, reason: 'worse', ...counts });
         });
 
         it('trims the night it names, as every other day', () => {
@@ -363,6 +368,90 @@ describe('the listing', () => {
 
         it('reads checks that are not a list as none', () => {
             expect(read({ behind: { days: 1, in_a_row: 2, limit: 5 } }).behind).toEqual([]);
+        });
+    });
+
+    describe('why a live version was taken down, from format 4 on (#295)', () => {
+        const SINCE = '2026-10-23';
+
+        //
+        // the take-down a format 4 listing of one model taken down `down` reads as
+        //
+        const read = (down) => run({ kind: 'list', report: { format_version: 4, ...listingOf([entry({ down: down })]) } }).models[0].down;
+
+        it('keeps one for doing worse, with the check that did it', () => {
+            expect(read({ since: SINCE, reason: 'worse', days: 5, in_a_row: 10 }))
+                .toEqual({ since: SINCE, reason: 'worse', days: 5, in_a_row: 10 });
+        });
+
+        it.each(['not_ahead', 'track_record'])('keeps one for %s, which names no check', (reason) => {
+            expect(read({ since: SINCE, reason: reason, days: null, in_a_row: null }))
+                .toEqual({ since: SINCE, reason: reason, days: null, in_a_row: null });
+        });
+
+        it('reads one that leaves its counts out as one with none', () => {
+            expect(read({ since: SINCE, reason: 'not_ahead' })).toEqual({ since: SINCE, reason: 'not_ahead', days: null, in_a_row: null });
+        });
+
+        it.each([
+            ['gives none', undefined],
+            ['is null', null],
+            ['is one it does not know', 'bored'],
+            ['is not text', 2],
+            ['is in capitals', 'NOT_AHEAD'],
+        ])('reads one whose reason %s as one for doing worse, as every one before format 4', (name, reason) => {
+            const down = { since: SINCE, days: 1, in_a_row: 5 };
+
+            if (reason !== undefined) {
+                down.reason = reason;
+            }
+
+            expect(read(down)).toEqual({ since: SINCE, reason: 'worse', days: 1, in_a_row: 5 });
+        });
+
+        it('keeps the hold an options model\'s was of, whatever the reason', () => {
+            expect(read({ since: SINCE, reason: 'track_record', days: null, in_a_row: null, hold: 5 }))
+                .toEqual({ since: SINCE, reason: 'track_record', days: null, in_a_row: null, hold: 5 });
+        });
+    });
+
+    describe('what a live version learned from, from format 4 on (#295)', () => {
+        const DAYS = { training: 7, stopping: 3, first: '2026-10-05', last: '2026-10-19' };
+
+        //
+        // the live version a listing of one model whose live version learned from
+        // `days` reads as
+        //
+        const read = (days) => run({ kind: 'list', report: listingOf([entry({ live: { since: '2026-10-23', kind: 'first', days: days } })]) }).models[0].live;
+
+        it('keeps the days it trained on, those that decided when it stopped, and the first and last of them', () => {
+            expect(read(DAYS)).toEqual({ since: '2026-10-23', kind: 'first', days: DAYS });
+        });
+
+        it('keeps a version that learned from one day, and trims the days it names, as every other day', () => {
+            expect(read({ training: 1, stopping: 0, first: ' 2026-10-19', last: '2026-10-19 ' }).days)
+                .toEqual({ training: 1, stopping: 0, first: '2026-10-19', last: '2026-10-19' });
+        });
+
+        it.each([['text', '3'], ['a fraction', 2.5], ['below zero', -1], ['left out', undefined]])(
+            'reads the days that decided when it stopped, given as %s, as none, and keeps the rest',
+            (name, stopping) => {
+                expect(read({ ...DAYS, stopping: stopping }).days).toEqual({ ...DAYS, stopping: null });
+            },
+        );
+
+        it.each([
+            ['gives none, as before format 4', undefined],
+            ['is null', null],
+            ['is not an object', '7 days'],
+            ['is a list', [DAYS]],
+            ['gives the days it trained on as text', { ...DAYS, training: '7' }],
+            ['gives a fraction of a day', { ...DAYS, training: 6.5 }],
+            ['trained on no days', { ...DAYS, training: 0 }],
+            ['names no first day', { ...DAYS, first: null }],
+            ['names a last day that is not a day', { ...DAYS, last: 'yesterday' }],
+        ])('reads one that %s as none, rather than as a guess', (name, days) => {
+            expect(read(days).days).toBeNull();
         });
     });
 });
@@ -897,21 +986,21 @@ describe('an options model, and every model\'s top 10, from format 3 on (#279)',
                 behind: [{ days: 1, in_a_row: 5, limit: 5, hold: 5 }, { days: 20, in_a_row: null, limit: 5, hold: 20 }],
             });
 
-            expect(model.down).toEqual({ ...DOWN, hold: 5 });
+            expect(model.down).toEqual({ ...DOWN, reason: 'worse', hold: 5 });
             expect(model.behind).toEqual([{ days: 1, in_a_row: 5, limit: 5, hold: 5 }, { days: 20, in_a_row: null, limit: 5, hold: 20 }]);
         });
 
         it('reads a hold given as null as no hold, as a stock model\'s checks have', () => {
             const model = read({ down: { ...DOWN, hold: null }, behind: [{ days: 1, in_a_row: 0, limit: 5, hold: null }] });
 
-            expect(model.down).toEqual(DOWN);
+            expect(model.down).toEqual({ ...DOWN, reason: 'worse' });
             expect(model.behind).toEqual([{ days: 1, in_a_row: 0, limit: 5 }]);
         });
 
-        it.each([['text', '5'], ['none', 0], ['a fraction', 1.5]])('reads a take-down whose hold is %s as none, and passes over such a check', (name, hold) => {
+        it.each([['text', '5'], ['none', 0], ['a fraction', 1.5]])('reads a take-down whose hold is %s as one of no hold, still taken down (#295), and passes over such a check', (name, hold) => {
             const model = read({ down: { ...DOWN, hold: hold }, behind: [{ days: 1, in_a_row: 0, limit: 5, hold: hold }, { days: 5, in_a_row: 0, limit: 10 }] });
 
-            expect(model.down).toBeNull();
+            expect(model.down).toEqual({ ...DOWN, reason: 'worse' });
             expect(model.behind).toEqual([{ days: 5, in_a_row: 0, limit: 10 }]);
         });
     });
@@ -1099,6 +1188,24 @@ describe('the worker as the bundle builds it', () => {
             { kind: 'option-picks', report: '' },
             { kind: 'list', report: { format_version: 4, average_days: 30, tasks: [], models: [entry(), entry({ name: 'b', scored_days: 25 })] } },
             { kind: 'list', report: { format_version: 4, average_days: '30', models: [entry()] } },
+            {
+                kind: 'list',
+                report: {
+                    format_version: 4,
+                    average_days: 20,
+                    models: [
+                        entry({
+                            live: { since: '2026-10-23', kind: 'first', days: { training: 7, stopping: 3, first: '2026-10-05', last: '2026-10-19' } },
+                            down: { since: '2026-10-23', reason: 'not_ahead', days: null, in_a_row: null },
+                        }),
+                        entry({
+                            name: 'b',
+                            live: { since: '2026-10-23', kind: 'first', days: { training: '7', first: '2026-10-05' } },
+                            down: { since: '2026-10-23', reason: 'bored', days: 'x', hold: 'y' },
+                        }),
+                    ],
+                },
+            },
             {
                 kind: 'track-record',
                 average_days: 2,

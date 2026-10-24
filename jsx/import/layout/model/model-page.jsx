@@ -20,11 +20,13 @@
  *                          took the live version down
  *
  * The trainer takes a live version down when it keeps doing worse than the
- * know-nothing baseline (#263). The first figure then says when, and which check
- * did it, and that nothing predicts until a new version beats the baseline; and
- * under the score, how many days in a row each check has been worse, for any
- * model that has not retired. A listing before format 2 says neither, and the
- * figures are as they were.
+ * know-nothing baseline (#263), and from format 4 when it went live without
+ * beating the baseline, or its track record showed nothing better (#295). The
+ * first figure then says when, and why, and that nothing predicts until a new
+ * version beats the baseline; and under the score, how many days in a row each
+ * check has been worse, for any model that has not retired. A listing before
+ * format 2 says neither, and the figures are as they were. From format 4 the
+ * first figure's rows say what the live version trained on too.
  *
  * The score picker offers the scores the model's task has (#279). An options
  * model's page has a hold picker beside it, which the track record follows --
@@ -87,6 +89,7 @@ import {
     statusOf,
     takenDown,
     tradesOptions,
+    trainedOn,
 } from './scores.js';
 
 //
@@ -195,10 +198,19 @@ const DOWN_SHORT = 'Nothing predicts until a version beats the baseline.';
 /**
  * the line under the Live version card's figure on a wide screen (#267): how the
  * live version came to be live, as liveFigure says it, or for one taken down,
- * what happens until a version beats the baseline.
+ * what happens until a version beats the baseline. A take-down no check did has
+ * no check in the rows to show why, so its line says why first, from format 4
+ * (#295): 'It went live without beating the baseline. Nothing predicts until a
+ * version beats the baseline.'
  */
 export function liveLine(model) {
-    return statusOf(model) === 'down' ? DOWN_SHORT : liveFigure(model).detail;
+    if (statusOf(model) !== 'down') {
+        return liveFigure(model).detail;
+    }
+
+    return model.down.reason && model.down.reason !== 'worse'
+        ? `${sentence(checkWords(model.down))} ${DOWN_SHORT}`
+        : DOWN_SHORT;
 }
 
 /**
@@ -209,17 +221,22 @@ export function liveLine(model) {
  *                                         version before it, on the night it went
  *                                         live: loss, which decides what goes
  *                                         live, whatever score is picked
+ *     Trained on                          what the live version learned from, from
+ *                                         format 4 (#295): '7 days, Oct 5 to Oct
+ *                                         19' -- see scores.js's trainedOn
  *     First predicted                     the listing's `started`
  *     Days in a row worse than the        a heading over a row per check -- see
  *     baseline                            behindRows
  *
  * No first row for a first version, one taken down, a retired model, a night the
  * history does not hold, or a version that only matched the one before it. No
- * checks for a retired model, or a listing that gives none, as before format 2.
+ * Trained on where the listing says nothing of it, as before format 4. No checks
+ * for a retired model, or a listing that gives none, as before format 2.
  */
 export function liveRows(model, history) {
     const status = statusOf(model);
     const rows = [];
+    const trained = trainedOn(model.live);
 
     if ((status === 'live' || status === 'new') && model.live.kind && model.live.kind !== 'first' && Array.isArray(history)) {
         const night = history.find((row) => row.day === model.live.since && row.went_live);
@@ -228,6 +245,10 @@ export function liveRows(model, history) {
         if (standing(gap, 'loss') === 'better') {
             rows.push({ key: 'beat', name: 'Beat the version it replaced by', value: formatGap(gap, 'loss') });
         }
+    }
+
+    if (trained) {
+        rows.push({ key: 'trained', name: 'Trained on', value: trained });
     }
 
     if (model.started) {
@@ -523,6 +544,12 @@ class ModelPage extends Component {
         const down = status === 'down' ? DOWN_LINE : '';
         const behind = status === 'retired' ? '' : behindLine(model.behind);
 
+        //
+        // what the live version trained on, from format 4 (#295), as a phone's
+        // note says it. A wide screen's card says it in its rows
+        //
+        const trained = trainedOn(model.live);
+
         let against = '';
 
         if (gap !== null) {
@@ -600,7 +627,7 @@ class ModelPage extends Component {
                             {
                                 key: 'live',
                                 label: 'Live version',
-                                note: [sentence(live.detail), down].filter(Boolean).join(' '),
+                                note: [sentence(live.detail), trained ? `Trained on ${trained}.` : '', down].filter(Boolean).join(' '),
                                 value: live.value,
                                 ...downBox,
                             },

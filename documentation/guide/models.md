@@ -81,6 +81,10 @@ Behind baseline.
 These checks run for every model, stock or options. An options model is checked this way
 for each of its holds.
 
+A live version is also taken down if it went live without beating its baseline, or if its
+track record shows nothing better than the baseline. A model's page says which of these
+took it down.
+
 ## New models
 
 A model is New until it has 20 graded days, and its pill counts them: "New · day 5 of

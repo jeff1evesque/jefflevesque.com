@@ -426,6 +426,16 @@ describe('pickModels (#290)', () => {
         })).toEqual(['alpha-options', 'zeta-options']);
     });
 
+    it('names none taken down, whose last picks are not this night\'s (#295)', () => {
+        expect(pickModels({
+            tasks: optionsListingOf().tasks,
+            models: [
+                optionsModelOf({ name: 'alpha-options' }),
+                optionsModelOf({ name: 'down-options', down: { since: '2026-10-23', reason: 'not_ahead', days: null, in_a_row: null } }),
+            ],
+        })).toEqual(['alpha-options']);
+    });
+
     it('names none for a listing that could not be had, or a model of a task it does not describe', () => {
         expect(pickModels(null)).toEqual([]);
         expect(pickModels({ tasks: [], models: [optionsModelOf()] })).toEqual([]);
