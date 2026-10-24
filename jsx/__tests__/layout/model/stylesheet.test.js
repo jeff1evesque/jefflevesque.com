@@ -696,12 +696,8 @@ describe('the controls on a phone (#272)', () => {
         expect(declared(menu, 'border-radius')).toBe('8px');
     });
 
-    it('keep the sort\'s name beside its menu, which runs to the line\'s end', () => {
-        const sort = rule('.model-sort', 'grid-template-columns');
-
-        expect(declared(sort, 'grid-template-columns')).toBe('auto minmax(0, 1fr)');
-        expect(declared(sort, 'grid-column')).toBe('1 / -1');
-        expect(declared(rule('.model-sort select', 'width'), 'width')).toBe('100%');
+    it('style no sort menu, which /model no longer has (#300)', () => {
+        expect(source).not.toMatch(/model-sort\b/);
     });
 
     it('stand 0.75rem apart, with no margin under them on a model\'s page, whose column sets its parts apart (#300)', () => {
@@ -854,16 +850,16 @@ describe('loss\'s three parts in /model\'s list (#283), as #300 lays them out', 
 });
 
 describe('the docs\' page on the models, in place of the intro (#296)', () => {
-    it('puts the icon at the right end of the Sort row and of the title\'s row, as /stream puts its own', () => {
-        const both = RULES.find((each) => each.selectors.join() === '.model-heading .model-heading-docs,.model-controls .model-controls-docs');
+    it('puts the icon at the right end of the title\'s row, as /stream puts its own', () => {
+        const icon = RULES.find((each) => each.selectors.join() === '.model-heading .model-heading-docs');
 
-        expect(declared(both, 'margin-left')).toBe('auto');
-        expect(declared(RULES.find((each) => each.selectors.join() === '.model-heading .model-heading-docs' && declared(each, 'align-self')), 'align-self')).toBe('center');
+        expect(declared(icon, 'margin-left')).toBe('auto');
+        expect(declared(icon, 'align-self')).toBe('center');
     });
 
-    it('shows the Sort row\'s on a computer alone, and the title row\'s on a phone alone', () => {
-        expect(source).toMatch(/@media \(max-width: 767\.98px\) \{\s*\.model-controls \.model-controls-docs \{\s*display: none;\s*\}\s*\}/);
-        expect(source).toMatch(/@media \(min-width: 768px\) \{\s*\.model-heading \.model-heading-docs \{\s*display: none;\s*\}\s*\}/);
+    it('shows it on every screen, a computer\'s as a phone\'s, with no Sort row to stand in (#300)', () => {
+        expect(source).not.toMatch(/model-controls-docs/);
+        expect(source).not.toMatch(/\.model-heading-docs \{\s*display: none;/);
     });
 
     it('folds no intro any more (#287)', () => {

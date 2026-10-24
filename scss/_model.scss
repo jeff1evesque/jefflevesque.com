@@ -65,29 +65,13 @@
 
 //
 // the docs' page on the models (#296), in place of /model's intro: the page icon
-// at the right end of the Sort row on a computer, and of the title's row on a
-// phone, as /stream's icons sit at the end of theirs. Each shows on its own
-// screens alone, and outranks '.api-links' to hide
+// at the right end of the title's row, as /stream's icons sit at the end of
+// theirs -- on a computer too from #300, where it had stood at the end of the
+// sort menu's row, which the page no longer has
 //
-.model-heading .model-heading-docs,
-.model-controls .model-controls-docs {
-  margin-left: auto;
-}
-
 .model-heading .model-heading-docs {
   align-self: center;
-}
-
-@media (max-width: 767.98px) {
-  .model-controls .model-controls-docs {
-    display: none;
-  }
-}
-
-@media (min-width: 768px) {
-  .model-heading .model-heading-docs {
-    display: none;
-  }
+  margin-left: auto;
 }
 
 .model-status {
@@ -532,7 +516,6 @@
   text-transform: uppercase;
 }
 
-.model-sort,
 .model-other {
   align-items: center;
   display: flex;
@@ -629,7 +612,6 @@
 }
 
 .model-score-menu select,
-.model-sort select,
 .model-other select {
   -webkit-appearance: none;
   appearance: none;
@@ -2609,8 +2591,7 @@
   //
   // the pickers as #300 lays them out on a phone: each picker's name
   // over its menu, a Score menu and a Hold menu side by side, and one on its
-  // own across the line. The sort keeps its name beside its menu, which runs
-  // to the line's end (#272)
+  // own across the line
   //
   .model-controls {
     column-gap: 10px;
@@ -2628,14 +2609,6 @@
     grid-column: auto;
   }
 
-  .model-sort {
-    align-items: center;
-    column-gap: 0.5rem;
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
   .model-score-menu {
     display: flex;
     min-width: 0;
@@ -2645,10 +2618,6 @@
     border-radius: 8px;
     font-size: 15px;
     min-height: 44px;
-    width: 100%;
-  }
-
-  .model-sort select {
     width: 100%;
   }
 

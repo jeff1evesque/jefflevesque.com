@@ -343,14 +343,12 @@ describe('the page before the listing', () => {
             expect(filters().querySelector('.model-filters-summary > .graph-pending-bar')).not.toHaveAttribute('style');
         });
 
-        it('draws the sort, which works before the listing lands, the hint, and the list\'s score picker as its name over bars (#279)', async () => {
+        it('draws the hint, and the list\'s score picker as its name over bars, with no sort menu (#279, #300)', async () => {
             await waiting();
-
-            await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'name');
 
             const picker = document.querySelector('.model-group .model-picker-pending');
 
-            expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('name');
+            expect(screen.queryByRole('combobox', { name: 'Sort' })).toBeNull();
             expect(screen.getByText('Tick two or three models that predict the same thing to compare them.')).toHaveClass('model-hint');
             expect(picker.querySelector('.model-control-label')).toHaveTextContent('Score');
             expect(screen.queryByRole('group', { name: 'Score' })).toBeNull();
@@ -371,20 +369,19 @@ describe('the page before the listing', () => {
             });
         });
 
-        it('gives the bars\' places to the lists once the listing lands, sorted as the sort was set while it waited', async () => {
+        it('gives the bars\' places to the lists once the listing lands, each best score first', async () => {
             const listing = deferred();
 
             loadListing.mockReturnValue(listing.promise);
             loadReport.mockResolvedValue(trackOf(5));
             await open();
-            await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'name');
 
             await act(async () => listing.resolve(listingOf()));
 
             expect(document.querySelector('.model-row-pending')).toBeNull();
             expect(screen.queryByRole('status')).toBeNull();
             expect(document.querySelector('.model-count')).toHaveTextContent('4');
-            expect(namesIn('Next-day direction')).toEqual(['fresh', 'pt-gnn', 'tables']);
+            expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
         });
     });
 
@@ -596,15 +593,13 @@ describe('the lists', () => {
         expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
     });
 
-    it('sorts by what the sort menu says', async () => {
+    it('has no sort menu: each list is best score first (#300)', async () => {
         answer();
         await open();
 
-        await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'name');
-        expect(namesIn('Next-day direction')).toEqual(['fresh', 'pt-gnn', 'tables']);
-
-        await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'went');
-        expect(namesIn('Next-day direction')).toEqual(['tables', 'pt-gnn', 'fresh']);
+        expect(screen.queryByRole('combobox', { name: 'Sort' })).toBeNull();
+        expect(document.querySelector('.model-sort')).toBeNull();
+        expect(namesIn('Next-day direction')).toEqual(['pt-gnn', 'tables', 'fresh']);
     });
 
     it('shows the score picked in every row, and sorts by it', async () => {
@@ -746,29 +741,24 @@ describe('the title (#296)', () => {
         expect(screen.queryByRole('button', { name: 'Less' })).toBeNull();
     });
 
-    it('links the docs\' page on the models from the Sort row and from the title\'s row, each in a new tab', async () => {
+    it('links the docs\' page on the models from the title\'s row alone, in a new tab (#300)', async () => {
         answer();
         await open();
 
-        const sortRow = document.querySelector('.model-main > .model-controls');
-        const titleRow = document.querySelector('.model-heading');
+        const link = within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' });
 
-        [sortRow, titleRow].forEach((row) => {
-            const link = within(row).getByRole('link', { name: 'How the models work' });
-
-            expect(link).toHaveAttribute('href', GUIDE);
-            expect(link).toHaveAttribute('target', '_blank');
-            expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-            expect(link).toHaveClass('api-link');
-            expect(link.querySelector('svg')).toHaveAttribute('data-testid', 'DescriptionOutlinedIcon');
-        });
+        expect(screen.getAllByRole('link', { name: 'How the models work' })).toEqual([link]);
+        expect(link).toHaveAttribute('href', GUIDE);
+        expect(link).toHaveAttribute('target', '_blank');
+        expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+        expect(link).toHaveClass('api-link');
+        expect(link.querySelector('svg')).toHaveAttribute('data-testid', 'DescriptionOutlinedIcon');
     });
 
-    it('draws the Sort row\'s large, as /stream\'s is on a computer, and the title row\'s medium, as on a phone', async () => {
+    it('draws the icon medium, beside a title of the menu\'s size', async () => {
         answer();
         await open();
 
-        expect(document.querySelector('.model-controls-docs svg')).toHaveClass('MuiSvgIcon-fontSizeLarge');
         expect(document.querySelector('.model-heading-docs svg')).toHaveClass('MuiSvgIcon-fontSizeMedium');
     });
 
@@ -776,16 +766,16 @@ describe('the title (#296)', () => {
         answer();
         await open();
 
-        await userEvent.hover(within(document.querySelector('.model-controls')).getByRole('link', { name: 'How the models work' }));
+        await userEvent.hover(within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' }));
 
         expect(await screen.findByRole('tooltip')).toHaveTextContent('How the models work');
     });
 
-    it('keeps the Sort row\'s link while the listing is on its way', async () => {
+    it('keeps the title row\'s link while the listing is on its way', async () => {
         loadListing.mockReturnValue(new Promise(() => {}));
         await open();
 
-        expect(within(document.querySelector('.model-controls')).getByRole('link', { name: 'How the models work' })).toHaveAttribute('href', GUIDE);
+        expect(within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' })).toHaveAttribute('href', GUIDE);
     });
 
     it('keeps no fold for an intro in the layout this browser keeps, on a phone', async () => {

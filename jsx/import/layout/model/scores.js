@@ -655,13 +655,6 @@ export const STATUSES = [
     { key: 'retired', label: 'Retired' },
 ];
 
-export const SORTS = [
-    { key: 'score', label: 'Best score' },
-    { key: 'name', label: 'Name' },
-    { key: 'went', label: 'Most attempts gone live' },
-    { key: 'since', label: 'Newest live version' },
-];
-
 //
 // what each way a live version came to be live is called
 //
