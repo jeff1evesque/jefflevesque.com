@@ -167,6 +167,27 @@ describe('a row', () => {
     });
 });
 
+describe('the link to an options model\'s picks (#290)', () => {
+    it('is under an options model\'s description, to its picks page, whoever reads the list', () => {
+        const { container } = draw({ model: optionsModelOf(), task: OPTIONS_TASK, rows: [] });
+
+        const link = screen.getByRole('link', { name: 'See its picks ›' });
+
+        expect(link).toHaveAttribute('href', '/model/pt-options/picks');
+        expect(link).toHaveClass('model-picks-link');
+        expect(container.querySelector('.model-cell-model').lastElementChild).toBe(link);
+    });
+
+    it('is on no stock model\'s row, nor a retired options model\'s', () => {
+        draw();
+        expect(screen.queryByRole('link', { name: 'See its picks ›' })).toBeNull();
+
+        document.body.innerHTML = '';
+        draw({ model: optionsModelOf({ retired: '2026-10-19' }), task: OPTIONS_TASK, rows: [] });
+        expect(screen.queryByRole('link', { name: 'See its picks ›' })).toBeNull();
+    });
+});
+
 describe('a model whose live version was taken down (#263)', () => {
     it('says Behind baseline on its pill', () => {
         draw({ model: downModelOf() });
