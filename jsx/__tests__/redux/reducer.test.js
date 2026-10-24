@@ -291,8 +291,8 @@ describe('the string initial states', () => {
 });
 
 describe('model (#243)', () => {
-    it('starts with no score picked for any task, which the pages read as loss, and on the 1-day hold (#279)', () => {
-        expect(model(undefined, { type: '@@INIT' })).toEqual({ scores: {}, hold: 1 });
+    it('starts with no score picked for any task, which the pages read as loss, on the 1-day hold (#279), and no list\'s hold picked (#300)', () => {
+        expect(model(undefined, { type: '@@INIT' })).toEqual({ scores: {}, hold: 1, holds: {} });
     });
 
     it.each(['loss', 'auc_up', 'auc_beats', 'acc_up', 'profit_auc', 'top10_gain', 'top10_wins'])('takes %s for a task (#279)', (score) => {
@@ -322,10 +322,37 @@ describe('model (#243)', () => {
         expect(model({ scores: {}, hold: 1 }, { type: 'SET-MODEL-HOLD', hold: hold })).toEqual({ scores: {}, hold: hold });
     });
 
-    it('turns down a hold that is none of the three', () => {
+    it('takes Combined, a stock model\'s holds averaged, from format 5 on (#300)', () => {
+        expect(model({ scores: {}, hold: 1 }, { type: 'SET-MODEL-HOLD', hold: 'combined' })).toEqual({ scores: {}, hold: 'combined' });
+    });
+
+    it('turns down a hold that is none of the four', () => {
         const state = { scores: {}, hold: 5 };
 
-        [2, '5', null, undefined].forEach((hold) => expect(model(state, { type: 'SET-MODEL-HOLD', hold: hold })).toBe(state));
+        [2, '5', 'Combined', null, undefined].forEach((hold) => expect(model(state, { type: 'SET-MODEL-HOLD', hold: hold })).toBe(state));
+    });
+
+    it('keeps a hold for each of /model\'s lists, by task, apart from a model page\'s (#300)', () => {
+        const state = { scores: {}, hold: 5, holds: { direction: 20 } };
+
+        expect(model(state, { type: 'SET-MODEL-LIST-HOLD', task: 'option-picks', hold: 1 }))
+            .toEqual({ scores: {}, hold: 5, holds: { direction: 20, 'option-picks': 1 } });
+        expect(model(state, { type: 'SET-MODEL-LIST-HOLD', task: 'direction', hold: 'combined' }).holds).toEqual({ direction: 'combined' });
+    });
+
+    it('takes a list\'s hold into a store kept before there were any (#300)', () => {
+        expect(model({ scores: {}, hold: 1 }, { type: 'SET-MODEL-LIST-HOLD', task: 'direction', hold: 5 }))
+            .toEqual({ scores: {}, hold: 1, holds: { direction: 5 } });
+    });
+
+    it('turns down a list\'s hold that is none of the four, or for no task (#300)', () => {
+        const state = { scores: {}, hold: 1, holds: {} };
+
+        expect(model(state, { type: 'SET-MODEL-LIST-HOLD', task: 'direction', hold: 2 })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-LIST-HOLD', task: 'direction' })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-LIST-HOLD', hold: 5 })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-LIST-HOLD', task: '', hold: 5 })).toBe(state);
+        expect(model(state, { type: 'SET-MODEL-LIST-HOLD', task: 7, hold: 5 })).toBe(state);
     });
 
     it('leaves another action alone', () => {

@@ -4,7 +4,8 @@
  * take a live version down for doing worse than the baseline (#263), the three
  * scores loss adds up (#265), and the lists that show them in place of their sum
  * (#283), and the scores of an options model and of every model's top 10, and an
- * options model's holds (#279).
+ * options model's holds (#279), and from format 5 a stock model's, with their
+ * average, Combined (#300).
  *
  * The api scores the stock models four ways, which a listing before format 3
  * gives every task:
@@ -45,7 +46,8 @@ import { colors_categorical, themeColors } from '../../general/colors.js';
 // measures, and which way is better. Without one, loss read as a single log
 // loss, and a log loss of 1.7 would be poor on most tasks. A score whose note
 // is another for a task that trades options has that one as `optionsNote`
-// (#279) -- see noteOf
+// (#279), and one whose note is another on Combined has it as `combinedNote`
+// (#300) -- see noteOf
 //
 export const SCORES = [
     {
@@ -54,6 +56,7 @@ export const SCORES = [
         lower: true,
         note: 'Loss adds three scores: up or down, beating the average stock, and the size of the move. Lower is better. A coin flip scores 0.693 on each of the first two. The baseline is what knowing nothing scored on the same days.',
         optionsNote: 'Loss adds up, for each hold that is on, the log loss of the chance each option makes money and the pinball loss of its gain. Lower is better, and the baseline beside it is a know-nothing model’s.',
+        combinedNote: 'On Combined, loss is the average of the day’s 1, 5 and 20-day losses. Each adds three scores: up or down, beating the average stock, and the size of the move. Lower is better. The baseline is what knowing nothing scored on the same days.',
     },
     {
         key: 'auc_up',
@@ -78,10 +81,12 @@ export const SCORES = [
 
 //
 // what each night's 10 best picks are, for a task of stocks and one of options,
-// as the top 10's notes say it
+// as the top 10's notes say it, and a stock's on its 5 and 20-day holds (#300),
+// which are sold days after they are bought
 //
 const TOP_STOCKS = 'the 10 stocks the model is surest will go up, bought at the 9:40 AM ask and sold at the 3:40 PM bid the same day';
 const TOP_OPTIONS = 'the model’s 10 best options for the hold, bought at the 9:40 AM ask and sold at the 3:40 PM bid on the sell day';
+const TOP_HELD = 'the 10 stocks the model is surest will go up, bought at the 9:40 AM ask on the next trading day and sold at the 3:40 PM bid on the sell day';
 const AT_RANDOM = 'Higher is better, and the baseline is the average of everything it could have picked: what a random pick got.';
 
 //
@@ -97,7 +102,9 @@ const AT_RANDOM = 'Higher is better, and the baseline is the average of everythi
 //     top10_wins   how many of each night's top 10 made money, a count of 10
 //
 // The top 10's two are every task's, each of its own picks, so models of tasks
-// that both name one can be compared on it, `across` -- see compareBlocked
+// that both name one can be compared on it, `across` -- see compareBlocked. A
+// stock's on its 5 and 20-day holds is bought and sold on other days, which its
+// `heldNote` says (#300)
 //
 export const TRADE_SCORES = [
     {
@@ -116,6 +123,7 @@ export const TRADE_SCORES = [
         across: true,
         note: `The average gain of each night’s top 10: ${TOP_STOCKS}. ${AT_RANDOM}`,
         optionsNote: `The average gain of each night’s top 10: ${TOP_OPTIONS}. ${AT_RANDOM}`,
+        heldNote: `The average gain of each night’s top 10: ${TOP_HELD}. ${AT_RANDOM}`,
     },
     {
         key: 'top10_wins',
@@ -125,6 +133,7 @@ export const TRADE_SCORES = [
         across: true,
         note: `How many of each night’s top 10 made money: ${TOP_STOCKS}. ${AT_RANDOM}`,
         optionsNote: `How many of each night’s top 10 made money: ${TOP_OPTIONS}. ${AT_RANDOM}`,
+        heldNote: `How many of each night’s top 10 made money: ${TOP_HELD}. ${AT_RANDOM}`,
     },
 ];
 
@@ -173,7 +182,11 @@ export const COMPARE_MAX = 3;
 // how many trading days an options model's picks are held (#279): each bought
 // at 9:40 AM the trading day after they are picked, and sold at 3:40 PM this
 // many trading days after that. Its track record has its scores for each, and
-// the pages open on the 1-day hold's, which are the listing's
+// the pages open on the 1-day hold's, which are the listing's.
+//
+// From format 5 a stock model's are held too (#300): bought at 9:40 AM on the
+// next trading day, and sold at 3:40 PM that day on the 1-day hold, today's
+// prediction, or 5 or 20 trading days later
 //
 export const HOLDS = [
     { days: 1, label: '1 day' },
@@ -183,29 +196,218 @@ export const HOLDS = [
 
 export const DEFAULT_HOLD = 1;
 
+//
+// a stock model's three holds averaged, from format 5 on (#300): each of its
+// scores the average of the day's 1, 5 and 20-day ones, in with the 20-day
+// result. It has no days of its own, so it is kept by its name, as a hold is by
+// its days, and picked from the same picker
+//
+export const COMBINED = 'combined';
+
+export const COMBINED_HOLD = { days: COMBINED, label: 'Combined' };
+
+//
+// every hold a picker can offer, in its order
+//
+const ALL_HOLDS = HOLDS.concat([COMBINED_HOLD]);
+
+//
+// the scores Combined has (#300): the four. The top 10 has none, a 20-day
+// gain and a 1-day gain not being the same kind of number
+//
+const COMBINED_SCORES = SCORES.map((score) => score.key);
+
 /**
- * the column a score is in for a hold (#279): 'top10_gain_5d', or the score's
- * own for no hold.
+ * whether a value is a hold the pages know: 1, 5 or 20 days, or Combined.
  */
-export function columnOf(key, hold = null) {
-    return hold ? `${key}_${hold}d` : key;
+export function isHold(hold) {
+    return ALL_HOLDS.some((each) => each.days === hold);
 }
 
 /**
- * the holds a track record has columns for (#279): none for a stock model's,
- * and an options model's three.
+ * the key a hold's scores are given under (#300): '5d', or 'combined' -- the
+ * listing's `holds` and a track record's `hold_days` key them so.
+ */
+export function holdKey(hold) {
+    return hold === COMBINED ? COMBINED : `${hold}d`;
+}
+
+/**
+ * the column a score is in for a hold (#279): 'top10_gain_5d', or from format
+ * 5 'loss_combined' (#300), or the score's own for no hold.
+ */
+export function columnOf(key, hold = null) {
+    return hold ? `${key}_${holdKey(hold)}` : key;
+}
+
+/**
+ * the holds a track record has columns for (#279): an options model's three,
+ * and from format 5 a stock model's and Combined (#300). None for a stock
+ * model's before then.
  */
 export function holdsOf(rows) {
     const keys = Array.isArray(rows) && rows.length && rows[0].score ? Object.keys(rows[0].score) : [];
 
-    return HOLDS.filter((hold) => keys.some((key) => key.endsWith(`_${hold.days}d`)));
+    return ALL_HOLDS.filter((hold) => keys.some((key) => key.endsWith(`_${holdKey(hold.days)}`)));
 }
 
 /**
- * a hold as the pages name it: '5-day hold'.
+ * the holds the listing gives a model's scores on, from format 5 on (#300) --
+ * see worker/model/report.js -- or none for a listing before it.
+ */
+export function listedHolds(model) {
+    return model && model.holds ? ALL_HOLDS.filter((hold) => model.holds[holdKey(hold.days)]) : [];
+}
+
+/**
+ * the holds the listing gives any of `models`' scores on (#300), in a picker's
+ * order: those /model's list of their task offers.
+ */
+export function holdsAmong(models) {
+    return ALL_HOLDS.filter((hold) => models.some((model) => listedHolds(model).includes(hold)));
+}
+
+/**
+ * a hold as the pages name it: '5-day hold', or 'combined' in a line of text
+ * (#300) -- its picker's button is 'Combined'.
  */
 export function holdName(hold) {
-    return `${hold}-day hold`;
+    return hold === COMBINED ? COMBINED : `${hold}-day hold`;
+}
+
+/**
+ * a hold as its picker names it: '5 days', or 'Combined'.
+ */
+export function holdLabel(hold) {
+    return (ALL_HOLDS.find((each) => each.days === hold) || { label: `${hold} days` }).label;
+}
+
+/**
+ * a hold named after a score's name, where a label names it (#300): ', 5-day
+ * hold' or ', combined', and nothing for no hold. /model's list leaves the
+ * 1-day hold unnamed too, `quiet`, so it reads as it did before format 5 until
+ * another hold is picked; a model's page names it, beside its picker.
+ */
+export function namedHold(hold, quiet = false) {
+    return hold && !(quiet && hold === DEFAULT_HOLD) ? `, ${holdName(hold)}` : '';
+}
+
+/**
+ * the scores of a task's that a hold has none of (#300): the top 10's on
+ * Combined, which its picker offers disabled, and none on any other hold.
+ */
+export function heldOut(task, hold) {
+    return hold === COMBINED ? scoresFor(task).filter((key) => !COMBINED_SCORES.includes(key)) : [];
+}
+
+/**
+ * the score a page shows on a hold (#300): the one picked, or loss on Combined
+ * where it is one of the top 10's, which Combined has none of. Only shown: the
+ * one picked is kept, and comes back on another hold.
+ */
+export function scoreOnHold(score, hold) {
+    return hold === COMBINED && !COMBINED_SCORES.includes(score) ? DEFAULT_SCORE : score;
+}
+
+/**
+ * how many trading days after its prediction each of a hold's results comes in
+ * (#300): an options model's a day after its sell day (#279), and a stock
+ * model's on its sell day -- the next trading day for the 1-day hold, 6 for the
+ * 5-day and 21 for the 20-day -- and Combined's with its 20-day result.
+ */
+export function resultDays(task, hold) {
+    if (hold === COMBINED) {
+        return resultDays(task, 20);
+    }
+
+    return tradesOptions(task) || hold !== DEFAULT_HOLD ? hold + 1 : 1;
+}
+
+/**
+ * when each of a hold's results comes in, after its prediction (#300): 'the next
+ * trading day', or '6 trading days after its prediction'.
+ */
+export function comesIn(task, hold) {
+    const days = resultDays(task, hold);
+
+    return days === 1 ? 'the next trading day' : `${days} trading days after its prediction`;
+}
+
+/**
+ * the same in fewer words, where a row names what it is (#300): 'the next
+ * trading day', '6 trading days later', or Combined's 'with the 20-day result'.
+ */
+export function resultLag(task, hold) {
+    const days = resultDays(task, hold);
+
+    if (hold === COMBINED) {
+        return 'with the 20-day result';
+    }
+
+    return days === 1 ? 'the next trading day' : `${days} trading days later`;
+}
+
+/**
+ * one of a hold's results as a sentence names it (#300): '5-day result', or
+ * 'combined score'.
+ */
+export function resultName(hold) {
+    return hold === COMBINED ? 'combined score' : `${hold}-day result`;
+}
+
+/**
+ * what a hold with no results yet shows in place of its figures and its chart
+ * (#279, #300): 'No 5-day results yet: each one comes in 6 trading days after
+ * its prediction.'
+ */
+export function noResultsYet(task, hold) {
+    const when = hold === COMBINED ? `with its day’s 20-day result, ${comesIn(task, hold)}` : comesIn(task, hold);
+
+    return `No ${resultName(hold)}s yet: each one comes in ${when}.`;
+}
+
+/**
+ * a hold as a sentence puts it after 'on' (#279, #300): ' on the 5-day hold', or
+ * ' on the combined score', and nothing for no hold.
+ */
+export function onThe(hold) {
+    if (!hold) {
+        return '';
+    }
+
+    return hold === COMBINED ? ' on the combined score' : ` on the ${holdName(hold)}`;
+}
+
+/**
+ * what a stock model's hold is, and when its results come in, as the line
+ * under its pickers says it (#300): '5-day hold: bought at 9:40 AM on the next
+ * trading day and sold at 3:40 PM 5 trading days later. Each result comes in 6
+ * trading days after its prediction.'
+ */
+export function holdLine(task, hold) {
+    if (hold === COMBINED) {
+        return 'Combined: the average of the 1, 5 and 20-day scores of the same prediction days, beside the same average of the baseline’s. It comes in with the 20-day result, so it runs about a month behind the 1-day hold.';
+    }
+
+    if (hold === DEFAULT_HOLD) {
+        return `1-day hold: from 9:40 AM to 3:40 PM on the next trading day, as the model predicts today. Each result comes in ${comesIn(task, hold)}.`;
+    }
+
+    return `${holdName(hold)}: bought at 9:40 AM on the next trading day and sold at 3:40 PM ${hold} trading days later. Each result comes in ${comesIn(task, hold)}${hold === 20 ? ', about a month' : ''}.`;
+}
+
+/**
+ * a model's scores on a hold (#300): the listing's `holds` entry's, `score`,
+ * `baseline` and `days`, with `hold` the one they are of -- or, for no hold, or
+ * one the listing gives none of, as a listing before format 5, its own scores
+ * and scored days, of no hold.
+ */
+export function scoresOn(model, hold = null) {
+    const held = hold && model.holds ? model.holds[holdKey(hold)] : null;
+
+    return held
+        ? { score: held.score, baseline: held.baseline, days: held.days, hold: hold }
+        : { score: model.score, baseline: model.baseline, days: model.scored_days, hold: null };
 }
 
 //
@@ -304,12 +506,22 @@ export function tradesOptions(task) {
 
 /**
  * what a score measures, for the models of `task` (#279): loss and the top 10's
- * mean something else for a task that trades options.
+ * mean something else for a task that trades options. On a stock model's `hold`
+ * (#300), loss on Combined is an average of its holds' losses, and the top 10 on
+ * its 5 and 20-day holds is sold days after it is bought.
  */
-export function noteOf(key, task) {
+export function noteOf(key, task, hold = null) {
     const score = scoreOf(key);
 
-    return tradesOptions(task) && score.optionsNote ? score.optionsNote : score.note;
+    if (tradesOptions(task)) {
+        return score.optionsNote || score.note;
+    }
+
+    if (hold === COMBINED && score.combinedNote) {
+        return score.combinedNote;
+    }
+
+    return hold && hold !== DEFAULT_HOLD && score.heldNote ? score.heldNote : score.note;
 }
 
 /**
@@ -466,13 +678,16 @@ export function standing(gap, key) {
  * None for a day without all three, as in a track record without their columns:
  * two parts alone would not add up to the loss.
  *
+ * On a `hold` (#300), the hold's own parts, over its own latest scored days, as
+ * the listing's `holds` has its loss.
+ *
  * Note: compared as the two are printed, since the page prints the word beside
  *       them. tables-gnn's size of the move was 0.26018 against the baseline's
  *       0.26065 over its first five days: less than half a thousandth apart,
  *       which standing calls level, and printed as 0.260 and 0.261.
  */
-export function lossParts(row) {
-    const averageOf = (field, key) => (row && row[field] ? row[field][key] : null);
+export function lossParts(row, hold = null) {
+    const averageOf = (field, key) => (row && row[field] ? row[field][columnOf(key, hold)] : null);
     const printed = (value) => Number(formatScore(value, 'loss'));
     const parts = LOSS_PARTS.map((part) => {
         const value = averageOf('average', part.key);
@@ -590,16 +805,20 @@ export function takenDown(day) {
  * have is left out, and a check it cannot name is said without one: 'worse than
  * the baseline'.
  *
- * An options model's checks run on each hold, and say which (#279): 'the 5-day
- * hold did worse than the baseline 5 scored days in a row', and 'the 5-day
- * hold’s 20-day average was worse than the baseline’s 5 days in a row'.
+ * An options model's checks run on each hold, and say which (#279), and from
+ * format 5 a stock model's do too (#300): 'its 5-day hold did worse than the
+ * baseline 5 scored days in a row', and 'its 5-day hold’s 20-day average was
+ * worse than the baseline’s 5 days in a row'.
  *
  * From format 4 a take-down that no check did says why (#295): 'it went live
  * without beating the baseline' for `not_ahead`, and 'its track record showed
- * nothing better than the baseline' for `track_record`.
+ * nothing better than the baseline' for `track_record` -- from format 5, 'its
+ * 20-day hold’s track record showed nothing better than the baseline, even on
+ * the days this version predicted itself', where it names its hold (#300).
+ * `not_ahead` never does: an attempt is judged on the 1-day hold.
  *
- * `down` is the listing's, or { days, in_a_row } as a track record gives the
- * day whose score set it off.
+ * `down` is the listing's, or { days, in_a_row, hold } as a track record gives
+ * the day whose score set it off.
  */
 export function checkWords({ reason = 'worse', days, in_a_row: inARow, hold = null }) {
     if (reason === 'not_ahead') {
@@ -607,7 +826,9 @@ export function checkWords({ reason = 'worse', days, in_a_row: inARow, hold = nu
     }
 
     if (reason === 'track_record') {
-        return 'its track record showed nothing better than the baseline';
+        return hold
+            ? `its ${holdName(hold)}’s track record showed nothing better than the baseline, even on the days this version predicted itself`
+            : 'its track record showed nothing better than the baseline';
     }
 
     const count = finite(inARow)
@@ -615,13 +836,13 @@ export function checkWords({ reason = 'worse', days, in_a_row: inARow, hold = nu
         : '';
 
     if (!finite(days)) {
-        return hold ? `the ${holdName(hold)} did worse than the baseline${count}` : `worse than the baseline${count}`;
+        return hold ? `its ${holdName(hold)} did worse than the baseline${count}` : `worse than the baseline${count}`;
     }
 
     if (hold) {
         return days === 1
-            ? `the ${holdName(hold)} did worse than the baseline${count}`
-            : `the ${holdName(hold)}’s ${days}-day average was worse than the baseline’s${count}`;
+            ? `its ${holdName(hold)} did worse than the baseline${count}`
+            : `its ${holdName(hold)}’s ${days}-day average was worse than the baseline’s${count}`;
     }
 
     return days === 1
@@ -665,49 +886,41 @@ function byHold(behind) {
 
 /**
  * how close each of the trainer's checks is to taking a model's live version
- * down (#263), from the listing's `behind`: 'Days in a row worse than the
- * baseline: each day 4 of 5, 5-day average 0 of 10, 20-day average not yet.'
- * Nothing for a listing that gives no checks, as one before format 2 does. An
- * options model's are said hold by hold (#279): '…: 1-day hold, each day 4 of
- * 5, …; 5-day hold, each day 0 of 5, ….'
+ * down (#263), from the listing's `behind`, as a table, in the Live version card
+ * and under a phone's boxes (#300) -- in place of a phone's line of them and a
+ * wide screen's row for each (#267): a column for each check, `checks` --
+ * { days, name: 'Each day' } -- and a row for each hold, an options model's
+ * (#279) and from format 5 a stock model's, `rows` -- { key, hold, name: '5
+ * days', counts: ['0 of 5', 'not yet'] } -- with how many scored days in a row
+ * it has been worse for each column, 'not yet' while it has too few days to
+ * say, or a dash where the hold has no such check. A model with no holds has
+ * one row, named for none. Null for a listing that gives no checks, as one
+ * before format 2.
  */
-export function behindLine(behind) {
+export function checksTable(behind) {
     if (!Array.isArray(behind) || !behind.length) {
-        return '';
+        return null;
     }
 
-    const each = byHold(behind).map((group) => {
-        const said = group.checks.map((check) => `${checkName(check)} ${checkCount(check)}`).join(', ');
+    const days = behind.map((check) => check.days).filter((each, at, all) => all.indexOf(each) === at);
 
-        return group.hold ? `${holdName(group.hold)}, ${said}` : said;
-    });
+    return {
+        checks: days.map((each) => {
+            const name = checkName({ days: each });
 
-    return `Days in a row worse than the baseline: ${each.join('; ')}.`;
-}
-
-/**
- * the same checks as rows of the Live version card on a wide screen (#267), a
- * name and a count each: { key, name: 'Each day', value: '4 of 5' }. None for a
- * listing that gives no checks. An options model's under a heading for each
- * hold (#279), { key, name: '1-day hold', head: true }.
- */
-export function behindRows(behind) {
-    if (!Array.isArray(behind)) {
-        return [];
-    }
-
-    return byHold(behind).reduce((rows, group) => rows.concat(
-        group.hold ? [{ key: `hold-${group.hold}`, name: holdName(group.hold), head: true }] : [],
-        group.checks.map((check) => {
-            const name = checkName(check);
-
-            return {
-                key: group.hold ? `check-${group.hold}-${check.days}` : `check-${check.days}`,
-                name: `${name.charAt(0).toUpperCase()}${name.slice(1)}`,
-                value: checkCount(check),
-            };
+            return { days: each, name: `${name.charAt(0).toUpperCase()}${name.slice(1)}` };
         }),
-    ), []);
+        rows: byHold(behind).map((group) => ({
+            key: group.hold ? `hold-${group.hold}` : 'checks',
+            hold: group.hold,
+            name: group.hold ? holdLabel(group.hold) : '',
+            counts: days.map((each) => {
+                const check = group.checks.find((one) => one.days === each);
+
+                return check ? checkCount(check) : '–';
+            }),
+        })),
+    };
 }
 
 //
@@ -876,11 +1089,12 @@ export function formatStarted(text) {
  *              went live before it retired, and comes after every model still
  *              trained
  *
- * Ties are broken by name, so the order never depends on the listing's.
+ * Ties are broken by name, so the order never depends on the listing's. On a
+ * `hold` (#300), the scores are each model's on it -- see scoresOn.
  */
-export function sortModels(models, sort, key) {
+export function sortModels(models, sort, key, hold = null) {
     const byName = (a, b) => a.name.localeCompare(b.name);
-    const scored = (model) => (model.score && finite(model.score[key]) ? model.score[key] : null);
+    const scored = (model) => scoreIn(scoresOn(model, hold).score, key);
 
     const compare = {
         name: byName,

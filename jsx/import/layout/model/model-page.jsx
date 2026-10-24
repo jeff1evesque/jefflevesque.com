@@ -36,6 +36,19 @@
  * picks-page.jsx (#290). On a score of what each model's picks would have made,
  * the track record's menu offers the models of other tasks too.
  *
+ * From format 5 a stock model's page has one too (#300): its 1, 5 and 20-day
+ * holds, and Combined, their average, with a line under the pickers saying what
+ * the hold is and when its results come in. Wherever the listing gives a model's
+ * scores on each hold, the score card follows the hold as the track record does
+ * -- its figure, its line, its parts -- and only the attempts stay on the 1-day
+ * hold, as the trainer judges them. Combined has no top 10: its picker's two are
+ * disabled, and a top 10 picked before shows as loss there. A stock model's
+ * scores on every hold are in a table under the cards, the hold picked shaded,
+ * or on a phone the score picked on every hold.
+ *
+ * Every take-down check is a table, a row for each hold, and every "better" and
+ * "worse" than the baseline carries the list's arrow (#300).
+ *
  * The listing says who the model is; its history and its track record are asked
  * for once the listing names it. A name the listing does not hold is a model
  * that does not exist, and the page says so rather than drawing nothing.
@@ -55,34 +68,44 @@ import ErrorFallback from '../../formatter/boundary-error.jsx';
 import FigureBoxes from '../../general/figure-boxes.jsx';
 import InfoNote from '../../general/info-note.jsx';
 import AttemptsChart, { HEIGHT as ATTEMPTS_HEIGHT, TITLE as ATTEMPTS_TITLE } from './attempts-chart.jsx';
-import TrackChart, { HEIGHT as TRACK_HEIGHT, TITLE as TRACK_TITLE } from './track-chart.jsx';
-import { AlarmBell, HoldPicker, ScorePicker, StatusPill, modelsHeld } from './parts.jsx';
+import TrackChart, { HEIGHT as TRACK_HEIGHT, TITLE as TRACK_TITLE, TrackNone } from './track-chart.jsx';
+import { AlarmBell, HoldPicker, ScorePicker, StatusPill, gapWords, modelsHeld } from './parts.jsx';
 import { loadListing, loadReport } from './source.js';
 import { PendingChart, PendingLines, PendingPicker, PendingSummary, STAGGER } from './pending.jsx';
 import { PendingBar } from '../graph/pending.jsx';
 import { listSubscriptions } from '../../general/account-api.js';
 import {
+    COMBINED,
     DEFAULT_HOLD,
     DEFAULT_SCORE,
     HOLDS,
     averageDays,
-    behindLine,
-    behindRows,
     betterBy,
     checkWords,
+    checksTable,
     chosenScore,
     columnOf,
+    comesIn,
     formatDuration,
     formatGap,
     formatScore,
     formatStarted,
+    heldOut,
+    holdLabel,
+    holdLine,
     holdsOf,
+    listedHolds,
     liveKind,
     lossParts,
+    namedHold,
+    noResultsYet,
     noteOf,
+    resultLag,
     scoreIn,
     scoreOf,
+    scoreOnHold,
     scoresFor,
+    scoresOn,
     shortDay,
     sortModels,
     standing,
@@ -119,18 +142,19 @@ export function ordinal(place) {
 /**
  * where `model` stands among the models of its task on `score`, best first, in
  * two parts: { rank: '2nd of 3', among: 'Next-day direction models' }, or null
- * where it is the only one, or has no score to stand by.
+ * where it is the only one, or has no score to stand by. On a `hold` (#300), on
+ * each model's scores on it -- see scores.js's scoresOn.
  */
-export function rankAmong(model, models, task, score) {
+export function rankAmong(model, models, task, score, hold = null) {
     const scored = models.filter((each) => (
-        each.task === model.task && each.score && Number.isFinite(each.score[score])
+        each.task === model.task && scoreIn(scoresOn(each, hold).score, score) !== null
     ));
 
     if (scored.length < 2 || !scored.includes(model)) {
         return null;
     }
 
-    const place = sortModels(scored, 'score', score).indexOf(model) + 1;
+    const place = sortModels(scored, 'score', score, hold).indexOf(model) + 1;
 
     return { rank: `${ordinal(place)} of ${scored.length}`, among: `${task ? task.name : model.task} models` };
 }
@@ -139,8 +163,8 @@ export function rankAmong(model, models, task, score) {
  * the same as one line, as a phone's note says it: '2nd of 3 Next-day direction
  * models', or ''.
  */
-export function placeAmong(model, models, task, score) {
-    const place = rankAmong(model, models, task, score);
+export function placeAmong(model, models, task, score, hold = null) {
+    const place = rankAmong(model, models, task, score, hold);
 
     return place ? `${place.rank} ${place.among}` : '';
 }
@@ -198,24 +222,22 @@ const DOWN_SHORT = 'Nothing predicts until a version beats the baseline.';
 /**
  * the line under the Live version card's figure on a wide screen (#267): how the
  * live version came to be live, as liveFigure says it, or for one taken down,
- * what happens until a version beats the baseline. A take-down no check did has
- * no check in the rows to show why, so its line says why first, from format 4
- * (#295): 'It went live without beating the baseline. Nothing predicts until a
- * version beats the baseline.'
+ * why, and what happens until a version beats the baseline: 'Its 5-day hold did
+ * worse than the baseline 5 scored days in a row. Nothing predicts until a
+ * version beats the baseline.' A check's take-down said only what came next, its
+ * check shown in the card's rows; from #300 the checks are a table of counts,
+ * and every take-down says why, as one no check did has since format 4 (#295).
  */
 export function liveLine(model) {
     if (statusOf(model) !== 'down') {
         return liveFigure(model).detail;
     }
 
-    return model.down.reason && model.down.reason !== 'worse'
-        ? `${sentence(checkWords(model.down))} ${DOWN_SHORT}`
-        : DOWN_SHORT;
+    return `${sentence(checkWords(model.down))} ${DOWN_SHORT}`;
 }
 
 /**
- * the Live version card's rows on a wide screen (#267), each { key, name, value },
- * or a heading { key, name, head: true } over the rows after it:
+ * the Live version card's rows on a wide screen (#267), each { key, name, value }:
  *
  *     Beat the version it replaced by     how much lower its loss was than the
  *                                         version before it, on the night it went
@@ -225,13 +247,11 @@ export function liveLine(model) {
  *                                         format 4 (#295): '7 days, Oct 5 to Oct
  *                                         19' -- see scores.js's trainedOn
  *     First predicted                     the listing's `started`
- *     Days in a row worse than the        a heading over a row per check -- see
- *     baseline                            behindRows
  *
  * No first row for a first version, one taken down, a retired model, a night the
  * history does not hold, or a version that only matched the one before it. No
- * Trained on where the listing says nothing of it, as before format 4. No checks
- * for a retired model, or a listing that gives none, as before format 2.
+ * Trained on where the listing says nothing of it, as before format 4. The
+ * checks come after the rows, as a table (#300) -- see ChecksTable.
  */
 export function liveRows(model, history) {
     const status = statusOf(model);
@@ -255,11 +275,16 @@ export function liveRows(model, history) {
         rows.push({ key: 'started', name: 'First predicted', value: shortDay(model.started) });
     }
 
-    const checks = status === 'retired' ? [] : behindRows(model.behind);
+    return rows;
+}
 
-    return checks.length
-        ? rows.concat([{ key: 'checks', name: 'Days in a row worse than the baseline', head: true }], checks)
-        : rows;
+/**
+ * the take-down checks of a model still trained, as a table (#300) -- see
+ * scores.js's checksTable -- or null for a retired one, or a listing that gives
+ * none, as before format 2.
+ */
+export function checksOf(model) {
+    return statusOf(model) === 'retired' ? null : checksTable(model.behind);
 }
 
 /**
@@ -274,11 +299,14 @@ export function attemptsLine(history) {
 /**
  * the Attempts card's rows on a wide screen (#267), as liveRows gives them: how
  * many nightly updates and weekly retrains went live, of how many -- a kind with
- * no attempts has no row -- then the newest night, under 'Last attempt, Oct 19':
- * whether it went live, and when it started and how long it took, where the
- * history has its times. None where there is no history.
+ * no attempts has no row -- and, for a model with holds, `held`, that attempts
+ * are judged on the 1-day hold (#300). Then the newest night, under 'Last
+ * attempt, Oct 19': whether it went live, when it started and how long it took,
+ * where the history has its times, and its loss on the held-out days beside the
+ * live version's, which is what decided it (#300). None where there is no
+ * history.
  */
-export function attemptRows(history) {
+export function attemptRows(history, held = false) {
     if (!Array.isArray(history) || !history.length) {
         return [];
     }
@@ -293,10 +321,21 @@ export function attemptRows(history) {
         }
     });
 
+    if (held) {
+        rows.push({ key: 'judged', name: 'Judged on', value: 'the 1-day hold' });
+    }
+
     const last = history[history.length - 1];
-    const times = [
+    const attempt = scoreIn(last.attempt, 'loss');
+    const live = scoreIn(last.live, 'loss');
+    const more = [
         { key: 'started', name: 'Started', value: formatStarted(last.started) },
         { key: 'took', name: 'Took', value: formatDuration(last.total_seconds) },
+        {
+            key: 'loss',
+            name: 'Its held-out loss',
+            value: attempt === null ? '' : `${formatScore(attempt, 'loss')}${live === null ? '' : `, live ${formatScore(live, 'loss')}`}`,
+        },
     ];
 
     return rows.concat(
@@ -304,15 +343,16 @@ export function attemptRows(history) {
             { key: 'last', name: `Last attempt, ${shortDay(last.day)}`, head: true },
             { key: 'result', name: 'Result', value: last.went_live ? 'went live' : 'kept back' },
         ],
-        times.filter((row) => row.value),
+        more.filter((row) => row.value),
     );
 }
 
 /**
  * a card's rows on a wide screen, under a thin rule (#267), drawn as loss's parts
  * are: a name at the left and its value at the right, and a heading in gray over
- * the rows after it. `children` come after the rows: the Loss card's parts.
- * Nothing, not even the rule, where there are neither.
+ * the rows after it. `children` come after the rows, at the card's foot (#300):
+ * the Live version card's checks, and the score card's parts. Nothing, not even
+ * the rule, where there are neither.
  */
 export function CardRows({ rows, children = null }) {
     if (!rows.length && !children) {
@@ -360,7 +400,8 @@ const PART_STANDS = {
 /**
  * the three scores loss adds up (#265), under the score's figure while Loss is
  * picked: each part's average, and how it stands against the baseline's
- * beside the baseline's own -- 'Up or down 0.723 worse than baseline 0.713'.
+ * beside the baseline's own, after the list's arrow (#300) -- 'Up or down 0.723
+ * ▼ worse than baseline 0.713'.
  *
  * `parts` are lossParts' of the track record's newest day, over the same days as
  * the figure, so the three add up to it.
@@ -376,6 +417,7 @@ export function LossParts({ parts }) {
                         {part.stands
                             ? (
                                 <span className={`model-part-baseline model-gap-${part.stands}`}>
+                                    {part.stands === 'level' ? null : <span className='model-gap-arrow'>{part.stands === 'better' ? '▲ ' : '▼ '}</span>}
                                     {`${PART_STANDS[part.stands]} ${formatScore(part.baseline, 'loss')}`}
                                 </span>
                             ) : null}
@@ -396,6 +438,181 @@ LossParts.propTypes = {
     })).isRequired,
 };
 
+/**
+ * how close each of the trainer's checks is to taking the live version down, as
+ * a small table (#300): a column for each check, each day and each average, and
+ * a row for each hold, each cell how many scored days in a row the hold has been
+ * worse than the baseline on the check, '4 of 5', or 'not yet' where the check
+ * does not have its days. A model with no holds has one row, under the checks'
+ * names alone. In the Live version card on a wide screen, and under the boxes on
+ * a phone, which it fits.
+ *
+ * `table` is checksOf's.
+ */
+export function ChecksTable({ table }) {
+    const holds = table.rows.some((row) => row.hold);
+
+    return (
+        <table className='model-checks'>
+            <caption>Days in a row worse than the baseline</caption>
+            <thead>
+                <tr>
+                    {holds ? <th scope='col' className='model-checks-hold'>Hold</th> : null}
+                    {table.checks.map((check) => <th key={check.days} scope='col'>{check.name}</th>)}
+                </tr>
+            </thead>
+            <tbody>
+                {table.rows.map((row) => (
+                    <tr key={row.key}>
+                        {holds ? <th scope='row'>{row.name}</th> : null}
+                        {row.counts.map((count, at) => (
+                            <td key={table.checks[at].days} className={/ of /.test(count) ? null : 'model-checks-none'}>{count}</td>
+                        ))}
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    );
+}
+
+ChecksTable.propTypes = {
+    table: PropTypes.shape({
+        checks: PropTypes.arrayOf(PropTypes.shape({
+            days: PropTypes.number.isRequired,
+            name: PropTypes.string.isRequired,
+        })).isRequired,
+        rows: PropTypes.arrayOf(PropTypes.shape({
+            key: PropTypes.string.isRequired,
+            hold: PropTypes.number,
+            name: PropTypes.string.isRequired,
+            counts: PropTypes.arrayOf(PropTypes.string).isRequired,
+        })).isRequired,
+    }).isRequired,
+};
+
+//
+// a score's figure on a hold, and how it stands against the baseline's in the
+// fewest words, '▲ 0.012 better', as a cell of the Scores by hold table and a
+// line of a phone's list hold them (#300). A top 10's on Combined, which has
+// none, says so
+//
+function heldFigure(task, on, key) {
+    if (heldOut(task, on.hold).includes(key)) {
+        return { value: '–', gap: <span className='model-gap model-gap-level'>no combined score</span> };
+    }
+
+    const value = scoreIn(on.score, key);
+    const gap = betterBy(value, scoreIn(on.baseline, key), key);
+
+    return {
+        value: formatScore(value, key),
+        gap: <span className={`model-gap model-gap-${standing(gap, key)}`}>{gapWords(gap, key, '', 'level with the baseline')}</span>,
+    };
+}
+
+//
+// how many days a hold has scored, and how many of them its figures take in
+// (#300): 'last 20 of 34 scored days', '14 scored days so far', or none yet
+//
+function scoredDays(days, window) {
+    if (!days) {
+        return 'no scored days yet';
+    }
+
+    return days >= window ? `last ${window} of ${days} scored days` : `${days} scored ${days === 1 ? 'day' : 'days'} so far`;
+}
+
+/**
+ * a stock model's scores on each of its holds (#300), under the summary: a row
+ * for each hold and one for Combined, saying how many days it has scored and
+ * when its results come in, and a column for each of its task's scores, each
+ * cell the hold's average and how it stands against the baseline's. All from the
+ * listing's `holds`, as the score card's figure is. The hold picked is shaded.
+ *
+ * On a phone, '<score> by hold' in its place: the score picked, on every hold, a
+ * line each, so nothing runs past the screen's edge. Both are drawn, and the
+ * stylesheet shows the one that fits -- see '_model.scss'.
+ */
+export function HoldsTable({ model, task, score, hold }) {
+    const holds = listedHolds(model);
+    const keys = scoresFor(task);
+    const shown = scoreOnHold(score, hold);
+    const window = averageDays(model);
+
+    return (
+        <section className='model-card model-by-hold' aria-labelledby='model-holds-title'>
+            <div className='model-card-head'>
+                <h5 id='model-holds-title'>
+                    <span className='model-holds-wide'>Scores by hold</span>
+                    <span className='model-holds-phone'>{`${scoreOf(shown).label} by hold`}</span>
+                </h5>
+            </div>
+            <div className='model-holds-wide model-holds-box'>
+                <table className='model-holds-table'>
+                    <thead>
+                        <tr>
+                            <th scope='col'>Hold</th>
+                            {keys.map((key) => <th key={key} scope='col'>{scoreOf(key).label}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {holds.map((each) => {
+                            const on = scoresOn(model, each.days);
+
+                            return (
+                                <tr key={each.label} className={each.days === hold ? 'model-holds-picked' : null}>
+                                    <th scope='row'>
+                                        <span className='model-holds-name'>{each.label}</span>
+                                        <span className='model-holds-about'>{scoredDays(on.days, window)}</span>
+                                        <span className='model-holds-about'>{`Comes in ${each.days === COMBINED ? 'with the day’s 20-day result' : comesIn(task, each.days)}`}</span>
+                                    </th>
+                                    {keys.map((key) => {
+                                        const figure = heldFigure(task, on, key);
+
+                                        return (
+                                            <td key={key}>
+                                                <span className='model-holds-value'>{figure.value}</span>
+                                                {figure.gap}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+            <ul className='model-holds-phone model-holds-list' aria-label={`${scoreOf(shown).label} by hold`}>
+                {holds.map((each) => {
+                    const on = scoresOn(model, each.days);
+                    const figure = heldFigure(task, on, shown);
+
+                    return (
+                        <li key={each.label} className={each.days === hold ? 'model-holds-picked' : null}>
+                            <span className='model-holds-name'>{each.label}</span>
+                            <span className='model-holds-value'>{figure.value}</span>
+                            <span className='model-holds-about'>{scoredDays(on.days, window)}</span>
+                            {figure.gap}
+                        </li>
+                    );
+                })}
+            </ul>
+        </section>
+    );
+}
+
+HoldsTable.propTypes = {
+    model: PropTypes.shape({
+        holds: PropTypes.object.isRequired,
+    }).isRequired,
+    task: PropTypes.shape({
+        id: PropTypes.string.isRequired,
+        scores: PropTypes.arrayOf(PropTypes.string),
+    }),
+    score: PropTypes.string.isRequired,
+    hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]),
+};
+
 class ModelPage extends Component {
     static propTypes = {
         //
@@ -404,13 +621,14 @@ class ModelPage extends Component {
         name: PropTypes.string.isRequired,
         //
         // the score shown for each task, and the way to choose another for one,
-        // as /model's lists are (#279), and the hold an options model's track
-        // record is drawn on, and the way to choose another -- the store's, see
+        // as /model's lists are (#279), and the hold the page is on, and the way
+        // to choose another: 1, 5 or 20 days, or from format 5 Combined (#300),
+        // which a page without it reads as 1 day -- the store's, see
         // redux/container/model.jsx
         //
         scores: PropTypes.objectOf(PropTypes.string),
         onScore: PropTypes.func,
-        hold: PropTypes.number,
+        hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]),
         onHold: PropTypes.func,
     }
 
@@ -510,69 +728,103 @@ class ModelPage extends Component {
     }
 
     //
-    // the three figures over the charts, on `score`
+    // the three figures over the charts, on `score` and `hold`
     //
-    summary(model, task, score) {
+    summary(model, task, score, hold) {
         const { history, listing, track } = this.state;
         const status = statusOf(model);
         const live = liveFigure(model);
-        const value = scoreIn(model.score, score);
-        const baseline = scoreIn(model.baseline, score);
+
+        //
+        // the score card's figure on the hold, where the listing gives the
+        // model's scores on each, from format 5 on (#300), and otherwise the
+        // listing's own -- see scores.js's scoresOn. A hold with no day scored
+        // yet has none, and says when its first result comes in
+        //
+        const on = scoresOn(model, hold);
+        const value = scoreIn(on.score, score);
+        const baseline = scoreIn(on.baseline, score);
         const gap = betterBy(value, baseline, score);
         const stands = standing(gap, score);
+        const waiting = Boolean(on.hold) && !on.days;
         const weekly = Array.isArray(history) ? history.filter((row) => row.kind === 'weekly') : [];
         const retrains = weekly.length ? `weekly retrains: ${weekly.filter((row) => row.went_live).length} of ${weekly.length}` : '';
         const went = `${model.attempts.went_live} of ${model.attempts.total}`;
-        const rank = rankAmong(model, listing.models, task, score);
-        const place = placeAmong(model, listing.models, task, score);
+        const rank = rankAmong(model, listing.models, task, score, on.hold);
+        const place = placeAmong(model, listing.models, task, score, on.hold);
 
         //
         // so far, for a model with fewer scored days than its scores average
-        // (#293): a new one, or one taken down before it had them (#263)
+        // (#293): a new one, or one taken down before it had them (#263), or a
+        // hold that came on after the model did, by its own days (#300). The
+        // name names the hold, but for the 1-day hold, whose scores are the
+        // listing's own
         //
         const days = averageDays(model);
-        const scoreName = status !== 'retired' && model.scored_days < days
-            ? `${scoreOf(score).label}, ${model.scored_days} ${model.scored_days === 1 ? 'day' : 'days'} so far`
-            : `${scoreOf(score).label}, last ${days} days`;
+        const named = `${scoreOf(score).label}${namedHold(on.hold)}`;
+        let scoreName = `${named}, last ${days} days`;
+
+        if (waiting) {
+            scoreName = named;
+        } else if (status !== 'retired' && on.days < days) {
+            scoreName = `${named}, ${on.days} ${on.days === 1 ? 'day' : 'days'} so far`;
+        }
 
         //
-        // what a model taken down does until it goes live again, and how close
-        // each check is to taking a model down, for any model still trained
-        // (#263), as a phone's notes say them. A wide screen's cards say them in
-        // their rows (#267)
+        // what a model taken down does until it goes live again (#263), as a
+        // phone's note says it, and the take-down checks of any model still
+        // trained, as a table (#300)
         //
         const down = status === 'down' ? DOWN_LINE : '';
-        const behind = status === 'retired' ? '' : behindLine(model.behind);
+        const checks = checksOf(model);
 
         //
         // what the live version trained on, from format 4 (#295), as a phone's
-        // note says it. A wide screen's card says it in its rows
+        // line under the boxes says it. A wide screen's card says it in its rows
         //
         const trained = trainedOn(model.live);
 
+        //
+        // how the score stands against the baseline's, after the list's arrow
+        // (#300): '▲ 0.012 better than the baseline, 1.650'
+        //
         let against = '';
 
-        if (gap !== null) {
-            against = stands === 'level'
-                ? `level with the baseline, ${formatScore(baseline, score)}`
-                : `${formatGap(gap, score)} ${stands} than the baseline, ${formatScore(baseline, score)}`;
+        if (waiting) {
+            against = noResultsYet(task, on.hold);
+        } else if (gap !== null) {
+            against = <>{gapWords(gap, score)}{`, ${formatScore(baseline, score)}`}</>;
         }
 
         //
         // the three scores loss adds up, while Loss is picked (#265), from the
-        // track record's newest day: none while the track record is on its way,
-        // where it could not be had, and where it has no columns for them
+        // track record's newest day, on the hold (#300): none while the track
+        // record is on its way, where it could not be had, and where it has no
+        // columns for them
         //
-        const parts = score === 'loss' && Array.isArray(track) && track.length ? lossParts(track[track.length - 1]) : [];
+        const parts = score === 'loss' && Array.isArray(track) && track.length ? lossParts(track[track.length - 1], on.hold) : [];
         const lossBy = parts.length ? <LossParts parts={parts} /> : null;
 
         //
         // the score card's rows on a wide screen: its place among its task's
-        // models, then a heading over the parts of loss, as the other two cards
-        // head theirs (#272) -- the place ran straight into them
+        // models, and on a hold, how many days the hold has scored and when each
+        // of its results comes in (#300). The parts of loss go at the card's
+        // foot under a heading of their own, as the other cards head theirs
+        // (#272) -- the place ran straight into them
         //
         const scoreRows = (rank ? [{ key: 'place', name: `Among ${rank.among}`, value: rank.rank }] : [])
-            .concat(parts.length ? [{ key: 'parts', name: 'Loss, part by part', head: true }] : []);
+            .concat(on.hold
+                ? [
+                    { key: 'days', name: 'Scored days on this hold', value: on.days ? String(on.days) : 'none yet' },
+                    { key: 'in', name: 'Each result comes in', value: resultLag(task, on.hold) },
+                ] : []);
+
+        //
+        // whether attempts are said to be judged on the 1-day hold: a stock
+        // model with holds (#300). An options model's are judged on its loss,
+        // which adds up every hold that is on
+        //
+        const held = !tradesOptions(task) && Boolean(listedHolds(model).length || holdsOf(track).length);
 
         //
         // a taken-down model's live box on a phone: 'Taken down' its name and the
@@ -591,7 +843,11 @@ class ModelPage extends Component {
         // line, then its rows under a thin rule, as the parts of loss are drawn,
         // which had read cleanly where the cards' sentences ran together (#267).
         // The parts go in the score's card, under its place among its task's
-        // models; on a phone they go under the boxes (#265)
+        // models.
+        //
+        // On a phone, under the boxes, in this order (#300): the score's line,
+        // the parts (#265), why the live version was taken down, the checks, and
+        // what it trained on
         //
         return (
             <section className='model-summary' aria-label='Summary'>
@@ -602,7 +858,7 @@ class ModelPage extends Component {
                             <span className='model-stat-value'>{live.value}</span>
                             <span className='model-stat-detail'>{liveLine(model)}</span>
                         </div>
-                        <CardRows rows={liveRows(model, history)} />
+                        <CardRows rows={liveRows(model, history)}>{checks ? <ChecksTable table={checks} /> : null}</CardRows>
                     </div>
                     <div className='model-stat'>
                         <div className='model-stat-head'>
@@ -610,15 +866,23 @@ class ModelPage extends Component {
                             <span className='model-stat-value'>{went}</span>
                             <span className='model-stat-detail'>{attemptsLine(history)}</span>
                         </div>
-                        <CardRows rows={attemptRows(history)} />
+                        <CardRows rows={attemptRows(history, held)} />
                     </div>
                     <div className='model-stat'>
                         <div className='model-stat-head'>
-                            <InfoNote note={noteOf(score, task)} className='model-stat-label model-noted'>{scoreName}</InfoNote>
+                            <InfoNote note={noteOf(score, task, on.hold)} className='model-stat-label model-noted'>{scoreName}</InfoNote>
                             <span className='model-stat-value'>{formatScore(value, score)}</span>
                             <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
                         </div>
-                        <CardRows rows={scoreRows}>{lossBy}</CardRows>
+                        <CardRows rows={scoreRows}>
+                            {lossBy
+                                ? (
+                                    <div className='model-stat-group'>
+                                        <span className='model-stat-group-head'>Loss, part by part</span>
+                                        {lossBy}
+                                    </div>
+                                ) : null}
+                        </CardRows>
                     </div>
                 </div>
                 <div className='model-summary-boxes'>
@@ -627,7 +891,7 @@ class ModelPage extends Component {
                             {
                                 key: 'live',
                                 label: 'Live version',
-                                note: [sentence(live.detail), trained ? `Trained on ${trained}.` : '', down].filter(Boolean).join(' '),
+                                note: sentence(live.detail),
                                 value: live.value,
                                 ...downBox,
                             },
@@ -645,14 +909,28 @@ class ModelPage extends Component {
                             {
                                 key: 'score',
                                 label: scoreName,
-                                short: scoreOf(score).label,
-                                note: [noteOf(score, task), sentence(against), sentence(place), behind].filter(Boolean).join(' '),
+                                short: on.hold ? `${scoreOf(score).label}, ${holdLabel(on.hold).toLowerCase()}` : scoreOf(score).label,
+                                note: [noteOf(score, task, on.hold), sentence(place)].filter(Boolean).join(' '),
                                 value: formatScore(value, score),
                                 tone: { better: 'good', worse: 'bad' }[stands],
                             },
                         ]}
                     />
-                    {lossBy}
+                    <div className='model-summary-details'>
+                        <p className={`model-score-line model-gap-${stands}`}>
+                            {waiting ? against : <>{`${scoreName}: `}{against || formatScore(value, score)}</>}
+                        </p>
+                        {lossBy}
+                        {status === 'down' ? <p className='model-down-line'>{`${sentence(checkWords(model.down))} ${down}`}</p> : null}
+                        {checks ? <ChecksTable table={checks} /> : null}
+                        {trained
+                            ? (
+                                <p className='model-trained-line'>
+                                    <span className='model-trained-name'>Trained on</span>
+                                    <span className='model-trained-value'>{trained}</span>
+                                </p>
+                            ) : null}
+                    </div>
                 </div>
             </section>
         );
@@ -681,15 +959,26 @@ class ModelPage extends Component {
     }
 
     //
-    // the holds an options model's track record is drawn on (#279), and the one
-    // it is drawn on now: the hold picked, where the record has it, and its
-    // first otherwise. While the record is on its way, the three, for a task
-    // that trades options, so the picker does not arrive after the page has;
-    // and none for a model with no holds
+    // the holds the page offers, and the one it is on now: the hold picked,
+    // where it is offered, and the first otherwise -- as Combined, kept from a
+    // stock model's page, is on an options model's (#300). None for a model with
+    // no holds.
     //
-    holds(task) {
+    // Those the listing gives the model's scores on, from format 5 on (#300),
+    // so the picker is there while the track record is on its way. Otherwise
+    // those its track record has columns for (#279), and while it is on its way,
+    // the three for a task that trades options, so the picker does not arrive
+    // after the page has
+    //
+    holds(model, task) {
         const { track } = this.state;
-        const holds = track === undefined && tradesOptions(task) ? HOLDS : holdsOf(track);
+        const listed = listedHolds(model);
+        let holds = listed;
+
+        if (!listed.length) {
+            holds = track === undefined && tradesOptions(task) ? HOLDS : holdsOf(track);
+        }
+
         const hold = holds.some((each) => each.days === this.props.hold) ? this.props.hold : null;
 
         return { holds: holds, hold: hold || (holds.length ? holds[0].days : null) };
@@ -714,23 +1003,21 @@ class ModelPage extends Component {
 
     //
     // the track record's chart, or a line saying why there is none: no day
-    // scored yet, or none on the hold picked (#279) -- each of its results is
-    // in a trading day after its sell day
+    // scored yet, or none on the hold picked (#279) -- an options model's
+    // results are in a trading day after its sell day, and a stock model's on
+    // it (#300), said in the card in place of its chart. The chart is on the
+    // hold where the record has its columns
     //
-    trackRecord(model, score, holds) {
+    trackRecord(model, task, score, holds) {
         const { history, track, other, other_rows } = this.state;
-        const hold = holdsOf(track).length ? holds.hold : null;
+        const hold = holdsOf(track).some((each) => each.days === holds.hold) ? holds.hold : null;
 
         if (!track.length) {
             return <p className='model-status model-status-empty'>No days scored yet.</p>;
         }
 
         if (hold && !track.some((row) => scoreIn(row.score, columnOf(score, hold)) !== null)) {
-            return (
-                <p className='model-status model-status-empty'>
-                    {`No ${hold}-day results yet: each one comes in ${hold + 1} trading days after its prediction.`}
-                </p>
-            );
+            return <TrackNone message={noResultsYet(task, hold)} />;
         }
 
         //
@@ -805,8 +1092,16 @@ class ModelPage extends Component {
         }
 
         const task = listing.tasks.find((each) => each.id === model.task);
-        const score = chosenScore(scores, task || { id: model.task });
-        const holds = this.holds(task);
+        const holds = this.holds(model, task);
+
+        //
+        // the score picked for the task, shown as loss on Combined where it is
+        // one of the top 10's, which Combined has none of, and kept for another
+        // hold (#300). A stock model with holds says what its hold is under the
+        // pickers, and shows its scores on each under the cards
+        //
+        const score = scoreOnHold(chosenScore(scores, task || { id: model.task }), holds.hold);
+        const stock = !tradesOptions(task) && holds.holds.length > 0;
 
         return (
             <>
@@ -824,14 +1119,21 @@ class ModelPage extends Component {
                     </span>
                 </div>
                 <div className='model-controls'>
-                    <ScorePicker score={score} onScore={(key) => onScore(model.task, key)} offered={scoresFor(task)} />
+                    <ScorePicker
+                        score={score}
+                        onScore={(key) => onScore(model.task, key)}
+                        offered={scoresFor(task)}
+                        disabled={heldOut(task, holds.hold)}
+                    />
                     {holds.holds.length ? <HoldPicker hold={holds.hold} onHold={onHold} holds={holds.holds} /> : null}
                 </div>
-                {this.summary(model, task, score)}
+                {stock ? <p className='model-hold-line'>{holdLine(task, holds.hold)}</p> : null}
+                {this.summary(model, task, score, holds.hold)}
+                {stock && listedHolds(model).length ? <HoldsTable model={model} task={task} score={score} hold={holds.hold} /> : null}
                 {this.report(history, 'nightly attempts', ATTEMPTS_CARD, () => (history.length
                     ? <AttemptsChart rows={history} score={score} />
                     : <p className='model-status model-status-empty'>No nightly attempts yet.</p>))}
-                {this.report(track, 'track record', TRACK_CARD, () => this.trackRecord(model, score, holds))}
+                {this.report(track, 'track record', TRACK_CARD, () => this.trackRecord(model, task, score, holds))}
             </>
         );
     }

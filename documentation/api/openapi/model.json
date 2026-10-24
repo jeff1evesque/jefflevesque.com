@@ -45,7 +45,7 @@
         ],
         "responses": {
           "200": {
-            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history or track-record, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; started, when the attempt began, in UTC with its offset, e.g. 2026-10-16T07:58:10+00:00; training_seconds, the time spent training, reading the days included, to one decimal; total_seconds, from started until the attempt's scores are known, so its training and then scoring the held-out days for the attempt and for the live version, to one decimal; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>. started, training_seconds and total_seconds are empty for attempts made before 2026-10-15.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row. From format 2, down_days and down_in_a_row: the check that took the live version down, on the day whose score set it off, and empty on every other row. While a model is down it predicts nothing, so its track record has no rows until a new version goes live. From format 3, an options model's track record has a set of columns for each hold, each score again as <score>_1d, <score>_5d and <score>_20d, and the baseline's as baseline_<score>_1d and so on. Its plain columns repeat the 1-day hold's. A day's 5 and 20-day columns are empty until those holds' sell days are in, 6 and 21 trading days after the day.\n\nThe scores are each task's: from format 3 the listing's tasks name them, and a task that names none has the four of the stock models, loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's. Loss is three scores added up for a stock model, each lower-is-better, which a history and a track record carry under every prefix they carry a score under: up_log_loss, the log loss of whether each stock went up; beats_log_loss, the log loss of whether it beat the average stock; and move_pinball, the pinball loss of the size of its move. A coin flip scores 0.693 on each of the first two. The listing carries only loss.\n\nFrom format 3 a stock model also has top10_gain, the average gain of each night's top 10, the 10 stocks it is surest will go up, bought at the 9:40 AM ask and sold at the 3:40 PM bid the same day, as a share of what they cost; and top10_wins, how many of each night's top 10 made money, 0 to 10. An options model has loss, which adds up, for each hold that is on, the log loss of its chance and the pinball loss of its gain; profit_auc, how well its chance ranks the options that made money above the ones that didn't, where 0.5 is a coin flip; and top10_gain and top10_wins, of each hold's 10 best options, bought at the 9:40 AM ask and sold at the 3:40 PM bid on the sell day. The baseline's top10_gain and top10_wins are those of everything the model could have picked: what a random pick got.",
+            "description": "With no parameters, the listing. With Model and Report=summary, the model's summary, as an object. With Model and Report=history or track-record, a CSV string with a header row, oldest row first. Each score column is a number, or empty where a day has no such score.\n\nhistory, one row per nightly attempt: day, the night it was trained; kind, nightly for a nightly update or weekly for a weekly retrain; went_live, true when it replaced the live version; started, when the attempt began, in UTC with its offset, e.g. 2026-10-16T07:58:10+00:00; training_seconds, the time spent training, reading the days included, to one decimal; total_seconds, from started until the attempt's scores are known, so its training and then scoring the held-out days for the attempt and for the live version, to one decimal; and each score of the attempt, of the live version and of the know-nothing baseline, all on the same held-out days: attempt_<score>, live_<score> and baseline_<score>. started, training_seconds and total_seconds are empty for attempts made before 2026-10-15.\n\ntrack-record, one row per day the model predicted, written once that day is scored: day, the day the prediction was made; each score, as <score>; and the baseline's, as baseline_<score>. A day the model was not running has no row. From format 2, down_days and down_in_a_row: the check that took the live version down, on the day whose score set it off, and empty on every other row. While a model is down it predicts nothing, so its track record has no rows until a new version goes live. From format 3, an options model's track record has a set of columns for each hold, each score again as <score>_1d, <score>_5d and <score>_20d, and the baseline's as baseline_<score>_1d and so on. Its plain columns repeat the 1-day hold's. A day's 5 and 20-day columns are empty until those holds' sell days are in, 6 and 21 trading days after the day. From format 5, a stock model's track record has a set of columns for each hold too. Every column it had stays, with the same values, the 1-day hold's: among them stocks, how many stocks the day scored, and all_gain, the average gain of every stock with one, what a random pick got. Then, for each hold, columns ending _1d, _5d and _20d: stocks, all_gain and each score, loss's three parts among them, with the baseline's scores as baseline_<score>_1d and so on. The _1d columns repeat the plain ones. A day's 5 and 20-day columns are empty until their results are in, 6 and 21 trading days after the day. Then Combined, in columns ending _combined: loss, up_log_loss, beats_log_loss, move_pinball, auc_up, auc_beats and acc_up, each the average of the day's 1, 5 and 20-day ones, beside the same average of the baseline's, as baseline_loss_combined and so on. They are filled in with the day's 20-day result, about a month after the day. The top 10 has no Combined: a 20-day gain and a 1-day gain aren't the same kind of number. And it has down_hold, as an options model's does: the hold, in trading days, of the check that took the live version down, beside down_days and down_in_a_row.\n\nThe scores are each task's: from format 3 the listing's tasks name them, and a task that names none has the four of the stock models, loss, auc_up, auc_beats and acc_up. Loss is lower-is-better, and an attempt goes live only when its loss is no higher than the live version's. Loss is three scores added up for a stock model, each lower-is-better, which a history and a track record carry under every prefix they carry a score under: up_log_loss, the log loss of whether each stock went up; beats_log_loss, the log loss of whether it beat the average stock; and move_pinball, the pinball loss of the size of its move. A coin flip scores 0.693 on each of the first two. The listing carries only loss.\n\nFrom format 3 a stock model also has top10_gain, the average gain of each night's top 10, the 10 stocks it is surest will go up, bought at the 9:40 AM ask and sold at the 3:40 PM bid the same day, as a share of what they cost; and top10_wins, how many of each night's top 10 made money, 0 to 10. An options model has loss, which adds up, for each hold that is on, the log loss of its chance and the pinball loss of its gain; profit_auc, how well its chance ranks the options that made money above the ones that didn't, where 0.5 is a coin flip; and top10_gain and top10_wins, of each hold's 10 best options, bought at the 9:40 AM ask and sold at the 3:40 PM bid on the sell day. The baseline's top10_gain and top10_wins are those of everything the model could have picked: what a random pick got.\n\nFrom format 5 a stock model predicts three holds, each scored on its own, beside its own baseline: the 1-day hold, how each stock moves from 9:40 AM to 3:40 PM on the next trading day, as before; and the 5 and 20-day holds, from 9:40 AM on the next trading day to 3:40 PM 5 or 20 trading days later, the same days as an options model's holds. A hold's top10_gain and top10_wins are of its own top 10, bought at the 9:40 AM ask and sold at the 3:40 PM bid on the hold's last day. A stock model's 1-day result comes in the next trading day, its 5-day result 6 trading days after the prediction, and its 20-day result and Combined 21. An attempt is still judged on the 1-day hold alone, so a stock model's history is as it was.",
             "content": {
               "application/json": {
                 "schema": {
@@ -67,7 +67,7 @@
                             "format_version": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. 2: a model's down and behind, and a track record's down_days and down_in_a_row. 3: a task's scores; the top 10's scores, profit_auc and an options model's track record's hold columns; the hold of down and of each check in behind; and the picks. 4: the listing's average_days; a down's reason, and its days and in_a_row null where no check did it; and a live version's days. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
+                              "description": "The layout every model report follows; a listing without it is format 0. 0: the listing and the reports as first published. 1: a history's started, training_seconds and total_seconds. 2: a model's down and behind, and a track record's down_days and down_in_a_row. 3: a task's scores; the top 10's scores, profit_auc and an options model's track record's hold columns; the hold of down and of each check in behind; and the picks. 4: the listing's average_days; a down's reason, and its days and in_a_row null where no check did it; and a live version's days. 5: a stock model's track record's hold and Combined columns, and its down_hold; the hold of a stock model's down and of each check in its behind; and each model's holds. It goes up with any change to the reports' keys or columns, or to what a value means, added columns included. A listing is published after every model's reports, so its format_version holds for every report read after it."
                             },
                             "average_days": {
                               "type": "integer",
@@ -229,7 +229,7 @@
                                       "object",
                                       "null"
                                     ],
-                                    "description": "Each score averaged over the last average_days rows of its track record, or all of them while it has fewer. Null while it has none. The four stock scores are always there, null where the task does not have them, and the rest where it does. An options model's are its 1-day hold's.",
+                                    "description": "Each score averaged over the last average_days rows of its track record, or all of them while it has fewer. Null while it has none. The four stock scores are always there, null where the task does not have them, and the rest where it does. An options model's are its 1-day hold's, and from format 5 a stock model's are too: holds has each hold's.",
                                     "required": [
                                       "loss",
                                       "auc_up",
@@ -348,6 +348,185 @@
                                       }
                                     }
                                   },
+                                  "holds": {
+                                    "type": "object",
+                                    "description": "From format 5: the model's scores on each of its holds, by how long each is held: 1d, 5d and 20d, and for a stock model combined, its three holds averaged. The model's own score and baseline are its 1d's. Left out before format 5.",
+                                    "required": [
+                                      "1d",
+                                      "5d",
+                                      "20d"
+                                    ],
+                                    "properties": {
+                                      "1d": {
+                                        "type": "object",
+                                        "description": "The 1-day hold, whose scores are the model's own score and baseline.",
+                                        "required": [
+                                          "days",
+                                          "score",
+                                          "baseline"
+                                        ],
+                                        "properties": {
+                                          "days": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "How many scored days it has: the days whose result for it is in."
+                                          },
+                                          "score": {
+                                            "type": [
+                                              "object",
+                                              "null"
+                                            ],
+                                            "description": "Each of the task's scores, averaged over its own latest average_days scored days, or all of them while it has fewer. Null before its first.",
+                                            "additionalProperties": {
+                                              "type": [
+                                                "number",
+                                                "null"
+                                              ]
+                                            }
+                                          },
+                                          "baseline": {
+                                            "type": [
+                                              "object",
+                                              "null"
+                                            ],
+                                            "description": "The baseline's scores, averaged over the same days. Null before its first.",
+                                            "additionalProperties": {
+                                              "type": [
+                                                "number",
+                                                "null"
+                                              ]
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "5d": {
+                                        "type": "object",
+                                        "description": "The 5-day hold.",
+                                        "required": [
+                                          "days",
+                                          "score",
+                                          "baseline"
+                                        ],
+                                        "properties": {
+                                          "days": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "How many scored days it has: the days whose result for it is in."
+                                          },
+                                          "score": {
+                                            "type": [
+                                              "object",
+                                              "null"
+                                            ],
+                                            "description": "Each of the task's scores, averaged over its own latest average_days scored days, or all of them while it has fewer. Null before its first.",
+                                            "additionalProperties": {
+                                              "type": [
+                                                "number",
+                                                "null"
+                                              ]
+                                            }
+                                          },
+                                          "baseline": {
+                                            "type": [
+                                              "object",
+                                              "null"
+                                            ],
+                                            "description": "The baseline's scores, averaged over the same days. Null before its first.",
+                                            "additionalProperties": {
+                                              "type": [
+                                                "number",
+                                                "null"
+                                              ]
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "20d": {
+                                        "type": "object",
+                                        "description": "The 20-day hold.",
+                                        "required": [
+                                          "days",
+                                          "score",
+                                          "baseline"
+                                        ],
+                                        "properties": {
+                                          "days": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "How many scored days it has: the days whose result for it is in."
+                                          },
+                                          "score": {
+                                            "type": [
+                                              "object",
+                                              "null"
+                                            ],
+                                            "description": "Each of the task's scores, averaged over its own latest average_days scored days, or all of them while it has fewer. Null before its first.",
+                                            "additionalProperties": {
+                                              "type": [
+                                                "number",
+                                                "null"
+                                              ]
+                                            }
+                                          },
+                                          "baseline": {
+                                            "type": [
+                                              "object",
+                                              "null"
+                                            ],
+                                            "description": "The baseline's scores, averaged over the same days. Null before its first.",
+                                            "additionalProperties": {
+                                              "type": [
+                                                "number",
+                                                "null"
+                                              ]
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "combined": {
+                                        "type": "object",
+                                        "description": "A stock model's: each day's 1, 5 and 20-day scores averaged, filled in with the day's 20-day result, about a month after the day. It has no top10_gain or top10_wins: a 20-day gain and a 1-day gain aren't the same kind of number. An options model has none.",
+                                        "required": [
+                                          "days",
+                                          "score",
+                                          "baseline"
+                                        ],
+                                        "properties": {
+                                          "days": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "How many scored days it has: the days whose result for it is in."
+                                          },
+                                          "score": {
+                                            "type": [
+                                              "object",
+                                              "null"
+                                            ],
+                                            "description": "Each of the task's scores, averaged over its own latest average_days scored days, or all of them while it has fewer. Null before its first.",
+                                            "additionalProperties": {
+                                              "type": [
+                                                "number",
+                                                "null"
+                                              ]
+                                            }
+                                          },
+                                          "baseline": {
+                                            "type": [
+                                              "object",
+                                              "null"
+                                            ],
+                                            "description": "The baseline's scores, averaged over the same days. Null before its first.",
+                                            "additionalProperties": {
+                                              "type": [
+                                                "number",
+                                                "null"
+                                              ]
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
                                   "down": {
                                     "type": [
                                       "object",
@@ -395,13 +574,13 @@
                                           "null"
                                         ],
                                         "minimum": 1,
-                                        "description": "From format 3: the hold the check ran on, in trading days, for an options model, whose checks run on each hold. Null, or left out, for a model with no holds."
+                                        "description": "From format 3: the hold the check ran on, in trading days, for an options model, whose checks run on each hold, and from format 5 for a stock model too. From format 5, a take-down for worse or track_record names the hold it was on, and one for not_ahead names none, since an attempt is judged on the 1-day hold. Null, or left out, for a model with no holds."
                                       }
                                     }
                                   },
                                   "behind": {
                                     "type": "array",
-                                    "description": "From format 2: one entry per check, as of the newest scored day. The checks today: each day 5 days in a row, the 5-day average 10 days in a row, and the 20-day average 5 days in a row. An options model has each of them for each hold, from format 3.",
+                                    "description": "From format 2: one entry per check, as of the newest scored day. The checks today: each day 5 days in a row, the 5-day average 10 days in a row, and the 20-day average 5 days in a row. An options model has each of them for each hold, from format 3, and a stock model from format 5.",
                                     "items": {
                                       "type": "object",
                                       "required": [
@@ -434,7 +613,7 @@
                                             "null"
                                           ],
                                           "minimum": 1,
-                                          "description": "From format 3: the hold the check ran on, in trading days, for an options model, whose checks run on each hold. Null, or left out, for a model with no holds."
+                                          "description": "From format 3: the hold the check ran on, in trading days, for an options model, whose checks run on each hold, and from format 5 for a stock model too. Null, or left out, for a model with no holds."
                                         }
                                       }
                                     }
@@ -895,6 +1074,322 @@
                       }
                     }
                   },
+                  "list-holds": {
+                    "summary": "The listing from format 5: each model's scores on each hold, a stock model's with Combined, the 5-day hold's in for five days and the 20-day hold's and Combined for none yet",
+                    "value": {
+                      "report": {
+                        "format_version": 5,
+                        "average_days": 20,
+                        "tasks": [
+                          {
+                            "id": "next-day-move",
+                            "name": "Stock moves",
+                            "description": "For each S&P 500 stock, the chance it goes up, the chance it beats the average stock, and how far it moves, from 9:40 AM the next trading day to 3:40 PM that day, or 5 or 20 trading days later, scored once each hold's last day is in.",
+                            "scores": [
+                              "loss",
+                              "auc_up",
+                              "auc_beats",
+                              "acc_up",
+                              "top10_gain",
+                              "top10_wins"
+                            ]
+                          },
+                          {
+                            "id": "option-picks",
+                            "name": "Option picks",
+                            "description": "For every S&P 500 option, the chance it makes money if bought at 9:40 AM the next trading day and sold at 3:40 PM 1, 5 or 20 trading days later, after the gap between the buy and sell prices, scored once each hold's sell day is in.",
+                            "scores": [
+                              "loss",
+                              "profit_auc",
+                              "top10_gain",
+                              "top10_wins"
+                            ]
+                          }
+                        ],
+                        "models": [
+                          {
+                            "name": "tables-gnn-2",
+                            "task": "next-day-move",
+                            "description": "A second model of the day's query tables.",
+                            "started": "2026-11-02",
+                            "retired": null,
+                            "scored_days": 10,
+                            "live": {
+                              "since": "2026-11-10",
+                              "kind": "nightly",
+                              "days": {
+                                "training": 62,
+                                "stopping": 3,
+                                "first": "2026-07-06",
+                                "last": "2026-11-09"
+                              }
+                            },
+                            "attempts": {
+                              "total": 11,
+                              "went_live": 2
+                            },
+                            "score": {
+                              "loss": 1.65435,
+                              "auc_up": 0.52469,
+                              "auc_beats": 0.51357,
+                              "acc_up": 0.52914,
+                              "top10_gain": 0.00097,
+                              "top10_wins": 5.2
+                            },
+                            "baseline": {
+                              "loss": 1.66236,
+                              "auc_up": 0.5,
+                              "auc_beats": 0.5,
+                              "acc_up": 0.53061,
+                              "top10_gain": -0.0003,
+                              "top10_wins": 4.66
+                            },
+                            "holds": {
+                              "1d": {
+                                "days": 10,
+                                "score": {
+                                  "loss": 1.65435,
+                                  "auc_up": 0.52469,
+                                  "auc_beats": 0.51357,
+                                  "acc_up": 0.52914,
+                                  "top10_gain": 0.00097,
+                                  "top10_wins": 5.2
+                                },
+                                "baseline": {
+                                  "loss": 1.66236,
+                                  "auc_up": 0.5,
+                                  "auc_beats": 0.5,
+                                  "acc_up": 0.53061,
+                                  "top10_gain": -0.0003,
+                                  "top10_wins": 4.66
+                                }
+                              },
+                              "5d": {
+                                "days": 5,
+                                "score": {
+                                  "loss": 1.62856,
+                                  "auc_up": 0.54408,
+                                  "auc_beats": 0.52388,
+                                  "acc_up": 0.5513,
+                                  "top10_gain": 0.00576,
+                                  "top10_wins": 6.2
+                                },
+                                "baseline": {
+                                  "loss": 1.64106,
+                                  "auc_up": 0.5,
+                                  "auc_beats": 0.5,
+                                  "acc_up": 0.5486,
+                                  "top10_gain": 0.00236,
+                                  "top10_wins": 5.34
+                                }
+                              },
+                              "20d": {
+                                "days": 0,
+                                "score": null,
+                                "baseline": null
+                              },
+                              "combined": {
+                                "days": 0,
+                                "score": null,
+                                "baseline": null
+                              }
+                            },
+                            "down": null,
+                            "behind": [
+                              {
+                                "days": 1,
+                                "in_a_row": 1,
+                                "limit": 5,
+                                "hold": 1
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10,
+                                "hold": 1
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 1
+                              },
+                              {
+                                "days": 1,
+                                "in_a_row": 0,
+                                "limit": 5,
+                                "hold": 5
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10,
+                                "hold": 5
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 5
+                              },
+                              {
+                                "days": 1,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 20
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": null,
+                                "limit": 10,
+                                "hold": 20
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 20
+                              }
+                            ]
+                          },
+                          {
+                            "name": "pt-options",
+                            "task": "option-picks",
+                            "description": "Reads the day's Training Graph build.",
+                            "started": "2026-10-06",
+                            "retired": null,
+                            "scored_days": 28,
+                            "live": {
+                              "since": "2026-11-12",
+                              "kind": "nightly",
+                              "days": {
+                                "training": 41,
+                                "stopping": 3,
+                                "first": "2026-09-08",
+                                "last": "2026-11-10"
+                              }
+                            },
+                            "attempts": {
+                              "total": 30,
+                              "went_live": 6
+                            },
+                            "score": {
+                              "loss": 0.739812,
+                              "auc_up": null,
+                              "auc_beats": null,
+                              "acc_up": null,
+                              "profit_auc": 0.5471,
+                              "top10_gain": 0.011235,
+                              "top10_wins": 5.45
+                            },
+                            "baseline": {
+                              "loss": 0.760145,
+                              "auc_up": null,
+                              "auc_beats": null,
+                              "acc_up": null,
+                              "profit_auc": 0.5,
+                              "top10_gain": -0.04187,
+                              "top10_wins": 3.85
+                            },
+                            "holds": {
+                              "1d": {
+                                "days": 28,
+                                "score": {
+                                  "loss": 0.739812,
+                                  "profit_auc": 0.5471,
+                                  "top10_gain": 0.011235,
+                                  "top10_wins": 5.45
+                                },
+                                "baseline": {
+                                  "loss": 0.760145,
+                                  "profit_auc": 0.5,
+                                  "top10_gain": -0.04187,
+                                  "top10_wins": 3.85
+                                }
+                              },
+                              "5d": {
+                                "days": 5,
+                                "score": {
+                                  "loss": 0.79352,
+                                  "profit_auc": 0.53318,
+                                  "top10_gain": 0.02414,
+                                  "top10_wins": 5.6
+                                },
+                                "baseline": {
+                                  "loss": 0.81226,
+                                  "profit_auc": 0.5,
+                                  "top10_gain": -0.07964,
+                                  "top10_wins": 3.42
+                                }
+                              },
+                              "20d": {
+                                "days": 0,
+                                "score": null,
+                                "baseline": null
+                              }
+                            },
+                            "down": null,
+                            "behind": [
+                              {
+                                "days": 1,
+                                "in_a_row": 0,
+                                "limit": 5,
+                                "hold": 1
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10,
+                                "hold": 1
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": 0,
+                                "limit": 5,
+                                "hold": 1
+                              },
+                              {
+                                "days": 1,
+                                "in_a_row": 0,
+                                "limit": 5,
+                                "hold": 5
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": 0,
+                                "limit": 10,
+                                "hold": 5
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 5
+                              },
+                              {
+                                "days": 1,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 20
+                              },
+                              {
+                                "days": 5,
+                                "in_a_row": null,
+                                "limit": 10,
+                                "hold": 20
+                              },
+                              {
+                                "days": 20,
+                                "in_a_row": null,
+                                "limit": 5,
+                                "hold": 20
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
                   "history": {
                     "summary": "Model=pt-gnn-5day&Report=history: its nine nightly attempts, the last two with times",
                     "value": {
@@ -905,6 +1400,12 @@
                     "summary": "Model=pt-gnn-5day&Report=track-record: its eight scored days",
                     "value": {
                       "report": "day,loss,auc_up,auc_beats,acc_up,top10_gain,top10_wins,up_log_loss,beats_log_loss,move_pinball,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up,baseline_top10_gain,baseline_top10_wins,baseline_up_log_loss,baseline_beats_log_loss,baseline_move_pinball,down_days,down_in_a_row\n2026-10-06,1.6582,0.5214,0.5103,0.5427,0.0021,6,0.7033,0.6925,0.2624,1.6650,0.5,0.5,0.5368,-0.0004,4.6,0.7005,0.6931,0.2714,,\n2026-10-07,1.6497,0.5361,0.5188,0.5129,-0.0008,4,0.6999,0.6899,0.2599,1.6611,0.5,0.5,0.4970,-0.0011,4.1,0.6986,0.6931,0.2694,,\n2026-10-08,1.6710,0.4982,0.5031,0.5785,0.0035,7,0.7084,0.6963,0.2663,1.6693,0.5,0.5,0.5865,0.0006,5.2,0.7026,0.6931,0.2736,,\n2026-10-09,1.6423,0.5447,0.5262,0.4652,0.0012,5,0.6969,0.6877,0.2577,1.6589,0.5,0.5,0.4473,-0.0002,4.7,0.6974,0.6931,0.2684,,\n2026-10-12,1.6538,0.5296,0.5145,0.6123,-0.0015,4,0.7015,0.6911,0.2612,1.6627,0.5,0.5,0.6044,-0.0009,4.3,0.6994,0.6931,0.2702,,\n2026-10-13,1.6561,0.5243,0.5121,0.5318,0.0027,6,0.7024,0.6918,0.2619,1.6633,0.5,0.5,0.5276,0.0003,5.0,0.6996,0.6931,0.2706,,\n2026-10-14,1.6472,0.5389,0.5197,0.5561,0.0009,5,0.6989,0.6892,0.2591,1.6602,0.5,0.5,0.5490,-0.0005,4.5,0.6981,0.6931,0.2690,,\n2026-10-15,1.6601,0.5168,0.5089,0.4907,0.0018,6,0.7040,0.6930,0.2631,1.6655,0.5,0.5,0.4851,-0.0001,4.8,0.7008,0.6931,0.2716,,\n"
+                    }
+                  },
+                  "track-record-holds": {
+                    "summary": "Model=tables-gnn-2&Report=track-record: a stock model's ten scored days from format 5, each hold in its own columns and Combined in its own, the 5-day hold's in for five and the 20-day hold's and Combined for none yet",
+                    "value": {
+                      "report": "day,stocks,all_gain,loss,auc_up,auc_beats,acc_up,top10_gain,top10_wins,up_log_loss,beats_log_loss,move_pinball,baseline_loss,baseline_auc_up,baseline_auc_beats,baseline_acc_up,baseline_top10_gain,baseline_top10_wins,baseline_up_log_loss,baseline_beats_log_loss,baseline_move_pinball,stocks_1d,all_gain_1d,loss_1d,auc_up_1d,auc_beats_1d,acc_up_1d,top10_gain_1d,top10_wins_1d,up_log_loss_1d,beats_log_loss_1d,move_pinball_1d,baseline_loss_1d,baseline_auc_up_1d,baseline_auc_beats_1d,baseline_acc_up_1d,baseline_top10_gain_1d,baseline_top10_wins_1d,baseline_up_log_loss_1d,baseline_beats_log_loss_1d,baseline_move_pinball_1d,stocks_5d,all_gain_5d,loss_5d,auc_up_5d,auc_beats_5d,acc_up_5d,top10_gain_5d,top10_wins_5d,up_log_loss_5d,beats_log_loss_5d,move_pinball_5d,baseline_loss_5d,baseline_auc_up_5d,baseline_auc_beats_5d,baseline_acc_up_5d,baseline_top10_gain_5d,baseline_top10_wins_5d,baseline_up_log_loss_5d,baseline_beats_log_loss_5d,baseline_move_pinball_5d,stocks_20d,all_gain_20d,loss_20d,auc_up_20d,auc_beats_20d,acc_up_20d,top10_gain_20d,top10_wins_20d,up_log_loss_20d,beats_log_loss_20d,move_pinball_20d,baseline_loss_20d,baseline_auc_up_20d,baseline_auc_beats_20d,baseline_acc_up_20d,baseline_top10_gain_20d,baseline_top10_wins_20d,baseline_up_log_loss_20d,baseline_beats_log_loss_20d,baseline_move_pinball_20d,loss_combined,auc_up_combined,auc_beats_combined,acc_up_combined,up_log_loss_combined,beats_log_loss_combined,move_pinball_combined,baseline_loss_combined,baseline_auc_up_combined,baseline_auc_beats_combined,baseline_acc_up_combined,baseline_up_log_loss_combined,baseline_beats_log_loss_combined,baseline_move_pinball_combined,down_days,down_in_a_row,down_hold\n2026-11-02,503,-0.0003,1.6556,0.5231,0.5122,0.5348,0.0024,6,0.7021,0.6917,0.2618,1.6641,0.5,0.5,0.5328,-0.0003,4.7,0.6998,0.6931,0.2712,503,-0.0003,1.6556,0.5231,0.5122,0.5348,0.0024,6,0.7021,0.6917,0.2618,1.6641,0.5,0.5,0.5328,-0.0003,4.7,0.6998,0.6931,0.2712,503,0.0041,1.6263,0.5487,0.5263,0.5626,0.0087,7,0.6957,0.6894,0.2412,1.6399,0.5,0.5,0.5567,0.0041,5.6,0.6972,0.6931,0.2496,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n2026-11-03,503,-0.0012,1.6487,0.5362,0.5197,0.4871,-0.0011,4,0.6988,0.6902,0.2597,1.6604,0.5,0.5,0.4930,-0.0012,4.2,0.6979,0.6931,0.2694,503,-0.0012,1.6487,0.5362,0.5197,0.4871,-0.0011,4,0.6988,0.6902,0.2597,1.6604,0.5,0.5,0.4930,-0.0012,4.2,0.6979,0.6931,0.2694,503,-0.0063,1.6350,0.5316,0.5178,0.4513,-0.0042,4,0.6991,0.6911,0.2448,1.6462,0.5,0.5,0.4390,-0.0063,4.1,0.7004,0.6931,0.2527,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n2026-11-04,503,0.0009,1.6637,0.5068,0.5034,0.5726,0.0038,7,0.7047,0.6941,0.2649,1.6700,0.5,0.5,0.5845,0.0009,5.4,0.7031,0.6931,0.2738,503,0.0009,1.6637,0.5068,0.5034,0.5726,0.0038,7,0.7047,0.6941,0.2649,1.6700,0.5,0.5,0.5845,0.0009,5.4,0.7031,0.6931,0.2738,503,0.0088,1.6224,0.5562,0.5302,0.6187,0.0123,8,0.6942,0.6887,0.2395,1.6367,0.5,0.5,0.6342,0.0088,6.3,0.6955,0.6931,0.2481,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n2026-11-05,502,-0.0007,1.6444,0.5419,0.5241,0.4592,0.0007,5,0.6972,0.6889,0.2583,1.6576,0.5,0.5,0.4553,-0.0007,4.4,0.6964,0.6931,0.2681,502,-0.0007,1.6444,0.5419,0.5241,0.4592,0.0007,5,0.6972,0.6889,0.2583,1.6576,0.5,0.5,0.4553,-0.0007,4.4,0.6964,0.6931,0.2681,502,0.0017,1.6312,0.5398,0.5214,0.5348,0.0051,6,0.6978,0.6903,0.2431,1.6426,0.5,0.5,0.5288,0.0017,5.2,0.6986,0.6931,0.2509,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n2026-11-06,503,-0.0015,1.6541,0.5287,0.5146,0.6104,-0.0019,3,0.7009,0.6921,0.2611,1.6623,0.5,0.5,0.6062,-0.0015,3.9,0.6987,0.6931,0.2705,503,-0.0015,1.6541,0.5287,0.5146,0.6104,-0.0019,3,0.7009,0.6921,0.2611,1.6623,0.5,0.5,0.6062,-0.0015,3.9,0.6987,0.6931,0.2705,503,0.0035,1.6279,0.5441,0.5237,0.5891,0.0069,6,0.6964,0.6896,0.2419,1.6399,0.5,0.5,0.5843,0.0035,5.5,0.6969,0.6931,0.2499,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n2026-11-09,503,0.0004,1.6505,0.5318,0.5173,0.5263,0.0031,7,0.6995,0.6908,0.2602,1.6613,0.5,0.5,0.5209,0.0004,5.1,0.6983,0.6931,0.2699,503,0.0004,1.6505,0.5318,0.5173,0.5263,0.0031,7,0.6995,0.6908,0.2602,1.6613,0.5,0.5,0.5209,0.0004,5.1,0.6983,0.6931,0.2699,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n2026-11-10,503,-0.0002,1.6597,0.5142,0.5089,0.5487,0.0012,5,0.7033,0.6930,0.2634,1.6660,0.5,0.5,0.5527,-0.0002,4.8,0.7008,0.6931,0.2721,503,-0.0002,1.6597,0.5142,0.5089,0.5487,0.0012,5,0.7033,0.6930,0.2634,1.6660,0.5,0.5,0.5527,-0.0002,4.8,0.7008,0.6931,0.2721,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n2026-11-11,503,-0.0009,1.6467,0.5396,0.5228,0.5019,-0.0004,5,0.6981,0.6896,0.2590,1.6589,0.5,0.5,0.4891,-0.0009,4.3,0.6970,0.6931,0.2688,503,-0.0009,1.6467,0.5396,0.5228,0.5019,-0.0004,5,0.6981,0.6896,0.2590,1.6589,0.5,0.5,0.4891,-0.0009,4.3,0.6970,0.6931,0.2688,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n2026-11-12,501,0.0006,1.6544,0.5259,0.5131,0.5642,0.0027,6,0.7014,0.6915,0.2615,1.6631,0.5,0.5,0.5706,0.0006,5.2,0.6992,0.6931,0.2708,501,0.0006,1.6544,0.5259,0.5131,0.5642,0.0027,6,0.7014,0.6915,0.2615,1.6631,0.5,0.5,0.5706,0.0006,5.2,0.6992,0.6931,0.2708,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n2026-11-13,503,-0.0001,1.6657,0.4987,0.4996,0.4862,-0.0008,4,0.7032,0.6935,0.2690,1.6599,0.5,0.5,0.5010,-0.0001,4.6,0.6976,0.6931,0.2692,503,-0.0001,1.6657,0.4987,0.4996,0.4862,-0.0008,4,0.7032,0.6935,0.2690,1.6599,0.5,0.5,0.5010,-0.0001,4.6,0.6976,0.6931,0.2692,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n"
                     }
                   },
                   "option-picks-track-record": {

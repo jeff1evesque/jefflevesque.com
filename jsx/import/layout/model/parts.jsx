@@ -1,8 +1,9 @@
 /**
- * parts.jsx: what both model pages draw alike (#243): the score picker, an options
- * model's hold picker (#279), a model's status, its bell (#255), the marks a legend
- * and a panel share, the panel under a chart that holds a day's numbers (#251), and
- * the table every chart can be read as instead.
+ * parts.jsx: what both model pages draw alike (#243): the score picker, the hold
+ * picker of an options model (#279) and from format 5 a stock model (#300), how a
+ * score stands against the baseline's, a model's status, its bell (#255), the marks
+ * a legend and a panel share, the panel under a chart that holds a day's numbers
+ * (#251), and the table every chart can be read as instead.
  *
  * Note: a series' color is only ever a mark's -- a line, a dot, a bar or a swatch
  *       -- and the words beside it are the page's own text. A name written in its
@@ -15,15 +16,27 @@ import { Link } from 'react-router-dom';
 import Tooltip from '@mui/material/Tooltip';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
-import { BASELINE_DASH, HOLDS, SCORES, SCORING_OPACITY, scoreOf, statusOf, statusLabel } from './scores.js';
+import {
+    BASELINE_DASH,
+    COMBINED,
+    HOLDS,
+    SCORES,
+    SCORING_OPACITY,
+    formatGap,
+    scoreOf,
+    standing,
+    statusOf,
+    statusLabel,
+} from './scores.js';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 
 //
 // a choice of a few, as buttons where there is room for them and a menu on a
 // phone, as /stream's rates are: `choices` are { key, label }, and `name` says
-// what is chosen, over the buttons and to a screen reader
+// what is chosen, over the buttons and to a screen reader. A choice `disabled`
+// is offered and cannot be chosen, in either: Combined's top 10 (#300)
 //
-function Choices({ className, name, choices, chosen, onChoose }) {
+function Choices({ className, name, choices, chosen, onChoose, disabled = [] }) {
     return (
         <div className={className}>
             <span className='model-control-label' aria-hidden='true'>{name}</span>
@@ -34,6 +47,7 @@ function Choices({ className, name, choices, chosen, onChoose }) {
                         type='button'
                         className='model-score'
                         aria-pressed={each.key === chosen}
+                        disabled={disabled.includes(each.key)}
                         onClick={() => onChoose(each.key)}
                     >
                         {each.label}
@@ -44,7 +58,7 @@ function Choices({ className, name, choices, chosen, onChoose }) {
                 <span className='visually-hidden'>{name}</span>
                 <select value={chosen} onChange={(event) => onChoose(event.target.value)}>
                     {choices.map((each) => (
-                        <option key={each.key} value={each.key}>{each.label}</option>
+                        <option key={each.key} value={each.key} disabled={disabled.includes(each.key)}>{each.label}</option>
                     ))}
                 </select>
             </label>
@@ -61,14 +75,17 @@ Choices.propTypes = {
     })).isRequired,
     chosen: PropTypes.string.isRequired,
     onChoose: PropTypes.func.isRequired,
+    disabled: PropTypes.arrayOf(PropTypes.string),
 };
 
 /**
  * a task's scores, `offered` -- see scores.js's scoresFor (#279) -- the four
  * stock scores unless it says otherwise. Every chart on the page, and the
- * list's figures, follow the one picked.
+ * list's figures, follow the one picked. Those `disabled` are offered and
+ * cannot be picked: the top 10's on Combined, which has none (#300) -- see
+ * scores.js's heldOut.
  */
-export function ScorePicker({ score, onScore, offered = SCORES.map((each) => each.key) }) {
+export function ScorePicker({ score, onScore, offered = SCORES.map((each) => each.key), disabled = [] }) {
     return (
         <Choices
             className='model-scores'
@@ -76,6 +93,7 @@ export function ScorePicker({ score, onScore, offered = SCORES.map((each) => eac
             choices={offered.map((key) => ({ key: key, label: scoreOf(key).label }))}
             chosen={score}
             onChoose={onScore}
+            disabled={disabled}
         />
     );
 }
@@ -84,13 +102,14 @@ ScorePicker.propTypes = {
     score: PropTypes.string.isRequired,
     onScore: PropTypes.func.isRequired,
     offered: PropTypes.arrayOf(PropTypes.string),
+    disabled: PropTypes.arrayOf(PropTypes.string),
 };
 
 /**
- * how long an options model's picks are held, beside the score picker on its
- * page (#279): the holds its track record has, `holds` -- see scores.js's
- * holdsOf -- and the track record's chart follows the one picked. It hands a
- * hold up as the number of days.
+ * how long a model's picks are held, beside the score picker (#279): the holds
+ * it has, `holds` -- see scores.js's holdsOf and listedHolds -- an options
+ * model's three, and from format 5 a stock model's and Combined (#300). It
+ * hands a hold up as its number of days, or as COMBINED.
  */
 export function HoldPicker({ hold, onHold, holds = HOLDS }) {
     return (
@@ -99,19 +118,50 @@ export function HoldPicker({ hold, onHold, holds = HOLDS }) {
             name='Hold'
             choices={holds.map((each) => ({ key: String(each.days), label: each.label }))}
             chosen={String(hold)}
-            onChoose={(days) => onHold(Number(days))}
+            onChoose={(key) => onHold(key === COMBINED ? COMBINED : Number(key))}
         />
     );
 }
 
 HoldPicker.propTypes = {
-    hold: PropTypes.number.isRequired,
+    hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]).isRequired,
     onHold: PropTypes.func.isRequired,
     holds: PropTypes.arrayOf(PropTypes.shape({
-        days: PropTypes.number.isRequired,
+        days: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]).isRequired,
         label: PropTypes.string.isRequired,
     })),
 };
+
+/**
+ * how far a score is from the baseline's, and which way, after the arrow every
+ * "better" and "worse" carries, on /model's list (#274) and from #300 on a
+ * model's page too: '▲ 0.034 better than the baseline'. Only the arrow takes the
+ * color of better or worse, from the class of what holds it, 'model-gap-better'
+ * or 'model-gap-worse' -- see '.model-gap-arrow' in '_model.scss' -- and the
+ * words keep the page's grays.
+ *
+ * `than` follows the word, and is left off where the gaps stand side by side,
+ * '▼ 0.013 worse'; `level` is said where the two print alike. Nothing where
+ * there is no gap.
+ */
+export function gapWords(gap, key, than = ' than the baseline', level = 'level with the baseline') {
+    const stands = standing(gap, key);
+
+    if (gap === null) {
+        return '';
+    }
+
+    if (stands === 'level') {
+        return level;
+    }
+
+    return (
+        <>
+            <span className='model-gap-arrow'>{stands === 'better' ? '▲' : '▼'}</span>
+            {` ${formatGap(gap, key)} ${stands}${than}`}
+        </>
+    );
+}
 
 /**
  * a model's status: Live, New with how far it is through the days it needs,
@@ -205,6 +255,8 @@ AlarmBell.propTypes = {
  *     stack     a whole attempt's bar: its training, with its scoring as a
  *               lighter top
  *     tick      a short upright line: a night a new version went live
+ *     band      a light block: the newest days whose result on a hold is not
+ *               in yet (#300)
  */
 export function Mark({ kind, color }) {
     const diamond = (size) => `${8},${6 - size} ${8 + size},${6} ${8},${6 + size} ${8 - size},${6}`;
@@ -225,6 +277,7 @@ export function Mark({ kind, color }) {
             </g>
         ),
         tick: <line x1='8' y1='2' x2='8' y2='11' stroke={color} strokeWidth='2' strokeLinecap='round' />,
+        band: <rect x='1' y='0' width='14' height='12' rx='2' fill={color} fillOpacity='0.12' />,
     };
 
     return (
@@ -235,7 +288,7 @@ export function Mark({ kind, color }) {
 }
 
 Mark.propTypes = {
-    kind: PropTypes.oneOf(['line', 'dashed', 'dot', 'ring', 'diamond', 'hollow', 'faint', 'bar', 'fade', 'stack', 'tick']).isRequired,
+    kind: PropTypes.oneOf(['line', 'dashed', 'dot', 'ring', 'diamond', 'hollow', 'faint', 'bar', 'fade', 'stack', 'tick', 'band']).isRequired,
     color: PropTypes.string.isRequired,
 };
 
@@ -522,6 +575,14 @@ Numbers.propTypes = {
     })).isRequired,
     rows: PropTypes.arrayOf(PropTypes.object).isRequired,
 };
+
+/**
+ * how far apart the days a chart's axis names stand, in px: further on a phone
+ * (#300), so a narrow chart names fewer of them and none runs into the next.
+ */
+export function tickGap(phone) {
+    return phone ? 40 : 24;
+}
 
 /**
  * what an axis of these charts is drawn in: the page's grid and muted gray,

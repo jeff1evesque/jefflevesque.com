@@ -19,13 +19,14 @@ jest.mock('react-device-detect', () => ({
 }));
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
-import ModelRow, { TrendLine } from '../../../import/layout/model/model-row.jsx';
+import ModelRow, { PartCells, TrendLine } from '../../../import/layout/model/model-row.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS, SCORES, formatScore, noteOf, recentDays, shortDay } from '../../../import/layout/model/scores.js';
+import { STOCK_SCORES, heldModelOf, heldTrackOf, phoneScreen, tapAt, wideScreen } from '../../../test-support/model-fixtures.js';
 import { OPTIONS_TASK, downModelOf, modelOf, olderTrackOf, optionsModelOf, pointAt, trackOf } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
@@ -349,6 +350,7 @@ describe('the bell (#255)', () => {
             'model-cell-went',
             'model-cell-trend',
             'model-cell-score',
+            'model-cell-since',
         ]);
     });
 });
@@ -441,8 +443,8 @@ describe('loss\'s three parts, in place of its sum (#283)', () => {
     it('come last in the row, where the score comes', () => {
         const { container } = draw({ parts: true });
 
-        expect([...container.querySelectorAll('.model-row > .model-cell')].map((cell) => cell.classList[1]).slice(-2))
-            .toEqual(['model-cell-trend', 'model-cell-parts']);
+        expect([...container.querySelectorAll('.model-row > .model-cell')].map((cell) => cell.classList[1]).slice(-3))
+            .toEqual(['model-cell-trend', 'model-cell-parts', 'model-cell-since']);
     });
 });
 
@@ -568,5 +570,308 @@ describe('TrendLine', () => {
             expect(container.querySelector('.model-trend-tip')).toBeNull();
             expect(container.querySelectorAll('.recharts-active-dot')).toHaveLength(0);
         });
+    });
+});
+
+describe('a row on a hold, from format 5 on (#300)', () => {
+    //
+    // tables-gnn's record of thirty days, the newest five without their 5-day
+    // results and every one without its 20-day result
+    //
+    const rows = heldTrackOf(30);
+    const model = heldModelOf({}, rows);
+    const task = { id: 'direction', name: 'Next-day direction', scores: STOCK_SCORES };
+    const axis = recentDays({ a: rows });
+    const on = (hold, props = {}) => draw({ model: model, task: task, rows: rows, axis: axis, hold: hold, ...props });
+    const textOf = (container, selector) => container.querySelector(selector).textContent;
+
+    it('prints the hold\'s score as the listing gives it, named with the hold, and how it stands', () => {
+        const { container } = on(5);
+        const held = model.holds['5d'];
+
+        expect(textOf(container, '.model-score-value')).toBe(formatScore(held.score.loss, 'loss'));
+        expect(textOf(container, '.model-cell-score .model-cell-label')).toBe('Loss, 5-day hold, last 20 days');
+        expect(container.querySelector('.model-cell-score .model-gap')).toHaveClass('model-gap-better');
+        expect(container.querySelector('.model-cell-score .model-gap .model-gap-arrow')).toHaveTextContent('▲');
+    });
+
+    it('reads as a list before format 5 did on the 1-day hold: its scores, unnamed', () => {
+        const { container } = on(1);
+
+        expect(textOf(container, '.model-score-value')).toBe(formatScore(model.score.loss, 'loss'));
+        expect(textOf(container, '.model-cell-score .model-cell-label')).toBe('Loss, last 20 days');
+    });
+
+    it('names Combined, and says a hold with no scored day yet has none', () => {
+        const { container } = on(20);
+
+        expect(textOf(container, '.model-score-value')).toBe('–');
+        expect(textOf(container, '.model-cell-score .model-cell-label')).toBe('Loss, 20-day hold, no scored days yet');
+
+        const combined = draw({ model: model, task: task, rows: rows, axis: axis, hold: 'combined', score: 'auc_up' });
+
+        expect(combined.container.querySelector('.model-cell-score .model-cell-label')).toHaveTextContent('Up/down AUC, combined, no scored days yet');
+    });
+
+    it('counts a hold\'s days so far by its own days', () => {
+        const fewer = heldTrackOf(30, { notIn: 20 });
+        const { container } = draw({ model: heldModelOf({}, fewer), task: task, rows: fewer, axis: axis, hold: 5 });
+
+        expect(textOf(container, '.model-cell-score .model-cell-label')).toBe('Loss, 5-day hold, 10 days so far');
+    });
+
+    it('carries the note of the score on the hold', () => {
+        draw({ model: model, task: task, rows: rows, axis: axis, hold: 5, score: 'top10_gain' });
+
+        expect(screen.getByText('Top 10 gain, 5-day hold, last 20 days')).toHaveAccessibleDescription(noteOf('top10_gain', task, 5));
+    });
+
+    it('shows loss\'s three parts on the hold, from its own columns', () => {
+        const { container } = on(5, { parts: true });
+        const newest = rows[rows.length - 1];
+
+        expect([...container.querySelectorAll('.model-part-cell-value')].map((cell) => cell.textContent)).toEqual([
+            formatScore(newest.average.up_log_loss_5d, 'loss'),
+            formatScore(newest.average.beats_log_loss_5d, 'loss'),
+            formatScore(newest.average.move_pinball_5d, 'loss'),
+        ]);
+        expect(textOf(container, '.model-cell-parts .model-cell-label')).toBe('Loss, 5-day hold, last 20 days');
+    });
+
+    it('draws its trend line on the hold, named with it', () => {
+        on(5);
+
+        expect(screen.getByRole('img', { name: 'tables-gnn\'s 20-day Loss, 5-day hold, over the last 60 days' })).toBeInTheDocument();
+    });
+
+    it('says when its live version went live and how many attempts did, in a line a phone\'s card shows', () => {
+        const { container } = draw();
+
+        expect(container.querySelector('.model-cell-since')).toHaveTextContent('Live since Oct 9 · 4 of 30 attempts went live');
+    });
+
+    it('says when a live version was taken down, and why, in that line', () => {
+        const { container } = draw({ model: downModelOf({ down: { since: '2026-10-19', days: 1, in_a_row: 5, hold: 5 } }) });
+
+        expect(container.querySelector('.model-cell-since')).toHaveTextContent('Taken down Oct 19 · 4 of 30 attempts went live');
+        expect(container.querySelector('.model-cell-since')).toHaveTextContent('Its 5-day hold did worse than the baseline 5 scored days in a row.');
+    });
+
+    it('says when a retired model retired, and just the attempts where there is no live version', () => {
+        expect(draw({ model: modelOf({ retired: '2026-10-02' }) }).container.querySelector('.model-cell-since'))
+            .toHaveTextContent('Retired Oct 2 · 4 of 30 attempts went live');
+        expect(draw({ model: modelOf({ live: { since: null, kind: null } }) }).container.querySelector('.model-cell-since'))
+            .toHaveTextContent(/^4 of 30 attempts went live$/);
+    });
+});
+
+describe('TrendLine on a hold (#300)', () => {
+    const rows = heldTrackOf(30);
+    const axis = recentDays({ a: rows });
+    const trend = (props) => render(
+        <ThemeModeContext.Provider value={{ theme: 'light' }}>
+            <button type='button'>elsewhere</button>
+            <TrendLine name='tables-gnn' score='loss' axis={axis} rows={rows} hold={5} {...props} />
+        </ThemeModeContext.Provider>
+    );
+
+    //
+    // the line's last day is at its right end, and the last whose 5-day result
+    // is in five days before it: 132px wide, less its 4px margins, over 29 steps
+    //
+    const at = (container, x) => pointAt(container.querySelector('.recharts-wrapper'), x, 18);
+    const lastIn = 4 + (124 / 29) * 24;
+
+    afterEach(() => {
+        mockMobile = false;
+    });
+
+    it('shows the hold\'s average and the baseline\'s on it in its box, the score named with the hold', () => {
+        const { container } = trend();
+
+        at(container, lastIn);
+
+        const tip = container.querySelector('.model-trend-tip');
+
+        expect(tip.querySelector('.model-tip-title')).toHaveTextContent(shortDay(rows[24].day));
+        expect([...tip.querySelectorAll('.model-tip-row')].map((row) => row.textContent)).toEqual([
+            `Loss, 5-day hold${formatScore(rows[24].average.loss_5d, 'loss')}`,
+            `Baseline${formatScore(rows[24].baseline_average.loss_5d, 'loss')}`,
+        ]);
+    });
+
+    it('shows no box, and no dot, on a day whose result on the hold is not in yet', () => {
+        const { container } = trend();
+
+        at(container, 128);
+
+        expect(container.querySelector('.model-trend-tip')).toBeNull();
+    });
+
+    it('names Combined in its box', () => {
+        const all = heldTrackOf(30, { notIn: 0, twenty: 30 });
+        const { container } = trend({ rows: all, hold: 'combined' });
+
+        at(container, 128);
+
+        expect(container.querySelector('.model-trend-tip .model-tip-name')).toHaveTextContent('Loss, combined');
+        expect(screen.getByRole('img', { name: 'tables-gnn\'s 20-day Loss, combined, over the last 60 days' })).toBeInTheDocument();
+    });
+
+    it('draws a record without the hold\'s columns on its plain scores, as one before format 5', () => {
+        const { container } = trend({ rows: trackOf(10), axis: recentDays({ a: trackOf(10) }) });
+
+        at(container, 128);
+
+        expect(container.querySelector('.model-trend-tip .model-tip-name')).toHaveTextContent(/^Loss$/);
+    });
+
+    it('names the 1-day hold no more than a list before format 5 does', () => {
+        trend({ hold: 1 });
+
+        expect(screen.getByRole('img', { name: 'tables-gnn\'s 20-day Loss, over the last 60 days' })).toBeInTheDocument();
+    });
+
+    describe('on a phone, the day tapped', () => {
+        beforeEach(() => {
+            mockMobile = true;
+        });
+
+        const tap = (container, x) => act(() => tapAt(container.querySelector('.recharts-wrapper'), x, 18));
+
+        it('opens the same box a computer shows under the pointer, with a dot on each line', () => {
+            const { container } = trend();
+
+            expect(container.querySelector('.model-trend-tip')).toBeNull();
+
+            tap(container, lastIn);
+
+            expect(container.querySelector('.model-trend-tip .model-tip-title')).toHaveTextContent(shortDay(rows[24].day));
+            expect(container.querySelectorAll('.recharts-active-dot')).toHaveLength(2);
+        });
+
+        it('moves to another day tapped', () => {
+            const { container } = trend();
+
+            tap(container, lastIn);
+            tap(container, 4 + (124 / 29) * 10);
+
+            expect(container.querySelector('.model-trend-tip .model-tip-title')).toHaveTextContent(shortDay(rows[10].day));
+        });
+
+        it('closes on a second tap of the same day, and opens again on a third', () => {
+            const { container } = trend();
+
+            tap(container, lastIn);
+            tap(container, lastIn);
+
+            expect(container.querySelector('.model-trend-tip')).toBeNull();
+            expect(container.querySelectorAll('.recharts-active-dot')).toHaveLength(0);
+
+            tap(container, lastIn);
+
+            expect(container.querySelector('.model-trend-tip')).not.toBeNull();
+        });
+
+        it('closes on a tap anywhere else', async () => {
+            const { container } = trend();
+
+            tap(container, lastIn);
+            await userEvent.click(screen.getByRole('button', { name: 'elsewhere' }));
+
+            expect(container.querySelector('.model-trend-tip')).toBeNull();
+        });
+
+        it('opens nothing for a day with no result on the hold', () => {
+            const { container } = trend();
+
+            tap(container, 128);
+
+            expect(container.querySelector('.model-trend-tip')).toBeNull();
+        });
+    });
+});
+
+describe('TrendLine\'s width (#300)', () => {
+    const trend = () => render(
+        <ThemeModeContext.Provider value={{ theme: 'light' }}>
+            <TrendLine name='pt-gnn' score='loss' axis={recentDays({ a: trackOf(10) })} rows={trackOf(10)} />
+        </ThemeModeContext.Provider>
+    );
+
+    const widthOf = (container) => Number(container.querySelector('.model-trend svg').getAttribute('width'));
+
+    afterEach(() => {
+        wideScreen();
+        delete window.ResizeObserver;
+    });
+
+    it('is its column\'s 132px on a wide screen', () => {
+        expect(widthOf(trend().container)).toBe(132);
+    });
+
+    it('is the card\'s on a phone, followed as the card is resized, and no narrower than 132px', () => {
+        let resized;
+        const disconnect = jest.fn();
+
+        phoneScreen();
+        window.ResizeObserver = jest.fn((callback) => {
+            resized = callback;
+
+            return { observe: jest.fn(), disconnect: disconnect };
+        });
+
+        const { container, unmount } = trend();
+
+        act(() => resized([{ contentRect: { width: 311.6 } }]));
+        expect(widthOf(container)).toBe(311);
+
+        act(() => resized([{ contentRect: { width: 80 } }]));
+        expect(widthOf(container)).toBe(132);
+
+        unmount();
+        expect(disconnect).toHaveBeenCalled();
+    });
+
+    it('measures the card once the record is in, after the line\'s placeholder', () => {
+        let resized;
+
+        phoneScreen();
+        window.ResizeObserver = jest.fn((callback) => {
+            resized = callback;
+
+            return { observe: jest.fn(), disconnect: jest.fn() };
+        });
+
+        const axis = recentDays({ a: trackOf(10) });
+        const line = (rows) => (
+            <ThemeModeContext.Provider value={{ theme: 'light' }}>
+                <TrendLine name='pt-gnn' score='loss' axis={axis} rows={rows} />
+            </ThemeModeContext.Provider>
+        );
+        const { container, rerender } = render(line(undefined));
+
+        expect(window.ResizeObserver).not.toHaveBeenCalled();
+
+        rerender(line(trackOf(10)));
+        act(() => resized([{ contentRect: { width: 340 } }]));
+
+        expect(widthOf(container)).toBe(340);
+    });
+
+    it('stays 132px on a phone that cannot measure the card', () => {
+        phoneScreen();
+
+        expect(widthOf(trend().container)).toBe(132);
+    });
+});
+
+describe('PartCells on its own (#283, #300)', () => {
+    it('reads the plain columns where it is handed no hold and no task, as a list before format 5', () => {
+        const rows = trackOf(10);
+        const { container } = render(<PartCells model={modelOf()} rows={rows} />);
+
+        expect(container.querySelector('.model-part-cell-value')).toHaveTextContent(formatScore(rows[9].average.up_log_loss, 'loss'));
+        expect(container.querySelector('.model-cell-label')).toHaveTextContent('Loss, last 20 days');
     });
 });

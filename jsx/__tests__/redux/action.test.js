@@ -12,7 +12,7 @@ import { setStockSplitProp } from '../../import/redux/action/article.jsx';
 import { setHide } from '../../import/redux/action/hide.jsx';
 import { setLoginState } from '../../import/redux/action/login.jsx';
 import setLogoutState from '../../import/redux/action/logout.jsx';
-import { setModelHold, setModelScore } from '../../import/redux/action/model.jsx';
+import { setModelHold, setModelListHold, setModelScore } from '../../import/redux/action/model.jsx';
 import { setContentType, setLayout, setSpinner } from '../../import/redux/action/page.jsx';
 import { setParsedCsv } from '../../import/redux/action/parseCsv.jsx';
 
@@ -227,7 +227,7 @@ describe('setModelScore (#243)', () => {
     });
 
     it('is what the model reducer takes', () => {
-        expect(model(undefined, setModelScore('direction', 'acc_up'))).toEqual({ scores: { direction: 'acc_up' }, hold: 1 });
+        expect(model(undefined, setModelScore('direction', 'acc_up'))).toEqual({ scores: { direction: 'acc_up' }, hold: 1, holds: {} });
     });
 });
 
@@ -237,6 +237,21 @@ describe('setModelHold (#279)', () => {
     });
 
     it('is what the model reducer takes', () => {
-        expect(model(undefined, setModelHold(20))).toEqual({ scores: {}, hold: 20 });
+        expect(model(undefined, setModelHold(20))).toEqual({ scores: {}, hold: 20, holds: {} });
+    });
+
+    it('carries Combined, a stock model\'s holds averaged, from format 5 on (#300)', () => {
+        expect(setModelHold('combined')).toEqual({ type: 'SET-MODEL-HOLD', hold: 'combined' });
+        expect(model(undefined, setModelHold('combined')).hold).toBe('combined');
+    });
+});
+
+describe('setModelListHold (#300)', () => {
+    it('carries the task and the hold it is handed', () => {
+        expect(setModelListHold('direction', 5)).toEqual({ type: 'SET-MODEL-LIST-HOLD', task: 'direction', hold: 5 });
+    });
+
+    it('is what the model reducer takes, apart from a model page\'s hold', () => {
+        expect(model(undefined, setModelListHold('direction', 'combined'))).toEqual({ scores: {}, hold: 1, holds: { direction: 'combined' } });
     });
 });

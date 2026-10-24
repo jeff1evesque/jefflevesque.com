@@ -102,7 +102,7 @@ describe('a row on a phone, as a card', () => {
         && declared(rule, 'grid-area')), 'grid-area');
 
     it('places each cell by name, so a row\'s order on a wide screen moves nothing on it', () => {
-        ['compare', 'score', 'trend', 'live', 'went', 'alarm'].forEach((cell) => {
+        ['compare', 'score', 'trend', 'since', 'alarm'].forEach((cell) => {
             expect({ cell, area: placed(cell) }).toEqual({ cell, area: cell });
         });
     });
@@ -140,23 +140,34 @@ describe('a phone\'s card (#274)', () => {
         expect(rows.slice(1, 3)).toEqual(['\'address address address address address\'', '\'about about about about about\'']);
     });
 
-    it('puts the live version, the attempts and the 60-day line in a row, the line at the right, and the score under them across the card (#283)', () => {
+    it('puts the score across the card, the 60-day line under it as wide as the card, and a line of when it went live last (#300)', () => {
         //
-        // each figure as wide as it needs, and the line in what is left. The
-        // score had shared a row with the line, over the other two
+        // the live version and the attempts had stood beside the line, which
+        // was squeezed to 132px; the line of when it went live says both
         //
         const rows = declared(card, 'grid-template-areas').match(/'[^']*'/g);
+        const widths = RULES.filter((each) => each.selectors.join() === '.model-trend,.model-trend-pending,.model-trend-none' && declared(each, 'width'));
 
         //
         // under the description, an options model's link to its picks, a line
         // no other row fills (#290)
         //
-        expect(rows.slice(3)).toEqual(['\'picks picks picks picks picks\'', '\'live went trend trend trend\'', '\'score score score score score\'']);
+        expect(rows.slice(3)).toEqual([
+            '\'picks picks picks picks picks\'',
+            '\'score score score score score\'',
+            '\'trend trend trend trend trend\'',
+            '\'since since since since since\'',
+        ]);
         expect(declared(card, 'grid-template-columns')).toBe('auto auto minmax(0, 1fr) auto auto');
         expect(declared(card, 'column-gap')).toBe('0.75rem');
-        expect(declared(rule('.model-cell-trend', 'grid-area'), 'justify-self')).toBe('end');
-        expect(declared(rule('.model-trend,.model-trend-pending,.model-trend-none', 'width'), 'width')).toBe('$model-trend-width');
+        expect(widths.map((each) => declared(each, 'width'))).toEqual(['$model-trend-width', '100%']);
+        expect(declared(rule('.model-cell-live,.model-cell-went', 'display'), 'display')).toBe('none');
+        expect(declared(rule('.model-cell-since', 'grid-area'), 'display')).toBe('flex');
         expect(source).toMatch(/\$model-trend-width: 132px;/);
+    });
+
+    it('draws the line of when it went live on a phone\'s card alone (#300)', () => {
+        expect(declared(RULES.find((each) => each.selectors.join() === '.model-cell-since'), 'display')).toBe('none');
     });
 
     it('rules the score off from the figures over it, whichever score it is (#283)', () => {
@@ -167,15 +178,14 @@ describe('a phone\'s card (#274)', () => {
         expect(declared(score, 'grid-area')).toBe('score');
     });
 
-    it('puts the 60-day line under the other two figures, at the left, on a phone too narrow for the three side by side (#283)', () => {
-        expect(source).toMatch(/@media \(max-width: 374\.98px\) \{\s*\.model-row \{\s*grid-template-areas:[^;]*'live went went went went'\s*'trend trend trend trend trend'\s*'score score score score score';/);
-        expect(source).toMatch(/@media \(max-width: 374\.98px\) \{[^@]*\.model-cell-trend \{\s*justify-self: start;/);
+    it('lays a narrower phone\'s card out as a wider one\'s, the line across it on either (#300)', () => {
+        expect(source).not.toMatch(/@media \(max-width: 374\.98px\)/);
     });
 
     it('keeps the model\'s lines together, and puts 0.6rem over each row of figures', () => {
         expect(declared(card, 'gap')).toBeNull();
         expect(declared(card, 'row-gap')).toBeNull();
-        expect(declared(rule('.model-cell-score,.model-cell-trend,.model-cell-live,.model-cell-went', 'margin-top'), 'margin-top'))
+        expect(declared(rule('.model-cell-score,.model-cell-trend,.model-cell-since', 'margin-top'), 'margin-top'))
             .toBe('0.6rem');
     });
 
@@ -281,7 +291,7 @@ describe('loss\'s three parts on a model\'s page (#265)', () => {
         const list = RULES.find((rule) => rule.selectors.join() === '.model-parts');
 
         expect(declared(list, 'container-type')).toBe('inline-size');
-        expect(source).toMatch(/@container \(max-width: 29em\) \{\s*\.model-part \{\s*display: grid;/);
+        expect(source).toMatch(/@container \(max-width: 30em\) \{\s*\.model-part \{\s*display: grid;/);
     });
 });
 

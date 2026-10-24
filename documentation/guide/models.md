@@ -6,24 +6,48 @@ Each night the site's models predict how S&P 500 stocks and their options will d
 ## The stock models
 
 Each night, a stock model makes three predictions for each of the roughly 500 stocks in
-the S&P 500, about the next trading day from 9:40 AM to 3:40 PM:
+the S&P 500, for each of its holds:
 
-- **Up or down:** the chance its price is higher at 3:40 PM than at 9:40 AM.
+- **Up or down:** the chance its price is higher at the end of the hold than at 9:40 AM.
 - **Beats the average stock:** the chance it does better than the average of all S&P 500
-  stocks over those same hours.
+  stocks over the same hold.
 - **How far it moves:** how big the move is, up or down, compared with how much the
   stock's options expected it to move. The model gives a low, a middle and a high guess.
 
-It also ranks its top 10: the 10 stocks it's surest will go up. Top 10 gain on /model is
-what buying those 10 at 9:40 AM and selling them at 3:40 PM made, after the gap between
-the buy and sell prices.
+It also ranks its top 10 for each hold: the 10 stocks it's surest will go up. Top 10 gain
+on /model is what buying those 10 at 9:40 AM and selling them at the end of the hold
+made, after the gap between the buy and sell prices.
 
-The stock models only look one day ahead. Each prediction is graded once that day's
-3:40 PM prices are in.
+**Its holds:** each starts at 9:40 AM on the next trading day, and is graded on its own,
+against its own baseline.
+
+| Hold | Ends | Graded |
+|---|---|---|
+| 1 day | 3:40 PM the same day | the next trading day |
+| 5 days | 3:40 PM 5 trading days later | 6 trading days after the prediction |
+| 20 days | 3:40 PM 20 trading days later | 21 trading days after the prediction |
+
+The 1-day hold is the prediction the stock models have always made. The 5 and 20-day
+holds run over the same days as the options models' holds.
+
+**Combined** is the average of a day's three holds. It can only be worked out once the
+20-day hold is graded, so it runs about a month behind. The top 10 has no Combined: a
+20-day gain and a 1-day gain aren't the same kind of number.
+
+The longer holds are new. If every trading day is built, the 5-day hold switches on with
+the retrain on Saturday, Oct 31, 2026, and its first grades come in on Nov 11. The 20-day
+hold switches on with the retrain on Saturday, Nov 21, and its first grades, with the
+first Combined, come in on Dec 24. Until then, they have no grades to show.
+
+**Why a new version is judged on the 1-day hold:** each night the trainer tries a new
+version of every model, and it replaces the live one only if it does better on recent
+test days. Those days' 5 and 20-day holds haven't ended yet, so only their 1-day grades
+are known. The longer holds are judged later, on the days the model really predicted, by
+the checks below.
 
 **Its baseline:** the averages of its train split, given to every stock: the share of
 stocks that went up (say 52%), 50% for beating the average stock, and the usual size of a
-move. For the top 10, what 10 random stocks made.
+move. For the top 10, what 10 random stocks made. Each hold has its own.
 
 ## The options models
 
@@ -78,8 +102,8 @@ Behind baseline.
 - The 5-day average: worse 10 days in a row.
 - The 20-day average: worse 5 days in a row.
 
-These checks run for every model, stock or options. An options model is checked this way
-for each of its holds.
+These checks run for every model, stock or options, on each of its holds. If any hold
+keeps doing worse than its baseline, the live version is taken down.
 
 A live version is also taken down if it went live without beating its baseline, or if its
 track record shows nothing better than the baseline. A model's page says which of these

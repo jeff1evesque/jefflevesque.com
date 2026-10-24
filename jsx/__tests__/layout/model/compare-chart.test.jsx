@@ -17,6 +17,8 @@ import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS } from '../../../import/layout/model/scores.js';
 import {
     TASKS,
+    heldModelOf,
+    heldTrackOf,
     listingOf,
     optionsListingOf,
     optionsTrackOf,
@@ -418,5 +420,70 @@ describe('the numbers', () => {
             ['Sep 2', '1.605', '', '1.660', ''],
             ['Sep 1', '1.600', '1.600', '1.660', '1.660'],
         ]);
+    });
+});
+
+describe('models on their lists\' holds, from format 5 on (#300)', () => {
+    //
+    // tables-gnn's record with its holds, the newest five days without their
+    // 5-day results, and pt-gnn's from before format 5, with none
+    //
+    const held = heldTrackOf(30);
+    const tablesGnn = heldModelOf();
+
+    function onHolds(holds = { 'tables-gnn': 5, 'pt-gnn': 5 }, records = { 'tables-gnn': held, 'pt-gnn': trackOf(30) }) {
+        return draw({
+            picks: [{ model: tablesGnn, slot: 0, hold: holds['tables-gnn'] }, { model: ptGnn, slot: 1, hold: holds['pt-gnn'] }],
+            records: records,
+        });
+    }
+
+    const cellsOf = (container, label) => {
+        const columns = [...container.querySelectorAll('.model-numbers-table thead th')].map((cell) => cell.textContent);
+        const at = columns.indexOf(label);
+
+        return [...container.querySelectorAll('.model-numbers-table tbody tr')].map((row) => row.children[at].textContent);
+    };
+
+    it('draws a model on its hold where its record has the hold, named in the legend', async () => {
+        const { container } = onHolds();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        expect(screen.getByRole('list', { name: 'Legend' })).toHaveTextContent('tables-gnn, 5-day hold');
+        expect(cellsOf(container, 'tables-gnn')[10]).toBe(held[19].average.loss_5d.toFixed(3));
+    });
+
+    it('draws a model whose record has no such hold on its plain scores, and names no hold for it', async () => {
+        const { container } = onHolds();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        expect(screen.getByRole('list', { name: 'Legend' }).textContent).not.toMatch(/pt-gnn, 5-day hold/);
+        expect(cellsOf(container, 'pt-gnn')[0]).toBe(trackOf(30)[29].average.loss.toFixed(3));
+    });
+
+    it('leaves a day whose result on the hold is not in yet empty, and says so in its panel', async () => {
+        const { container } = onHolds();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+
+        expect(cellsOf(container, 'tables-gnn').slice(0, 5)).toEqual(['', '', '', '', '']);
+        expect(container.querySelector('.model-readout')).toHaveTextContent('tables-gnn: its 5-day result is not in yet');
+    });
+
+    it('names a model\'s days so far on the hold by the hold\'s own days', () => {
+        const fewer = heldTrackOf(30, { notIn: 20 });
+        const { container } = onHolds({ 'tables-gnn': 5, 'pt-gnn': 5 }, { 'tables-gnn': fewer, 'pt-gnn': trackOf(30) });
+
+        pointAt(container.querySelector('.recharts-wrapper'), 200);
+
+        expect(container.querySelector('.model-readout')).toHaveTextContent(/tables-gnn \(\d+ days\)/);
+    });
+
+    it('names no hold for the 1-day hold, as before format 5', () => {
+        onHolds({ 'tables-gnn': 1, 'pt-gnn': 1 });
+
+        expect(screen.getByRole('list', { name: 'Legend' })).not.toHaveTextContent('hold');
     });
 });
