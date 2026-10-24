@@ -59,9 +59,9 @@
  *       and their controls -- is on screen at its own size from the first
  *       paint, holding a placeholder, and the data fills those in. See
  *       pending.jsx, and note that the page arrives in two pieces: the listing
- *       answers the picker and all of the build panel but its Finished, Sources
- *       and Variant rows, and only those rows, the legend, the canvas and the
- *       tables are waiting on the schema behind it.
+ *       answers the picker and all of the build panel but its Building graph,
+ *       Sources and Variant rows, and only those rows, the legend, the canvas
+ *       and the tables are waiting on the schema behind it.
  */
 
 import React, { Component } from 'react';
@@ -1335,21 +1335,28 @@ class GraphLayout extends Component {
     //       and fifty. The label said the second over the first, which made the
     //       canvas look like it was missing all but sixty of ten million.
     //
-    // Note: Finished, Sources and Variant wait for the schema as well -- see
-    //       buildFinished, graphSources and buildVariant. Each holds its place
+    // Note: Building graph, Sources and Variant wait for the schema as well --
+    //       see buildRange, graphSources and buildVariant. Each holds its place
     //       with the bar the whole panel's stand-in draws in that row. Once there
-    //       is no schema coming, Finished and Sources read 'n/a' and Variant the
-    //       listing's name.
+    //       is no schema coming, Building graph's range ends 'n/a', Sources reads
+    //       'n/a' and Variant the listing's name.
     //
     // Note: Day does not wait. It is the day the listing's entry names, or, for
     //       a build too old to name one, the day list() read off the published
     //       days before handing the choice over -- the day the picker shows.
     //       See buildDay in source.js.
     //
-    // Note: a DAY's panel is the same panel with other rows. The day, its run
-    //       and its times come with the picker, and every other row is totalled
-    //       from the day's rows, or read off them -- so all of those wait the
-    //       way Sources does. See DAY_DETAILS in source.js.
+    // Note: a DAY's panel is the same panel with other rows. The day, the job's
+    //       processing of it and when it was published come with the picker, and
+    //       every other row is totalled from the day's rows, or read off them --
+    //       so all of those wait the way Sources does. See DAY_DETAILS in
+    //       source.js.
+    //
+    // Note: a row with a `note` carries it on its label: each of the job's
+    //       steps, and a day's Published (#289). An info icon follows the label,
+    //       and the note shows under the pointer, from the keyboard and at a
+    //       tap, as a noted value's does -- see info-note.jsx. No other label
+    //       has one.
     //
     // Note: a row marked `pair` shares its line with its partner where the
     //       column has room for two, which is every row below Sources: a day's
@@ -1373,7 +1380,11 @@ class GraphLayout extends Component {
             <dl className='graph-details'>
                 {this.props.source.rows.map((row, index) => (
                     <div key={row.label} className={detailsRow(row)}>
-                        <dt>{row.label}</dt>
+                        <dt>
+                            {row.note
+                                ? <InfoNote note={row.note} className='graph-details-label-noted'>{row.label}</InfoNote>
+                                : row.label}
+                        </dt>
                         <dd>
                             {row.schema && !whole && this.state.loading
                                 ? <PendingDetail index={index} width={row.pending || null} />
@@ -1398,8 +1409,8 @@ class GraphLayout extends Component {
      * Note: which matters, because the two columns stop waiting a whole round
      *       trip apart. The build panel is drawn from the LISTING, so it fills
      *       in at the first response, while the legend is waiting on the schema
-     *       behind it. The panel's Finished, Sources and Variant rows wait with
-     *       the legend, and hold their own places meanwhile -- see details.
+     *       behind it. The panel's Building graph, Sources and Variant rows wait
+     *       with the legend, and hold their own places meanwhile -- see details.
      */
     pending(key) {
         if (!this.state.loading) {
@@ -1414,6 +1425,7 @@ class GraphLayout extends Component {
                     labels={rows.map((row) => row.label)}
                     widths={rows.map((row) => row.pending || null)}
                     classes={rows.map(detailsRow)}
+                    noted={rows.map((row) => Boolean(row.note))}
                 />
             )
             : <PendingLegend />;
