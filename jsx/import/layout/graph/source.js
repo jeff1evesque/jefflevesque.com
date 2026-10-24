@@ -74,6 +74,44 @@ function when(iso) {
     return String(iso).replace('T', ' ').replace(/(:\d\d).*$/, '$1').replace(/\+.*$/, '') + zone;
 }
 
+//
+// one of the job's steps, from its start to its end, as one range (#289):
+// '2026-10-23 05:00 – 07:21 UTC', its day written once where both ends fall on
+// it, and both days where they do not, '2026-10-23 23:50 – 2026-10-24 00:40
+// UTC'. An end that was not recorded reads 'n/a', '2026-09-15 06:37 UTC – n/a',
+// and a step with neither end reads 'n/a' alone, as a single time does.
+//
+// Note: the zone is written once, after the range, where the two ends share
+//       it. Ends that do not -- one published without a zone -- are each
+//       written whole, as `when` writes them, so neither claims the other's.
+//
+function whenRange(start, end) {
+    if (!start && !end) {
+        return 'n/a';
+    }
+
+    const from = when(start);
+    const to = when(end);
+    const [day, time, zone = ''] = from.split(' ');
+    const [endDay, endTime, endZone = ''] = to.split(' ');
+
+    if (!start || !end || !time || !endTime || zone !== endZone) {
+        return `${from} – ${to}`;
+    }
+
+    return [day, time, '–', endDay === day ? '' : endDay, endTime, zone].filter(Boolean).join(' ');
+}
+
+//
+// what each step's label says it is, in a sentence the label carries as a note
+// (#289). No numbers and no source's name in them, so they never need updating
+// when the data grows or a source is added: the rows under them say what the
+// day holds, and how much of it.
+//
+const PROCESSING = 'The job reads all of the day’s data, combines it, and saves the result.';
+const BUILDING = 'The job turns the combined data into this graph, which the model trains on.';
+const PUBLISHED = 'When the job started putting this graph on the site.';
+
 function count(n) {
     return typeof n === 'number' ? n.toLocaleString() : 'n/a';
 }
@@ -244,7 +282,7 @@ function buildVariant(build, schema) {
 
 //
 // the first schema version that says when its build finished, as
-// `build_metadata.build_finished_timestamp`. See buildFinished.
+// `build_metadata.build_finished_timestamp`. See buildRange.
 //
 // Note: the first with two digits after the point, which atLeast puts after
 //       1.9 -- see the note there.
@@ -252,58 +290,66 @@ function buildVariant(build, schema) {
 const BUILD_FINISHED = [1, 10];
 
 //
-// the Finished row's value: when the build finished, as its schema records it
-// from 1.10, or 'n/a'.
+// the Building graph row's value: from when the build started to when it
+// finished, as its schema records it from 1.10 (#289).
 //
 // The listing says only when a build started, as `built`: the builder stamps it
 // as the build begins. No build before 1.10 says when it finished, and nothing
-// stands in for that -- `built` is the start, and `run` is the run's.
+// stands in for that, so its range ends 'n/a' -- `built` is the start, and
+// `run` is the run's.
 //
 // Note: by the version, as the Sources row goes -- see graphSources. Below 1.10
 //       the field is not read, whatever the schema holds.
 //
-// Note: 'n/a' while there is no schema as well, which is a build whose schema
-//       could not be had. One on its way is a bar -- see DETAILS.
+// Note: an end of 'n/a' while there is no schema as well, which is a build
+//       whose schema could not be had. One on its way is a bar -- see DETAILS.
 //
-function buildFinished(build, schema) {
+function buildRange(build, schema) {
     const finished = schema && atLeast(schema.version, BUILD_FINISHED)
         ? (schema.build_metadata || {}).build_finished_timestamp
         : null;
 
-    return when(finished);
+    return whenRange(build.built, finished);
 }
 
 //
 // the build panel's rows: what each is called, and how to read it off a listing
 // entry. `schema` marks the three rows that are read off the build's schema as
-// well, Finished, Sources and Variant, and so have to wait for it. See details
-// in graph.jsx.
+// well, Building graph, Sources and Variant, and so have to wait for it. See
+// details in graph.jsx.
 //
 // A table rather than a list built inline, because the placeholder that stands
 // in for this panel while the listing is still on its way is laid out from the
 // same labels -- see pending.jsx. Two copies of them drift apart the first time
 // a row is added to one of them.
 //
-// Note: the four dates lead. 'Day' is the day the picker names the build by,
-//       which list() gives each choice. 'Run' is when the build's run started,
-//       and 'Started' and 'Finished' are when the build itself did -- none of
-//       which is that day: the build run on 09-25 holds 09-24. The day panel
-//       opens with its own Day, Run, Started and Finished in the same places,
-//       and one day shows the same Run on both pages, so that is where the two
-//       line up. The rows below them describe what the build holds.
+// Note: the day and the nightly job's two steps lead (#289). 'Day' is the day
+//       the picker names the build by, which list() gives each choice.
+//       'Processing data' is the job reading the day's data and combining it,
+//       from when its run started to when this build began, and 'Building
+//       graph' is the build itself -- neither of which is that day: the build
+//       run on 09-25 holds 09-24. The day panel opens with its own Day and
+//       Processing data in the same places, and a day's two ranges start at the
+//       same run, so that is where the two line up. The rows below them
+//       describe what the build holds.
 //
-// Note: 'Started', not 'Built'. The listing's `built` is the builder's
-//       `build_timestamp`, which it stamps as the build begins, and labeled
-//       'Built' it read as the finish. 'Finished' is read off the schema, which
-//       says it from 1.10 -- see buildFinished -- so it waits for the schema as
-//       Sources does. An older build reads 'n/a' there rather than losing the
-//       row, so the panel is the same height whichever build is picked.
+// Note: a row a step, each a range, where there were three times -- Run,
+//       Started and Finished -- and nothing said why hours stood between the
+//       first two. Each step's label carries a `note` saying what the step is,
+//       which details in graph.jsx draws as an info icon after it.
 //
-// Note: 'Sources' comes straight after the dates, where the day panel has its
+// Note: the listing's `built` is the builder's `build_timestamp`, which it
+//       stamps as the build begins, so it ends one step and starts the next.
+//       When the build finished is read off the schema, which says it from
+//       1.10 -- see buildRange -- so Building graph waits for the schema as
+//       Sources does. An older build's range ends 'n/a' rather than the row
+//       going, so the panel is the same height whichever build is picked.
+//
+// Note: 'Sources' comes straight after the steps, where the day panel has its
 //       own under Published: what the run brought in is read with when it ran,
 //       ahead of how much it came to. It is read off the schema, so for the
-//       round trip the schema takes it holds its bar, as Finished above it
-//       does, among rows the listing has already filled -- see details in
+//       round trip the schema takes it holds its bar, as Building graph above
+//       it does, among rows the listing has already filled -- see details in
 //       graph.jsx.
 //
 // Note: 'Variant' is read off the schema too (#237). It is the build's own
@@ -325,9 +371,8 @@ function buildFinished(build, schema) {
 //
 const DETAILS = [
     { label: 'Day', read: (build) => build.day },
-    { label: 'Run', read: (build) => when(build.run) },
-    { label: 'Started', read: (build) => when(build.built) },
-    { label: 'Finished', read: buildFinished, schema: true },
+    { label: 'Processing data', note: PROCESSING, read: (build) => whenRange(build.run, build.built) },
+    { label: 'Building graph', note: BUILDING, read: buildRange, schema: true },
     { label: 'Sources', read: graphSources, schema: true, ruled: true },
     { label: 'Nodes', read: (build) => count(build.nodes), pair: true },
     { label: 'Edges', read: (build) => count(build.edges), pair: true },
@@ -355,7 +400,8 @@ const DETAILS = [
 // choose between builds that read as identical until their end.
 //
 // Every constant part of that sentence is already on the page, in the build
-// panel directly below it: Dataset, Variant, Run. So an option says the DAY the
+// panel directly below it: Dataset, Variant, and the run Processing data starts
+// at. So an option says the DAY the
 // build holds -- in the Day row's words, which are the Retrieval graph's, so the
 // two pickers name one day alike -- and then whatever else actually varies
 // across THIS listing, which is nothing while every published build is the same
@@ -363,8 +409,8 @@ const DETAILS = [
 //
 // Note: one day can name two builds. The 09-10 and 09-13 runs both hold 09-09,
 //       the second having written that day again. Those two, and only those,
-//       add their run in the Run row's words -- '2026-09-09 · run 2026-09-13
-//       15:04 UTC' -- and every other option stays a bare day. It goes by what
+//       add their run, the time the Processing data row starts at -- '2026-09-09
+//       · run 2026-09-13 15:04 UTC' -- and every other option stays a bare day. It goes by what
 //       an option would say rather than by its day alone, so two variants of
 //       one run, which their variant already tells apart, do not both add a
 //       run that tells them apart from nothing.
@@ -616,18 +662,18 @@ function sourceTypes(day, types) {
 //
 // A build's listing entry describes the build before its schema arrives -- how
 // many nodes, when it ran. A day's describes the day and where it came from: the
-// run that published it, when that run wrote the day's tables, and when it began
-// uploading them. Those five rows fill in with the picker, as a build's Run and
-// Started do, and lead the panel, so what is on screen with the picker is one
-// block and what waits is the block below it.
+// job's processing of it, and when it began uploading the day. Those three rows
+// fill in with the picker, as a build's Processing data does, and lead the
+// panel, so what is on screen with the picker is one block and what waits is
+// the block below it.
 // Every other row is TOTALLED from the day's own rows, or read off them, and
 // waits for them: `schema` on each.
 //
 // `pending` is the width a row's value is drawn at while it waits, as pending.jsx
-// does for the build panel's: a date, four timestamps at the width the build panel
-// gives its own, four sources, and then the pairs below them -- a total in the
-// thousands beside one in the hundreds of thousands, and each count of types, in
-// the hundreds, beside a total in the millions.
+// does for the build panel's: a date, a range and a timestamp at the widths the
+// build panel gives its own, four sources, and then the pairs below them -- a
+// total in the thousands beside one in the hundreds of thousands, and each count
+// of types, in the hundreds, beside a total in the millions.
 //
 // `pair` marks a row that shares its line with its partner where the column has
 // room for two, and takes a line of its own where it has not. Partners are listed
@@ -644,22 +690,26 @@ function sourceTypes(day, types) {
 // page shows, and each carries the note in a tooltip over it. See outsideGraph,
 // and detailValue in graph.jsx.
 //
-// Note: 'Run' is the run that published the day, and it is the Run of the build
-//       the Training graph names by the same day: the two graphs of a day are
-//       one run's work. Both panels put it directly under their Day, which is
-//       where a reader lines the two pages up.
+// Note: 'Processing data' runs from the start of the run that published the
+//       day to when that run finished writing the day's tables, which is this
+//       graph saved (#289). It starts at the run the build panel's own starts
+//       at, since the two graphs of a day are one run's work, and both panels
+//       put it directly under their Day, which is where a reader lines the two
+//       pages up. It ends two minutes before the build panel's: the job reads
+//       back what it saved before it builds the Training graph. When the run
+//       began writing the tables is not shown -- reading the day's data and
+//       combining it are the step's too, as the note says.
 //
-// Note: 'Started' and 'Finished' are when that run began and finished writing
-//       the day's tables, which it does before it builds the day's graph, and
-//       they sit where the build panel has its own build's. 'Published' is when
-//       the run began uploading the day, after the build's own upload: not when
-//       the tables were written, and not when the day became readable, which
-//       nothing records.
+// Note: 'Published' is when the run began uploading the day: not when the
+//       upload finished, which takes under a minute and nothing records. It
+//       carries a note, as the steps over it do. The job uploads both graphs
+//       together at its end, so it stands hours after Processing data ends
+//       until the builder uploads this graph as soon as it is saved.
 //
-// Note: a day published before the builder recorded its tables' times reads
-//       'n/a' in both rows, for as long as it is listed, rather than losing the
-//       rows. A day's row carries no version, so whether the times are there is
-//       what says, as it is for its sources.
+// Note: a day published before the builder recorded its tables' times reads its
+//       range to 'n/a', for as long as it is listed, rather than losing the row.
+//       A day's row carries no version, so whether the times are there is what
+//       says, as it is for its sources.
 //
 // Note: 'Entities' and 'Facts' lead the totals, because they are what this graph
 //       is drawn by: the nodes that carry text, and so can be found by name, and
@@ -676,7 +726,7 @@ function sourceTypes(day, types) {
 //       the left.
 //
 // Note: 'Sources' comes straight after Published, where the build panel has
-//       its own under Finished. It waits for the day's rows like the totals
+//       its own under Building graph. It waits for the day's rows like the totals
 //       below it do, and heads the block that waits. A day's own list comes
 //       with the picker, but a day published before the builder recorded one is
 //       read off its rows -- see daySources -- and a row that waited on some
@@ -684,10 +734,13 @@ function sourceTypes(day, types) {
 //
 const DAY_DETAILS = [
     { label: 'Day', read: (day) => day.id, pending: '6rem' },
-    { label: 'Run', read: (day) => when(day.run), pending: '9rem' },
-    { label: 'Started', read: (day) => when(day.tables_started), pending: '9rem' },
-    { label: 'Finished', read: (day) => when(day.tables_finished), pending: '9rem' },
-    { label: 'Published', read: (day) => when(day.published), pending: '9rem' },
+    {
+        label: 'Processing data',
+        note: PROCESSING,
+        read: (day) => whenRange(day.run, day.tables_finished),
+        pending: '15rem',
+    },
+    { label: 'Published', note: PUBLISHED, read: (day) => when(day.published), pending: '9rem' },
     {
         label: 'Sources',
         read: (day, whole) => whole && daySources(day, whole.node_types),
@@ -835,4 +888,5 @@ export {
     pickerLabels,
     graphSources,
     when,
+    whenRange,
 };
