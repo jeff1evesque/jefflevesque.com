@@ -147,6 +147,24 @@ describe('the listing', () => {
 
         expect(asked()).toEqual(['https://example.test/model']);
     });
+
+    it('resolves to how many scored days its models\' scores average, which every model carries, from format 4 (#293)', async () => {
+        answers({ report: { ...listingOf(null, 4), average_days: 30 } });
+
+        const listing = await loadListing();
+
+        expect(listing.average_days).toBe(30);
+        expect(listing.models.map((model) => model.average_days)).toEqual([30, 30, 30, 30]);
+    });
+
+    it('resolves to 20 of them for a listing before format 4, which gives none (#293)', async () => {
+        answers({ report: listingOf(null, 3) });
+
+        const listing = await loadListing();
+
+        expect(listing.average_days).toBe(20);
+        expect(listing.models.map((model) => model.average_days)).toEqual([20, 20, 20, 20]);
+    });
 });
 
 describe('a report', () => {
@@ -184,6 +202,33 @@ describe('a report', () => {
         answers({ report: { rows: [] } });
 
         expect(await loadReport('pt-gnn', 'track-record')).toBeNull();
+    });
+
+    it('averages a track record over the days it is asked for with, the listing\'s average_days (#293)', async () => {
+        answers({ report: 'day,loss\n2026-10-12,1.6\n2026-10-13,1.8\n2026-10-14,1.7' });
+
+        const rows = await loadReport('pt-gnn', 'track-record', 2);
+
+        expect(rows[2].days).toBe(2);
+        expect(rows[2].average.loss).toBeCloseTo(1.75);
+        expect(asked()).toEqual([`${MODEL}?Model=pt-gnn&Report=track-record`]);
+    });
+
+    it('averages one asked for with none over up to 20 days, every day so far here (#293)', async () => {
+        answers({ report: 'day,loss\n2026-10-12,1.6\n2026-10-13,1.8\n2026-10-14,1.7' });
+
+        const rows = await loadReport('pt-gnn', 'track-record');
+
+        expect(rows[2].days).toBe(3);
+        expect(rows[2].average.loss).toBeCloseTo(1.7);
+    });
+
+    it('can be asked of another base', async () => {
+        answers({ report: null });
+
+        await loadReport('pt-gnn', 'history', null, 'https://example.test/model');
+
+        expect(asked()).toEqual(['https://example.test/model?Model=pt-gnn&Report=history']);
     });
 });
 
@@ -288,6 +333,13 @@ describe('the worker', () => {
     it('passes the listing\'s format_version on, and 0 for a listing that gives none (#248)', async () => {
         expect((await readInWorker('list', listingOf(null, 1))).format_version).toBe(1);
         expect((await readInWorker('list', listingOf())).format_version).toBe(0);
+    });
+
+    it('hands the worker the days a track record\'s averages take in (#293)', async () => {
+        const report = 'day,loss\n2026-10-12,1.6\n2026-10-13,1.8';
+
+        expect((await readInWorker('track-record', report, 'pt-gnn', 1)).rows.map((row) => row.days)).toEqual([1, 1]);
+        expect((await readInWorker('track-record', report, 'pt-gnn')).rows.map((row) => row.days)).toEqual([1, 2]);
     });
 
     it('resolves to null where it cannot run, and every load that leans on it does too', async () => {
