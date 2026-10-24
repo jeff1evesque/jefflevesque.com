@@ -541,3 +541,39 @@ describe('loss\'s three parts in /model\'s list (#283)', () => {
         expect(declared(rule('.model-list-parts .model-row'), 'grid-template-columns')).toBe('auto auto minmax(0, 1fr) auto auto');
     });
 });
+
+describe('the docs\' page on the models, in place of the intro (#296)', () => {
+    it('puts the icon at the right end of the Sort row and of the title\'s row, as /stream puts its own', () => {
+        const both = RULES.find((each) => each.selectors.join() === '.model-heading .model-heading-docs,.model-controls .model-controls-docs');
+
+        expect(declared(both, 'margin-left')).toBe('auto');
+        expect(declared(RULES.find((each) => each.selectors.join() === '.model-heading .model-heading-docs' && declared(each, 'align-self')), 'align-self')).toBe('center');
+    });
+
+    it('shows the Sort row\'s on a computer alone, and the title row\'s on a phone alone', () => {
+        expect(source).toMatch(/@media \(max-width: 767\.98px\) \{\s*\.model-controls \.model-controls-docs \{\s*display: none;\s*\}\s*\}/);
+        expect(source).toMatch(/@media \(min-width: 768px\) \{\s*\.model-heading \.model-heading-docs \{\s*display: none;\s*\}\s*\}/);
+    });
+
+    it('folds no intro any more (#287)', () => {
+        expect(source).not.toMatch(/model-lede-(fold|folded|open|toggle|more|less|dots)/);
+    });
+});
+
+describe('the box over a trend line under the pointer (#296)', () => {
+    it('is the panel\'s tip, smaller: 0.8rem words, closer padding, a line for each row, as wide as its words', () => {
+        expect(source).toMatch(/\.model-trend-tip \{\s*box-shadow: 0 1px 3px rgba\(0, 0, 0, 0\.18\);\s*font-size: 0\.8rem;\s*gap: 0\.1rem;\s*line-height: 1\.3;\s*padding: 0\.3rem 0\.55rem;\s*white-space: nowrap;\s*width: max-content;/);
+    });
+
+    it('comes after the panel\'s tip, so its own padding and gap win', () => {
+        expect(source.indexOf('.model-trend-tip {')).toBeGreaterThan(source.indexOf('.model-tip {'));
+    });
+
+    it('draws each mark 12px wide, in a column as wide', () => {
+        const row = RULES.find((each) => each.selectors.join() === '.model-tip-row' && /12px/.test(each.body));
+        const mark = RULES.find((each) => each.selectors.join() === '.model-mark' && /12px/.test(each.body));
+
+        expect(declared(row, 'grid-template-columns')).toBe('12px minmax(0, 1fr) auto');
+        expect([declared(mark, 'width'), declared(mark, 'height')]).toEqual(['12px', '9px']);
+    });
+});
