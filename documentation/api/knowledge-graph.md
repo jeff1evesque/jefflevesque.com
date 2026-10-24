@@ -141,10 +141,11 @@ column. Below `1.7` a build says nothing of its types' widths, and `/graph` show
 **From schema `1.10`, a build says when it finished**, as
 `build_metadata.build_finished_timestamp`, once its graph is saved. The listing's `built`
 is when the build started, the builder's `build_timestamp`, and keeps its name. `/graph`'s
-Build details show the two as Started and Finished, and Finished waits for the schema, as
-Sources does. Below `1.10` a build records no finish, and Finished reads n/a. `1.10` is
-the first version with two digits after the point, so compare `version` a part at a
-time: as text, or as one number, it comes out below `1.9`.
+Build details show the two as one range, Building graph, which waits for the schema, as
+Sources does, under Processing data, the listing's `run` to `built`. Below `1.10` a build
+records no finish, and its range ends n/a. `1.10` is the first version with two digits
+after the point, so compare `version` a part at a time: as text, or as one number, it
+comes out below `1.9`.
 
 **`period` is a partition key, not a window over the data.** Builds are published under
 a partition -- `YYYY-MM`, nested year then month -- and an `id` is selected from within
@@ -265,12 +266,13 @@ most of what is drawn takes the place of the lightest type drawn, so the canvas 
 draws sixty: on 2026-10-02, `market_enrichment_EquitySector` takes an `eci` series'
 place.
 
-Its Day details put the day's **Run** directly under the Day, then **Started** and
-**Finished**, when that run wrote the day's tables, and **Published**, all read from
-`days`, so the five are on screen with the picker, above the totals that arrive a round
-trip later. `/graph`'s Build details put a build's Run, Started and Finished in the same
-places, under its Day, and the Run is the one `/graph` shows for the build of the same
-day. A day published before the builder recorded its tables' times reads n/a for both.
+Its Day details put **Processing data** directly under the Day, from the day's `run` to
+its `tables_finished`, and then **Published**, all read from `days`, so the three are on
+screen with the picker, above the totals that arrive a round trip later. `/graph`'s Build
+details put a build's Processing data in the same place, under its Day, and a day's two
+ranges start at the same `run`. They end about two minutes apart, because the run reads
+back what it saved before it builds the Training Graph. A day published before the
+builder recorded its tables' times reads its range to n/a.
 
 **A day's node types are named by the day's predicates.** A `node-types` row carries no
 ontology term, and a type's name can leave its source out: `jolts_Industry` is a type of
@@ -287,7 +289,7 @@ those days' types under `jolts`. Their `market_quotes` types are named `market-q
 the one flat vocabulary their builds' uris name, where a later day's are `market/quotes`.
 
 Its Day details carry **Sources** directly under Published, where `/graph`'s Build details
-carry theirs under Finished: the day's `sources` from `days`, so a source the builder adds
+carry theirs under Building graph: the day's `sources` from `days`, so a source the builder adds
 to the tables, or stops reading, comes and goes with no change to the page. A day whose
 `sources` is `null` lists the sources the day's vocabularies are filed under instead,
 `bls, market, noaa, sec` on every day from 2026-09-21, which is what the run that
