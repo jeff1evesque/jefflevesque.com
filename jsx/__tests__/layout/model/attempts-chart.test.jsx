@@ -22,6 +22,7 @@ import AttemptsChart, {
     verdictOf,
 } from '../../../import/layout/model/attempts-chart.jsx';
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
+import { writeLayout } from '../../../import/general/layout-preference.js';
 import { chartColors } from '../../../import/layout/model/scores.js';
 import { historyOf, phoneScreen, pointAt as pointAtChart, tapAt, timedHistoryOf, wideScreen } from '../../../test-support/model-fixtures.js';
 
@@ -437,20 +438,6 @@ describe('the nights\' axis (#300)', () => {
         expect([ATTEMPTS, GAP].map((which) => heightOf(container, which))).toEqual([200, 120]);
     });
 
-    it('moves up to the last chart left open as the ones under it fold', async () => {
-        const { container } = draw({ rows: timedHistoryOf() });
-
-        await userEvent.click(screen.getByRole('button', { name: 'How long each attempt took' }));
-
-        expect(hasAxis(container, GAP)).toBe(true);
-        expect(heightOf(container, GAP)).toBe(120);
-
-        await userEvent.click(screen.getByRole('button', { name: 'How far each attempt beat or missed the live version' }));
-
-        expect(hasAxis(container, ATTEMPTS)).toBe(true);
-        expect(heightOf(container, ATTEMPTS)).toBe(230);
-    });
-
     it('names the nights by their short day', () => {
         const { container } = draw({ rows: timedHistoryOf() });
         const names = [...container.querySelectorAll(`${TOOK} .recharts-xAxis .recharts-cartesian-axis-tick`)].map((tick) => tick.textContent);
@@ -728,7 +715,7 @@ describe('the panel (#300)', () => {
     });
 });
 
-describe('folding each chart (#253)', () => {
+describe('folding the card (#253, #300)', () => {
     // a fold is kept, as a reader's is: none is left for the cases after these
     beforeEach(() => window.localStorage.clear());
     afterEach(() => window.localStorage.clear());
@@ -737,95 +724,75 @@ describe('folding each chart (#253)', () => {
     const GAP_TITLE = 'How far each attempt beat or missed the live version';
     const TOOK_TITLE = 'How long each attempt took';
 
-    const title = (name) => screen.getByRole('button', { name: name });
+    const title = () => screen.getByRole('button', { name: ATTEMPTS_TITLE });
 
-    it('opens every chart on a first visit, each title saying so', () => {
+    it('opens the card on a first visit, its title saying so', () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
-        [ATTEMPTS_TITLE, GAP_TITLE, TOOK_TITLE].forEach((name) => expect(title(name)).toHaveAttribute('aria-expanded', 'true'));
+        expect(title()).toHaveAttribute('aria-expanded', 'true');
         expect(container.querySelectorAll('.model-chart')).toHaveLength(3);
         expect(container.querySelectorAll('.model-attempt-panel')).toHaveLength(1);
     });
 
-    it('folds the attempts down to their title, and opens them again', async () => {
+    it('gives the two charts under the first a heading each, and no fold of their own: a fold in a fold confused', () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
-        await userEvent.click(title(ATTEMPTS_TITLE));
+        expect(screen.getAllByRole('button').filter((button) => button.classList.contains('model-fold'))).toEqual([title()]);
+        expect(screen.getByRole('heading', { name: GAP_TITLE })).toHaveClass('model-card-minor');
+        expect(screen.getByRole('heading', { name: TOOK_TITLE })).toHaveClass('model-card-minor');
+        expect(container.querySelector('.model-card-minor button')).toBeNull();
+    });
 
-        expect(title(ATTEMPTS_TITLE)).toHaveAttribute('aria-expanded', 'false');
-        expect(container.querySelector(ATTEMPTS)).toBeNull();
-        expect(container.querySelector('.model-card-head .model-card-sub')).toBeNull();
+    it('folds the whole card down to its title -- its line, its legend, all three charts, the panel and the numbers -- and opens it again', async () => {
+        const { container } = draw({ rows: timedHistoryOf() });
+
+        await userEvent.click(title());
+
+        expect(title()).toHaveAttribute('aria-expanded', 'false');
+        expect(container.querySelectorAll('.model-chart')).toHaveLength(0);
+        expect(container.querySelector('.model-card-sub')).toBeNull();
         expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
-        expect(screen.queryByText('Baseline')).toBeNull();
-        expect(container.querySelector(GAP)).not.toBeNull();
-        expect(container.querySelector(TOOK)).not.toBeNull();
-        expect(panelOf(container)).not.toBeNull();
+        expect(screen.queryByRole('heading', { name: GAP_TITLE })).toBeNull();
+        expect(screen.queryByRole('heading', { name: TOOK_TITLE })).toBeNull();
+        expect(panelOf(container)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Show the numbers' })).toBeNull();
 
-        await userEvent.click(title(ATTEMPTS_TITLE));
+        await userEvent.click(title());
 
-        expect(title(ATTEMPTS_TITLE)).toHaveAttribute('aria-expanded', 'true');
-        expect(container.querySelector(ATTEMPTS)).not.toBeNull();
+        expect(title()).toHaveAttribute('aria-expanded', 'true');
+        expect(container.querySelectorAll('.model-chart')).toHaveLength(3);
         expect(screen.getByRole('list', { name: 'Legend' })).toBeInTheDocument();
-    });
-
-    it('folds the bars of better or worse on their own: the line under their title and the bars', async () => {
-        const { container } = draw({ rows: timedHistoryOf(), score: 'auc_up' });
-
-        await userEvent.click(title(GAP_TITLE));
-
-        expect(container.querySelector(GAP)).toBeNull();
-        expect(screen.queryByText(/an attempt kept back can still show as better/)).toBeNull();
-        expect(container.querySelector(ATTEMPTS)).not.toBeNull();
-        expect(container.querySelector(TOOK)).not.toBeNull();
-        expect(panelOf(container)).not.toBeNull();
-    });
-
-    it('folds the time chart on its own: the line under its title and its bars, the panel moving up under the bars before it', async () => {
-        const { container } = draw({ rows: timedHistoryOf() });
-
-        await userEvent.click(title(TOOK_TITLE));
-
-        expect(container.querySelector(TOOK)).toBeNull();
-        expect(screen.queryByText(/lighter teal/)).toBeNull();
-        expect(container.querySelector(GAP)).not.toBeNull();
-        expect(title(TOOK_TITLE)).toHaveAttribute('aria-expanded', 'false');
-        expect(title(TOOK_TITLE).closest('h6').nextElementSibling).toBe(panelOf(container));
+        expect(screen.getByRole('button', { name: 'Show the numbers' })).toBeInTheDocument();
     });
 
     it('folds by the keyboard too', async () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
-        title(GAP_TITLE).focus();
+        title().focus();
         await userEvent.keyboard('{Enter}');
 
-        expect(container.querySelector(GAP)).toBeNull();
+        expect(container.querySelectorAll('.model-chart')).toHaveLength(0);
     });
 
-    it('keeps a fold for the next visit', async () => {
+    it('keeps the fold for the next visit', async () => {
         const { unmount } = draw({ rows: timedHistoryOf() });
 
-        await userEvent.click(title(TOOK_TITLE));
+        await userEvent.click(title());
         unmount();
 
         const { container } = draw({ rows: timedHistoryOf() });
 
-        expect(title(TOOK_TITLE)).toHaveAttribute('aria-expanded', 'false');
-        expect(container.querySelector(TOOK)).toBeNull();
-        expect(container.querySelector(ATTEMPTS)).not.toBeNull();
+        expect(title()).toHaveAttribute('aria-expanded', 'false');
+        expect(container.querySelectorAll('.model-chart')).toHaveLength(0);
     });
 
-    it('leaves out the panel with all three folded, and keeps "Show the numbers", since it covers all three', async () => {
+    it('passes over a fold kept for one of the charts under the first, as the card kept them before (#253)', () => {
+        writeLayout('model-page', 'wide', { fold: { gap: true, took: true }, size: {} });
+
         const { container } = draw({ rows: timedHistoryOf() });
 
-        for (const name of [ATTEMPTS_TITLE, GAP_TITLE, TOOK_TITLE]) {
-            await userEvent.click(title(name));
-        }
-
-        expect(panelOf(container)).toBeNull();
-
-        await userEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
-
-        expect(screen.getByRole('table', { name: 'Loss, each attempt against the live version' })).toBeInTheDocument();
+        expect(title()).toHaveAttribute('aria-expanded', 'true');
+        expect(container.querySelectorAll('.model-chart')).toHaveLength(3);
     });
 });
 
