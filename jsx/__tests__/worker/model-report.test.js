@@ -2,7 +2,8 @@
  * model-report.test.js: the model api's web-worker (#243).
  *
  * It reads the listing of models and a model's two csv reports, and works out
- * each day's 20-day averages of a track record. Most of the cases below drive
+ * each day's averages of a track record, over the listing's `average_days`
+ * (#293). Most of the cases below drive
  * the imported function in this process, the way the stream workers' tests do:
  * it assigns self.onmessage, and the handler is handed a synthetic event.
  *
@@ -101,6 +102,7 @@ describe('the listing', () => {
             started: '2026-09-01',
             retired: null,
             scored_days: 30,
+            average_days: 20,
             live: { since: '2026-10-10', kind: 'nightly' },
             attempts: { total: 30, went_live: 4 },
             score: { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54, ...NO_PARTS },
@@ -109,6 +111,7 @@ describe('the listing', () => {
             behind: [],
         }]);
         expect(answer.tasks).toEqual([{ id: 'direction', name: 'Next-day direction', description: 'Up or down' }]);
+        expect(answer.average_days).toBe(20);
     });
 
     it('reads no parts of loss, which the listing does not carry (#265)', () => {
@@ -192,14 +195,67 @@ describe('the listing', () => {
         expect(model.attempts).toEqual({ total: 0, went_live: 0 });
     });
 
-    it('answers no tasks, no models and no format_version for a listing that is not one', () => {
-        [null, 'text', [], { models: 'none', format_version: 1 }].forEach((report) => {
-            expect(run({ kind: 'list', report: report })).toEqual({ kind: 'list', name: null, tasks: null, models: null, format_version: null });
+    it('answers no tasks, no models, no format_version and no average_days for a listing that is not one', () => {
+        [null, 'text', [], { models: 'none', format_version: 1, average_days: 30 }].forEach((report) => {
+            expect(run({ kind: 'list', report: report }))
+                .toEqual({ kind: 'list', name: null, tasks: null, models: null, format_version: null, average_days: null });
         });
     });
 
     it('lists no models for an empty listing, which is not a failure', () => {
-        expect(run({ kind: 'list', report: { models: [] } })).toEqual({ kind: 'list', name: null, tasks: [], models: [], format_version: 0 });
+        expect(run({ kind: 'list', report: { models: [] } }))
+            .toEqual({ kind: 'list', name: null, tasks: [], models: [], format_version: 0, average_days: 20 });
+    });
+
+    describe('average_days, how many scored days a model\'s scores average, from format 4 on (#293)', () => {
+        //
+        // a listing of two models, giving `days` -- or not giving any at all
+        // where it is undefined
+        //
+        function giving(days) {
+            const report = listingOf([entry(), entry({ name: 'b', scored_days: 25 })]);
+
+            if (days !== undefined) {
+                report.average_days = days;
+            }
+
+            return run({ kind: 'list', report: report });
+        }
+
+        it('passes the listing\'s on, and gives it to every model, so whatever has a model has its number', () => {
+            const answer = giving(30);
+
+            expect(answer.average_days).toBe(30);
+            expect(answer.models.map((model) => model.average_days)).toEqual([30, 30]);
+        });
+
+        it('passes on any whole number of 1 or more', () => {
+            expect(giving(1).average_days).toBe(1);
+            expect(giving(60).models[1].average_days).toBe(60);
+        });
+
+        it.each([
+            ['given none, as before format 4', undefined],
+            ['given as text', '30'],
+            ['a fraction', 2.5],
+            ['zero', 0],
+            ['below zero', -20],
+            ['null', null],
+            ['not a number at all', { days: 30 }],
+            ['infinite', Infinity],
+        ])('reads one %s as 20, as the trainer averaged before it said', (name, days) => {
+            const answer = giving(days);
+
+            expect(answer.average_days).toBe(20);
+            expect(answer.models.map((model) => model.average_days)).toEqual([20, 20]);
+        });
+
+        it('reads everything else the same, whatever it gives', () => {
+            const without = (models) => models.map(({ average_days, ...rest }) => rest);
+
+            expect(without(giving(30).models)).toEqual(without(giving(undefined).models));
+            expect(giving(30).tasks).toEqual(giving(undefined).tasks);
+        });
     });
 
     describe('format_version, the layout every model report follows (#248)', () => {
@@ -534,6 +590,55 @@ describe('the track record', () => {
         const [row] = run({ kind: 'track-record', report: csv(TRACK_HEADER, [trackRow('2026-10-12', '')]) }).rows;
 
         expect(row.average.loss).toBeNull();
+    });
+
+    describe('over the days the listing says, from format 4 on (#293)', () => {
+        //
+        // 25 days whose losses are 1 to 25, asked for with `days` -- or with
+        // none at all where it is undefined
+        //
+        function averagedOver(days) {
+            const asked = { kind: 'track-record', report: csv(TRACK_HEADER, weekdays(25).map((day, at) => trackRow(day, at + 1))) };
+
+            if (days !== undefined) {
+                asked.average_days = days;
+            }
+
+            return run(asked).rows;
+        }
+
+        it('averages each day over the last average_days rows it is sent with', () => {
+            const rows = averagedOver(3);
+
+            //
+            // the last three hold losses 23 to 25, and the three ending at the
+            // eleventh 9 to 11
+            //
+            expect(rows[24].days).toBe(3);
+            expect(rows[24].average.loss).toBeCloseTo(24);
+            expect(rows[10].average.loss).toBeCloseTo(10);
+            expect(rows[1].days).toBe(2);
+        });
+
+        it('averages over every row so far while there are fewer than it says', () => {
+            const rows = averagedOver(30);
+
+            expect(rows[24].days).toBe(25);
+            expect(rows[24].average.loss).toBeCloseTo(13);
+        });
+
+        it.each([
+            ['sent with none', undefined],
+            ['sent with null, as the pages send for no listing', null],
+            ['sent with text', '3'],
+            ['sent with zero', 0],
+            ['sent with a fraction', 2.5],
+        ])('averages over 20, %s', (name, days) => {
+            const rows = averagedOver(days);
+
+            expect(rows[24].days).toBe(20);
+            expect(rows[24].average.loss).toBeCloseTo(15.5);
+        });
     });
 
     describe('the check a day\'s score set off, from format 2 on (#263)', () => {
@@ -992,6 +1097,13 @@ describe('the worker as the bundle builds it', () => {
                 report: 'day,hold,rank,ticker,contract,call_put,strike\n2026-10-21,5,1,AAPL,AAPL  261120C00230000,Put,230\n2026-10-21,1,1,MSFT,MSFT  261120C00500000,call,500',
             },
             { kind: 'option-picks', report: '' },
+            { kind: 'list', report: { format_version: 4, average_days: 30, tasks: [], models: [entry(), entry({ name: 'b', scored_days: 25 })] } },
+            { kind: 'list', report: { format_version: 4, average_days: '30', models: [entry()] } },
+            {
+                kind: 'track-record',
+                average_days: 2,
+                report: csv(TRACK_HEADER, [trackRow('2026-10-12', 1.6), trackRow('2026-10-13', 1.8), trackRow('2026-10-14', 1.7)]),
+            },
         ];
 
         messages.forEach((data) => {
