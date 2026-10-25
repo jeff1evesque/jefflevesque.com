@@ -101,6 +101,7 @@ import {
     heldOut,
     holdLabel,
     holdLine,
+    holdNote,
     holdsOf,
     listedHolds,
     liveKind,
@@ -1271,7 +1272,7 @@ class ModelPage extends Component {
                         offered={scoresFor(task)}
                         disabled={heldOut(task, holds.hold)}
                     />
-                    {holds.holds.length ? <HoldPicker hold={holds.hold} onHold={onHold} holds={holds.holds} disabled={holds.empty} /> : null}
+                    {holds.holds.length ? <HoldPicker hold={holds.hold} onHold={onHold} holds={holds.holds} disabled={holds.empty} note={holdNote(task, holds.empty.length > 0)} /> : null}
                 </div>
                 {stock ? <p className='model-hold-line'>{holdLine(task, holds.hold)}</p> : null}
                 {this.summary(model, task, score, holds.hold)}
