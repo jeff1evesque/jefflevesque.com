@@ -588,6 +588,15 @@
     font-weight: normal;
     letter-spacing: 0.04em;
   }
+
+  //
+  // a name with an info icon after it, Hold's (#311): only as wide as the name
+  // and its icon, so its note opens over them, and not over the empty line
+  // beside them, as wide as the buttons under it
+  //
+  > .model-noted {
+    align-self: flex-start;
+  }
 }
 
 .model-score-buttons {
