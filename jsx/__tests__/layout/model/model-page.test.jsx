@@ -1779,6 +1779,23 @@ describe('an options model (#279)', () => {
             expect(picker('Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days']);
         });
 
+        it('have the note after their name, which says why a hold is grayed out only while one is (#311)', async () => {
+            const nameOf = () => document.querySelector('.model-holds > .model-control-label');
+
+            options({ track: optionsTrackOf(15) });
+
+            const { unmount } = await open('pt-options');
+
+            expect(nameOf()).toHaveAccessibleDescription('How long each option is held before it’s sold. A hold is grayed out until its first results come in.');
+            expect(nameOf().querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+
+            unmount();
+            options();
+            await open('pt-options');
+
+            expect(nameOf()).toHaveAccessibleDescription('How long each option is held before it’s sold.');
+        });
+
         it('go where the track record has no hold columns, or could not be had', async () => {
             options({ track: trackOf() });
 
@@ -1954,6 +1971,26 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
             expect(screen.queryByRole('group', { name: 'Hold' })).toBeNull();
             expect(document.querySelector('.model-hold-line')).toBeNull();
             expect(document.querySelector('.model-by-hold')).toBeNull();
+            expect(document.querySelector('.model-controls .model-noted')).toBeNull();
+        });
+
+        it('has the note after its name, which says why a hold is grayed out only while one is, and what Combined is (#311)', async () => {
+            const nameOf = () => document.querySelector('.model-holds > .model-control-label');
+            const track = heldTrackOf(30, { twenty: 30 });
+
+            held();
+
+            const { unmount } = await open('tables-gnn');
+
+            expect(nameOf()).toHaveAccessibleDescription(
+                'How long each stock is held before it’s sold. A hold is grayed out until its first results come in. Combined is the average of the three.',
+            );
+
+            unmount();
+            held({ listing: heldListingOf([heldModelOf({}, track)]), track: track });
+            await open('tables-gnn');
+
+            expect(nameOf()).toHaveAccessibleDescription('How long each stock is held before it’s sold. Combined is the average of the three.');
         });
 
         it('is there while the track record is on its way, from the listing\'s holds', async () => {

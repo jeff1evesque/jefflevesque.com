@@ -75,6 +75,7 @@ import {
     compareBlocked,
     emptyHolds,
     heldOut,
+    holdNote,
     holdsAmong,
     listLine,
     recentDays,
@@ -794,7 +795,7 @@ class ModelLayout extends Component {
                             offered={scoresFor(task)}
                             disabled={heldOut(task, hold)}
                         />
-                        {holds.length ? <HoldPicker hold={hold} onHold={(key) => onHold(task.id, key)} holds={holds} disabled={empty} /> : null}
+                        {holds.length ? <HoldPicker hold={hold} onHold={(key) => onHold(task.id, key)} holds={holds} disabled={empty} note={holdNote(task, empty.length > 0)} /> : null}
                     </div>
                     {holds.length ? <p className='model-hold-line'>{listLine(task, hold)}</p> : null}
                     <div className={parts ? 'model-list model-list-parts' : 'model-list'}>

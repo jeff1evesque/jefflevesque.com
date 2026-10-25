@@ -1,9 +1,10 @@
 /**
  * parts.jsx: what both model pages draw alike (#243): the score picker, the hold
- * picker of an options model (#279) and from format 5 a stock model (#300), how a
- * score stands against the baseline's, a model's status, its bell (#255), the marks
- * a legend and a panel share, the panel under a chart that holds a day's numbers
- * (#251), and the table every chart can be read as instead.
+ * picker of an options model (#279) and from format 5 a stock model (#300), with
+ * a note on its name (#311), how a score stands against the baseline's, a model's
+ * status, its bell (#255), the marks a legend and a panel share, the panel under a
+ * chart that holds a day's numbers (#251), and the table every chart can be read
+ * as instead.
  *
  * Note: a series' color is only ever a mark's -- a line, a dot, a bar or a swatch
  *       -- and the words beside it are the page's own text. A name written in its
@@ -32,17 +33,24 @@ import {
     statusLabel,
 } from './scores.js';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
+import InfoNote from '../../general/info-note.jsx';
 
 //
 // a choice of a few, as buttons where there is room for them and a menu on a
 // phone, as /stream's rates are: `choices` are { key, label }, and `name` says
 // what is chosen, over the buttons and to a screen reader. A choice `disabled`
-// is offered and cannot be chosen, in either: Combined's top 10 (#300)
+// is offered and cannot be chosen, in either: Combined's top 10 (#300).
 //
-function Choices({ className, name, choices, chosen, onChoose, disabled = [] }) {
+// With a `note`, the name has the info icon after it, whose note says what it
+// means (#311), as a score's name does. A screen reader reads that name too,
+// since the icon is focusable, and a hidden name cannot hold it
+//
+function Choices({ className, name, choices, chosen, onChoose, disabled = [], note = null }) {
     return (
         <div className={className}>
-            <span className='model-control-label' aria-hidden='true'>{name}</span>
+            {note
+                ? <InfoNote note={note} className='model-control-label model-noted'>{name}</InfoNote>
+                : <span className='model-control-label' aria-hidden='true'>{name}</span>}
             <div className='model-score-buttons' role='group' aria-label={name}>
                 {choices.map((each) => (
                     <button
@@ -79,6 +87,7 @@ Choices.propTypes = {
     chosen: PropTypes.string.isRequired,
     onChoose: PropTypes.func.isRequired,
     disabled: PropTypes.arrayOf(PropTypes.string),
+    note: PropTypes.string,
 };
 
 /**
@@ -114,9 +123,10 @@ ScorePicker.propTypes = {
  * model's three, and from format 5 a stock model's and Combined (#300). It
  * hands a hold up as its number of days, or as COMBINED. Those `disabled` have
  * no result yet, and are offered grayed out until one comes in (#300) -- see
- * scores.js's emptyHolds.
+ * scores.js's emptyHolds. With a `note`, its name has the info icon after it
+ * (#311) -- see scores.js's holdNote.
  */
-export function HoldPicker({ hold, onHold, holds = HOLDS, disabled = [] }) {
+export function HoldPicker({ hold, onHold, holds = HOLDS, disabled = [], note = null }) {
     return (
         <Choices
             className='model-scores model-holds'
@@ -125,6 +135,7 @@ export function HoldPicker({ hold, onHold, holds = HOLDS, disabled = [] }) {
             chosen={String(hold)}
             onChoose={(key) => onHold(key === COMBINED ? COMBINED : Number(key))}
             disabled={disabled.map(String)}
+            note={note}
         />
     );
 }
@@ -137,6 +148,7 @@ HoldPicker.propTypes = {
         label: PropTypes.string.isRequired,
     })),
     disabled: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])])),
+    note: PropTypes.string,
 };
 
 /**

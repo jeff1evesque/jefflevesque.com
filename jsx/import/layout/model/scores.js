@@ -450,6 +450,21 @@ export function listLine(task, hold) {
 }
 
 /**
+ * the note after a Hold picker's name (#311): how long a task's options or
+ * stocks are held, and while any of its holds is grayed out, `grayed`, why --
+ * see emptyHolds. A task of stocks' says what Combined is too.
+ */
+export function holdNote(task, grayed = false) {
+    const options = tradesOptions(task);
+
+    return [
+        `How long each ${options ? 'option' : 'stock'} is held before it’s sold.`,
+        grayed ? 'A hold is grayed out until its first results come in.' : '',
+        options ? '' : 'Combined is the average of the three.',
+    ].filter(Boolean).join(' ');
+}
+
+/**
  * a model's scores on a hold (#300): the listing's `holds` entry's, `score`,
  * `baseline` and `days`, with `hold` the one they are of -- or, for no hold, or
  * one the listing gives none of, as a listing before format 5, its own scores

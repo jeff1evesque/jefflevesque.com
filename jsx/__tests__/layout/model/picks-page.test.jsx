@@ -225,6 +225,14 @@ describe('signed in', () => {
         expect(onHold).toHaveBeenCalledWith(20);
     });
 
+    it('has no note after "Hold", since it grays out none of its holds (#311)', async () => {
+        answer();
+        await open();
+
+        expect(document.querySelector('.model-holds > .model-control-label')).toHaveAttribute('aria-hidden', 'true');
+        expect(document.querySelector('.model-holds .model-noted')).toBeNull();
+    });
+
     it('takes a hold picked as nothing to do where it is handed no way to pick one', async () => {
         answer();
         await open();

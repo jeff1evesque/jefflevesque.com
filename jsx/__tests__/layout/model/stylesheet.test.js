@@ -7,8 +7,9 @@
  * a score stands, and what both pages hold while the listing is on its way
  * (#274), about loss's three parts in /model's list (#283), about a model's
  * own page as #300 lays it out -- its column, its cards, its charts' panel, when
- * its results come in, and a phone's boxes -- and about /model's title over its
- * open filters, beside the lists' first line (#306), read out of the partial.
+ * its results come in, and a phone's boxes -- about /model's title over its
+ * open filters, beside the lists' first line (#306), and about a picker's name
+ * with an info icon (#311), read out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see where a
  * cell lands. What can be held is what each rule says: a wide row's cells side
@@ -264,6 +265,10 @@ describe('the pickers, as #300 lays them out', () => {
 
     it('answer the pointer with no highlight over a picker\'s buttons while the listing is on its way', () => {
         expect(source).toMatch(/\.model-score\.model-score-pending \{[^}]*cursor: default;[^}]*&:hover \{\s*background-color: \$white-1;/);
+    });
+
+    it('keep a name with an info icon only as wide as the two, so its note opens over them and not beside them (#311)', () => {
+        expect(whole('.model-scores').body).toMatch(/> \.model-noted \{\s*align-self: flex-start;\s*\}/);
     });
 });
 
