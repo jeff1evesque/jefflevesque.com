@@ -1673,14 +1673,14 @@ describe('an options model (#279)', () => {
             expect(rowsOf(stat('Top 10 gain, last 20 days'))).toEqual([]);
         });
 
-        it('leave a stock model\'s picker and figures as they were, the top 10\'s after its four', async () => {
+        it('leave a stock model\'s picker and figures as they were, the top 10\'s after its four, and its holds grayed out but 1 day (#311)', async () => {
             options();
             await open('pt-gnn', { scores: { direction: 'top10_wins' } });
 
             expect(picker('Score').map((button) => button.textContent))
                 .toEqual(['Loss', 'Up/down AUC', 'Beat-the-average AUC', 'Up/down accuracy', 'Top 10 gain', 'Top 10 wins']);
             expect(stat('Top 10 wins, last 20 days').querySelector('.model-stat-value')).toHaveTextContent('5.6');
-            expect(screen.queryByRole('group', { name: 'Hold' })).toBeNull();
+            expect(picker('Hold').map((button) => button.disabled)).toEqual([false, true, true, true]);
         });
     });
 
@@ -1796,18 +1796,20 @@ describe('an options model (#279)', () => {
             expect(nameOf()).toHaveAccessibleDescription('How long each option is held before it’s sold.');
         });
 
-        it('go where the track record has no hold columns, or could not be had', async () => {
+        it('stay, grayed out but 1 day, where the track record has no hold columns, or could not be had (#311)', async () => {
             options({ track: trackOf() });
 
             const { unmount } = await open('pt-options');
 
-            expect(screen.queryByRole('group', { name: 'Hold' })).toBeNull();
+            expect(picker('Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days']);
+            expect(picker('Hold').map((button) => button.disabled)).toEqual([false, true, true]);
 
             unmount();
             options({ track: null });
             await open('pt-options');
 
-            expect(screen.queryByRole('group', { name: 'Hold' })).toBeNull();
+            expect(picker('Hold').map((button) => button.disabled)).toEqual([false, true, true]);
+            expect(pressed('Hold')).toEqual(['1 day']);
         });
     });
 
@@ -1964,14 +1966,18 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
             expect(trackOn()).toMatch(/^Loss on the 1-day hold of tables-gnn/);
         });
 
-        it('is on no stock model whose track record and listing have no holds, as before format 5', async () => {
+        it('is on a stock model whose track record and listing have no holds too, grayed out but 1 day, on 1 day (#311)', async () => {
             answer();
             await open();
 
-            expect(screen.queryByRole('group', { name: 'Hold' })).toBeNull();
-            expect(document.querySelector('.model-hold-line')).toBeNull();
+            expect(picker('Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days', 'Combined']);
+            expect(picker('Hold').map((button) => button.disabled)).toEqual([false, true, true, true]);
+            expect(pressed('Hold')).toEqual(['1 day']);
+            expect(document.querySelector('.model-hold-line')).toHaveTextContent(/^1-day hold: from 9:40 AM to 3:40 PM on the next trading day/);
             expect(document.querySelector('.model-by-hold')).toBeNull();
-            expect(document.querySelector('.model-controls .model-noted')).toBeNull();
+            expect(document.querySelector('.model-controls .model-noted')).toHaveAccessibleDescription(
+                'How long each stock is held before it’s sold. A hold is grayed out until its first results come in. Combined is the average of the three.',
+            );
         });
 
         it('has the note after its name, which says why a hold is grayed out only while one is, and what Combined is (#311)', async () => {

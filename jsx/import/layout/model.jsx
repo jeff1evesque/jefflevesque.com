@@ -68,7 +68,6 @@ import { listSubscriptions } from '../general/account-api.js';
 import { GUIDES } from '../general/api-url.js';
 import { loadListing, loadReport } from './model/source.js';
 import {
-    HOLDS,
     STATUSES,
     averageDays,
     chosenScore,
@@ -77,6 +76,7 @@ import {
     heldOut,
     holdNote,
     holdsAmong,
+    holdsFor,
     listLine,
     recentDays,
     scoreOnHold,
@@ -85,7 +85,6 @@ import {
     showsParts,
     sortModels,
     statusOf,
-    tradesOptions,
 } from './model/scores.js';
 
 //
@@ -472,24 +471,25 @@ class ModelLayout extends Component {
 
     //
     // the holds a task's list offers, from format 5 on (#300): those the
-    // listing gives any of its models' scores on -- and before then, for a task
-    // that trades options, its three, whose scores each row reads from its
-    // model's track record, as the model's own page does (#279). And the one it
-    // is on: the one picked for the task, where it is offered, and the first
-    // otherwise, 1 day. A hold none of its models has a result on yet, `empty`,
-    // is offered grayed out until one comes in -- see scores.js's emptyHolds
+    // listing gives any of its models' scores on -- and before then, the task's
+    // own (#311): an options task's three, whose scores each row reads from its
+    // model's track record, as the model's own page does (#279), and a stock
+    // task's three and Combined. And the one it is on: the one picked for the
+    // task, where it is offered, and the first otherwise, 1 day. A hold none of
+    // its models has a result on yet, `empty`, is offered grayed out until one
+    // comes in -- see scores.js's emptyHolds
     //
     holdFor(task) {
         const models = this.state.listing.models.filter((model) => model.task === task.id);
         const listed = holdsAmong(models);
-        const holds = !listed.length && tradesOptions(task) ? HOLDS : listed;
+        const holds = listed.length ? listed : holdsFor(task);
         const empty = holds.slice(1).map((each) => each.days).filter((days) => (
             models.every((model) => emptyHolds(model, this.state.records[model.name], holds).includes(days))
         ));
         const picked = this.props.holds[task.id];
         const offered = holds.some((each) => each.days === picked) && !empty.includes(picked);
 
-        return { holds: holds, hold: offered ? picked : (holds.length ? holds[0].days : null), empty: empty };
+        return { holds: holds, hold: offered ? picked : holds[0].days, empty: empty };
     }
 
     //
@@ -795,9 +795,9 @@ class ModelLayout extends Component {
                             offered={scoresFor(task)}
                             disabled={heldOut(task, hold)}
                         />
-                        {holds.length ? <HoldPicker hold={hold} onHold={(key) => onHold(task.id, key)} holds={holds} disabled={empty} note={holdNote(task, empty.length > 0)} /> : null}
+                        <HoldPicker hold={hold} onHold={(key) => onHold(task.id, key)} holds={holds} disabled={empty} note={holdNote(task, empty.length > 0)} />
                     </div>
-                    {holds.length ? <p className='model-hold-line'>{listLine(task, hold)}</p> : null}
+                    <p className='model-hold-line'>{listLine(task, hold)}</p>
                     <div className={parts ? 'model-list model-list-parts' : 'model-list'}>
                         <div role='list' aria-label={`${task.name} models`}>
                             {sortModels(models, 'score', score, hold, records).map((model) => {

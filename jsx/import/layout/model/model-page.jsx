@@ -84,7 +84,6 @@ import {
     DEFAULT_HOLD,
     DEFAULT_SCORE,
     HELD_OUT,
-    HOLDS,
     averageDays,
     betterBy,
     checkWords,
@@ -102,6 +101,7 @@ import {
     holdLabel,
     holdLine,
     holdNote,
+    holdsFor,
     holdsOf,
     listedHolds,
     liveKind,
@@ -1097,13 +1097,14 @@ class ModelPage extends Component {
     //
     // the holds the page offers, and the one it is on now: the hold picked,
     // where it is offered, and the first otherwise -- as Combined, kept from a
-    // stock model's page, is on an options model's (#300). None for a model with
-    // no holds.
+    // stock model's page, is on an options model's (#300). Every model has some
+    // (#311).
     //
     // Those the listing gives the model's scores on, from format 5 on (#300),
     // so the picker is there while the track record is on its way. Otherwise
-    // those its track record has columns for (#279), and while it is on its way,
-    // the three for a task that trades options, so the picker does not arrive
+    // those its track record has columns for (#279), and where it has none --
+    // on its way, could not be had, or a stock model's before format 5 -- its
+    // task's own (#311), so the picker is always there and does not arrive
     // after the page has.
     //
     // A hold with no result yet, `empty`, is offered grayed out until one comes
@@ -1115,13 +1116,15 @@ class ModelPage extends Component {
         let holds = listed;
 
         if (!listed.length) {
-            holds = track === undefined && tradesOptions(task) ? HOLDS : holdsOf(track);
+            const columns = holdsOf(track);
+
+            holds = columns.length ? columns : holdsFor(task);
         }
 
         const empty = emptyHolds(model, track, holds);
         const hold = holds.some((each) => each.days === this.props.hold) && !empty.includes(this.props.hold) ? this.props.hold : null;
 
-        return { holds: holds, hold: hold || (holds.length ? holds[0].days : null), empty: empty };
+        return { holds: holds, hold: hold || holds[0].days, empty: empty };
     }
 
     //
@@ -1238,11 +1241,11 @@ class ModelPage extends Component {
         //
         // the score picked for the task, shown as loss on Combined where it is
         // one of the top 10's, which Combined has none of, and kept for another
-        // hold (#300). A stock model with holds says what its hold is under the
-        // pickers, and shows its scores on each under the cards
+        // hold (#300). A stock model says what its hold is under the pickers,
+        // and shows its scores on each under the cards
         //
         const score = scoreOnHold(chosenScore(scores, task || { id: model.task }), holds.hold);
-        const stock = !tradesOptions(task) && holds.holds.length > 0;
+        const stock = !tradesOptions(task);
 
         //
         // a stock model the listing gives holds (#300): its scores on each, and
@@ -1272,7 +1275,7 @@ class ModelPage extends Component {
                         offered={scoresFor(task)}
                         disabled={heldOut(task, holds.hold)}
                     />
-                    {holds.holds.length ? <HoldPicker hold={holds.hold} onHold={onHold} holds={holds.holds} disabled={holds.empty} note={holdNote(task, holds.empty.length > 0)} /> : null}
+                    <HoldPicker hold={holds.hold} onHold={onHold} holds={holds.holds} disabled={holds.empty} note={holdNote(task, holds.empty.length > 0)} />
                 </div>
                 {stock ? <p className='model-hold-line'>{holdLine(task, holds.hold)}</p> : null}
                 {this.summary(model, task, score, holds.hold)}

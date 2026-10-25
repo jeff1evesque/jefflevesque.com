@@ -1627,12 +1627,14 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
         expect(namesIn('Next-day direction')).toEqual(['tables-gnn', 'pt-gnn']);
     });
 
-    it('draws no hold picker on a list of stock models the listing gives no holds, as before format 5', async () => {
+    it('offers a list of stock models the listing gives no holds its three and Combined, all but 1 day grayed out, on 1 day (#311)', async () => {
         answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(5) : withTop10(trackOf(5))));
         await open({ holds: { direction: 5 } });
 
-        expect(within(group('Next-day direction')).queryByRole('group', { name: 'Hold' })).toBeNull();
-        expect(group('Next-day direction').querySelector('.model-hold-line')).toBeNull();
+        expect(buttons('Next-day direction', 'Hold').map((button) => button.textContent)).toEqual(['1 day', '5 days', '20 days', 'Combined']);
+        expect(offIn('Next-day direction', 'Hold')).toEqual(['5 days', '20 days', 'Combined']);
+        expect(pressedIn('Next-day direction', 'Hold')).toEqual(['1 day']);
+        expect(group('Next-day direction').querySelector('.model-hold-line')).toHaveTextContent(/^1-day hold: from 9:40 AM to 3:40 PM on the next trading day/);
         expect(group('Next-day direction').querySelector('.model-parts-note')).toHaveTextContent(/, last 20 days$/);
     });
 
@@ -1797,11 +1799,13 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
             expect(nameIn('Option picks')).toHaveAccessibleDescription('How long each option is held before it’s sold.');
         });
 
-        it('is on no list without a Hold, as a list of stocks before format 5', async () => {
+        it('is on a list of stocks before format 5 too, saying why its holds are grayed out', async () => {
             answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(5) : withTop10(trackOf(5))));
             await open();
 
-            expect(group('Next-day direction').querySelector('.model-controls .model-noted')).toBeNull();
+            expect(nameIn('Next-day direction')).toHaveAccessibleDescription(
+                'How long each stock is held before it’s sold. A hold is grayed out until its first results come in. Combined is the average of the three.',
+            );
         });
     });
 });

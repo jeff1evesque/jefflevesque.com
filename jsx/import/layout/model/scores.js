@@ -287,6 +287,15 @@ export function holdsAmong(models) {
 }
 
 /**
+ * the holds a task's pickers offer where the listing names none of its models'
+ * (#311): an options task's three, and a stock task's three and Combined, each
+ * grayed out until its first result comes in -- see emptyHolds.
+ */
+export function holdsFor(task) {
+    return tradesOptions(task) ? HOLDS : ALL_HOLDS;
+}
+
+/**
  * a hold as the pages name it: '5-day hold', or 'combined' in a line of text
  * (#300) -- its picker's button is 'Combined'.
  */
