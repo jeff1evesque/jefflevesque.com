@@ -1763,4 +1763,45 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
 
         expect(within(screen.getByRole('region', { name: 'Comparison' })).getByRole('list', { name: 'Legend' })).not.toHaveTextContent('hold');
     });
+
+    describe('the note after each list\'s Hold (#311)', () => {
+        const nameIn = (name) => group(name).querySelector('.model-holds > .model-control-label');
+
+        it('says how long each list\'s picks are held, why a hold is grayed out while one is, and on stocks what Combined is', async () => {
+            await held();
+
+            expect(nameIn('Next-day direction')).toHaveAccessibleDescription(
+                'How long each stock is held before it’s sold. A hold is grayed out until its first results come in. Combined is the average of the three.',
+            );
+            expect(nameIn('Next-day direction').querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+            expect(nameIn('Option picks')).toHaveAccessibleDescription('How long each option is held before it’s sold.');
+        });
+
+        it('drops why a hold is grayed out once no hold of the list is', async () => {
+            await allIn();
+
+            expect(nameIn('Next-day direction')).toHaveAccessibleDescription('How long each stock is held before it’s sold. Combined is the average of the three.');
+        });
+
+        it('says why on an options list before format 5 while its track record is on its way, and drops it once it is in', async () => {
+            const record = deferred();
+
+            loadListing.mockResolvedValue(optionsListingOf());
+            loadReport.mockImplementation((name) => (name === 'pt-options' ? record.promise : Promise.resolve(withTop10(trackOf(5)))));
+            await open();
+
+            expect(nameIn('Option picks')).toHaveAccessibleDescription('How long each option is held before it’s sold. A hold is grayed out until its first results come in.');
+
+            await act(async () => record.resolve(optionsTrackOf(30)));
+
+            expect(nameIn('Option picks')).toHaveAccessibleDescription('How long each option is held before it’s sold.');
+        });
+
+        it('is on no list without a Hold, as a list of stocks before format 5', async () => {
+            answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(5) : withTop10(trackOf(5))));
+            await open();
+
+            expect(group('Next-day direction').querySelector('.model-controls .model-noted')).toBeNull();
+        });
+    });
 });
