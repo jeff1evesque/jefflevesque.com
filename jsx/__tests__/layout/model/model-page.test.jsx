@@ -524,7 +524,7 @@ describe('CardRows', () => {
 describe('sentence', () => {
     it('makes a figure\'s line a sentence of its note: capitalized, with a full stop (#253)', () => {
         expect(sentence('went live after a weekly retrain')).toBe('Went live after a weekly retrain.');
-        expect(sentence('0.060 better than the baseline, 1.660')).toBe('0.060 better than the baseline, 1.660.');
+        expect(sentence('0.060 better than baseline, 1.660')).toBe('0.060 better than baseline, 1.660.');
     });
 
     it('says nothing for no line', () => {
@@ -568,7 +568,7 @@ describe('the summary', () => {
         await open();
 
         expect(stat('Loss, last 20 days')).toHaveTextContent('1.600');
-        expect(stat('Loss, last 20 days')).toHaveTextContent('0.060 better than the baseline, 1.660');
+        expect(stat('Loss, last 20 days')).toHaveTextContent('0.060 better than baseline, 1.660');
         expect(rowsOf(stat('Loss, last 20 days'))[0]).toEqual(['Among Next-day direction models', '1st of 3']);
     });
 
@@ -578,7 +578,7 @@ describe('the summary', () => {
         await open('pt-gnn', { scores: { direction: 'acc_up' } });
 
         expect(stat('Up/down accuracy, last 20 days')).toHaveTextContent('54.0%');
-        expect(stat('Up/down accuracy, last 20 days')).toHaveTextContent('2.0 pts better than the baseline, 52.0%');
+        expect(stat('Up/down accuracy, last 20 days')).toHaveTextContent('2.0 pts better than baseline, 52.0%');
         expect(stat('Up/down accuracy, last 20 days')).toHaveTextContent('2nd of 3');
     });
 
@@ -604,7 +604,7 @@ describe('the summary', () => {
 
         await open();
 
-        expect(stat('Loss, last 20 days')).toHaveTextContent('level with the baseline, 1.600');
+        expect(stat('Loss, last 20 days')).toHaveTextContent('level with baseline, 1.600');
     });
 
     it('prints a dash, and nothing beside it, for a model with no score yet', async () => {
@@ -962,7 +962,7 @@ describe('the summary, on a phone', () => {
 
         const line = document.querySelector('.model-score-line');
 
-        expect(line).toHaveTextContent('Loss, last 20 days: ▲ 0.060 better than the baseline, 1.660');
+        expect(line).toHaveTextContent('Loss, last 20 days: ▲ 0.060 better than baseline, 1.660');
         expect(line).toHaveClass('model-gap-better');
         expect(line.querySelector('.model-gap-arrow')).toHaveTextContent('▲');
         expect(underBoxes()[0]).toBe(line.textContent);
@@ -977,7 +977,7 @@ describe('the summary, on a phone', () => {
         await open('lagging');
 
         expect(underBoxes()).toEqual([
-            'Loss, last 20 days: ▼ 0.040 worse than the baseline, 1.660',
+            'Loss, last 20 days: ▼ 0.040 worse than baseline, 1.660',
             'model-parts',
             'Worse than the baseline 5 scored days in a row. Nothing predicts until a new version beats the baseline on the days it was tested on.',
             'model-checks-block',
@@ -1008,7 +1008,7 @@ describe('the summary, on a phone', () => {
         await open('pt-gnn', { scores: { direction: 'acc_up' } });
 
         expect(notes()[2]).toHaveAccessibleDescription(`${scoreOf('acc_up').note} 2nd of 3 Next-day direction models.`);
-        expect(document.querySelector('.model-score-line')).toHaveTextContent('Up/down accuracy, last 20 days: ▲ 2.0 pts better than the baseline, 52.0%');
+        expect(document.querySelector('.model-score-line')).toHaveTextContent('Up/down accuracy, last 20 days: ▲ 2.0 pts better than baseline, 52.0%');
     });
 
     it('colors the attempts blue, and the score green where it beats the baseline', async () => {
@@ -1648,15 +1648,15 @@ describe('an options model (#279)', () => {
             await open('pt-options');
 
             expect(stat('Loss, last 20 days').querySelector('.model-stat-value')).toHaveTextContent('0.840');
-            expect(stat('Loss, last 20 days')).toHaveTextContent('0.040 better than the baseline, 0.880');
+            expect(stat('Loss, last 20 days')).toHaveTextContent('0.040 better than baseline, 0.880');
             expect(within(stat('Loss, last 20 days')).getByText('Loss, last 20 days')).toHaveAccessibleDescription(noteOf('loss', OPTIONS_TASK));
             expect(document.querySelector('.model-parts')).toBeNull();
         });
 
         it.each([
-            ['profit_auc', 'Profit AUC', '0.550', '0.050 better than the baseline, 0.500'],
-            ['top10_gain', 'Top 10 gain', '3.10%', '7.30 pts better than the baseline, −4.20%'],
-            ['top10_wins', 'Top 10 wins', '6.2', '2.1 better than the baseline, 4.1'],
+            ['profit_auc', 'Profit AUC', '0.550', '0.050 better than baseline, 0.500'],
+            ['top10_gain', 'Top 10 gain', '3.10%', '7.30 pts better than baseline, −4.20%'],
+            ['top10_wins', 'Top 10 wins', '6.2', '2.1 better than baseline, 4.1'],
         ])('show %s picked, with no dash for a score it has', async (key, label, value, against) => {
             options();
             await open('pt-options', { scores: { 'option-picks': key } });
@@ -2013,7 +2013,7 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
 
             expect(card.querySelector('.model-stat-value')).toHaveTextContent(formatScore(model.holds['5d'].score.loss, 'loss'));
             expect(card.querySelector('.model-stat-detail')).toHaveTextContent(
-                `▲ 0.050 better than the baseline, ${formatScore(model.holds['5d'].baseline.loss, 'loss')}`,
+                `▲ 0.050 better than baseline, ${formatScore(model.holds['5d'].baseline.loss, 'loss')}`,
             );
             expect(card.querySelector('.model-stat-detail')).toHaveClass('model-gap-better');
         });
@@ -2572,7 +2572,7 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
 
             expect(box.querySelector('.stream-focus-figure-label .stream-focus-short')).toHaveTextContent('Loss, 5 days');
             expect(box.querySelector('.stream-focus-figure-value')).toHaveTextContent(formatScore(heldModelOf().holds['5d'].score.loss, 'loss'));
-            expect(document.querySelector('.model-score-line')).toHaveTextContent(/^Loss, 5-day hold, last 20 days: ▲ 0\.050 better than the baseline/);
+            expect(document.querySelector('.model-score-line')).toHaveTextContent(/^Loss, 5-day hold, last 20 days: ▲ 0\.050 better than baseline/);
         });
 
         it('says a hold with no results yet, under the boxes, in place of how it stands', async () => {

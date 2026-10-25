@@ -334,13 +334,14 @@ describe('/model on a phone, as #300 lays it out (#274)', () => {
         expect(declared(ruleOf('.model-score-value', 'grid-area'), 'font-size')).toBe('16px');
     });
 
-    it('says when it went live and how many attempts did as one line, a dot between them', () => {
-        const since = ruleOf('.model-cell-since', 'display');
+    it('says when it went live, and how many attempts did on a line of its own under it', () => {
+        const since = rulesOf('.model-cell-since');
 
-        expect(declared(since, 'display')).toBe('block');
-        expect(declared(since, 'font-size')).toBe('13px');
-        expect(declared(ruleOf('.model-since,.model-since-went', 'display'), 'display')).toBe('inline');
-        expect(declared(ruleOf('.model-since-went::before', 'content'), 'content')).toBe('\' · \'');
+        expect(declared(ruleOf('.model-cell', 'flex-direction'), 'flex-direction')).toBe('column');
+        expect(since.map((each) => declared(each, 'display'))).toEqual([null, null]);
+        expect(declared(since.pop(), 'font-size')).toBe('13px');
+        expect(rulesOf('.model-since,.model-since-went').map((each) => declared(each, 'display'))).toEqual([null]);
+        expect(rulesOf('.model-since-went::before')).toEqual([]);
     });
 
     it('draws the trend line across the card 56px tall, a little taller than a wide row\'s 44px (#300)', () => {

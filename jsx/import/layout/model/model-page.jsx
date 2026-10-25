@@ -519,7 +519,7 @@ function heldFigure(task, on, key) {
 
     return {
         value: formatScore(value, key),
-        gap: <span className={`model-gap model-gap-${standing(gap, key)}`}>{gapWords(gap, key, '', 'level with the baseline')}</span>,
+        gap: <span className={`model-gap model-gap-${standing(gap, key)}`}>{gapWords(gap, key, '', 'level with baseline')}</span>,
     };
 }
 
@@ -903,7 +903,7 @@ class ModelPage extends Component {
 
         //
         // how the score stands against the baseline's, after the list's arrow
-        // (#300): '▲ 0.012 better than the baseline, 1.650'
+        // (#300): '▲ 0.012 better than baseline, 1.650'
         //
         let against = '';
 

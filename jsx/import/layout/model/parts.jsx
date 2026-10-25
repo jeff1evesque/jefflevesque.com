@@ -142,7 +142,7 @@ HoldPicker.propTypes = {
 /**
  * how far a score is from the baseline's, and which way, after the arrow every
  * "better" and "worse" carries, on /model's list (#274) and from #300 on a
- * model's page too: '▲ 0.034 better than the baseline'. Only the arrow takes the
+ * model's page too: '▲ 0.034 better than baseline'. Only the arrow takes the
  * color of better or worse, from the class of what holds it, 'model-gap-better'
  * or 'model-gap-worse' -- see '.model-gap-arrow' in '_model.scss' -- and the
  * words keep the page's grays.
@@ -151,7 +151,7 @@ HoldPicker.propTypes = {
  * '▼ 0.013 worse'; `level` is said where the two print alike. Nothing where
  * there is no gap.
  */
-export function gapWords(gap, key, than = ' than the baseline', level = 'level with the baseline') {
+export function gapWords(gap, key, than = ' than baseline', level = 'level with baseline') {
     const stands = standing(gap, key);
 
     if (gap === null) {

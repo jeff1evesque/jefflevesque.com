@@ -3021,11 +3021,11 @@
   }
 
   //
-  // when its live version went live and how many attempts did, as one line:
-  // 'Live since Oct 23 · 7 of 11 attempts went live'
+  // when its live version went live, and under it how many attempts did: 'Live
+  // since Oct 23, nightly update' over '7 of 11 attempts went live'. As one line
+  // they wrapped wherever the card ran out of room
   //
   .model-cell-since {
-    display: block;
     font-size: 13px;
     grid-area: since;
   }
@@ -3033,16 +3033,6 @@
   .model-since,
   .model-since-went {
     color: $gray-6;
-    display: inline;
-  }
-
-  .model-since-went::before {
-    content: ' · ';
-  }
-
-  .model-since-why {
-    display: block;
-    margin-top: 2px;
   }
 
   .model-card {

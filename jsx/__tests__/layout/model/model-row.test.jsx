@@ -94,18 +94,18 @@ describe('a row', () => {
         const { container } = draw();
 
         expect(container.querySelector('.model-score-value')).toHaveTextContent('1.600');
-        expect(container.querySelector('.model-gap')).toHaveTextContent(/^▲ 0\.060 better than the baseline, 1\.660$/);
+        expect(container.querySelector('.model-gap')).toHaveTextContent(/^▲ 0\.060 better than baseline, 1\.660$/);
         expect(container.querySelector('.model-gap')).toHaveClass('model-gap-better');
     });
 
     it('says when it is worse than the baseline, or level with it', () => {
         const worse = draw({ model: modelOf({ score: { loss: 1.7 } }) }).container;
 
-        expect(worse.querySelector('.model-gap')).toHaveTextContent(/^▼ 0\.040 worse than the baseline, 1\.660$/);
+        expect(worse.querySelector('.model-gap')).toHaveTextContent(/^▼ 0\.040 worse than baseline, 1\.660$/);
 
         const level = draw({ model: modelOf({ score: { loss: 1.66 } }) }).container;
 
-        expect(level.querySelector('.model-gap')).toHaveTextContent(/^level with the baseline, 1\.660$/);
+        expect(level.querySelector('.model-gap')).toHaveTextContent(/^level with baseline, 1\.660$/);
     });
 
     it('puts the arrow in a span of its own, so it alone takes the color of better or worse (#274)', () => {
@@ -171,7 +171,7 @@ describe('a row', () => {
         const gain = draw({ model: optionsModelOf(), task: OPTIONS_TASK, score: 'top10_gain' }).container;
 
         expect(gain.querySelector('.model-score-value')).toHaveTextContent('3.10%');
-        expect(gain.querySelector('.model-gap')).toHaveTextContent(/^▲ 7\.30 pts better than the baseline, −4\.20%$/);
+        expect(gain.querySelector('.model-gap')).toHaveTextContent(/^▲ 7\.30 pts better than baseline, −4\.20%$/);
         expect(daysOf(gain)).toHaveAccessibleDescription(noteOf('top10_gain', OPTIONS_TASK));
     });
 
