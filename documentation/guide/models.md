@@ -21,11 +21,15 @@ made, after the gap between the buy and sell prices.
 **Its holds:** each starts at 9:40 AM on the next trading day, and is graded on its own,
 against its own baseline.
 
+<div class="full-width" markdown>
+
 | Hold | Ends | Graded |
 |---|---|---|
 | 1 day | 3:40 PM the same day | the next trading day |
 | 5 days | 3:40 PM 5 trading days later | 6 trading days after the prediction |
 | 20 days | 3:40 PM 20 trading days later | 21 trading days after the prediction |
+
+</div>
 
 The 1-day hold is the prediction the stock models have always made. The 5 and 20-day
 holds run over the same days as the options models' holds.
@@ -45,9 +49,18 @@ test days. Those days' 5 and 20-day holds haven't ended yet, so only their 1-day
 are known. The longer holds are judged later, on the days the model really predicted, by
 the checks below.
 
-**Its baseline:** the averages of its train split, given to every stock: the share of
-stocks that went up (say 52%), 50% for beating the average stock, and the usual size of a
-move. For the top 10, what 10 random stocks made. Each hold has its own.
+**Its baseline:** the numbers the model is compared against. Every stock gets the same
+ones:
+
+- **Up or down:** the share of stocks that went up in the train split. If that's 52%,
+  every stock gets a 52% chance of going up.
+- **Beats the average stock:** every stock gets 50%, always.
+- **How far it moves:** from the train split's moves. The low guess is a small move: only
+  1 in 10 moves were smaller. The middle guess is the middle move. The high guess is a big
+  move: only 1 in 10 were bigger.
+
+For the top 10: 10 stocks picked at random. The 5-day and 20-day holds each get their own
+numbers, from how stocks did over 5 or 20 days.
 
 ## The options models
 
