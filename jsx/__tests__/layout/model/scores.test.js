@@ -54,6 +54,7 @@ import {
     holdLabel,
     holdLine,
     holdName,
+    holdNote,
     holdsAmong,
     holdsOf,
     isHold,
@@ -1039,6 +1040,21 @@ describe('listLine, what the hold a list of /model is on is (#300)', () => {
     it('says a list of options\' hold in its own words', () => {
         expect(listLine(OPTIONS_TASK, 1)).toBe('1-day hold: bought at the 9:40 AM ask on the next trading day and sold at the 3:40 PM bid the day after.');
         expect(listLine(OPTIONS_TASK, 20)).toBe('20-day hold: sold at the 3:40 PM bid 20 trading days after the buy day.');
+    });
+});
+
+describe('holdNote, the note after a Hold picker\'s name (#311)', () => {
+    const stocks = { id: 'direction', scores: STOCK_SCORES };
+
+    it('says how long a task of options\' picks are held, and why a hold is grayed out only while one is', () => {
+        expect(holdNote(OPTIONS_TASK, true)).toBe('How long each option is held before it’s sold. A hold is grayed out until its first results come in.');
+        expect(holdNote(OPTIONS_TASK, false)).toBe('How long each option is held before it’s sold.');
+        expect(holdNote(OPTIONS_TASK)).toBe(holdNote(OPTIONS_TASK, false));
+    });
+
+    it('says the same of a task of stocks, and what Combined is', () => {
+        expect(holdNote(stocks, true)).toBe('How long each stock is held before it’s sold. A hold is grayed out until its first results come in. Combined is the average of the three.');
+        expect(holdNote(stocks, false)).toBe('How long each stock is held before it’s sold. Combined is the average of the three.');
     });
 });
 
