@@ -195,6 +195,45 @@ describe('HoldPicker (#279)', () => {
             expect(onHold).toHaveBeenLastCalledWith(20);
         });
     });
+
+    describe('the note after its name (#311)', () => {
+        const NOTE = 'How long each option is held before it’s sold.';
+        const nameOf = () => document.querySelector('.model-holds > .model-control-label');
+
+        it('draws the info icon after "Hold", which a reader can tab to, and which the note describes', () => {
+            render(<HoldPicker hold={1} onHold={() => {}} note={NOTE} />);
+
+            expect(nameOf()).toHaveTextContent(/^Hold$/);
+            expect(nameOf()).toHaveClass('model-noted');
+            expect(nameOf()).not.toHaveAttribute('aria-hidden');
+            expect(nameOf()).toHaveAttribute('tabindex', '0');
+            expect(nameOf()).toHaveAccessibleDescription(NOTE);
+            expect(nameOf().querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+        });
+
+        it('shows the note under the pointer', async () => {
+            render(<HoldPicker hold={1} onHold={() => {}} note={NOTE} />);
+
+            await userEvent.hover(nameOf());
+
+            expect(await screen.findByRole('tooltip')).toHaveTextContent(NOTE);
+        });
+
+        it('leaves the buttons and the phone\'s menu named "Hold", as they were', () => {
+            render(<HoldPicker hold={1} onHold={() => {}} note={NOTE} disabled={[5, 20]} />);
+
+            expect(within(screen.getByRole('group', { name: 'Hold' })).getAllByRole('button').map((button) => button.disabled)).toEqual([false, true, true]);
+            expect(screen.getByRole('combobox', { name: 'Hold' })).toHaveValue('1');
+        });
+
+        it('leaves the name as it was without one: no icon, and hidden from a screen reader, which reads the buttons by it', () => {
+            render(<HoldPicker hold={1} onHold={() => {}} />);
+
+            expect(nameOf()).toHaveAttribute('aria-hidden', 'true');
+            expect(nameOf()).not.toHaveClass('model-noted');
+            expect(nameOf().querySelector('svg')).toBeNull();
+        });
+    });
 });
 
 describe('gapWords (#274, #300)', () => {
