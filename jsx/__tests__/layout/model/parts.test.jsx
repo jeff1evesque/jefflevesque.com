@@ -201,15 +201,15 @@ describe('gapWords (#274, #300)', () => {
     const words = (...args) => render(<span className='holder'>{gapWords(...args)}</span>).container.querySelector('.holder');
 
     it('puts the arrow before how far a score is from the baseline\'s, and which way', () => {
-        expect(words(0.034, 'loss')).toHaveTextContent('▲ 0.034 better than the baseline');
+        expect(words(0.034, 'loss')).toHaveTextContent(/^▲ 0\.034 better than baseline$/);
         expect(words(-0.013, 'loss').querySelector('.model-gap-arrow')).toHaveTextContent('▼');
-        expect(words(-0.013, 'loss')).toHaveTextContent('▼ 0.013 worse than the baseline');
+        expect(words(-0.013, 'loss')).toHaveTextContent(/^▼ 0\.013 worse than baseline$/);
     });
 
     it('leaves off what follows the word where gaps stand side by side, and says level as it is handed', () => {
         expect(words(0.012, 'loss', '', 'level')).toHaveTextContent(/^▲ 0\.012 better$/);
         expect(words(0.0001, 'loss', '', 'level')).toHaveTextContent(/^level$/);
-        expect(words(0.0001, 'loss')).toHaveTextContent(/^level with the baseline$/);
+        expect(words(0.0001, 'loss')).toHaveTextContent(/^level with baseline$/);
         expect(words(0.0001, 'loss').querySelector('.model-gap-arrow')).toBeNull();
     });
 
