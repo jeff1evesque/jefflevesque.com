@@ -5,9 +5,10 @@
  * model's page (#265), about the rows that page's three cards share (#267), about
  * a phone's controls and the room around them (#272), about the arrow before how
  * a score stands, and what both pages hold while the listing is on its way
- * (#274), about loss's three parts in /model's list (#283), and about a model's
+ * (#274), about loss's three parts in /model's list (#283), about a model's
  * own page as #300 lays it out -- its column, its cards, its charts' panel, when
- * its results come in, and a phone's boxes -- read out of the partial.
+ * its results come in, and a phone's boxes -- and about /model's title over its
+ * open filters, beside the lists' first line (#306), read out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see where a
  * cell lands. What can be held is what each rule says: a wide row's cells side
@@ -877,13 +878,61 @@ describe('the docs\' page on the models, in place of the intro (#296)', () => {
         expect(declared(icon, 'align-self')).toBe('center');
     });
 
-    it('shows it on every screen, a computer\'s as a phone\'s, with no Sort row to stand in (#300)', () => {
+    it('shows it on every screen but a computer\'s with the filters open, whose lists\' first line shows its own, with no Sort row to stand in (#300, #306)', () => {
+        const open = whole('.model-layout:has(> .model-columns > .model-filters-open)');
+
         expect(source).not.toMatch(/model-controls-docs/);
-        expect(source).not.toMatch(/\.model-heading-docs \{\s*display: none;/);
+        expect(source.match(/\.model-heading-docs \{\s*display: none;/g)).toHaveLength(1);
+        expect(open.body).toMatch(/\.model-heading-docs \{\s*display: none;/);
     });
 
     it('folds no intro any more (#287)', () => {
         expect(source).not.toMatch(/model-lede-(fold|folded|open|toggle|more|less|dots)/);
+    });
+});
+
+describe('a computer\'s page while the filters are open (#306)', () => {
+    const open = whole('.model-layout:has(> .model-columns > .model-filters-open)');
+
+    it('is a computer\'s alone: a phone keeps its title over the filters\' band', () => {
+        expect(whole('@media (min-width: 768px)').body).toContain(open.body);
+    });
+
+    it('lays the page out in two columns from the top: the title over the filters, the lists\' column beside both', () => {
+        expect(declared(open, 'display')).toBe('grid');
+        expect(declared(open, 'grid-template-columns')).toBe('auto minmax(0, 1fr)');
+        expect(declared(open, 'grid-template-rows')).toBe('auto 1fr');
+        expect(declared(open, 'column-gap')).toBe('1.5rem');
+        expect(open.body).toMatch(/> \.model-columns \{\s*display: contents;/);
+        expect(open.body).toMatch(/\.model-filters \{\s*grid-area: 2 \/ 1;/);
+        expect(open.body).toMatch(/\.model-main \{\s*align-self: start;\s*grid-area: 1 \/ 2 \/ 3;/);
+    });
+
+    it('lets the title add nothing to the filters\' width, and wrap in their column', () => {
+        expect(open.body).toMatch(/> \.model-intro \{\s*grid-area: 1 \/ 1;\s*min-width: 100%;\s*width: 0;/);
+    });
+
+    it('shows the lists\' first line, its link and all, in place of the title row\'s link', () => {
+        expect(open.body).toMatch(/\.model-lead,\s*\.model-lead-docs \{\s*display: flex;/);
+    });
+
+    it('draws no rule between the hint and the list under it, leaving the one under a drawn comparison, and a phone\'s', () => {
+        expect(source).toMatch(/@media \(min-width: 768px\) \{\s*\.model-lead:has\(> \.model-hint\) \+ \.model-group \{\s*border-top: 0;\s*margin-top: 0;\s*padding-top: 0;\s*\}\s*\}/);
+    });
+});
+
+describe('the lists\' first line (#306)', () => {
+    const lead = whole('.model-lead');
+
+    it('holds the hint, and at its end the docs\' link, which only a computer with the filters open shows', () => {
+        expect(declared(lead, 'display')).toBe('flex');
+        expect(declared(lead, 'align-items')).toBe('flex-start');
+        expect(lead.body).toMatch(/> \.model-hint \{\s*flex: 1 1 auto;\s*min-width: 0;/);
+        expect(lead.body).toMatch(/\.model-lead-docs \{\s*display: none;\s*margin-left: auto;/);
+    });
+
+    it('takes no room holding no hint, over a drawn comparison, but where that computer shows its link', () => {
+        expect(lead.body).toMatch(/&:not\(:has\(> \.model-hint\)\) \{\s*display: none;/);
     });
 });
 

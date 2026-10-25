@@ -183,7 +183,8 @@ const HINT = 'Tick two or three models that predict the same thing to compare th
  * icon in the docs links' gray, named in its tooltip and to a screen reader, and
  * opened in a new tab, so the lists stay as the reader arranged them. `size` is
  * mui's, 'medium' at the end of the title's row, as it sits beside a title of
- * the menu's size on every screen since the sort menu's row went (#300).
+ * the menu's size on every screen since the sort menu's row went (#300), and at
+ * the end of the lists' first line -- see Lead.
  */
 export function DocsLink({ size }) {
     return (
@@ -203,6 +204,28 @@ export function DocsLink({ size }) {
 
 DocsLink.propTypes = {
     size: PropTypes.oneOf(['medium', 'large']).isRequired,
+};
+
+/**
+ * the lists' first line (#306): how to start a comparison, and the docs' link at
+ * its right end, which the stylesheet shows on a computer while the filters are
+ * open, where the title's row stands over them and this line beside it.
+ * Everywhere else the title's row shows its own, and a line with no hint, over a
+ * drawn comparison, shows nothing -- see '.model-lead' in '_model.scss'.
+ */
+export function Lead({ hint = null }) {
+    return (
+        <div className='model-lead'>
+            {hint ? <p className='model-hint'>{hint}</p> : null}
+            <div className='api-links model-lead-docs'>
+                <DocsLink size='medium' />
+            </div>
+        </div>
+    );
+}
+
+Lead.propTypes = {
+    hint: PropTypes.string,
 };
 
 /**
@@ -683,7 +706,7 @@ class ModelLayout extends Component {
 
     //
     // over the lists: the comparison, once two models are ticked, and until
-    // then, how to start one
+    // then, how to start one -- each on or under the lists' first line (#306)
     //
     comparison() {
         const { listing, picked, records } = this.state;
@@ -698,15 +721,18 @@ class ModelLayout extends Component {
             const holdOf = (model) => this.holdFor(tasks.find((task) => task.id === model.task)).hold;
 
             return (
-                <CompareChart
-                    picks={chosen.map((model, at) => ({ model: model, slot: picked[at].slot, hold: holdOf(model) }))}
-                    records={records}
-                    score={this.comparedScore(chosen)}
-                    task={tasks[0]}
-                    tasks={tasks}
-                    onScore={tasks.length > 1 ? (score) => this.setState({ compare_score: score }) : null}
-                    onClear={this.clear}
-                />
+                <>
+                    <Lead />
+                    <CompareChart
+                        picks={chosen.map((model, at) => ({ model: model, slot: picked[at].slot, hold: holdOf(model) }))}
+                        records={records}
+                        score={this.comparedScore(chosen)}
+                        task={tasks[0]}
+                        tasks={tasks}
+                        onScore={tasks.length > 1 ? (score) => this.setState({ compare_score: score }) : null}
+                        onClear={this.clear}
+                    />
+                </>
             );
         }
 
@@ -714,7 +740,7 @@ class ModelLayout extends Component {
             ? `Tick one or two more ${listing.tasks.find((task) => task.id === chosen[0].task).name} models to compare them with ${chosen[0].name}.`
             : HINT;
 
-        return <p className='model-hint'>{hint}</p>;
+        return <Lead hint={hint} />;
     }
 
     //
@@ -818,7 +844,7 @@ class ModelLayout extends Component {
                     {this.filters()}
                     <div className='model-main'>
                         <p className='visually-hidden' role='status'>Loading the models&hellip;</p>
-                        <p className='model-hint'>{HINT}</p>
+                        <Lead hint={HINT} />
                         <PendingGroup />
                     </div>
                 </div>
