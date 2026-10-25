@@ -743,25 +743,37 @@ describe('the title (#296)', () => {
         expect(screen.queryByRole('button', { name: 'Less' })).toBeNull();
     });
 
-    it('links the docs\' page on the models from the title\'s row alone, in a new tab (#300)', async () => {
+    it('links the docs\' page on the models from the title\'s row and the lists\' first line alone, each in a new tab (#300, #306)', async () => {
         answer();
         await open();
 
-        const link = within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' });
+        //
+        // the stylesheet shows one of the two at a time: the first line's on a
+        // computer while the filters are open, and the title row's everywhere
+        // else -- see layout/model/stylesheet.test.js
+        //
+        const links = [
+            within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' }),
+            within(document.querySelector('.model-lead')).getByRole('link', { name: 'How the models work' }),
+        ];
 
-        expect(screen.getAllByRole('link', { name: 'How the models work' })).toEqual([link]);
-        expect(link).toHaveAttribute('href', GUIDE);
-        expect(link).toHaveAttribute('target', '_blank');
-        expect(link).toHaveAttribute('rel', 'noopener noreferrer');
-        expect(link).toHaveClass('api-link');
-        expect(link.querySelector('svg')).toHaveAttribute('data-testid', 'DescriptionOutlinedIcon');
+        expect(screen.getAllByRole('link', { name: 'How the models work' })).toEqual(links);
+
+        links.forEach((link) => {
+            expect(link).toHaveAttribute('href', GUIDE);
+            expect(link).toHaveAttribute('target', '_blank');
+            expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+            expect(link).toHaveClass('api-link');
+            expect(link.querySelector('svg')).toHaveAttribute('data-testid', 'DescriptionOutlinedIcon');
+        });
     });
 
-    it('draws the icon medium, beside a title of the menu\'s size', async () => {
+    it('draws both icons medium, beside a title of the menu\'s size', async () => {
         answer();
         await open();
 
         expect(document.querySelector('.model-heading-docs svg')).toHaveClass('MuiSvgIcon-fontSizeMedium');
+        expect(document.querySelector('.model-lead-docs svg')).toHaveClass('MuiSvgIcon-fontSizeMedium');
     });
 
     it('names the link in a tooltip', async () => {
@@ -773,10 +785,23 @@ describe('the title (#296)', () => {
         expect(await screen.findByRole('tooltip')).toHaveTextContent('How the models work');
     });
 
-    it('keeps the title row\'s link while the listing is on its way', async () => {
+    it('keeps both links while the listing is on its way, the first line\'s after the hint (#306)', async () => {
         loadListing.mockReturnValue(new Promise(() => {}));
         await open();
 
+        const lead = document.querySelector('.model-main > .model-lead');
+
+        expect(within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' })).toHaveAttribute('href', GUIDE);
+        expect(lead.firstElementChild).toHaveTextContent('Tick two or three models that predict the same thing to compare them.');
+        expect(within(lead.lastElementChild).getByRole('link', { name: 'How the models work' })).toHaveAttribute('href', GUIDE);
+    });
+
+    it('keeps the title row\'s link alone where there is no list, and so no first line', async () => {
+        answer(null);
+        await open();
+
+        expect(document.querySelector('.model-lead')).toBeNull();
+        expect(screen.getAllByRole('link', { name: 'How the models work' })).toHaveLength(1);
         expect(within(document.querySelector('.model-heading')).getByRole('link', { name: 'How the models work' })).toHaveAttribute('href', GUIDE);
     });
 
@@ -1290,6 +1315,46 @@ describe('compare', () => {
         await userEvent.click(box('pt-gnn'));
 
         expect(screen.getByText('Tick one or two more Next-day direction models to compare them with pt-gnn.')).toBeInTheDocument();
+    });
+
+    describe('the lists\' first line (#306)', () => {
+        const lead = () => document.querySelector('.model-main > .model-lead');
+
+        it('comes first in the lists\' column, over the first list: the hint, then the docs\' link', async () => {
+            answer();
+            await open();
+
+            expect(document.querySelector('.model-main').firstElementChild).toBe(lead());
+            expect(lead().nextElementSibling).toHaveClass('model-group');
+            expect([...lead().children].map((each) => each.className)).toEqual(['model-hint', 'api-links model-lead-docs']);
+            expect(lead()).toHaveTextContent(/^Tick two or three models that predict the same thing to compare them\.$/);
+        });
+
+        it('holds how to finish a comparison once a model is ticked', async () => {
+            answer();
+            await open();
+
+            await userEvent.click(box('pt-gnn'));
+
+            expect(lead().querySelector('.model-hint')).toHaveTextContent(/^Tick one or two more Next-day direction models to compare them with pt-gnn\.$/);
+        });
+
+        it('holds the link alone over the comparison once two are ticked, and the hint again once it is cleared', async () => {
+            answer();
+            await open();
+
+            await userEvent.click(box('pt-gnn'));
+            await userEvent.click(box('tables'));
+
+            expect(lead().querySelector('.model-hint')).toBeNull();
+            expect(within(lead()).getByRole('link', { name: 'How the models work' })).toBeInTheDocument();
+            expect(lead().nextElementSibling).toHaveClass('model-compare');
+
+            await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
+
+            expect(lead().querySelector('.model-hint')).toHaveTextContent('Tick two or three models that predict the same thing to compare them.');
+            expect(lead().nextElementSibling).toHaveClass('model-group');
+        });
     });
 
     it('draws the comparison once two of one task are ticked, and writes it in the address', async () => {
