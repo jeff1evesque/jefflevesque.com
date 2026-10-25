@@ -56,6 +56,7 @@ import {
     holdName,
     holdNote,
     holdsAmong,
+    holdsFor,
     holdsOf,
     isHold,
     isScore,
@@ -1055,6 +1056,17 @@ describe('holdNote, the note after a Hold picker\'s name (#311)', () => {
     it('says the same of a task of stocks, and what Combined is', () => {
         expect(holdNote(stocks, true)).toBe('How long each stock is held before it’s sold. A hold is grayed out until its first results come in. Combined is the average of the three.');
         expect(holdNote(stocks, false)).toBe('How long each stock is held before it’s sold. Combined is the average of the three.');
+    });
+});
+
+describe('holdsFor, the holds a task offers where the listing names none (#311)', () => {
+    it('gives a task of options its three, and a task of stocks its three and Combined', () => {
+        expect(holdsFor(OPTIONS_TASK).map((each) => each.days)).toEqual([1, 5, 20]);
+        expect(holdsFor({ id: 'direction', scores: STOCK_SCORES }).map((each) => each.days)).toEqual([1, 5, 20, COMBINED]);
+    });
+
+    it('gives a task the listing does not describe a stock task\'s, as every task before format 3', () => {
+        expect(holdsFor(undefined).map((each) => each.days)).toEqual([1, 5, 20, COMBINED]);
     });
 });
 
