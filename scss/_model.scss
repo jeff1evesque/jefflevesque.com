@@ -492,6 +492,59 @@
       margin-left: 0;
     }
   }
+
+  //
+  // the page while the filters are open (#306): two columns from the top, the
+  // title's row over the filters and the lists' column beside both, so the
+  // lists' first line -- the hint, and the docs' link at its right end, in
+  // place of the title row's -- stands on the title's line rather than under a
+  // row of its own. Folded into their rail, the filters leave the title its row
+  // across the page, as before.
+  //
+  // Note: '.model-columns' hands its two columns to the page's own grid, as
+  //       'display: contents', so the title can stand over the filters alone.
+  //
+  // Note: the title adds nothing to the filters' column's width, which stays
+  //       the width they were dragged to: the title is as wide as the column,
+  //       and wraps in it.
+  //
+  // Note: the lists' column is as tall as what it holds, at the top, so its
+  //       first line never stretches beside a taller column of filters.
+  //
+  .model-layout:has(> .model-columns > .model-filters-open) {
+    column-gap: 1.5rem;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+
+    > .model-intro {
+      grid-area: 1 / 1;
+      min-width: 100%;
+      width: 0;
+    }
+
+    > .model-columns {
+      display: contents;
+    }
+
+    .model-filters {
+      grid-area: 2 / 1;
+    }
+
+    .model-main {
+      align-self: start;
+      grid-area: 1 / 2 / 3;
+    }
+
+    .model-heading-docs {
+      display: none;
+    }
+
+    .model-lead,
+    .model-lead-docs {
+      display: flex;
+    }
+  }
 }
 
 //
@@ -634,6 +687,33 @@
 }
 
 //
+// the lists' first line (#306): how to start a comparison, and at its right
+// end the docs' link, which a computer shows while the filters are open -- see
+// '.model-layout' above. Everywhere else the title's row holds the link, and a
+// line with no hint, over a drawn comparison, holds nothing to show, so it
+// takes no room
+//
+.model-lead {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.75rem;
+
+  &:not(:has(> .model-hint)) {
+    display: none;
+  }
+
+  > .model-hint {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .model-lead-docs {
+    display: none;
+    margin-left: auto;
+  }
+}
+
+//
 // each list's score picker, under its task's heading (#279), and the picker of
 // the comparison's own while it holds models of more than one task, under its
 // title. An options model's page puts its hold picker beside its score picker,
@@ -709,6 +789,20 @@
 
   > .model-hold-line {
     margin: -4px 0 0;
+  }
+}
+
+//
+// no rule between the hint and the list under it on a computer, where it set
+// the list off from nothing but the hint: the list starts the column's 14px gap
+// under the hint (#306). The rule under a drawn comparison stays, and a phone's
+// lists are as they were
+//
+@media (min-width: 768px) {
+  .model-lead:has(> .model-hint) + .model-group {
+    border-top: 0;
+    margin-top: 0;
+    padding-top: 0;
   }
 }
 
