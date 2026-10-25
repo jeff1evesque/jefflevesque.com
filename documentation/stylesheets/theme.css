@@ -18,3 +18,16 @@
 [data-md-color-scheme="slate"][data-md-color-primary="black"] {
   --md-typeset-a-color: #6cc259;
 }
+
+/*
+ * A table inside <div class="full-width" markdown> runs the whole width of the
+ * text, as the models guide's table of holds does. Material draws a table only as
+ * wide as its cells need: an inline block, in a wrapper that shrinks to fit it.
+ */
+.md-typeset .full-width .md-typeset__table {
+  min-width: 100%;
+}
+
+.md-typeset .full-width table:not([class]) {
+  display: table;
+}
