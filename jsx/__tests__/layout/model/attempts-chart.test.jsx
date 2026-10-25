@@ -191,12 +191,12 @@ describe('durationUnit', () => {
 
 describe('verdictOf (#300)', () => {
     it('says what came of an attempt, and how far it beat or missed the live version', () => {
-        expect(verdictOf({ went_live: true, live: 1.6, gap: 0.05 }, 'loss')).toBe('Went live: 0.050 better than the live version');
-        expect(verdictOf({ went_live: false, live: 1.6, gap: -0.01 }, 'loss')).toBe('Kept back: 0.010 worse than the live version');
+        expect(verdictOf({ went_live: true, live: 1.6, gap: 0.05 }, 'loss')).toBe('Went live: 0.050 better than live version');
+        expect(verdictOf({ went_live: false, live: 1.6, gap: -0.01 }, 'loss')).toBe('Kept back: 0.010 worse than live version');
     });
 
     it('calls an attempt that printed alike level with the live version', () => {
-        expect(verdictOf({ went_live: false, live: 1.6, gap: 0.0001 }, 'loss')).toBe('Kept back: level with the live version');
+        expect(verdictOf({ went_live: false, live: 1.6, gap: 0.0001 }, 'loss')).toBe('Kept back: level with live version');
     });
 
     it('calls a first version so, with no live version to compare it with', () => {
@@ -204,7 +204,7 @@ describe('verdictOf (#300)', () => {
     });
 
     it('says how far it stood on the score on screen, a share in points', () => {
-        expect(verdictOf({ went_live: false, live: 0.5, gap: 0.012 }, 'acc_up')).toBe('Kept back: 1.2 pts better than the live version');
+        expect(verdictOf({ went_live: false, live: 0.5, gap: 0.012 }, 'acc_up')).toBe('Kept back: 1.2 pts better than live version');
     });
 });
 
@@ -618,7 +618,7 @@ describe('the popups (#300)', () => {
         expect(readPopup(popup)).toEqual({
             title: 'Oct 12 · nightly update',
             rows: [['This attempt', '1.610'], ['Live version', '1.600'], ['Baseline', '1.660']],
-            foot: 'Kept back: 0.010 worse than the live version',
+            foot: 'Kept back: 0.010 worse than live version',
         });
         expect(popup.querySelectorAll('.model-tip-row svg.model-mark')).toHaveLength(3);
         expect(popup.querySelector('.model-tip-row circle')).toHaveAttribute('stroke', chartColors('light').better);
@@ -648,8 +648,8 @@ describe('the popups (#300)', () => {
     });
 
     it.each([
-        ['missed', {}, 'bar', chartColors('light').worse, '0.010 worse than the live version', 'Kept back'],
-        ['beat', { went_live: true, attempt: { loss: 1.55, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } }, 'bar', chartColors('light').better, '0.050 better than the live version', 'Went live'],
+        ['missed', {}, 'bar', chartColors('light').worse, '0.010 worse than live version', 'Kept back'],
+        ['beat', { went_live: true, attempt: { loss: 1.55, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } }, 'bar', chartColors('light').better, '0.050 better than live version', 'Went live'],
     ])('says over the bars how far an attempt that %s the live version stood from it, after a bar in its color', (label, night, mark, color, said, came) => {
         const { container } = draw({ rows: historyOf(1, { 0: night }) });
 
@@ -666,7 +666,7 @@ describe('the popups (#300)', () => {
 
         pointAt(container, 300, GAP);
 
-        expect(readPopup(popupOf(container)).rows).toEqual([['Level with the live version', '']]);
+        expect(readPopup(popupOf(container)).rows).toEqual([['Level with live version', '']]);
         expect(popupOf(container).querySelector('.model-tip-row svg')).toBeNull();
     });
 
@@ -738,9 +738,9 @@ describe('the popups (#300)', () => {
     });
 
     it.each([
-        ['beat', { went_live: true, attempt: { loss: 1.55, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } }, 'Went live: 0.050 better than the live version'],
-        ['missed', {}, 'Kept back: 0.010 worse than the live version'],
-        ['matched', { attempt: { loss: 1.6001, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 } }, 'Kept back: level with the live version'],
+        ['beat', { went_live: true, attempt: { loss: 1.55, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } }, 'Went live: 0.050 better than live version'],
+        ['missed', {}, 'Kept back: 0.010 worse than live version'],
+        ['matched', { attempt: { loss: 1.6001, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54 } }, 'Kept back: level with live version'],
     ])('says what came of an attempt that %s the live version, under its scores', (label, night, said) => {
         const { container } = draw({ rows: historyOf(1, { 0: night }) });
 
@@ -773,7 +773,7 @@ describe('the popups (#300)', () => {
         expect(readPopup(popupOf(container))).toEqual({
             title: 'Oct 1 · nightly update',
             rows: [['This attempt', '0.600'], ['Live version', '0.560'], ['Baseline', '0.500']],
-            foot: 'Kept back: 0.040 better than the live version',
+            foot: 'Kept back: 0.040 better than live version',
         });
         expect(screen.getByText(/Going live is decided by loss/)).toBeInTheDocument();
     });

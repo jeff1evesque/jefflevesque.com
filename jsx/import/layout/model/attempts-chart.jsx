@@ -240,7 +240,7 @@ export function attemptsAbout(held) {
 
 /**
  * what became of a night's attempt, beside how far it beat or missed the live
- * version on `score` (#300): 'Went live: 0.003 better than the live version', or
+ * version on `score` (#300): 'Went live: 0.003 better than live version', or
  * a first version's, which had none to beat.
  */
 export function verdictOf(point, score) {
@@ -252,8 +252,8 @@ export function verdictOf(point, score) {
     }
 
     return stands === 'level'
-        ? `${went}: level with the live version`
-        : `${went}: ${formatGap(point.gap, score)} ${stands} than the live version`;
+        ? `${went}: level with live version`
+        : `${went}: ${formatGap(point.gap, score)} ${stands} than live version`;
 }
 
 //
@@ -335,7 +335,7 @@ function AttemptsChart({ rows, score, held = false }) {
                     mark: point.gap === null || stands === 'level' ? null : <Mark kind='bar' color={stands === 'better' ? colors.better : colors.worse} />,
                     name: point.gap === null
                         ? 'No live version to compare with'
-                        : (stands === 'level' ? 'Level with the live version' : `${formatGap(point.gap, score)} ${stands} than the live version`),
+                        : (stands === 'level' ? 'Level with live version' : `${formatGap(point.gap, score)} ${stands} than live version`),
                     value: null,
                 }],
                 foot: point.went_live ? 'Went live' : 'Kept back',
