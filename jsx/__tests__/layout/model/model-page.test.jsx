@@ -49,6 +49,7 @@ import ModelPageRoute, {
     ATTEMPTS_NOTE,
     CardRows,
     ModelPage,
+    SCORED_LINE,
     attemptRows,
     liveFigure,
     liveLine,
@@ -58,6 +59,7 @@ import ModelPageRoute, {
     rankAmong,
     sentence,
 } from '../../../import/layout/model/model-page.jsx';
+import { TITLE as ATTEMPTS_TITLE } from '../../../import/layout/model/attempts-chart.jsx';
 import { loadListing, loadOptionPicks, loadReport } from '../../../import/layout/model/source.js';
 import { listSubscriptions } from '../../../import/general/account-api.js';
 import { SCORES, formatGap, formatScore, noteOf, scoreOf } from '../../../import/layout/model/scores.js';
@@ -80,6 +82,7 @@ import {
     holdsBehindOf,
     phoneScreen,
     pointAt,
+    ptGnnHistory,
     timedHistoryOf,
     trackOf,
     wideScreen,
@@ -380,8 +383,8 @@ describe('before there is a model to show', () => {
             const cards = [...document.querySelectorAll('.model-card')];
 
             expect(cards.map((card) => card.querySelector('.model-fold').textContent))
-                .toEqual(['Each attempt against the live version', 'Track record']);
-            expect(cards.map((card) => card.querySelector('.model-chart-pending').style.height)).toEqual(['200px', '300px']);
+                .toEqual([ATTEMPTS_TITLE, 'Track record']);
+            expect(cards.map((card) => card.querySelector('.model-chart-pending').style.height)).toEqual(['280px', '300px']);
         });
     });
 
@@ -394,7 +397,7 @@ describe('before there is a model to show', () => {
 
         await act(async () => listing.resolve(listingOf()));
 
-        expect(await screen.findByRole('heading', { name: 'Each attempt against the live version' })).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: ATTEMPTS_TITLE })).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Track record: Loss' })).toBeInTheDocument();
         expect(document.querySelector('.graph-pending-bar, .model-chart-pending')).toBeNull();
         expect(screen.queryByRole('status')).toBeNull();
@@ -491,7 +494,7 @@ describe('the model', () => {
 
         await open();
 
-        expect(screen.getByRole('heading', { name: 'Each attempt against the live version' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: ATTEMPTS_TITLE })).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Track record: Loss' })).toBeInTheDocument();
     });
 });
@@ -932,7 +935,7 @@ describe('what the live version trained on, from format 4 (#295)', () => {
 
 describe('the summary, on a phone', () => {
     const RETRAINS = { 1: { kind: 'weekly', went_live: true }, 3: { kind: 'weekly' } };
-    const WENT = 'Of every nightly attempt, how many went live and replaced the live version.';
+    const WENT = 'Of every nightly attempt, how many went live and replaced the version in charge.';
 
     //
     // the row of boxes a phone shows in place of the cards (#253)
@@ -1008,6 +1011,7 @@ describe('the summary, on a phone', () => {
 
         expect(underBoxes()).toEqual([
             'Loss, last 20 days: ▼ 0.040 worse than baseline, 1.660',
+            SCORED_LINE,
             'model-parts',
             'Worse than the baseline 5 scored days in a row. Nothing predicts until a new version beats the baseline on the days it was tested on.',
             'model-checks-block',
@@ -1021,6 +1025,18 @@ describe('the summary, on a phone', () => {
         await open();
 
         expect(notes()[1]).toHaveAccessibleDescription(WENT);
+    });
+
+    it('says under the score\'s line, in a line of its own, that it is how the published predictions did (#318)', async () => {
+        answer();
+
+        await open();
+
+        const scored = document.querySelector('.model-summary-details > .model-score-scored');
+
+        expect(scored.previousElementSibling).toHaveClass('model-score-line');
+        expect(scored).toHaveTextContent(SCORED_LINE);
+        expect(underBoxes().slice(0, 2)).toEqual(['Loss, last 20 days: ▲ 0.060 better than baseline, 1.660', SCORED_LINE]);
     });
 
     it('says only what the score measures where there is nothing to say beside it', async () => {
@@ -1244,7 +1260,7 @@ describe('loss, part by part (#265)', () => {
 
         expect(document.querySelector('.model-parts')).toBeNull();
         expect(figures().score).toBe(1.6);
-        expect(screen.getByRole('heading', { name: 'Each attempt against the live version' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: ATTEMPTS_TITLE })).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Track record: Loss' })).toBeInTheDocument();
     });
 
@@ -1367,30 +1383,37 @@ describe('each card\'s rows on a wide screen (#267)', () => {
             expect(card.querySelector('.model-stat-head')).toHaveTextContent(/of every nightly update and weekly retrain$/);
             expect(rowsOf(card)).toEqual([
                 ['Nightly updates', '1 of 5 went live'],
-                ['Last attempt', 'Oct 16, went live'],
+                ['Last attempt', 'Sat Oct 17, took over'],
                 ['Started', '3:58 AM ET'],
                 ['Took', '9 min 52 s'],
-                ['Its held-out loss', '1.614, live 1.600'],
+                ['Its test loss', '1.614, version in charge 1.600'],
             ]);
+        });
+
+        it('names the newest night for the morning its test ran, and says it took over or was kept back (#318)', () => {
+            const rows = (history) => attemptRows(history).find((row) => row.key === 'last').value;
+
+            expect(rows(historyOf(2))).toBe('Sat Oct 3, kept back');
+            expect(rows(historyOf(2, { 1: { went_live: true, tested: '2026-10-05' } }))).toBe('Mon Oct 5, took over');
         });
 
         it('says last that attempts are judged on the 1-day hold, for a stock model with holds (#300)', () => {
             expect(attemptRows(historyOf(2), true).map((row) => [row.name, row.value])).toEqual([
                 ['Nightly updates', '0 of 2 went live'],
-                ['Last attempt', 'Oct 2, kept back'],
-                ['Its held-out loss', '1.611, live 1.600'],
+                ['Last attempt', 'Sat Oct 3, kept back'],
+                ['Its test loss', '1.611, version in charge 1.600'],
                 ['Judged on', 'the 1-day hold'],
             ]);
             expect(attemptRows(historyOf(2)).map((row) => row.key)).not.toContain('judged');
         });
 
-        it('gives the held-out loss alone where the live version has none, as on a first night (#300)', () => {
+        it('gives the test loss alone where there is no version in charge, as on a first night (#300, #318)', () => {
             const rows = attemptRows(historyOf(1, { 0: { live: { loss: null } } }));
 
             expect(rows.find((row) => row.key === 'loss').value).toBe('1.610');
         });
 
-        it('gives no held-out loss for a night with none', () => {
+        it('gives no test loss for a night with none', () => {
             expect(attemptRows(historyOf(1, { 0: { attempt: { loss: null } } })).map((row) => row.key)).not.toContain('loss');
         });
 
@@ -1401,9 +1424,74 @@ describe('each card\'s rows on a wide screen (#267)', () => {
             expect(rowsOf(cardOf('Attempts that went live'))).toEqual([
                 ['Nightly updates', '0 of 2 went live'],
                 ['Weekly retrains', '1 of 2 went live'],
-                ['Last attempt', 'Oct 6, kept back'],
-                ['Its held-out loss', '1.613, live 1.600'],
+                ['Last attempt', 'Wed Oct 7, kept back'],
+                ['Its test loss', '1.613, version in charge 1.600'],
             ]);
+        });
+
+        describe('how long the newest night took, its second pass counted in (#318)', () => {
+            //
+            // the Took row's value, and the note on its info icon, or null where
+            // it has none
+            //
+            function took() {
+                const row = [...cardOf('Attempts that went live').querySelectorAll('.model-stat-row')]
+                    .find((each) => each.firstChild.textContent === 'Took');
+
+                return { value: row.lastChild.textContent, noted: row.querySelector('.model-noted') };
+            }
+
+            it('gives pt-gnn\'s Oct 27 night\'s whole time, both passes, with a note giving each', async () => {
+                answer({ history: ptGnnHistory() });
+                await open();
+
+                expect(took().value).toBe('54 min 10 s');
+                expect(took().noted).toHaveAccessibleDescription(
+                    'Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again.'
+                );
+                expect(took().noted.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+            });
+
+            it('shows its note under the pointer, as every note on the page does', async () => {
+                answer({ history: ptGnnHistory() });
+                await open();
+
+                await userEvent.hover(took().noted);
+
+                expect(await screen.findByRole('tooltip')).toHaveTextContent(/^Two passes: 43 min 13 s .* then 10 min 58 s training it again\.$/);
+            });
+
+            it('gives a night with no second pass its first pass\'s time, as before, with no note', async () => {
+                answer({ history: ptGnnHistory().slice(0, -1) });
+                await open();
+
+                expect(took()).toEqual({ value: '54 min 30 s', noted: null });
+            });
+
+            it('counts a second pass whose version did not take over, and says the first pass took over', async () => {
+                const history = ptGnnHistory();
+
+                history[history.length - 1] = { ...history[history.length - 1], trained_again: false };
+                answer({ history: history });
+                await open();
+
+                expect(took().value).toBe('54 min 10 s');
+                expect(took().noted).toHaveAccessibleDescription(
+                    'Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again. The first pass took over.'
+                );
+            });
+
+            it('counts none for a negative or unreadable second pass', () => {
+                const last = (again) => attemptRows(historyOf(5, { 4: { trained_again_seconds: again } }, '2026-10-12'))
+                    .find((row) => row.key === 'took').value;
+
+                [-3, null, NaN].forEach((again) => {
+                    const { container } = render(<>{last(again)}</>);
+
+                    expect(container).toHaveTextContent(/^9 min 52 s$/);
+                    expect(container.querySelector('.model-noted')).toBeNull();
+                });
+            });
         });
 
         it.each([['could not be had', null], ['has no nights yet', []]])('says what its count is of, and has no rule or rows, where the history %s', async (name, history) => {
@@ -1436,6 +1524,18 @@ describe('each card\'s rows on a wide screen (#267)', () => {
             expect(body.querySelector('.model-stat-group-head')).toHaveTextContent('Loss, part by part');
             expect(body.querySelector('.model-stat-group > .model-parts')).not.toBeNull();
             expect(cardOf('Loss, last 20 days').querySelector('.model-stat-head')).not.toHaveTextContent('Next-day direction models');
+        });
+
+        it('says last over its rule that the score is how the published predictions did, scored after the fact, on any score (#318)', async () => {
+            answer({ track: steady() });
+            await open('pt-gnn', { scores: { direction: 'acc_up' } });
+
+            const head = cardOf('Up/down accuracy, last 20 days').querySelector('.model-stat-head');
+
+            expect(head.lastElementChild).toHaveClass('model-stat-scored');
+            expect(head.lastElementChild).toHaveTextContent(/^How its published predictions did, scored after the fact\.$/);
+            expect(SCORED_LINE).toBe('How its published predictions did, scored after the fact.');
+            expect(document.querySelectorAll('.model-stat-scored')).toHaveLength(1);
         });
 
         it('gives the only model of its task no place, and keeps the heading and the parts', async () => {
@@ -1523,7 +1623,7 @@ describe('a report that is not in', () => {
         lines.forEach((line) => expect(line).toHaveClass('visually-hidden'));
         expect([...document.querySelectorAll('.model-chart-pending')]
             .map((frame) => frame.closest('.model-card').querySelector('.model-fold').textContent))
-            .toEqual(['Each attempt against the live version', 'Track record']);
+            .toEqual([ATTEMPTS_TITLE, 'Track record']);
     });
 
     it('says each could not be loaded where it could not be had', async () => {
