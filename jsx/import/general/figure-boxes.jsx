@@ -11,7 +11,7 @@
  * drawn first.
  *
  * Each figure brings its own name, note, value and color, as the page that draws
- * it reads them.
+ * it reads them. A figure with an empty note has no icon (#315).
  *
  * Note: a phone shortens what would not fit a third of its line: a name,
  *       'Records' for 'Total Records', and a count, '137M' for '136,963,495'.
@@ -64,14 +64,32 @@ function shorter(short, long) {
     return short === undefined ? long : short;
 }
 
+//
+// a figure's name, with an info icon after it that opens its note, or its name
+// alone where it has no note, rather than an icon that opens nothing (#315)
+//
+function Label({ figure }) {
+    const name = <Fitted long={figure.label} short={shorter(figure.short, figure.label)} />;
+
+    return figure.note
+        ? <InfoNote note={figure.note} className='stream-focus-figure-label stream-focus-noted'>{name}</InfoNote>
+        : <span className='stream-focus-figure-label'>{name}</span>;
+}
+
+Label.propTypes = {
+    figure: PropTypes.shape({
+        label: PropTypes.string.isRequired,
+        short: PropTypes.string,
+        note: PropTypes.string.isRequired,
+    }).isRequired,
+};
+
 function FigureBoxes({ figures }) {
     return (
         <div className='stream-focus-figures'>
             {figures.map((figure) => (
                 <div key={figure.key} className='stream-focus-figure'>
-                    <InfoNote note={figure.note} className='stream-focus-figure-label stream-focus-noted'>
-                        <Fitted long={figure.label} short={shorter(figure.short, figure.label)} />
-                    </InfoNote>
+                    <Label figure={figure} />
                     <span className={`stream-focus-figure-value${figure.tone ? ` stream-focus-figure-${figure.tone}` : ''}`}>
                         <Fitted long={figure.value} short={shorter(figure.shortValue, figure.value)} />
                     </span>
