@@ -311,6 +311,27 @@ export default () => {
     }
 
     //
+    // the check of the live version's fine-tune, from the trainer's format 6
+    // (#315): `passed`, whether the fine-tuned model passed it, `by`, the tested
+    // model's loss on its stopping days less the fine-tuned model's -- above 0
+    // where the fine-tune did better -- and `slack`, how much worse it may do and
+    // still pass. None where the listing gives none, as one before format 6
+    // does, or gives it unreadable
+    //
+    function fineTuneOf(value) {
+        if (!isRecord(value) || (value.passed !== true && value.passed !== false)) {
+            return null;
+        }
+
+        const by = numberOf(value.by);
+        const slack = numberOf(value.slack);
+
+        return by !== null && slack !== null && slack >= 0
+            ? { passed: value.passed, by: by, slack: slack }
+            : null;
+    }
+
+    //
     // how close each of the trainer's checks is to taking the live version down,
     // as of the newest scored day (#263): `days`, `in_a_row` -- how many scored
     // days in a row it has been worse, or null until it has enough days -- and
@@ -523,6 +544,7 @@ export default () => {
                     since: dayOf(live.since),
                     kind: LIVE_KINDS.indexOf(live.kind) >= 0 ? live.kind : null,
                     days: liveDaysOf(live.days),
+                    fine_tune: fineTuneOf(live.fine_tune),
                 },
                 attempts: {
                     total: countOf(attempts.total),
@@ -587,12 +609,16 @@ export default () => {
     // older night's cells are empty, and a history written before the columns has
     // none: either way, each is null
     //
+    // From the trainer's format 6 (#315), a night says whether its attempt
+    // trained again with its held-out days -- see trainedAgain
+    //
     function history(csv) {
         return byDay(rowsOf(csv), function (row, day) {
             return {
                 day: day,
                 kind: String(row.kind).toLowerCase() === 'weekly' ? 'weekly' : 'nightly',
                 went_live: /^(true|1)$/i.test(String(row.went_live)),
+                trained_again: trainedAgain(row.trained_again),
                 started: textOf(row.started) || null,
                 training_seconds: numberOf(row.training_seconds),
                 total_seconds: numberOf(row.total_seconds),
@@ -601,6 +627,24 @@ export default () => {
                 baseline: scoresOf(row, 'baseline_'),
             };
         });
+    }
+
+    //
+    // whether a night's attempt trained again with its held-out days, from the
+    // trainer's format 6 (#315): true where it passed and trained again, false
+    // where it was kept back or did not, in either spelling, as went_live is. A
+    // night before format 6 has an empty cell, and a history written before the
+    // column has none: either way it is null, a night the live version's loss
+    // judged too
+    //
+    function trainedAgain(value) {
+        const text = textOf(value);
+
+        if (/^(true|1)$/i.test(text)) {
+            return true;
+        }
+
+        return /^(false|0)$/i.test(text) ? false : null;
     }
 
     //
