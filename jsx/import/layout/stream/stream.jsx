@@ -44,7 +44,7 @@ import { limitedUntil } from '../../general/rate-limit.js';
 import { readOrder, readSort, writeOrder, writeSort } from '../../general/listing-preference.js';
 import { readLayout, writeLayout } from '../../general/layout-preference.js';
 import THROUGHPUT_KEY from '../../general/throughput-key.js';
-import { STOCK_MARKET, STOCK_SPLIT, SEC_COMPANYFACTS, STREAMS } from '../../general/stream-id.js';
+import { STOCK_MARKET, STOCK_TICKERS, STOCK_SPLIT, SEC_COMPANYFACTS, STREAMS } from '../../general/stream-id.js';
 import { streamBars, scheduleLabel } from '../../general/stream-bars.js';
 import scrollMargin from '../../general/scroll-margin.js';
 {/*
@@ -56,7 +56,7 @@ import scrollMargin from '../../general/scroll-margin.js';
     ran, which is a question about the chart rather than about the request.
 
 */}
-import { coverageBucket, expectedIntervals } from '../../general/ingest-schedule.js';
+import { coverageBucket, expectedIntervals, firstRun } from '../../general/ingest-schedule.js';
 {/*
 
     the chart's own gap fill, and deliberately NOT the report's
@@ -290,7 +290,12 @@ function axisLabel(date, rate) {
 
 */}
 function streamCoverage(chart_data, stream, rate, field_datetime, stream_source, now = new Date()) {
-    const expected = expectedIntervals(stream, rate, now);
+    //
+    // Note: a schedule that begins with its first run (#314) is due from the
+    //       first row that reports, and before any reports it, nothing is: its
+    //       coverage is n/a -- see FIRST_RUN in ingest-schedule.js
+    //
+    const expected = expectedIntervals(stream, rate, now, firstRun(chart_data, field_datetime, stream_source));
 
     if (!expected.length) {
         return 'n/a';
@@ -421,6 +426,8 @@ class StreamLayout extends Component {
         this.state = {
             local: is_local,
             'chart_data_stock-market': [],
+            'chart_data_stock-tickers': [],
+            'chart_data_stock-tickers_price': [],
             'chart_data_stock-split': [],
             chart_data_bls: [],
             chart_data_bls_bls: [],
@@ -431,6 +438,7 @@ class StreamLayout extends Component {
             'chart_data_us-national-weather': [],
             field_datetime: 'window_start',
             'promise_get_data_stock-market': false,
+            'promise_get_data_stock-tickers': false,
             'promise_get_data_stock-split': false,
             promise_get_data_bls: false,
             promise_get_data_sec: false,
@@ -446,6 +454,10 @@ class StreamLayout extends Component {
             figures_folded: layout.fold.figures !== false,
             figures_width: kept_width >= FIGURES_MIN ? kept_width : null,
             'stream_source_stock-market': ['options', 'price'],
+            //
+            // the stock tickers' one series: a row per poll (#314)
+            //
+            'stream_source_stock-tickers': ['price'],
             'stream_source_stock-split': ['alpha', 'beta', 'gamma'],
             stream_source_bls: ['bls'],
             stream_source_sec: ['sec'],
@@ -457,6 +469,7 @@ class StreamLayout extends Component {
             'stream_source_us-national-weather': ['weather'],
             streams: streams,
             'stream_rate_stock-market': rate,
+            'stream_rate_stock-tickers': rate,
             'stream_rate_stock-split': rate,
             stream_rate_bls: rate,
             stream_rate_sec: rate,
@@ -466,8 +479,11 @@ class StreamLayout extends Component {
             stream_throughput_bls_bls: 0,
             stream_throughput_sec_sec: 0,
             'stream_throughput_sec-companyfacts_companyfacts': 0,
+            'stream_throughput_stock-tickers_price': 0,
             'stream_stock-market_total': 'n/a',
             'stream_stock-market_health': 'n/a',
+            'stream_stock-tickers_total': 'n/a',
+            'stream_stock-tickers_health': 'n/a',
             'stream_stock-split_total': 'n/a',
             'stream_stock-split_health': 'n/a',
             stream_bls_total: 'n/a',
@@ -479,6 +495,7 @@ class StreamLayout extends Component {
             'stream_us-national-weather_total': 'n/a',
             'stream_us-national-weather_health': 'n/a',
             'stream_stock-market_coverage': 'n/a',
+            'stream_stock-tickers_coverage': 'n/a',
             'stream_stock-split_coverage': 'n/a',
             stream_bls_coverage: 'n/a',
             stream_sec_coverage: 'n/a',
@@ -1109,6 +1126,15 @@ class StreamLayout extends Component {
             get_data: 'stock-market-ingest',
             source: STOCK_MARKET,
             source_local: 'options'
+        },
+        //
+        // one series, 'price', which the report names: so the request reads it
+        // as the single-series streams below read theirs (#314)
+        //
+        [STOCK_TICKERS]: {
+            get_data: 'stock-tickers-ingest',
+            source: 'price',
+            source_local: 'price'
         },
         [STOCK_SPLIT]: {
             get_data: 'stock-split-ingest',
