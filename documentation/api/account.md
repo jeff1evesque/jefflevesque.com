@@ -55,9 +55,9 @@ and the alarms are a list of these, a stream's and a model's:
   every day counted, and longer for the feeds that publish weekly or monthly.
 - **One alarm per model: `live`.** It goes off when a new version goes live and, on the
   days it was tested on, its loss is lower than both the version it replaced and the
-  know-nothing baseline's. Not every go-live does: a night's attempt goes live whenever
-  its loss is no higher than the live version's, and a first version always does, and
-  never sets the alarm off. A model has the alarm only while the model API lists it and
+  know-nothing baseline's. Not every go-live does: a new version that goes live doesn't
+  always beat both, and a first version has no version to beat, so it never sets the
+  alarm off. A model has the alarm only while the model API lists it and
   it has not retired.
 - **The ids are the site's own.** A stream is named by the id the rest of the site uses,
   such as `stock-market`, and a model by its name on `/model`, such as `pt-gnn`.
