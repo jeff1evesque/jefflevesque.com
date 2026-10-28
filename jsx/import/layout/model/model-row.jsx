@@ -141,7 +141,9 @@ export function trendSpan(axis, days = WINDOW) {
  * a model's average score over the days on `axis`, beside the baseline's: each
  * day's average of its last `days` scored days, the listing's `average_days`
  * (#293). On a `hold` (#300), the hold's own averages, each day once its result
- * on the hold is in: the newest days of a longer hold have none yet.
+ * on the hold is in: the newest days of a longer hold have none yet. A day the
+ * model was not scored between its first and its last, as while its live
+ * version was taken down, is joined across, so the line has no break (#315).
  *
  * On a computer, the day under the pointer has a dot on each line and, over the
  * line, a small box of its numbers: the day, the score, and the baseline's
@@ -273,11 +275,13 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW, hold = null 
                     dot={false}
                     activeDot={showing ? { r: 2.5, fill: colors.baseline, stroke: 'none' } : false}
                     isAnimationActive={false}
+                    connectNulls
                 />
                 <Line
                     dataKey='value'
                     stroke={colors.better}
                     strokeWidth={2}
+                    connectNulls
                     dot={false}
                     activeDot={showing ? { r: 3, fill: colors.better, stroke: 'none' } : false}
                     isAnimationActive={false}
