@@ -286,9 +286,9 @@ describe('placeAmong', () => {
 });
 
 describe('liveFigure', () => {
-    it('says when the live version went live, and after what', () => {
-        expect(liveFigure(modelOf())).toEqual({ value: 'Oct 9', detail: 'went live after a nightly update' });
-        expect(liveFigure(modelOf({ live: { since: '2026-10-12', kind: 'weekly' } })).detail).toBe('went live after a weekly retrain');
+    it('says when the live version went live, and not the trainer\'s words for what made it (#315)', () => {
+        expect(liveFigure(modelOf())).toEqual({ value: 'Oct 9', detail: '' });
+        expect(liveFigure(modelOf({ live: { since: '2026-10-12', kind: 'weekly' } }))).toEqual({ value: 'Oct 12', detail: '' });
     });
 
     it('says a first version has not been beaten yet', () => {
@@ -508,9 +508,9 @@ describe('the model it names', () => {
 
 describe('CardRows', () => {
     it('draws a card\'s rows under its rule, a name and a value each, and nothing at its foot where it is handed nothing (#267)', () => {
-        const { container } = render(<CardRows rows={[{ key: 'trained', name: 'Trained on', value: '7 days, Oct 5 to Oct 19' }]} />);
+        const { container } = render(<CardRows rows={[{ key: 'trained', name: 'Trained on', value: 'Oct 5 – Oct 19' }]} />);
 
-        expect(rowsOf(container)).toEqual([['Trained on', '7 days, Oct 5 to Oct 19']]);
+        expect(rowsOf(container)).toEqual([['Trained on', 'Oct 5 – Oct 19']]);
         expect(container.querySelector('.model-stat-body').children).toHaveLength(1);
     });
 
@@ -523,7 +523,7 @@ describe('CardRows', () => {
 
 describe('sentence', () => {
     it('makes a figure\'s line a sentence of its note: capitalized, with a full stop (#253)', () => {
-        expect(sentence('went live after a weekly retrain')).toBe('Went live after a weekly retrain.');
+        expect(sentence('its first version, not yet beaten')).toBe('Its first version, not yet beaten.');
         expect(sentence('0.060 better than baseline, 1.660')).toBe('0.060 better than baseline, 1.660.');
     });
 
@@ -544,12 +544,13 @@ describe('the summary', () => {
         return within(cards).getByText(label).closest('.model-stat');
     }
 
-    it('says when the live version went live and what made it, and how many attempts did, of every kind (#300)', async () => {
+    it('says when the live version went live, with no line of what made it (#315), and how many attempts did, of every kind (#300)', async () => {
         answer({ history: historyOf(4, { 1: { kind: 'weekly', went_live: true }, 3: { kind: 'weekly' } }) });
 
         await open();
 
-        expect(stat('Live version')).toHaveTextContent('Oct 9nightly update');
+        expect(stat('Live version').querySelector('.model-stat-head')).toHaveTextContent(/^Live versionOct 9$/);
+        expect(stat('Live version').querySelector('.model-stat-detail')).toBeNull();
         expect(stat('Attempts that went live')).toHaveTextContent('4 of 30of every nightly update and weekly retrain');
     });
 
@@ -782,7 +783,7 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         answer({ listing: listingOf([downModelOf()]) });
         await open('lagging');
 
-        expect(rowsOf(stat('Live version'))).toEqual([['First predicted', 'Sep 1']]);
+        expect(rowsOf(stat('Live version'))).toEqual([]);
         expect(stat('Live version').querySelector('.model-checks caption')).toHaveTextContent('Days in a row worse than the baseline');
         expect(stat('Live version').querySelector('.model-stat-body').lastElementChild).toHaveClass('model-checks-block');
         expect(checksIn('cards')).toEqual([CHECKS, ['5 of 5', '1 of 10', 'not yet']]);
@@ -807,7 +808,7 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         expect(checksIn('cards')).toEqual([CHECKS, ['4 of 5', '0 of 10', 'not yet']]);
         expect(checksIn('boxes')).toEqual(checksIn('cards'));
         expect(noteOf(2)).toHaveAccessibleDescription(LOSS_NOTE);
-        expect(stat('Live version').querySelector('.model-stat-head')).toHaveTextContent(/^Live versionOct 9nightly update$/);
+        expect(stat('Live version').querySelector('.model-stat-head')).toHaveTextContent(/^Live versionOct 9$/);
         expect(document.querySelector('.model-stat-down')).toBeNull();
         expect(screen.queryByText(DOWN_LINE)).toBeNull();
         expect(document.querySelector('.model-down-line')).toBeNull();
@@ -851,6 +852,34 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
     });
 });
 
+describe('the check of the live version\'s fine-tune, from format 6 (#315)', () => {
+    const fineTuned = (check) => modelOf({ live: { since: '2026-10-28', kind: 'nightly', days: TRAINED, fine_tune: check } });
+
+    it('says whether it passed and by how much, after Trained on, in the Live version card\'s rows and on a phone\'s line under the boxes', async () => {
+        answer({ listing: listingOf([fineTuned({ passed: true, by: 0.0021, slack: 0.005 })], 6) });
+        await open();
+
+        expect(rowsOf(cardOf('Live version'))).toEqual([['Trained on', 'Oct 5 – Oct 19'], ['Fine-tune check', 'Passed, 0.002 better']]);
+        expect(document.querySelector('.model-fine-tune-line')).toHaveTextContent(/^Fine-tune checkPassed, 0\.002 better$/);
+        expect(underBoxes().slice(-2)).toEqual(['model-trained-line', 'model-trained-line model-fine-tune-line']);
+    });
+
+    it('says how much worse a fine-tune that failed did, past the gap allowed', async () => {
+        answer({ listing: listingOf([fineTuned({ passed: false, by: -0.0079, slack: 0.005 })], 6) });
+        await open();
+
+        expect(rowsOf(cardOf('Live version'))).toContainEqual(['Fine-tune check', 'Failed, 0.008 worse, past the 0.005 allowed']);
+    });
+
+    it('says nothing of it where the listing gives no check, as before format 6', async () => {
+        answer({ listing: listingOf([fineTuned(null)], 6) });
+        await open();
+
+        expect(screen.queryByText('Fine-tune check')).toBeNull();
+        expect(document.querySelector('.model-fine-tune-line')).toBeNull();
+    });
+});
+
 describe('what the live version trained on, from format 4 (#295)', () => {
     function noteOf(at) {
         const row = screen.getByRole('region', { name: 'Summary' }).querySelector('.model-summary-boxes');
@@ -858,20 +887,20 @@ describe('what the live version trained on, from format 4 (#295)', () => {
         return row.querySelectorAll('.stream-focus-figure-label')[at];
     }
 
-    it('says it in the Live version card\'s rows on a wide screen, and after how it went live in a phone\'s note', async () => {
+    it('says it as its first and last days, in the Live version card\'s rows on a wide screen and on a phone\'s line under the boxes (#315)', async () => {
         answer({ listing: listingOf([modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: TRAINED } })], 4) });
         await open();
 
-        expect(rowsOf(cardOf('Live version'))).toEqual([['Trained on', '7 days, Oct 5 to Oct 19'], ['First predicted', 'Sep 1']]);
-        expect(noteOf(0)).toHaveAccessibleDescription('Went live after a nightly update.');
-        expect(document.querySelector('.model-trained-line')).toHaveTextContent('Trained on7 days, Oct 5 to Oct 19');
+        expect(rowsOf(cardOf('Live version'))).toEqual([['Trained on', 'Oct 5 – Oct 19']]);
+        expect(noteOf(0)).not.toHaveAccessibleDescription();
+        expect(document.querySelector('.model-trained-line')).toHaveTextContent(/^Trained onOct 5 – Oct 19$/);
     });
 
-    it('says a version that learned from one day as one day', async () => {
+    it('says a version that learned from one day as that day', async () => {
         answer({ listing: listingOf([modelOf({ live: { since: '2026-10-09', kind: 'first', days: { ...TRAINED, training: 1, first: '2026-10-08', last: '2026-10-08' } } })], 4) });
         await open();
 
-        expect(rowsOf(cardOf('Live version'))).toContainEqual(['Trained on', '1 day, Oct 8']);
+        expect(rowsOf(cardOf('Live version'))).toContainEqual(['Trained on', 'Oct 8']);
     });
 
     it('says it of one taken down, last under a phone\'s boxes, after why it was (#300)', async () => {
@@ -897,13 +926,13 @@ describe('what the live version trained on, from format 4 (#295)', () => {
 
         expect(screen.queryByText('Trained on')).toBeNull();
         expect(document.querySelector('.model-trained-line')).toBeNull();
-        expect(noteOf(0)).toHaveAccessibleDescription('Went live after a nightly update.');
+        expect(noteOf(0)).not.toHaveAccessibleDescription();
     });
 });
 
 describe('the summary, on a phone', () => {
     const RETRAINS = { 1: { kind: 'weekly', went_live: true }, 3: { kind: 'weekly' } };
-    const WENT = 'Of every nightly attempt, how many scored a loss no higher than the live version’s and replaced it.';
+    const WENT = 'Of every nightly attempt, how many went live and replaced the live version.';
 
     //
     // the row of boxes a phone shows in place of the cards (#253)
@@ -950,7 +979,8 @@ describe('the summary, on a phone', () => {
 
         await open();
 
-        expect(notes()[0]).toHaveAccessibleDescription('Went live after a nightly update.');
+        expect(notes()[0]).not.toHaveAccessibleDescription();
+        expect(boxes()[0].querySelector('svg')).toBeNull();
         expect(notes()[1]).toHaveAccessibleDescription(`${WENT} Weekly retrains: 1 of 2.`);
         expect(notes()[2]).toHaveAccessibleDescription(`${LOSS_NOTE} 1st of 3 Next-day direction models.`);
     });
@@ -1246,7 +1276,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
     const keys = (rows) => rows.map((row) => row.key);
 
     it('splits each card into its top part, then its rows under a rule, and puts nothing under the cards', async () => {
-        answer();
+        answer({ listing: listingOf([modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: TRAINED } })], 4) });
         await open();
 
         const cards = [...document.querySelectorAll('.model-summary-cards > *')];
@@ -1258,72 +1288,59 @@ describe('each card\'s rows on a wide screen (#267)', () => {
         });
     });
 
+    it('draws the Live version card\'s top part alone where it has no rows and no checks (#315)', async () => {
+        answer();
+        await open();
+
+        expect([...cardOf('Live version').children].map((part) => part.className)).toEqual(['model-stat-head']);
+    });
+
     describe('Live version', () => {
-        it('says by how much the live version beat the one it replaced, in loss, whatever score is picked', async () => {
+        it('has no row of what it beat the version it replaced by, nor of when the model first predicted (#315)', async () => {
             answer({ history: wentOn() });
             await open('pt-gnn', { scores: { direction: 'auc_up' } });
 
-            expect(rowsOf(cardOf('Live version'))).toEqual([
-                ['Beat the version it replaced by', '0.010'],
-                ['First predicted', 'Sep 1'],
-            ]);
+            expect(rowsOf(cardOf('Live version'))).toEqual([]);
+            expect(cardOf('Live version')).not.toHaveTextContent(/Beat the version|First predicted/);
         });
 
-        it.each([
-            ['a first version', { live: { since: '2026-10-09', kind: 'first' } }],
-            ['one taken down', { down: { since: '2026-10-19', days: 1, in_a_row: 5 } }],
-            ['a retired model', { retired: '2026-10-20' }],
-            ['a night the history does not hold', { live: { since: '2026-10-12', kind: 'nightly' } }],
-        ])('says nothing of beating the version before for %s', (name, overrides) => {
-            expect(keys(liveRows(modelOf(overrides), wentOn()))).not.toContain('beat');
-        });
-
-        it('says nothing of it for a version that only matched the one before it, or while the history is on its way', () => {
-            const matched = historyOf(7, { 6: { went_live: true, attempt: { loss: 1.6 }, live: { loss: 1.6 } } });
-
-            expect(keys(liveRows(modelOf(), matched))).toEqual(['started']);
-            expect(keys(liveRows(modelOf(), undefined))).toEqual(['started']);
-        });
-
-        it('says when the model first predicted, and nothing where the listing gives no day', () => {
-            expect(liveRows(modelOf(), null)).toEqual([{ key: 'started', name: 'First predicted', value: 'Sep 1' }]);
-            expect(liveRows(modelOf({ started: null }), null)).toEqual([]);
+        it('has no rows where the listing says nothing of what it trained on and it is handed no holds', () => {
+            expect(liveRows(modelOf())).toEqual([]);
+            expect(liveRows(modelOf(), '')).toEqual([]);
         });
 
         it('gives a retired model no checks, though the listing has them', () => {
-            expect(keys(liveRows(modelOf({ retired: '2026-10-02', behind: behindOf() }), null))).toEqual(['started']);
+            expect(liveRows(modelOf({ retired: '2026-10-02', behind: behindOf() }))).toEqual([]);
         });
 
-        it('says what the live version trained on, from format 4, before what it beat the one before by (#295, #300)', () => {
-            const rows = liveRows(modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: TRAINED } }), wentOn());
+        it('says what the live version trained on, from format 4, as its first and last days (#295, #315)', () => {
+            const rows = liveRows(modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: TRAINED } }));
 
-            expect(keys(rows)).toEqual(['trained', 'beat', 'started']);
-            expect(rows[0]).toEqual({ key: 'trained', name: 'Trained on', value: '7 days, Oct 5 to Oct 19' });
+            expect(rows).toEqual([{ key: 'trained', name: 'Trained on', value: 'Oct 5 – Oct 19' }]);
         });
 
         it('says first which holds a stock model predicts, where it is handed them (#300)', () => {
-            const rows = liveRows(modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: TRAINED } }), wentOn(), '1, 5 and 20 days');
+            const rows = liveRows(modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: TRAINED } }), '1, 5 and 20 days');
 
-            expect(keys(rows)).toEqual(['predicts', 'trained', 'beat', 'started']);
+            expect(keys(rows)).toEqual(['predicts', 'trained']);
             expect(rows[0]).toEqual({ key: 'predicts', name: 'Predicts', value: '1, 5 and 20 days' });
-            expect(keys(liveRows(modelOf(), null, ''))).toEqual(['started']);
         });
 
         it('says so of one taken down or retired too, as it says what the version that predicted learned from (#295)', () => {
             const live = { since: '2026-10-09', kind: 'nightly', days: TRAINED };
 
-            expect(keys(liveRows(downModelOf({ live: live, behind: [] }), null))).toEqual(['trained', 'started']);
-            expect(keys(liveRows(modelOf({ live: live, retired: '2026-10-20' }), null))).toEqual(['trained', 'started']);
+            expect(keys(liveRows(downModelOf({ live: live, behind: [] })))).toEqual(['trained']);
+            expect(keys(liveRows(modelOf({ live: live, retired: '2026-10-20' })))).toEqual(['trained']);
         });
 
         it('says nothing of it where the listing gives none, as before format 4 (#295)', () => {
-            expect(keys(liveRows(modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: null } }), null))).toEqual(['started']);
+            expect(liveRows(modelOf({ live: { since: '2026-10-09', kind: 'nightly', days: null } }))).toEqual([]);
         });
 
-        it('says what made the live version, or how a first version or a retired model\'s came to be, or for one taken down, why (#300)', () => {
-            expect(liveLine(modelOf())).toBe('nightly update');
-            expect(liveLine(modelOf({ live: { since: '2026-10-12', kind: 'weekly' } }))).toBe('weekly retrain');
-            expect(liveLine(modelOf({ scored_days: 6, live: { since: '2026-10-09', kind: 'nightly' } }))).toBe('nightly update');
+        it('says nothing of what made the live version, the trainer\'s words (#315), but how a first version or a retired model\'s came to be, or for one taken down, why (#300)', () => {
+            expect(liveLine(modelOf())).toBe('');
+            expect(liveLine(modelOf({ live: { since: '2026-10-12', kind: 'weekly' } }))).toBe('');
+            expect(liveLine(modelOf({ scored_days: 6, live: { since: '2026-10-09', kind: 'nightly' } }))).toBe('');
             expect(liveLine(modelOf({ live: { since: '2026-10-05', kind: 'first' } }))).toBe('its first version, not yet beaten');
             expect(liveLine(modelOf({ live: { since: null, kind: null } }))).toBe('its first version, not yet beaten');
             expect(liveLine(modelOf({ retired: '2026-10-02' }))).toBe('its last version went live Oct 9');
@@ -1834,7 +1851,7 @@ describe('an options model (#279)', () => {
             options();
             await open('pt-options');
 
-            expect(rowsOf(stat('Live version'))).toEqual([['First predicted', 'Sep 1']]);
+            expect(rowsOf(stat('Live version'))).toEqual([]);
             expect(checksIn('cards')).toEqual([
                 ['Hold', 'Each day', '5-day average', '20-day average'],
                 ['1 day', '2 of 5', '0 of 10', '0 of 5'],
@@ -2300,7 +2317,7 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
             held();
             await open('tables-gnn');
 
-            expect(rowsOf(stat('Live version'))).toEqual([['Predicts', '1, 5 and 20 days'], ['First predicted', 'Sep 1']]);
+            expect(rowsOf(stat('Live version'))).toEqual([['Predicts', '1, 5 and 20 days']]);
         });
 
         it('says when a hold yet to switch on does', async () => {
@@ -2407,12 +2424,17 @@ describe('a stock model\'s holds, from format 5 on (#300)', () => {
             expect(tableRows().map((row) => row.className)).toEqual(['', 'model-holds-picked', '', '']);
         });
 
-        it('is drawn for no options model', async () => {
+        it('is drawn for an options model too: its task\'s scores on its three holds, with no Combined (#315)', async () => {
             loadListing.mockResolvedValue(heldListingOf());
             loadReport.mockImplementation((name, kind) => Promise.resolve(kind === 'history' ? optionsHistoryOf() : optionsTrackOf(30)));
             await open('pt-options');
 
-            expect(document.querySelector('.model-by-hold')).toBeNull();
+            const columns = [...holdsTable().querySelectorAll('thead th')].map((cell) => cell.textContent);
+
+            expect(columns).toEqual(['Hold', ...OPTIONS_TASK.scores.map((key) => scoreOf(key).label)]);
+            expect(tableRows().map((row) => row.querySelector('.model-holds-name').textContent)).toEqual(['1 day', '5 days', '20 days']);
+            expect(document.querySelector('.model-by-hold')).not.toHaveTextContent('Combined');
+            expect(screen.queryByRole('region', { name: 'When results come in' })).toBeNull();
         });
 
         it('becomes \'<score> by hold\' on a phone: the score picked on every hold, a line each, with its days', async () => {
