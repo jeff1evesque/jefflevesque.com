@@ -14,14 +14,17 @@
  */
 
 import {
+    FIRST_RUN,
     INGEST_SCHEDULE,
     coverageBucket,
     coverageSupported,
     expectedIntervals,
+    firstRun,
     intervalExpected,
     intervalHoliday,
     runsContinuously
 } from '../../import/general/ingest-schedule.js';
+import THROUGHPUT_KEY from '../../import/general/throughput-key.js';
 import { STREAMS } from '../../import/general/stream-id.js';
 
 //
@@ -60,14 +63,15 @@ describe('INGEST_SCHEDULE', () => {
     it('names its minutes only where a cron states them', () => {
         //
         // the distinction 'coverageBucket' turns on. 'stock-market' is a cron listing
-        // '0,20,40', so the instant is promised; the rest are 'rate(N)' or
-        // have no spacing at all, and promise at most how often.
+        // '0,20,40', and 'stock-tickers' one naming every minute (#314), so the
+        // instant is promised; the rest are 'rate(N)' or have no spacing at all,
+        // and promise at most how often.
         //
         const named = Object.entries(INGEST_SCHEDULE)
             .filter(([, s]) => s.minutes_named)
             .map(([name]) => name);
 
-        expect(named).toEqual(['stock-market']);
+        expect(named).toEqual(['stock-market', 'stock-tickers']);
     });
 
     it('partitions by day or year and nothing else', () => {
@@ -76,7 +80,7 @@ describe('INGEST_SCHEDULE', () => {
         });
     });
 
-    it('names a minute spacing for the three streams that have one', () => {
+    it('names a minute spacing for the four streams that have one', () => {
         //
         // stock-market schedules its minutes outright ('0,20,40'), so its
         // spacing comes off the cron. weather and sec are both 'rate(5 minutes)',
@@ -90,8 +94,9 @@ describe('INGEST_SCHEDULE', () => {
             .map(([name]) => name)
             .sort();
 
-        expect(withSpacing).toEqual(['sec', 'stock-market', 'us-national-weather']);
+        expect(withSpacing).toEqual(['sec', 'stock-market', 'stock-tickers', 'us-national-weather']);
         expect(INGEST_SCHEDULE['stock-market'].every).toBe(20);
+        expect(INGEST_SCHEDULE['stock-tickers'].every).toBe(1);
         expect(INGEST_SCHEDULE['us-national-weather'].every).toBe(5);
         expect(INGEST_SCHEDULE.sec.every).toBe(5);
     });
@@ -687,5 +692,137 @@ describe('expectedIntervals', () => {
         expectedIntervals('us-national-weather', 'day', now);
 
         expect(now.getTime()).toBe(before);
+    });
+});
+
+describe('the stock tickers (#314)', () => {
+    //
+    // the S&P 500's stocks quoted every minute from 09:30 to 16:00 eastern on
+    // weekdays, but not on a market holiday, nor from 13:00 on an early close.
+    // Due from their first run, here the 09:30 poll on Monday 2026-11-02, which
+    // the chart dates to the start of its interval at each rate. The fixtures
+    // are local times, which jest.config.js pins to New York
+    //
+    const at = (month, d, h = 0, m = 0) => new Date(2026, month - 1, d, h, m);
+    const FIRST = { minute: at(11, 2, 9, 30), hour: at(11, 2, 9), day: at(11, 2), month: at(11, 1) };
+    const due = (rate, date) => intervalExpected('stock-tickers', rate, date, FIRST[rate]);
+
+    it('runs on a cron naming every minute, never filled', () => {
+        expect(INGEST_SCHEDULE['stock-tickers']).toMatchObject({
+            hours: [9, 16],
+            opens: [9, 30],
+            closes: [16, 0],
+            weekdays: true,
+            holidays: 'market',
+            since: FIRST_RUN,
+            every: 1,
+            minutes_named: true,
+            partition: 'day',
+        });
+        expect(coverageSupported('stock-tickers', 'minute')).toBe(true);
+        expect(runsContinuously('stock-tickers')).toBe(false);
+    });
+
+    it('is due from the 09:30 open through the 16:00 close, both included', () => {
+        expect(due('minute', at(11, 3, 9, 29))).toBe(false);
+        expect(due('minute', at(11, 3, 9, 30))).toBe(true);
+        expect(due('minute', at(11, 3, 12, 47))).toBe(true);
+        expect(due('minute', at(11, 3, 15, 59))).toBe(true);
+        expect(due('minute', at(11, 3, 16, 0))).toBe(true);
+        expect(due('minute', at(11, 3, 16, 1))).toBe(false);
+    });
+
+    it('owes 391 polls a full day, and 210 on an early close', () => {
+        const polls = (d) => Array.from({ length: 24 * 60 }, (unused, m) => at(11, d, 0, m))
+            .filter((minute) => due('minute', minute)).length;
+
+        expect(polls(3)).toBe(391);
+        expect(polls(27)).toBe(210);
+    });
+
+    it('is due in the hours from 9 to 16, for the 16:00 poll', () => {
+        expect(due('hour', at(11, 3, 8))).toBe(false);
+        expect(due('hour', at(11, 3, 9))).toBe(true);
+        expect(due('hour', at(11, 3, 16))).toBe(true);
+        expect(due('hour', at(11, 3, 17))).toBe(false);
+    });
+
+    it('owes nothing on a weekend or a market holiday, and names the holiday', () => {
+        expect(due('day', at(11, 7))).toBe(false);
+        expect(due('day', at(11, 26))).toBe(false);
+        expect(due('minute', at(11, 26, 10))).toBe(false);
+        expect(intervalHoliday('stock-tickers', 'day', at(11, 26))).toBe('Thanksgiving Day');
+        expect(intervalHoliday('stock-tickers', 'hour', at(11, 26, 10))).toBe('Thanksgiving Day');
+        expect(intervalHoliday('stock-tickers', 'hour', at(11, 26, 20))).toBeNull();
+        expect(intervalHoliday('stock-tickers', 'month', at(11, 1))).toBeNull();
+    });
+
+    it('stays due on a federal holiday the market trades through', () => {
+        //
+        // Veterans Day, Wednesday 2026-11-11: the filings' holiday, not the market's
+        //
+        expect(due('day', at(11, 11))).toBe(true);
+        expect(due('minute', at(11, 11, 10))).toBe(true);
+        expect(intervalHoliday('stock-tickers', 'day', at(11, 11))).toBeNull();
+    });
+
+    it('owes nothing from 13:00 on an early close, the 16:00 poll included', () => {
+        //
+        // the day after Thanksgiving, Friday 2026-11-27
+        //
+        expect(due('day', at(11, 27))).toBe(true);
+        expect(due('minute', at(11, 27, 12, 59))).toBe(true);
+        expect(due('minute', at(11, 27, 13, 0))).toBe(false);
+        expect(due('minute', at(11, 27, 16, 0))).toBe(false);
+        expect(due('hour', at(11, 27, 12))).toBe(true);
+        expect(due('hour', at(11, 27, 13))).toBe(false);
+        expect(due('hour', at(11, 27, 16))).toBe(false);
+        expect(intervalHoliday('stock-tickers', 'day', at(11, 27))).toBeNull();
+    });
+
+    it('owes nothing before its first run', () => {
+        expect(due('minute', at(11, 2, 9, 29))).toBe(false);
+        expect(due('minute', at(11, 2, 9, 30))).toBe(true);
+        expect(due('day', at(10, 30))).toBe(false);
+        expect(due('day', at(11, 2))).toBe(true);
+        expect(due('month', at(10, 1))).toBe(false);
+        expect(due('month', at(11, 1))).toBe(true);
+    });
+
+    it('owes nothing at all until it has run, so its coverage reads n/a', () => {
+        expect(intervalExpected('stock-tickers', 'day', at(11, 3))).toBe(false);
+        expect(intervalExpected('stock-tickers', 'month', at(11, 1))).toBe(false);
+        expect(expectedIntervals('stock-tickers', 'day', at(11, 4, 12))).toEqual([]);
+        expect(expectedIntervals('stock-tickers', 'day', at(11, 4, 12), FIRST.day).length).toBeGreaterThan(0);
+    });
+
+    it('leaves every other stream as it was, whatever first run it is handed', () => {
+        expect(intervalExpected('stock-market', 'day', at(11, 3), at(11, 4))).toBe(true);
+        expect(intervalExpected('sec-companyfacts', 'day', at(10, 3), at(10, 1))).toBe(false);
+    });
+});
+
+describe('firstRun', () => {
+    const at = (m) => new Date(2026, 10, 2, 10, m);
+    const row = (m, priced, ran) => ({ window_start: at(m), price: priced, [`price${THROUGHPUT_KEY}`]: ran });
+
+    it('is the earliest row that carries a record', () => {
+        expect(firstRun([row(34, 503, 503), row(32, 503, 503)], 'window_start', ['price'])).toEqual(at(32));
+    });
+
+    it('takes a run that priced nothing, since it ran', () => {
+        expect(firstRun([row(34, 503, 503), row(32, 0, 503)], 'window_start', ['price'])).toEqual(at(32));
+    });
+
+    it('passes over a zero drawn in for a gap, and a row with no date', () => {
+        const rows = [row(30, 0, 0), { window_start: null, price: 503 }, { price: 503 }, null, row(33, 503, 503)];
+
+        expect(firstRun(rows, 'window_start', ['price'])).toEqual(at(33));
+    });
+
+    it('is null before any run', () => {
+        expect(firstRun([], 'window_start', ['price'])).toBeNull();
+        expect(firstRun(undefined, 'window_start', ['price'])).toBeNull();
+        expect(firstRun([row(30, 503, 503)], 'window_start', undefined)).toBeNull();
     });
 });
