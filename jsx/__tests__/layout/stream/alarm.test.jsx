@@ -199,8 +199,8 @@ describe('a url naming its stream by a name it used to go by', () => {
     }
 
     it.each([
-        ['StockMarket', 'stock-market', 'S&P 500'],
-        ['stockmarket', 'stock-market', 'S&P 500'],
+        ['StockMarket', 'stock-market', 'S&P 500 Options'],
+        ['stockmarket', 'stock-market', 'S&P 500 Options'],
         ['StockMarketStockSplit', 'stock-split', 'Stock Splits'],
         ['USNationalWeather', 'us-national-weather', 'US Weather Alerts'],
         ['BLS', 'bls', 'Bureau of Labor Statistics'],
@@ -245,6 +245,7 @@ describe('the page body', () => {
 
     it.each([
         ['stock-market', /between 9:30am through 4:30pm EDT/],
+        ['stock-tickers', /every minute from 9:30am through 4pm ET \(M-F\)/],
         ['stock-split', /daily at 12am EDT/],
         ['us-national-weather', /every 5 minutes \(everyday\)/],
         ['bls', /every 1 hour \(everyday\)/],
@@ -254,6 +255,14 @@ describe('the page body', () => {
         renderAlarm(stream);
 
         expect(screen.getByText(interval)).toBeInTheDocument();
+    });
+
+    it('says what the stock tickers are, and when they are not polled (#314)', () => {
+        renderAlarm('stock-tickers');
+
+        expect(screen.getByText(/the 503 stocks of the S&P 500/)).toBeInTheDocument();
+        expect(screen.getByText(/none from 1pm on a day the market closes early/)).toBeInTheDocument();
+        expect(screen.getByText(/one record, counting the stocks it got a price for/)).toBeInTheDocument();
     });
 
     it('says what the company facts are, and that a day without a run is the alarm (#214)', () => {
@@ -322,7 +331,7 @@ describe('naming the stream', () => {
     // page said 'us-national-weather' where it meant 'US Weather Alerts'.
     //
     const LABELS = [
-        ['stock-market', 'S&P 500'],
+        ['stock-market', 'S&P 500 Options'],
         ['stock-split', 'Stock Splits'],
         ['bls', 'Bureau of Labor Statistics'],
         ['sec', 'SEC Filings'],
@@ -394,6 +403,29 @@ describe('the alarm count', () => {
         renderAlarm(stream);
 
         await waitFor(() => expect(count()).toHaveTextContent(String(many)));
+    });
+
+    it('says a stream has no alarms yet when its list is empty (#314)', async () => {
+        //
+        // the stock tickers', until their alarm is added: account-api.js takes
+        // the api's 404 'no such stream' for an empty list, and the page lists the
+        // alarm once there is one
+        //
+        streamAlarms.mockResolvedValue([]);
+
+        renderAlarm('stock-tickers');
+
+        expect(await screen.findByText('This stream has no alarms yet.')).toBeInTheDocument();
+        expect(count()).toHaveTextContent('0');
+    });
+
+    it('says nothing of the kind for a stream with an alarm', async () => {
+        streamAlarms.mockResolvedValue([{ id: 'ingest', name: 'Bureau of Labor Statistics ingest' }]);
+
+        renderAlarm('bls');
+
+        await waitFor(() => expect(count()).toHaveTextContent('1'));
+        expect(screen.queryByText('This stream has no alarms yet.')).toBeNull();
     });
 
     it('is left off when the list could not be had, rather than guessed', async () => {
@@ -998,7 +1030,7 @@ describe('the archive list', () => {
     it.each([
         ['bls', 'Bureau of Labor Statistics'],
         ['sec', 'SEC Filings'],
-        ['stock-market', 'S&P 500'],
+        ['stock-market', 'S&P 500 Options'],
         ['stock-split', 'Stock Splits'],
         ['us-national-weather', 'US Weather Alerts'],
     ])('labels the %s row with its name, not its id', (stream, label) => {
