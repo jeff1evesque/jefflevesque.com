@@ -360,10 +360,12 @@ Legend.propTypes = {
 
 /**
  * which way a chart's axis runs, as its legend's note says it (#300): flipped for
- * a score where lower is better, so better is up on every chart.
+ * a score where lower is better, so better is up on every chart. Said as where
+ * the numbers sit (#318): 'the axis is flipped: better is up' read as if worse
+ * were good.
  */
 export function axisNote(score) {
-    return scoreOf(score).lower ? 'Lower is better, so the axis is flipped: better is up.' : 'Higher is better.';
+    return scoreOf(score).lower ? 'Lower is better, so the smallest numbers are at the top.' : 'Higher is better.';
 }
 
 //

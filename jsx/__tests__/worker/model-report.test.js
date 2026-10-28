@@ -507,18 +507,142 @@ describe('the history', () => {
         expect(answer.rows).toEqual([
             {
                 day: '2026-10-12',
+                tested: '2026-10-13',
+                from: null,
                 kind: 'weekly',
                 went_live: true,
                 trained_again: null,
+                held_out_days: [],
+                training_days: null,
+                studied_days: [],
+                stopping_days: [],
+                skipped_days: [],
+                pending_days: [],
+                unpicked_days: [],
                 started: null,
                 training_seconds: null,
                 total_seconds: null,
+                trained_again_seconds: null,
                 attempt: { loss: 1.6, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53, ...NO_PARTS },
                 live: { loss: 1.62, auc_up: 0.54, auc_beats: 0.51, acc_up: 0.52, ...NO_PARTS },
                 baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.51, ...NO_PARTS },
             },
-            expect.objectContaining({ day: '2026-10-13', kind: 'nightly', went_live: false }),
+            expect.objectContaining({ day: '2026-10-13', tested: '2026-10-14', from: '2026-10-13', kind: 'nightly', went_live: false }),
         ]);
+    });
+
+    describe('each night\'s test (#318)', () => {
+        const tests = ['day', 'kind', 'went_live', 'held_out_days', 'training_days', 'started', 'trained_again', 'trained_again_seconds', 'attempt_loss'];
+
+        //
+        // a night of a format 6 history, its cells as the trainer writes them,
+        // each but its day overridden by name
+        //
+        function tested(day, cells = {}) {
+            const row = {
+                kind: 'nightly',
+                went_live: 'false',
+                held_out_days: '2026-10-20 2026-10-21 2026-10-22',
+                training_days: '10',
+                started: '',
+                trained_again: '',
+                trained_again_seconds: '',
+                attempt_loss: '0.576',
+                ...cells,
+            };
+
+            return [day, ...tests.slice(1).map((name) => row[name])];
+        }
+
+        const read = (...nights) => run({ kind: 'history', report: csv(tests, nights) }).rows;
+
+        it.each([
+            ['the morning after', '2026-10-27T09:32:33+00:00', '2026-10-27'],
+            ['the evening before, in New York', '2026-10-28T02:30:00+00:00', '2026-10-27'],
+            ['a weekend afternoon', '2026-10-17T17:46:21+00:00', '2026-10-17'],
+            ['its own offset', '2026-10-27T05:32:33-04:00', '2026-10-27'],
+        ])('names a night for the morning its test ran, in Eastern time: %s', (when, started, morning) => {
+            const [row] = read(tested('2026-10-26', { started: started }));
+
+            expect(row.tested).toBe(morning);
+        });
+
+        it.each([
+            ['no start', ''],
+            ['text that is not an instant', 'soon'],
+            ['an instant with no offset', '2026-10-27T09:32:33'],
+        ])('names a night with %s for the day after its own', (what, started) => {
+            const [friday, monday] = read(tested('2026-10-23', { started: started }), tested('2026-10-26', { started: started }));
+
+            expect([friday.tested, monday.tested]).toEqual(['2026-10-24', '2026-10-27']);
+        });
+
+        it('says for a nightly update the morning the version it started from took over: the newest night before it that went live', () => {
+            const rows = read(
+                tested('2026-10-21', { kind: 'weekly', went_live: 'true', started: '2026-10-22T09:50:05+00:00' }),
+                tested('2026-10-22', { went_live: 'true', started: '2026-10-23T10:22:26+00:00' }),
+                tested('2026-10-23', { kind: 'weekly', went_live: 'true', started: '2026-10-24T10:23:41+00:00' }),
+                tested('2026-10-26', { went_live: 'true', started: '2026-10-27T09:32:33+00:00' }),
+                tested('2026-10-27', { started: '2026-10-28T09:39:38+00:00' }),
+                tested('2026-10-28', { started: '2026-10-29T09:40:00+00:00' }),
+            );
+
+            expect(rows.map((row) => row.from)).toEqual([null, '2026-10-22', null, '2026-10-24', '2026-10-27', '2026-10-27']);
+        });
+
+        it('says none for a nightly update with no night before it that went live, nor for a weekly retrain, which starts from scratch', () => {
+            const rows = read(tested('2026-10-21'), tested('2026-10-22'), tested('2026-10-23', { kind: 'weekly' }));
+
+            expect(rows.map((row) => row.from)).toEqual([null, null, null]);
+        });
+
+        it('lists its test days, oldest first, each a day, and passes over anything that is not one', () => {
+            const [listed, sorted, spaced, bad, none] = read(
+                tested('2026-10-26'),
+                tested('2026-10-27', { held_out_days: '2026-10-23 2026-10-21 2026-10-22' }),
+                tested('2026-10-28', { held_out_days: '  2026-10-22   2026-10-23 2026-10-26 ' }),
+                tested('2026-10-29', { held_out_days: '2026-10-23 Oct-26 2026-10-27x 2026-10-26' }),
+                tested('2026-10-30', { held_out_days: '' }),
+            );
+
+            expect(listed.held_out_days).toEqual(['2026-10-20', '2026-10-21', '2026-10-22']);
+            expect(sorted.held_out_days).toEqual(['2026-10-21', '2026-10-22', '2026-10-23']);
+            expect(spaced.held_out_days).toEqual(['2026-10-22', '2026-10-23', '2026-10-26']);
+            expect(bad.held_out_days).toEqual(['2026-10-23', '2026-10-26']);
+            expect(none.held_out_days).toEqual([]);
+        });
+
+        it('lists the days it studied, used to stop, skipped, had no results for yet and left unpicked, once the trainer writes them, and none until then', () => {
+            const lists = ['studied_days', 'stopping_days', 'skipped_days', 'pending_days', 'unpicked_days'];
+            const cells = ['2026-10-12 2026-10-06 2026-10-08', '2026-10-05 2026-10-07', '2026-10-16', '2026-10-23 2026-10-26', '2026-10-09 not-a-day'];
+            const [written] = run({ kind: 'history', report: csv(tests.concat(lists), [tested('2026-10-26').concat(cells)]) }).rows;
+            const [older] = read(tested('2026-10-26'));
+
+            expect(lists.map((name) => written[name])).toEqual([
+                ['2026-10-06', '2026-10-08', '2026-10-12'],
+                ['2026-10-05', '2026-10-07'],
+                ['2026-10-16'],
+                ['2026-10-23', '2026-10-26'],
+                ['2026-10-09'],
+            ]);
+            lists.forEach((name) => expect(older[name]).toEqual([]));
+        });
+
+        it.each([
+            ['10', 10], ['1', 1], ['0', null], ['2.5', null], ['-3', null], ['', null], ['ten', null],
+        ])('reads training_days %p as %p: a whole count of at least one day', (cell, days) => {
+            const [row] = read(tested('2026-10-26', { training_days: cell }));
+
+            expect(row.training_days).toBe(days);
+        });
+
+        it.each([
+            ['657.7', 657.7], ['0', 0], ['4.1', 4.1], ['', null], ['-3', null], ['abc', null],
+        ])('reads trained_again_seconds %p as %p: seconds, none where there was no second pass', (cell, seconds) => {
+            const [row] = read(tested('2026-10-27', { trained_again: 'true', trained_again_seconds: cell }));
+
+            expect(row.trained_again_seconds).toBe(seconds);
+        });
     });
 
     describe('trained_again, from the trainer\'s format 6 (#315)', () => {
@@ -641,12 +765,22 @@ describe('the history', () => {
 
             expect(row).toEqual({
                 day: '2026-10-13',
+                tested: '2026-10-14',
+                from: null,
                 kind: 'weekly',
                 went_live: true,
                 trained_again: null,
+                held_out_days: [],
+                training_days: 250,
+                studied_days: [],
+                stopping_days: [],
+                skipped_days: [],
+                pending_days: [],
+                unpicked_days: [],
                 started: null,
                 training_seconds: null,
                 total_seconds: null,
+                trained_again_seconds: null,
                 attempt: { loss: 1.6, auc_up: 0.55, auc_beats: 0.52, acc_up: 0.53, ...NO_PARTS },
                 live: { loss: 1.62, auc_up: 0.54, auc_beats: 0.51, acc_up: 0.52, ...NO_PARTS },
                 baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.51, ...NO_PARTS },
@@ -1527,6 +1661,15 @@ describe('the worker as the bundle builds it', () => {
                 report: csv([...TRACK_HEADER, ...PARTS], [[...trackRow('2026-10-15', 1.71), 0.72, 0.7, 0.29], [...trackRow('2026-10-16', 1.7), 0.71, '', 0.29]]),
             },
             { kind: 'history', report: 'day,kind,went_live,attempt_loss,attempt_up_log_loss,live_move_pinball\n2026-10-15,nightly,false,1.6,0.72,0.27' },
+            {
+                kind: 'history',
+                report: [
+                    'day,kind,went_live,held_out_days,training_days,started,trained_again,trained_again_seconds,attempt_loss',
+                    '2026-10-23,weekly,true,2026-10-20 2026-10-21 2026-10-22,10,2026-10-24T09:49:35+00:00,,,1.67',
+                    '2026-10-26,nightly,false,2026-10-21 2026-10-22 2026-10-23,11,,,,1.68',
+                    '2026-10-27,nightly,true,2026-10-26 2026-10-22 x 2026-10-23,12,2026-10-28T02:30:00+00:00,true,657.7,1.677',
+                ].join('\n'),
+            },
             { kind: 'track-record', report: 4 },
             {
                 kind: 'list',

@@ -44,7 +44,7 @@ import {
     YAxis,
 } from 'recharts';
 import { ThemeModeContext } from '../../general/theme-mode.jsx';
-import { Legend, Mark, NoBox, Numbers, Readout, ScorePicker, axisStyle, tickGap, usePanelDay } from './parts.jsx';
+import { Legend, Mark, NoBox, Numbers, Readout, ScorePicker, axisNote, axisStyle, tickGap, usePanelDay } from './parts.jsx';
 import {
     BASELINE_DASH,
     COMBINED,
@@ -268,8 +268,7 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
                 <p className='model-card-sub'>
                     {`${together(tasks.map((each) => each.name))}, scored on the same days. `}
                     {lengths ? `${LENGTHS} ` : ''}
-                    {`Lines are averages of the last ${days} days, and each model’s own know-nothing baseline is dashed in its color. Up is better`}
-                    {lower ? ', so the loss axis is flipped: lower is better.' : '.'}
+                    {`Lines are averages of the last ${days} days, and each model’s own know-nothing baseline is dashed in its color. ${axisNote(score)}`}
                 </p>
                 <Legend
                     items={[

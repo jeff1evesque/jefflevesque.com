@@ -153,13 +153,14 @@ describe('the comparison', () => {
 
         expect(lossTicks.reduce((a, b) => (a.y < b.y ? a : b)).value)
             .toBeLessThan(lossTicks.reduce((a, b) => (a.y > b.y ? a : b)).value);
-        expect(screen.getByText(/the loss axis is flipped/)).toBeInTheDocument();
+        expect(screen.getByText(/Lower is better, so the smallest numbers are at the top\./)).toBeInTheDocument();
     });
 
-    it('says nothing of flipping on another score', () => {
+    it('says on another score that higher is better, and nothing of where the smallest numbers are (#318)', () => {
         draw({ score: 'auc_up' });
 
-        expect(screen.queryByText(/flipped/)).toBeNull();
+        expect(screen.getByText(/Higher is better\./)).toBeInTheDocument();
+        expect(screen.queryByText(/smallest numbers/)).toBeNull();
     });
 
     it('is cleared from its button', async () => {

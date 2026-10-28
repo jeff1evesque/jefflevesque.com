@@ -956,3 +956,54 @@ describe('PartCells on its own (#283, #300)', () => {
         expect(container.querySelector('.model-parts-note')).toHaveAccessibleDescription(noteOf('loss'));
     });
 });
+
+describe('the box over a trend line near its right end (#318)', () => {
+    const trend = () => render(
+        <ThemeModeContext.Provider value={{ theme: 'light' }}>
+            <TrendLine name='tables-gnn' score='loss' axis={recentDays({ a: trackOf(10) })} rows={trackOf(10)} />
+        </ThemeModeContext.Provider>
+    );
+
+    //
+    // the box's left edge, as recharts places it, from the line's left. jsdom
+    // measures every box as nothing, and recharts places a box only once it has
+    // a size: here the box is 150px wide, wider than the 132px line, as a real
+    // one is
+    //
+    const leftOf = (container) => Number(container.querySelector('.recharts-tooltip-wrapper').style.transform.match(/translate\((-?[\d.]+)px/)[1]);
+
+    beforeEach(() => {
+        const measured = Element.prototype.getBoundingClientRect;
+
+        jest.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function measure() {
+            return this.classList.contains('recharts-tooltip-wrapper')
+                ? { width: 150, height: 40, top: 0, left: 0, right: 150, bottom: 40, x: 0, y: 0 }
+                : measured.call(this);
+        });
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+        mockMobile = false;
+    });
+
+    it('stands beside the pointer on a computer, past the narrow line\'s right end', () => {
+        const { container } = trend();
+
+        pointAt(container.querySelector('.recharts-wrapper'), 128, 18);
+
+        expect(container.querySelector('.model-trend-tip')).not.toBeNull();
+        expect(leftOf(container)).toBeGreaterThan(128);
+    });
+
+    it('opens to the left of a tap near its right end on a phone, inside the line, where it had opened past the screen\'s edge', () => {
+        mockMobile = true;
+
+        const { container } = trend();
+
+        act(() => tapAt(container.querySelector('.recharts-wrapper'), 128, 18));
+
+        expect(container.querySelector('.model-trend-tip')).not.toBeNull();
+        expect(leftOf(container)).toBeLessThan(128);
+    });
+});

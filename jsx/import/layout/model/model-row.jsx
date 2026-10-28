@@ -150,6 +150,8 @@ export function trendSpan(axis, days = WINDOW) {
  * (#296), the score named with its hold (#300). A day the model has no score has
  * none. A phone has no pointer, so the box is for the day tapped (#300): a tap
  * on another day moves it, and one on the same day, or anywhere else, closes it.
+ * There the line runs the card's width, so the box keeps inside it, to the left
+ * of a tap near its right end, where it had opened past the screen's edge.
  *
  * `rows` is the model's track record: undefined while it is on its way, null
  * where it could not be had.
@@ -262,7 +264,7 @@ export function TrendLine({ name, rows, axis, score, days = WINDOW, hold = null 
                     content={tip}
                     cursor={false}
                     isAnimationActive={false}
-                    allowEscapeViewBox={{ x: true, y: true }}
+                    allowEscapeViewBox={{ x: !isMobile, y: true }}
                     position={{ y: TIP_ABOVE }}
                     wrapperStyle={{ zIndex: 10, pointerEvents: 'none' }}
                     {...(isMobile ? { trigger: 'click', active: showing } : {})}
