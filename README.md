@@ -16,9 +16,9 @@ much each stream ingested and how much of it succeeded, lets you set trigger con
 against a stream, surfaces alarms when one stops behaving, and draws the knowledge graph
 built from what was ingested. Sign-in is backed by Cognito.
 
-The six streams it reports on are all public feeds: the Bureau of Labor Statistics,
-the SEC's filings and its company facts, stock market pricing, stock splits, and US
-National Weather alerts.
+The seven streams it reports on are all public feeds: the Bureau of Labor Statistics,
+the SEC's filings and its company facts, the S&P 500's option chains every 20 minutes
+and its stocks every minute, stock splits, and US National Weather alerts.
 
 The application is a static bundle with no server of its own. Everything it displays
 comes from four public APIs, called from the browser at runtime, and a signed-in
