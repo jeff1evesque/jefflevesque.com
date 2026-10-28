@@ -209,7 +209,7 @@ describe('the model pages (#243)', () => {
         await openAt('/model/tables');
 
         expect(screen.getByRole('heading', { name: 'tables' })).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'Each attempt against the live version' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Did each night’s new version beat the one in charge?' })).toBeInTheDocument();
         expect(loadReport).toHaveBeenCalledWith('tables', 'history', 20);
     });
 
