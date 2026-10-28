@@ -39,6 +39,7 @@ import streamName from '../../general/stream-name.js';
 import { loadArchiveListing, archiveFiles, archives } from '../../general/archive-links.js';
 import {
     STOCK_MARKET,
+    STOCK_TICKERS,
     STOCK_SPLIT,
     BLS,
     SEC,
@@ -399,6 +400,32 @@ class StreamAlarm extends Component {
                 var late_arrival = true;
                 var x_unit = 'min';
                 var x_increment = 1;
+            } else if (stream === STOCK_TICKERS) {
+                {/*
+
+                    a window a minute, holding that minute's poll: one record,
+                    counting the stocks it got a price for (#314)
+
+                */}
+
+                var ingest_interval = 'every minute from 9:30am through 4pm ET (M-F)';
+                var ingest_content_1 = `
+                    Every minute of the trading day, the 503 stocks of the S&P 500
+                    are quoted, from the 9:30am open through the 4pm close. Each poll
+                    writes one record, which counts the stocks it got a price for as
+                    successes and the rest as failures. There is no poll on a market
+                    holiday, and none from 1pm on a day the market closes early`;
+                var ingest_content_2_mobile = `
+                    A window per minute, one record per poll`;
+                var ingest_content_2 = `
+                    The above figure shows a window per minute, each holding that
+                    minute's poll: one record, counting the stocks it got a price for`;
+                var late_arrival = false;
+                var x_unit = 'min';
+                var x_increment = 1;
+                var window_1_purple = false;
+                var window_1_green = false;
+                var window_2_blue = false;
             } else if (stream === US_NATIONAL_WEATHER) {
                 var ingest_interval = 'every 5 minutes (everyday)';
                 var ingest_content_1 = `
@@ -712,6 +739,16 @@ class StreamAlarm extends Component {
                                     : <span className='title-count'>{alarm_count}</span>}
                                 <BreadCrumbs />
                             </div>
+                            {/*
+
+                                a stream with no alarm yet says so, to every
+                                reader: the stock tickers' until theirs is added
+                                (#314) -- see streamAlarms
+
+                            */}
+                            {alarm_count === 0
+                                ? <p className='alarm-status'>This stream has no alarms yet.</p>
+                                : null}
                             {/*
 
                                 the terms a model's alarm page shows too, in place
