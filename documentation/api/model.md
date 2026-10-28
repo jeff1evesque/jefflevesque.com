@@ -187,6 +187,11 @@ A CSV string with a header row, oldest night first. Each row is one nightly atte
 - `day`, the night it was trained;
 - `kind`, `nightly` for a nightly update or `weekly` for a weekly retrain;
 - `went_live`, `true` when it replaced the live version;
+- `held_out_days`, the days it was tested on, the newest whose results were known,
+  which it never trained on: each `YYYY-MM-DD`, a space between them, e.g.
+  `2026-10-20 2026-10-21 2026-10-22`;
+- `training_days`, how many earlier days it trained on or used to decide when to stop,
+  as one count;
 - `started`, when the attempt began, in UTC with its offset, e.g.
   `2026-10-16T07:58:10+00:00`;
 - `training_seconds`, the time spent training, reading the days included, to one
@@ -210,8 +215,13 @@ kept back or went live as it was tested. It is empty for attempts made before fo
 of the version as it was tested, before it trained again, so none of the held-out days
 is one it learned. Three more columns, empty where there was no second run:
 
-- `trained_again_seconds`, how long the second run trained, to one decimal.
-  `training_seconds` and `total_seconds` stay the first run's;
+- `trained_again_seconds`, how long the second run trained, to one decimal. It is set
+  whenever a second run trained, even one that failed its check or was stopped by the
+  night's deadline: `trained_again` is `false` then, and the version as it was tested
+  went live. It is empty where no second run trained: an attempt kept back, a night
+  with no time left to start one, and every attempt before format 6. It is the
+  training alone: the check after it is in no column. `training_seconds` and
+  `total_seconds` stay the first run's;
 - `stopping_tested_loss` and `stopping_again_loss`, the first and the second run's
   loss on the days the first run stopped on, the check the listing's
   `live.fine_tune` reports.
