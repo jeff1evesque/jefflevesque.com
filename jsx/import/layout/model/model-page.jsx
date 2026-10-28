@@ -12,8 +12,10 @@
  * close it is to being taken down, how the attempts went, and where the score
  * stands (#267). Then its two charts, each with a table of its numbers:
  *
- *     attempts-chart.jsx   every nightly attempt against the live version, and
- *                          how far each beat or missed it
+ *     attempts-chart.jsx   each night's new version against the version in
+ *                          charge and the simple guess, how far it beat or
+ *                          missed the simple guess, how long it took, and a
+ *                          panel of the night picked (#318)
  *     track-chart.jsx      every day it predicted, with another model of its
  *                          task picked from a menu, a tick on each night a new
  *                          version went live, and one on each day whose score
@@ -72,7 +74,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import ErrorFallback from '../../formatter/boundary-error.jsx';
 import FigureBoxes from '../../general/figure-boxes.jsx';
 import InfoNote from '../../general/info-note.jsx';
-import AttemptsChart, { HEIGHT as ATTEMPTS_HEIGHT, TITLE as ATTEMPTS_TITLE } from './attempts-chart.jsx';
+import AttemptsChart, { HEIGHT as ATTEMPTS_HEIGHT, TITLE as ATTEMPTS_TITLE, TookValue } from './attempts-chart.jsx';
 import TrackChart, { HEIGHT as TRACK_HEIGHT, TITLE as TRACK_TITLE, TrackNone, trackTitle } from './track-chart.jsx';
 import { AlarmBell, FoldTitle, HoldPicker, ScorePicker, StatusPill, gapWords, modelsHeld, partGap, useFolds } from './parts.jsx';
 import { loadListing, loadReport } from './source.js';
@@ -84,6 +86,7 @@ import {
     DEFAULT_HOLD,
     DEFAULT_SCORE,
     HELD_OUT,
+    attemptSeconds,
     averageDays,
     betterBy,
     checkWords,
@@ -94,7 +97,6 @@ import {
     comesInLine,
     emptyHolds,
     fineTuneWords,
-    formatDuration,
     formatScore,
     formatStarted,
     heldOut,
@@ -107,6 +109,7 @@ import {
     lossParts,
     namedHold,
     newYorkToday,
+    nightName,
     noResultsYet,
     noteOf,
     predictsLine,
@@ -124,6 +127,7 @@ import {
     trackLine,
     tradesOptions,
     trainedOn,
+    twoPasses,
     whenRows,
 } from './scores.js';
 
@@ -311,6 +315,14 @@ export function checksOf(model) {
 export const ATTEMPTS_LINE = 'of every nightly update and weekly retrain';
 
 //
+// the line under the score card's figure, and under a phone's score line
+// (#318): its score is how the model's published predictions did, scored once
+// their results came in -- not a new version's test before it took over, which
+// the attempts' card shows, and whose loss read as the same thing
+//
+export const SCORED_LINE = 'How its published predictions did, scored after the fact.';
+
+//
 // the note at the Attempts card's foot for a stock model with holds (#300): why
 // its attempts are judged on the 1-day hold, and how its longer holds are judged
 //
@@ -319,11 +331,16 @@ export const ATTEMPTS_NOTE = `Each night’s attempt is tested on the newest ${H
 /**
  * the Attempts card's rows on a wide screen (#267), as liveRows gives them: how
  * many nightly updates and weekly retrains went live, of how many, '3 of 7 went
- * live' -- a kind with no attempts has no row -- then the newest night, 'Oct 19,
- * went live' (#300), when it started and how long it took, where the history has
- * its times, and its loss on the held-out days beside the live version's, which
- * is what decided it. Last, for a model with holds, `held`, that attempts are
- * judged on the 1-day hold. None where there is no history.
+ * live' -- a kind with no attempts has no row -- then the newest night, named for
+ * the morning its test ran (#318), 'Wed Oct 28, took over', when it started and
+ * how long it took, where the history has its times, and its loss on its test
+ * days beside the version in charge's. Last, for a model with holds, `held`,
+ * that attempts are judged on the 1-day hold. None where there is no history.
+ *
+ * Its time is the whole attempt (#318): from format 6 a second pass training
+ * the new version again counts too, and the info icon after it says it is two
+ * passes -- see scores.js's attemptSeconds and twoPasses. A night with one pass
+ * reads as it always did.
  */
 export function attemptRows(history, held = false) {
     if (!Array.isArray(history) || !history.length) {
@@ -343,18 +360,19 @@ export function attemptRows(history, held = false) {
     const last = history[history.length - 1];
     const attempt = scoreIn(last.attempt, 'loss');
     const live = scoreIn(last.live, 'loss');
+    const seconds = attemptSeconds(last);
     const more = [
         { key: 'started', name: 'Started', value: formatStarted(last.started) },
-        { key: 'took', name: 'Took', value: formatDuration(last.total_seconds) },
+        { key: 'took', name: 'Took', value: seconds === null ? '' : <TookValue seconds={seconds} note={twoPasses(last)} /> },
         {
             key: 'loss',
-            name: 'Its held-out loss',
-            value: attempt === null ? '' : `${formatScore(attempt, 'loss')}${live === null ? '' : `, live ${formatScore(live, 'loss')}`}`,
+            name: 'Its test loss',
+            value: attempt === null ? '' : `${formatScore(attempt, 'loss')}${live === null ? '' : `, version in charge ${formatScore(live, 'loss')}`}`,
         },
     ];
 
     return rows.concat(
-        [{ key: 'last', name: 'Last attempt', value: `${shortDay(last.day)}, ${last.went_live ? 'went live' : 'kept back'}` }],
+        [{ key: 'last', name: 'Last attempt', value: `${nightName(last.tested)}, ${last.went_live ? 'took over' : 'kept back'}` }],
         more.filter((row) => row.value),
         held ? [{ key: 'judged', name: 'Judged on', value: 'the 1-day hold' }] : [],
     );
@@ -362,10 +380,11 @@ export function attemptRows(history, held = false) {
 
 /**
  * a card's rows on a wide screen, under a thin rule (#267), drawn as loss's parts
- * are: a name at the left and its value at the right. `children` come after the
- * rows, at the card's foot (#300): the Live version card's checks, the score
- * card's parts, and the Attempts card's note. Nothing, not even the rule, where
- * there are neither.
+ * are: a name at the left and its value at the right -- words, or from #318 the
+ * Attempts card's time with its note. `children` come after the rows, at the
+ * card's foot (#300): the Live version card's checks, the score card's parts,
+ * and the Attempts card's note. Nothing, not even the rule, where there are
+ * neither.
  */
 export function CardRows({ rows, children = null }) {
     if (!rows.length && !children) {
@@ -394,7 +413,7 @@ CardRows.propTypes = {
     rows: PropTypes.arrayOf(PropTypes.shape({
         key: PropTypes.string.isRequired,
         name: PropTypes.string.isRequired,
-        value: PropTypes.string.isRequired,
+        value: PropTypes.node.isRequired,
     })).isRequired,
     children: PropTypes.node,
 };
@@ -1003,6 +1022,7 @@ class ModelPage extends Component {
                             <InfoNote note={noteOf(score, task, on.hold)} className='model-stat-label model-noted'>{scoreName}</InfoNote>
                             <span className='model-stat-value'>{formatScore(value, score)}</span>
                             <span className={`model-stat-detail model-gap-${stands}`}>{against}</span>
+                            <span className='model-stat-scored'>{SCORED_LINE}</span>
                         </div>
                         <CardRows rows={scoreRows}>
                             {lossBy
@@ -1030,7 +1050,7 @@ class ModelPage extends Component {
                                 label: 'Attempts that went live',
                                 short: 'Went live',
                                 note: [
-                                    'Of every nightly attempt, how many went live and replaced the live version.',
+                                    'Of every nightly attempt, how many went live and replaced the version in charge.',
                                     sentence(retrains),
                                 ].filter(Boolean).join(' '),
                                 value: went,
@@ -1050,6 +1070,7 @@ class ModelPage extends Component {
                         <p className={`model-score-line model-gap-${stands}`}>
                             {waiting ? against : <>{`${scoreName}: `}{against || formatScore(value, score)}</>}
                         </p>
+                        <p className='model-score-scored'>{SCORED_LINE}</p>
                         {lossBy}
                         {status === 'down' ? <p className='model-down-line'>{`${sentence(checkWords(model.down))} ${down}`}</p> : null}
                         {checks ? <Checks table={checks} note={note} /> : null}
