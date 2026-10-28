@@ -444,6 +444,7 @@ describe('what a bar says of itself', () => {
 describe('how often a stream runs', () => {
     it.each([
         ['stock-market', 'weekdays, every 20 min'],
+        ['stock-tickers', 'weekdays, every minute'],
         ['stock-split', 'weekdays, once a day'],
         ['bls', 'once a day'],
         ['sec', 'weekdays, every 5 min'],
@@ -452,5 +453,46 @@ describe('how often a stream runs', () => {
         ['no-such-stream', ''],
     ])('%s: %s', (stream, said) => {
         expect(scheduleLabel(stream)).toBe(said);
+    });
+});
+
+describe('a stream due from its first run (#314)', () => {
+    //
+    // the stock tickers, whose first run here is the 10:32 poll on Monday
+    // 2026-11-02, read at 10:40: the minute rate's hour reaches back to 09:41
+    //
+    const now = new Date(2026, 10, 2, 10, 40);
+    const poll = (minute, priced = 503) => ({
+        [FIELD]: new Date(2026, 10, 2, 10, minute),
+        price: priced,
+        [`price${THROUGHPUT_KEY}`]: 503,
+    });
+    const kindAt = (bars, hour, minute) => bars.find(
+        (bar) => bar.start.getHours() === hour && bar.start.getMinutes() === minute
+    ).kind;
+
+    it('draws nothing due before the first run, and a miss after it', () => {
+        const bars = streamBars([poll(32), poll(34)], 'stock-tickers', 'minute', FIELD, ['price'], now);
+
+        expect(kindAt(bars, 9, 41)).toBe('off');
+        expect(kindAt(bars, 10, 31)).toBe('off');
+        expect(kindAt(bars, 10, 32)).toBe('reported');
+        expect(kindAt(bars, 10, 33)).toBe('missed');
+        expect(kindAt(bars, 10, 34)).toBe('reported');
+    });
+
+    it('takes a run that priced nothing for its first, since it ran', () => {
+        const bars = streamBars([poll(32, 0), poll(34)], 'stock-tickers', 'minute', FIELD, ['price'], now);
+
+        expect(kindAt(bars, 10, 31)).toBe('off');
+        expect(kindAt(bars, 10, 32)).toBe('failed');
+        expect(kindAt(bars, 10, 33)).toBe('missed');
+    });
+
+    it('draws nothing due at all before any run', () => {
+        const bars = streamBars([], 'stock-tickers', 'minute', FIELD, ['price'], now);
+
+        expect(bars.length).toBeGreaterThan(0);
+        expect(bars.every((bar) => bar.kind === 'off')).toBe(true);
     });
 });
