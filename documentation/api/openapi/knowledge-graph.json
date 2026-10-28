@@ -2874,6 +2874,841 @@
           }
         }
       }
+    },
+    "/knowledge-graph/tables/minute-quotes": {
+      "get": {
+        "operationId": "listKnowledgeGraphMinuteQuotes",
+        "summary": "One stock's minutes through a day",
+        "description": "One stock's minutes on one day, oldest first -- 391 on a full day, one a minute from 9:30 AM to 4:00 PM Eastern, so a whole day wants a Limit past the 100 -- or only those from From to To. The columns are named as the table names them. Until the first day of minute quotes is published, every Day answers 404.",
+        "parameters": [
+          {
+            "name": "Symbol",
+            "in": "query",
+            "required": true,
+            "description": "The stock's ticker, in capitals: letters, digits and the . of a share class, such as BRK.B. Compared for equality, never matched.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9.]{0,15}$"
+            },
+            "example": "AAPL"
+          },
+          {
+            "name": "Day",
+            "in": "query",
+            "required": true,
+            "description": "The published day, as YYYY-MM-DD.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            "example": "2026-10-26"
+          },
+          {
+            "name": "From",
+            "in": "query",
+            "required": false,
+            "description": "The first minute, as HH:MM on a 24-hour clock, Eastern: 09:30, not 9:30. Included, and the whole of it. Left out, the stock's day from its first minute.",
+            "schema": {
+              "type": "string",
+              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+            },
+            "example": "10:00"
+          },
+          {
+            "name": "To",
+            "in": "query",
+            "required": false,
+            "description": "The last minute, as HH:MM on a 24-hour clock, Eastern. Included, and the whole of it: 10:30 holds a capture taken at 10:30:59. Left out, the stock's day to its last minute. A To earlier than From is a 400, rather than an empty answer.",
+            "schema": {
+              "type": "string",
+              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+            },
+            "example": "10:30"
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "required": false,
+            "description": "The most rows to answer with: 100 when it is left out, and 1000 at most. A larger value is refused with a 400 rather than cut to the ceiling. A whole day is 391 rows, past the 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            },
+            "example": 391
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stock's minutes that day, oldest first. The example is illustrative: no day of minute quotes had been published when it was written.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Kept a day, and usable stale for a week while a fresh copy is fetched: a published day is written whole and never rewritten, so an answer naming one cannot change.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "rows"
+                      ],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "ticker",
+                              "capture_time",
+                              "quote_time",
+                              "trade_time",
+                              "bid",
+                              "ask",
+                              "bid_size",
+                              "ask_size",
+                              "last",
+                              "mark",
+                              "open",
+                              "high",
+                              "low",
+                              "prev_close",
+                              "volume",
+                              "net_change",
+                              "net_percent_change"
+                            ],
+                            "properties": {
+                              "ticker": {
+                                "type": "string",
+                                "description": "The stock's ticker."
+                              },
+                              "capture_time": {
+                                "type": "string",
+                                "description": "When the minute's poll was taken, ISO-8601 in UTC: to the millisecond on some rows, and to the second on others."
+                              },
+                              "quote_time": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "The quote's time, passed through as the table holds it."
+                              },
+                              "trade_time": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "The last trade's time, passed through as the table holds it."
+                              },
+                              "bid": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The bid price."
+                              },
+                              "ask": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The ask price."
+                              },
+                              "bid_size": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "The size of the bid."
+                              },
+                              "ask_size": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "The size of the ask."
+                              },
+                              "last": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The last trade's price."
+                              },
+                              "mark": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The mark price."
+                              },
+                              "open": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The session's opening price."
+                              },
+                              "high": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The session's high."
+                              },
+                              "low": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The session's low."
+                              },
+                              "prev_close": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The PREVIOUS session's close, which the two changes are measured from."
+                              },
+                              "volume": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "Shares traded in the session: the day's running total as of the poll."
+                              },
+                              "net_change": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The change from the previous close."
+                              },
+                              "net_percent_change": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The same, as a percentage of the previous close."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "rows": [
+                      {
+                        "ticker": "AAPL",
+                        "capture_time": "2026-10-26T14:00:02.481Z",
+                        "quote_time": 1793023202476,
+                        "trade_time": 1793023202463,
+                        "bid": 343.3,
+                        "ask": 343.31,
+                        "bid_size": 100,
+                        "ask_size": 200,
+                        "last": 343.31,
+                        "mark": 343.31,
+                        "open": 343.92,
+                        "high": 344.21,
+                        "low": 341.86,
+                        "prev_close": 347.725,
+                        "volume": 5612907,
+                        "net_change": -4.415,
+                        "net_percent_change": -1.2696815
+                      },
+                      {
+                        "ticker": "AAPL",
+                        "capture_time": "2026-10-26T14:01:02.316Z",
+                        "quote_time": 1793023262309,
+                        "trade_time": 1793023262298,
+                        "bid": 343.44,
+                        "ask": 343.46,
+                        "bid_size": 300,
+                        "ask_size": 100,
+                        "last": 343.45,
+                        "mark": 343.45,
+                        "open": 343.92,
+                        "high": 344.21,
+                        "low": 341.86,
+                        "prev_close": 347.725,
+                        "volume": 5688532,
+                        "net_change": -4.275,
+                        "net_percent_change": -1.2294198
+                      },
+                      {
+                        "ticker": "AAPL",
+                        "capture_time": "2026-10-26T14:02:02.597Z",
+                        "quote_time": 1793023322590,
+                        "trade_time": 1793023322571,
+                        "bid": 343.52,
+                        "ask": 343.53,
+                        "bid_size": 200,
+                        "ask_size": 400,
+                        "last": 343.52,
+                        "mark": 343.52,
+                        "open": 343.92,
+                        "high": 344.21,
+                        "low": 341.86,
+                        "prev_close": 347.725,
+                        "volume": 5742016,
+                        "net_change": -4.205,
+                        "net_percent_change": -1.20928895
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Symbol or Day is missing, the Symbol is not a ticker in capitals, From or To is not HH:MM, From is later than To, or a value is not one the path takes. A rejected value is not echoed back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "required": {
+                    "summary": "A missing Symbol",
+                    "value": {
+                      "report": {
+                        "error": "Symbol is required for MinuteQuotes"
+                      }
+                    }
+                  },
+                  "time": {
+                    "summary": "A From that is not HH:MM, such as 9:5",
+                    "value": {
+                      "report": {
+                        "error": "From NOT valid, expected HH:MM Eastern, like 09:30"
+                      }
+                    }
+                  },
+                  "backwards": {
+                    "summary": "A From later than its To, such as 10:30 to 10:00",
+                    "value": {
+                      "report": {
+                        "error": "From NOT valid, expected no later than To"
+                      }
+                    }
+                  },
+                  "limit": {
+                    "summary": "A Limit that is not a whole number from 1 to 1000",
+                    "value": {
+                      "report": {
+                        "error": "Limit NOT valid, expected a whole number of rows"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A named Day that has not finished publishing -- or any Day, until the first day of minute quotes is published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "unpublished": {
+                    "summary": "A Day the tables do not hold",
+                    "value": {
+                      "report": {
+                        "error": "Day is not a published day"
+                      }
+                    }
+                  },
+                  "nothing": {
+                    "summary": "No day of minute quotes is published yet",
+                    "value": {
+                      "report": {
+                        "error": "nothing published answers this yet"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "The question could not be answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "query failed"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge-graph/tables/minute-quotes-at": {
+      "get": {
+        "operationId": "listKnowledgeGraphMinuteQuotesAt",
+        "summary": "Every stock at one minute of a day",
+        "description": "Every stock at one minute of one day, one row per stock in ticker order -- about 503, under the 1000 ceiling but past the default 100. Each row is the one MinuteQuotes answers for its stock with From and To both that minute. A minute with no poll, such as before 9:30 or after an early close, answers no rows rather than an error. Until the first day of minute quotes is published, every Day answers 404.",
+        "parameters": [
+          {
+            "name": "Day",
+            "in": "query",
+            "required": true,
+            "description": "The published day, as YYYY-MM-DD.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            },
+            "example": "2026-10-26"
+          },
+          {
+            "name": "Time",
+            "in": "query",
+            "required": true,
+            "description": "The minute, as HH:MM on a 24-hour clock, Eastern: 09:30, not 9:30. The whole of it: 10:31 holds a capture taken at 10:31:00.084 and one taken at 10:31:59.",
+            "schema": {
+              "type": "string",
+              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+            },
+            "example": "10:00"
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "required": false,
+            "description": "The most rows to answer with: 100 when it is left out, and 1000 at most. A larger value is refused with a 400 rather than cut to the ceiling.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            },
+            "example": 1000
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every stock at that minute, in ticker order. The example is illustrative: no day of minute quotes had been published when it was written.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Kept a day, and usable stale for a week while a fresh copy is fetched: a published day is written whole and never rewritten, so an answer naming one cannot change.",
+                "schema": {
+                  "type": "string"
+                },
+                "example": "public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "rows"
+                      ],
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "description": "One object per row. An empty list is an answer: the question was asked and nothing matched.",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "ticker",
+                              "capture_time",
+                              "quote_time",
+                              "trade_time",
+                              "bid",
+                              "ask",
+                              "bid_size",
+                              "ask_size",
+                              "last",
+                              "mark",
+                              "open",
+                              "high",
+                              "low",
+                              "prev_close",
+                              "volume",
+                              "net_change",
+                              "net_percent_change"
+                            ],
+                            "properties": {
+                              "ticker": {
+                                "type": "string",
+                                "description": "The stock's ticker."
+                              },
+                              "capture_time": {
+                                "type": "string",
+                                "description": "When the minute's poll was taken, ISO-8601 in UTC: to the millisecond on some rows, and to the second on others."
+                              },
+                              "quote_time": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "The quote's time, passed through as the table holds it."
+                              },
+                              "trade_time": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "The last trade's time, passed through as the table holds it."
+                              },
+                              "bid": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The bid price."
+                              },
+                              "ask": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The ask price."
+                              },
+                              "bid_size": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "The size of the bid."
+                              },
+                              "ask_size": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "The size of the ask."
+                              },
+                              "last": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The last trade's price."
+                              },
+                              "mark": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The mark price."
+                              },
+                              "open": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The session's opening price."
+                              },
+                              "high": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The session's high."
+                              },
+                              "low": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The session's low."
+                              },
+                              "prev_close": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The PREVIOUS session's close, which the two changes are measured from."
+                              },
+                              "volume": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "Shares traded in the session: the day's running total as of the poll."
+                              },
+                              "net_change": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The change from the previous close."
+                              },
+                              "net_percent_change": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "The same, as a percentage of the previous close."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "rows": [
+                      {
+                        "ticker": "A",
+                        "capture_time": "2026-10-26T14:00:02.481Z",
+                        "quote_time": 1793023202390,
+                        "trade_time": 1793023201207,
+                        "bid": 162.44,
+                        "ask": 162.49,
+                        "bid_size": 100,
+                        "ask_size": 100,
+                        "last": 162.47,
+                        "mark": 162.47,
+                        "open": 162.1,
+                        "high": 162.88,
+                        "low": 161.73,
+                        "prev_close": 161.84,
+                        "volume": 151388,
+                        "net_change": 0.63,
+                        "net_percent_change": 0.38927336
+                      },
+                      {
+                        "ticker": "AAPL",
+                        "capture_time": "2026-10-26T14:00:02.481Z",
+                        "quote_time": 1793023202476,
+                        "trade_time": 1793023202463,
+                        "bid": 343.3,
+                        "ask": 343.31,
+                        "bid_size": 100,
+                        "ask_size": 200,
+                        "last": 343.31,
+                        "mark": 343.31,
+                        "open": 343.92,
+                        "high": 344.21,
+                        "low": 341.86,
+                        "prev_close": 347.725,
+                        "volume": 5612907,
+                        "net_change": -4.415,
+                        "net_percent_change": -1.2696815
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Day or Time is missing, Time is not HH:MM, or a value is not one the path takes. A rejected value is not echoed back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "required": {
+                    "summary": "A missing Day",
+                    "value": {
+                      "report": {
+                        "error": "Day is required for MinuteQuotesAt"
+                      }
+                    }
+                  },
+                  "time": {
+                    "summary": "A Time that is not HH:MM, such as 9:5",
+                    "value": {
+                      "report": {
+                        "error": "Time NOT valid, expected HH:MM Eastern, like 09:30"
+                      }
+                    }
+                  },
+                  "limit": {
+                    "summary": "A Limit that is not a whole number from 1 to 1000",
+                    "value": {
+                      "report": {
+                        "error": "Limit NOT valid, expected a whole number of rows"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A named Day that has not finished publishing -- or any Day, until the first day of minute quotes is published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "unpublished": {
+                    "summary": "A Day the tables do not hold",
+                    "value": {
+                      "report": {
+                        "error": "Day is not a published day"
+                      }
+                    }
+                  },
+                  "nothing": {
+                    "summary": "No day of minute quotes is published yet",
+                    "value": {
+                      "report": {
+                        "error": "nothing published answers this yet"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "The question could not be answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "report"
+                  ],
+                  "properties": {
+                    "report": {
+                      "type": "object",
+                      "required": [
+                        "error"
+                      ],
+                      "properties": {
+                        "error": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "report": {
+                    "error": "query failed"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
