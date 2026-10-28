@@ -12,6 +12,7 @@
 
 import {
     STOCK_MARKET,
+    STOCK_TICKERS,
     STOCK_SPLIT,
     BLS,
     SEC,
@@ -22,9 +23,13 @@ import {
 } from '../../import/general/stream-id.js';
 
 describe('the ids', () => {
-    it('are the five the performance api answers to', () => {
-        expect([STOCK_MARKET, STOCK_SPLIT, BLS, SEC, US_NATIONAL_WEATHER])
-            .toEqual(['stock-market', 'stock-split', 'bls', 'sec', 'us-national-weather']);
+    it('are the six the performance api answers to', () => {
+        //
+        // 'stock-tickers' is the minute poll's (#314), which the api answers as
+        // 'stocktickers' and takes by this id as well
+        //
+        expect([STOCK_MARKET, STOCK_TICKERS, STOCK_SPLIT, BLS, SEC, US_NATIONAL_WEATHER])
+            .toEqual(['stock-market', 'stock-tickers', 'stock-split', 'bls', 'sec', 'us-national-weather']);
     });
 
     it('and the company facts, which it answers as a series of sec (#211)', () => {
@@ -32,7 +37,13 @@ describe('the ids', () => {
     });
 
     it('are listed in the order the /stream and /data listings draw them', () => {
-        expect(STREAMS).toEqual(['stock-market', 'stock-split', 'bls', 'sec', 'sec-companyfacts', 'us-national-weather']);
+        //
+        // the minute poll right after the 20-minute run, the two S&P 500 streams
+        // side by side (#314)
+        //
+        expect(STREAMS).toEqual([
+            'stock-market', 'stock-tickers', 'stock-split', 'bls', 'sec', 'sec-companyfacts', 'us-national-weather',
+        ]);
     });
 
     it('are lower-case words joined by hyphens, which is what the urls and the api take', () => {
@@ -65,6 +76,9 @@ describe('canonicalStream', () => {
         ['BLS', 'bls'],
         ['SEC', 'sec'],
         ['SecCompanyFacts', 'sec-companyfacts'],
+        ['stocktickers', 'stock-tickers'],
+        ['StockTickers', 'stock-tickers'],
+        ['Stock-Tickers', 'stock-tickers'],
     ])('finds %s, a name the stream went by, as %s', (name, id) => {
         //
         // 'StockSplit' and 'stocksplit' too: the trigger page matched on
@@ -79,7 +93,9 @@ describe('canonicalStream', () => {
         // a 'stockmarket' that picked up a suffix.
         //
         expect(canonicalStream('stockmarketstocksplit')).not.toBe(STOCK_MARKET);
+        expect(canonicalStream('stocktickers')).not.toBe(STOCK_MARKET);
         expect(canonicalStream('stock')).toBeNull();
+        expect(canonicalStream('tickers')).toBeNull();
         expect(canonicalStream('stockmarketstock')).toBeNull();
     });
 
