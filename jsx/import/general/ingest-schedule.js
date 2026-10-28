@@ -31,6 +31,7 @@
 import { ROLLING_WINDOW, windowStart, stepInterval } from './rolling-window.js';
 import {
     STOCK_MARKET,
+    STOCK_TICKERS,
     STOCK_SPLIT,
     BLS,
     SEC,
@@ -39,6 +40,8 @@ import {
     canonicalStream,
 } from './stream-id.js';
 import { federalHoliday } from './federal-holidays.js';
+import { EARLY_CLOSE, earlyClose, marketHoliday } from './market-calendar.js';
+import THROUGHPUT_KEY from './throughput-key.js';
 
 
 {/*
@@ -60,9 +63,19 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
       - 'days'     the eastern weekdays a run falls on, for a scraper that runs
                    on neither every day nor monday to friday alone. optional
       - 'since'    the instant the schedule began, for a stream younger than
-                   the longest window: nothing was due before it. optional
+                   the longest window: nothing was due before it. Or
+                   FIRST_RUN, for a stream whose first run was not known when
+                   it was written down: nothing was due before the first run
+                   its report holds, and nothing at all until it holds one.
+                   optional
       - 'holidays' 'federal' when nothing is due on a US federal holiday, as
-                   for 'sec': EDGAR takes no filings that day. optional
+                   for 'sec': EDGAR takes no filings that day. 'market' when
+                   nothing is due on a market holiday, nor from an early
+                   close on -- see market-calendar.js. optional
+      - 'opens'    the first minute of a day a run is due, [hour, minute], for
+                   a stream whose runs begin partway through its first hour.
+                   optional
+      - 'closes'   the last, likewise, both included. optional
       - 'partition' how the report is fetched, 'day' or 'year'
       - 'every'    minutes between runs inside an expected hour, or null when
                    the stream has no regular minute spacing at all
@@ -152,7 +165,24 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
           on 2026-10-04, so a window reaching back before it was due nothing
           there, and reads its coverage from the first day it could have
 
+    Note: 'stock-tickers' is the S&P 500's stocks quoted every minute (#314): a
+          schedule every minute from 9:00 to 15:59 eastern on weekdays, and a
+          second at 16:00. The poll checks each minute against the market's
+          calendar and quotes nothing before the 09:30 open, so a run is due
+          from 09:30 to 16:00, both included -- 391 a day. A market holiday has
+          none, and an early-close day none from 13:00, the 16:00 run included.
+          See market-calendar.js
+
+    Note: its first run was not known when this was written, so it is due from
+          the first run its report holds (FIRST_RUN), and until the report
+          holds one nothing is due and its coverage reads n/a. A stream older
+          than the window cannot tell its first run from an outage at the start
+          of the window, which then goes uncounted: a date, once known, can
+          take FIRST_RUN's place
+
 */}
+export const FIRST_RUN = 'first-run';
+
 export const INGEST_SCHEDULE = {
     [US_NATIONAL_WEATHER]: { hours: null, weekdays: false, every: 5, minutes_named: false, partition: 'day' },
     [SEC]: { hours: [6, 22], weekdays: true, holidays: 'federal', every: 5, minutes_named: false, partition: 'day' },
@@ -166,6 +196,17 @@ export const INGEST_SCHEDULE = {
         partition: 'day'
     },
     [STOCK_MARKET]: { hours: [9, 15], weekdays: true, every: 20, minutes_named: true, partition: 'day' },
+    [STOCK_TICKERS]: {
+        hours: [9, 16],
+        opens: [9, 30],
+        closes: [16, 0],
+        weekdays: true,
+        holidays: 'market',
+        since: FIRST_RUN,
+        every: 1,
+        minutes_named: true,
+        partition: 'day'
+    },
     [STOCK_SPLIT]: { hours: [0, 0], weekdays: true, every: null, minutes_named: false, partition: 'year' },
     [BLS]: { hours: [15], weekdays: false, every: null, minutes_named: false, partition: 'year' }
 };
@@ -280,6 +321,68 @@ function hourExpected(schedule, hour) {
 
 {/*
 
+    the holiday a day is on the schedule's own calendar, or null: the federal
+    one for 'sec', the market's for 'stock-tickers'
+
+*/}
+const HOLIDAYS = {
+    federal: federalHoliday,
+    market: marketHoliday,
+};
+
+function scheduleHoliday(schedule, day) {
+    const holiday = HOLIDAYS[schedule.holidays];
+
+    return holiday ? holiday(day) : null;
+}
+
+
+{/*
+
+    the first and the last minute of a day a run is due, as minutes after
+    midnight eastern, or null where the schedule names none. An early close
+    ends the day at the minute before it, for a schedule on the market's
+    calendar
+
+*/}
+const minutesOf = ([hour, minute]) => hour * 60 + minute;
+
+function firstMinute(schedule) {
+    return schedule.opens ? minutesOf(schedule.opens) : null;
+}
+
+function lastMinute(schedule, day) {
+    if (schedule.holidays === 'market' && earlyClose(day)) {
+        return minutesOf(EARLY_CLOSE) - 1;
+    }
+
+    return schedule.closes ? minutesOf(schedule.closes) : null;
+}
+
+{/*
+
+    whether any minute of the hour falls inside the day's runs, and whether
+    the minute does
+
+*/}
+function hourInSession(schedule, day, hour) {
+    const first = firstMinute(schedule);
+    const last = lastMinute(schedule, day);
+
+    return (first === null || hour * 60 + 59 >= first) && (last === null || hour * 60 <= last);
+}
+
+function minuteInSession(schedule, day, hour, minute) {
+    const at = hour * 60 + minute;
+    const first = firstMinute(schedule);
+    const last = lastMinute(schedule, day);
+
+    return (first === null || at >= first) && (last === null || at <= last);
+}
+
+
+{/*
+
     whether a run was due in the interval starting at 'date', for a chart drawn
     at 'rate'.
 
@@ -287,8 +390,12 @@ function hourExpected(schedule, hour) {
           interval is expected when the scraper runs at any point that day, so
           the hours only narrow an hourly or finer chart
 
+    Note: 'first_run' is the interval the first run fell in, for a schedule
+          whose 'since' is FIRST_RUN -- see firstRun. Without one, nothing is
+          due yet. Any other schedule ignores it
+
 */}
-export function intervalExpected(stream, rate, date) {
+export function intervalExpected(stream, rate, date, first_run = null) {
     const schedule = INGEST_SCHEDULE[canonicalStream(stream)];
 
     if (!schedule) {
@@ -307,7 +414,12 @@ export function intervalExpected(stream, rate, date) {
 
     */}
     if (schedule.since) {
-        const since = new Date(schedule.since);
+        const since = schedule.since === FIRST_RUN ? first_run : new Date(schedule.since);
+
+        if (!since) {
+            return false;
+        }
+
         const begun = r === 'month' ? stepInterval(date, r) > since : date >= since;
 
         if (!begun) {
@@ -327,7 +439,7 @@ export function intervalExpected(stream, rate, date) {
         return false;
     }
 
-    if (schedule.holidays === 'federal' && federalHoliday(day)) {
+    if (scheduleHoliday(schedule, day)) {
         return false;
     }
 
@@ -335,19 +447,24 @@ export function intervalExpected(stream, rate, date) {
         return true;
     }
 
-    if (!hourExpected(schedule, hour)) {
+    if (!hourExpected(schedule, hour) || !hourInSession(schedule, day, hour)) {
         return false;
     }
 
-    return r === 'hour' ? true : minute % schedule.every === 0;
+    if (r === 'hour') {
+        return true;
+    }
+
+    return minuteInSession(schedule, day, hour, minute) && minute % schedule.every === 0;
 }
 
 
 {/*
 
-    the federal holiday no run was due on in the interval starting at 'date',
-    for a chart drawn at 'rate', or null: what a bar names as the reason it is
-    not scheduled (#261).
+    the holiday no run was due on in the interval starting at 'date', for a
+    chart drawn at 'rate', or null: what a bar names as the reason it is not
+    scheduled (#261). The federal one for 'sec', the market's for
+    'stock-tickers' (#314).
 
     Note: an hour or a minute is named only inside the hours the stream runs.
           outside them nothing is due on any day, so the holiday is not why
@@ -359,12 +476,12 @@ export function intervalHoliday(stream, rate, date) {
     const schedule = INGEST_SCHEDULE[canonicalStream(stream)];
     const r = String(rate).toLowerCase();
 
-    if (!schedule || schedule.holidays !== 'federal' || r === 'month') {
+    if (!schedule || !HOLIDAYS[schedule.holidays] || r === 'month') {
         return null;
     }
 
     const { day, hour } = easternParts(date);
-    const holiday = federalHoliday(day);
+    const holiday = scheduleHoliday(schedule, day);
 
     if (!holiday || (r !== 'day' && !hourExpected(schedule, hour))) {
         return null;
@@ -432,8 +549,11 @@ export function runsContinuously(stream) {
     report only carries an interval something landed in -- the missing ones are
     exactly what is being counted, and they are absent by definition
 
+    Note: 'first_run' is intervalExpected's, for a schedule whose 'since' is
+          FIRST_RUN
+
 */}
-export function expectedIntervals(stream, rate, now = new Date()) {
+export function expectedIntervals(stream, rate, now = new Date(), first_run = null) {
     if (!coverageSupported(stream, rate)) {
         return [];
     }
@@ -461,7 +581,7 @@ export function expectedIntervals(stream, rate, now = new Date()) {
     */}
 
     while (cursor <= now) {
-        if (intervalExpected(stream, r, cursor)) {
+        if (intervalExpected(stream, r, cursor, first_run)) {
             intervals.push(new Date(cursor.getTime()));
         }
 
@@ -469,4 +589,39 @@ export function expectedIntervals(stream, rate, now = new Date()) {
     }
 
     return intervals;
+}
+
+
+{/*
+
+    the interval the first run in 'rows' reported in, for a schedule whose
+    'since' is FIRST_RUN: the earliest row carrying a record or a failure,
+    since a run that got nothing still ran. A zero the page drew in for a gap
+    carries neither, so it is not taken for a run. null when no row reports,
+    and then nothing is due yet
+
+    Note: 'rows' are the chart's, already one per interval at the rate drawn,
+          so the earliest is dated to the start of the interval it fell in
+
+*/}
+export function firstRun(rows, field_datetime, stream_source) {
+    let first = null;
+
+    (rows || []).forEach((item) => {
+        const when = item ? item[field_datetime] : null;
+
+        if (!(when instanceof Date) || isNaN(when)) {
+            return;
+        }
+
+        const ran = (stream_source || []).some((source) => (
+            Number(item[source]) > 0 || Number(item[`${source}${THROUGHPUT_KEY}`]) > 0
+        ));
+
+        if (ran && (!first || when < first)) {
+            first = when;
+        }
+    });
+
+    return first ? new Date(first.valueOf()) : null;
 }
