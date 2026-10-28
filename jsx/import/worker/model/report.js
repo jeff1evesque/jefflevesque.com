@@ -14,7 +14,9 @@
  *     history         a model's csv, one row per nightly training attempt: the
  *                     attempt's scores, the live version's and the know-nothing
  *                     baseline's, on the same held-out days, and from 2026-10-15
- *                     on, when the attempt started and how long it took
+ *                     on, when the attempt started and how long it took. Each
+ *                     names the days it was tested on, the morning its test ran,
+ *                     and how long a second pass trained from format 6 (#318)
  *     track-record    a model's csv, one row per day it predicted, written once
  *                     that day is scored: its scores and the baseline's, with each
  *                     day's averages worked out here, over the days it is sent
@@ -610,23 +612,116 @@ export default () => {
     // none: either way, each is null
     //
     // From the trainer's format 6 (#315), a night says whether its attempt
-    // trained again with its held-out days -- see trainedAgain
+    // trained again with its held-out days -- see trainedAgain -- and how long
+    // that second pass trained (#318) -- see secondsOf.
+    //
+    // Each night also says which days it was tested on, `held_out_days`, and how
+    // many earlier days it studied or used to decide when to stop, `training_days`
+    // (#318). Once the trainer lists them, it says which days it studied, used to
+    // decide when to stop, skipped, had no results for yet, and left unpicked --
+    // `studied_days`, `stopping_days`, `skipped_days`, `pending_days` and
+    // `unpicked_days` -- each none until then. From them, and from when it
+    // started, each night is named for the
+    // morning its test ran, `tested` -- see testedOn -- and a nightly update says
+    // the morning the version it started from took over, `from`: the newest
+    // earlier night that went live. A weekly retrain starts from scratch, and has
+    // none
     //
     function history(csv) {
-        return byDay(rowsOf(csv), function (row, day) {
+        const rows = byDay(rowsOf(csv), function (row, day) {
+            const started = textOf(row.started) || null;
+
             return {
                 day: day,
                 kind: String(row.kind).toLowerCase() === 'weekly' ? 'weekly' : 'nightly',
                 went_live: /^(true|1)$/i.test(String(row.went_live)),
                 trained_again: trainedAgain(row.trained_again),
-                started: textOf(row.started) || null,
+                started: started,
+                tested: testedOn(started, day),
+                held_out_days: daysIn(row.held_out_days),
+                training_days: wholeCellOf(row.training_days),
+                studied_days: daysIn(row.studied_days),
+                stopping_days: daysIn(row.stopping_days),
+                skipped_days: daysIn(row.skipped_days),
+                pending_days: daysIn(row.pending_days),
+                unpicked_days: daysIn(row.unpicked_days),
                 training_seconds: numberOf(row.training_seconds),
                 total_seconds: numberOf(row.total_seconds),
+                trained_again_seconds: secondsOf(row.trained_again_seconds),
                 attempt: scoresOf(row, 'attempt_'),
                 live: scoresOf(row, 'live_'),
                 baseline: scoresOf(row, 'baseline_'),
             };
         });
+        let tookOver = null;
+
+        rows.forEach(function (row) {
+            row.from = row.kind === 'nightly' ? tookOver : null;
+
+            if (row.went_live) {
+                tookOver = row.tested;
+            }
+        });
+
+        return rows;
+    }
+
+    //
+    // an instant as the history writes one: a date and a time, with its offset
+    //
+    const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+    //
+    // the morning a night's test ran (#318): the day it started in New York, where
+    // the trading days are kept, 'YYYY-MM-DD' -- a market day's test runs early
+    // the next morning. A night from before the trainer kept times, or whose start
+    // is not an instant with its offset, is named for the day after its own, when
+    // the trainer runs
+    //
+    function testedOn(started, day) {
+        const at = started && INSTANT.test(started) ? new Date(started) : null;
+
+        if (!at || !isFinite(at.getTime())) {
+            const next = new Date(day + 'T12:00:00Z');
+
+            next.setUTCDate(next.getUTCDate() + 1);
+
+            return next.toISOString().slice(0, 10);
+        }
+
+        const parts = {};
+
+        new Intl.DateTimeFormat('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'America/New_York' })
+            .formatToParts(at)
+            .forEach(function (part) {
+                parts[part.type] = part.value;
+            });
+
+        return parts.year + '-' + parts.month + '-' + parts.day;
+    }
+
+    //
+    // the days a cell lists (#318), as `held_out_days` lists a night's test days:
+    // each a day, a space between them, oldest first. Anything that is not a day
+    // is passed over, and an empty cell lists none
+    //
+    function daysIn(value) {
+        return textOf(value).split(/\s+/)
+            .map(dayOf)
+            .filter(function (day) { return day !== null; })
+            .sort();
+    }
+
+    //
+    // how long a night's second pass trained, from the trainer's format 6 (#318):
+    // a number of seconds, 0 or more, or null where there was none -- a version
+    // kept back, a night with no time left to start one, and every night before
+    // format 6 -- or the cell is anything else
+    //
+    function secondsOf(value) {
+        const parsed = numberOf(value);
+
+        return parsed !== null && parsed >= 0 ? parsed : null;
     }
 
     //
