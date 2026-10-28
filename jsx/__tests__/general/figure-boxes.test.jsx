@@ -49,6 +49,19 @@ describe('the boxes', () => {
             .toEqual([true, true, true]);
     });
 
+    it('draw a figure with an empty note as its name alone, with no icon that would open nothing (#315)', () => {
+        draw([{ key: 'live', label: 'Live version', note: '', value: 'Oct 26' }, ...FIGURES.slice(1)]);
+
+        const [live, rows] = boxes();
+
+        expect(live.firstElementChild.className).toBe('stream-focus-figure-label');
+        expect(live.firstElementChild).toHaveTextContent(/^Live version$/);
+        expect(live.querySelector('svg')).toBeNull();
+        expect(live.firstElementChild).not.toHaveAttribute('tabindex');
+        expect(rows.firstElementChild).toHaveClass('stream-focus-noted');
+        expect(rows.querySelector('svg')).not.toBeNull();
+    });
+
     it('draw a name and a value both ways where a phone has a shorter one, and once where not', () => {
         draw();
 
