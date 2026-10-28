@@ -54,7 +54,7 @@ function open(label) {
 describe('a phone\'s rows of cubes, as the page keeps them (#192)', () => {
     it('start in their own order, with every legend shown', () => {
         setup();
-        open('S&P 500');
+        open('S&P 500 Options');
 
         expect(handed.sort).toBeNull();
         expect(handed.folds).toEqual({});
@@ -62,7 +62,7 @@ describe('a phone\'s rows of cubes, as the page keeps them (#192)', () => {
 
     it('keep the order their titles put them in from one month to the next', () => {
         setup();
-        open('S&P 500');
+        open('S&P 500 Options');
 
         act(() => handed.onSort({ key: 'count', direction: 'ascending' }));
         expect(handed.sort).toEqual({ key: 'count', direction: 'ascending' });
@@ -73,7 +73,7 @@ describe('a phone\'s rows of cubes, as the page keeps them (#192)', () => {
 
     it('start another dataset in its own order, and keep each dataset\'s own', () => {
         setup();
-        open('S&P 500');
+        open('S&P 500 Options');
         act(() => handed.onSort({ key: 'name', direction: 'descending' }));
 
         fireEvent.click(document.querySelector('button.data-back'));
@@ -81,13 +81,13 @@ describe('a phone\'s rows of cubes, as the page keeps them (#192)', () => {
         expect(handed.sort).toBeNull();
 
         fireEvent.click(document.querySelector('button.data-back'));
-        open('S&P 500');
+        open('S&P 500 Options');
         expect(handed.sort).toEqual({ key: 'name', direction: 'descending' });
     });
 
     it('go back to their own order when the rows say so', () => {
         setup();
-        open('S&P 500');
+        open('S&P 500 Options');
         act(() => handed.onSort({ key: 'count', direction: 'ascending' }));
         act(() => handed.onSort(null));
 

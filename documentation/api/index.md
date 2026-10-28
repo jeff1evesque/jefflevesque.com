@@ -56,7 +56,7 @@ The charts on `/stream` and `/data`, and the graphs on `/graph` and `/graph/retr
 carry icons built from the same functions: a page, which opens that API's page here,
 and a pair of braces for each request behind what is on screen, which opens it
 exactly. Because the page's fetch and the icon share one builder, the icon cannot name
-a request the page did not make. `/stream` draws a row from each of five requests, so
+a request the page did not make. `/stream` draws a row from each of six requests, so
 its braces open a list of them, one per stream. The Retrieval Graph draws a day from two requests, and
 carries a pair of braces for each, marked N for its node types and E for its edge types
 so the two differ before either is pointed at.

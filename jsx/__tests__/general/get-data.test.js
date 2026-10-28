@@ -264,6 +264,7 @@ describe('the ingest types, through get_promise', () => {
         ['sec-ingest'],
         ['us-national-weather-ingest'],
         ['stock-market-ingest'],
+        ['stock-tickers-ingest'],
         ['stock-split-ingest'],
     ])('%s takes the same fetch path', async (type) => {
         const callback = jest.fn();
@@ -287,6 +288,7 @@ describe('every remaining type falls back to sample data', () => {
         ['sec-ingest', 'papaParseCsv', 'group_by,window_start,total_success'],
         ['us-national-weather-ingest', 'papaParseCsv', 'group_by,window_start,total_success'],
         ['stock-market-ingest', 'papaParseCsv', 'group_by,window_start,total_success'],
+        ['stock-tickers-ingest', 'papaParseCsv', 'group_by,window_start,total_success'],
         ['stock-split-ingest', 'papaParseCsv', 'group_by,window_start,total_success'],
         ['stock-market-candlestick-triggers', 'parseCsv', 'group_by,window_start,total_detected'],
     ])('%s builds its own csv when no url is given', (type, loader, header) => {
@@ -334,6 +336,7 @@ describe('the sample data around a month boundary', () => {
         ['sec-ingest'],
         ['us-national-weather-ingest'],
         ['stock-market-ingest'],
+        ['stock-tickers-ingest'],
         ['stock-split-ingest'],
     ])('%s clamps both trailing days to the 1st on the 1st', (type) => {
         atDate('2026-06-01T12:00:00');
@@ -474,6 +477,7 @@ describe('telling the caller a request failed', () => {
         ['sec-ingest'],
         ['us-national-weather-ingest'],
         ['stock-market-ingest'],
+        ['stock-tickers-ingest'],
         ['stock-split-ingest'],
     ])('is told for %s too', async (type) => {
         const failed = jest.fn();

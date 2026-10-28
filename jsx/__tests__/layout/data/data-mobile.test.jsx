@@ -120,7 +120,7 @@ describe('the listing on mobile', () => {
         // lays them on their side
         //
         setup();
-        fireEvent.click(chartButton('S&P 500'));
+        fireEvent.click(chartButton('S&P 500 Options'));
 
         expect(document.querySelector('.cube-rows')).toHaveAttribute('aria-label', expect.stringMatching(/^Records by sector, /));
         expect(document.querySelector('.cube-chart')).toBeNull();
@@ -131,7 +131,7 @@ describe('the listing on mobile', () => {
         setup();
 
         for (const label of [
-            'S&P 500',
+            'S&P 500 Options',
             'Stock Splits',
             'Bureau of Labor Statistics',
             'SEC Filings',
@@ -578,7 +578,7 @@ describe('a dataset\'s month in three boxes on a phone (#230)', () => {
     });
 
     it.each([
-        ['S&P 500', 'Records', 'Sectors', 'records', 'sector'],
+        ['S&P 500 Options', 'Records', 'Sectors', 'records', 'sector'],
         ['Stock Splits', 'Splits', 'Days', 'splits', 'day'],
         ['Bureau of Labor Statistics', 'Records', 'Series', 'records', 'series'],
         ['SEC Filings', 'Filings', 'Forms', 'filings', 'form'],
@@ -823,14 +823,14 @@ describe('the green bar, one step back from a group open on its own (#232)', () 
 
         fireEvent.click(backBar());
         fireEvent.click(backBar());
-        fireEvent.click(chartButton('S&P 500'));
+        fireEvent.click(chartButton('S&P 500 Options'));
 
         expect(openTitle()).toBeNull();
         expect(where()).toBe('/?item=stock-market');
     });
 
     it.each([
-        ['S&P 500', 'stock-market', 'sector', [
+        ['S&P 500 Options', 'stock-market', 'sector', [
             { sector: 'Energy', Refining: 3, 'Oil & Gas Storage': 2 },
             { sector: 'Utilities', Water: 4, Electric: 1 },
         ], 'Energy', 'All sectors'],

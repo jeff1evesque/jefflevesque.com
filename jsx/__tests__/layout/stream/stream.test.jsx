@@ -96,7 +96,7 @@ describe('the stream rows', () => {
 
         expect(bodyText()).toContain('Streams');
         expect(rowNames()).toEqual([
-            'S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts',
+            'S&P 500 Options', 'S&P 500 Tickers', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts',
         ]);
     });
 
@@ -107,6 +107,7 @@ describe('the stream rows', () => {
 
         expect(schedules).toEqual([
             'weekdays, every 20 min',
+            'weekdays, every minute',
             'weekdays, once a day',
             'once a day',
             'weekdays, every 5 min',
@@ -117,14 +118,15 @@ describe('the stream rows', () => {
 
     it('renders each stream under its display label, not its id', () => {
         //
-        // the ids are 'stock-market', 'stock-split', 'bls', 'sec',
-        // 'sec-companyfacts' and 'us-national-weather'. Every one has to reach
+        // the ids are 'stock-market', 'stock-tickers', 'stock-split', 'bls',
+        // 'sec', 'sec-companyfacts' and 'us-national-weather'. Every one has to reach
         // stream-name.js on the way to the screen, or the listing shows raw
         // identifiers.
         //
         setup();
 
-        expect(screen.getByText('S&P 500')).toBeInTheDocument();
+        expect(screen.getByText('S&P 500 Options')).toBeInTheDocument();
+        expect(screen.getByText('S&P 500 Tickers')).toBeInTheDocument();
         expect(screen.getByText('Stock Splits')).toBeInTheDocument();
         expect(screen.getByText('Bureau of Labor Statistics')).toBeInTheDocument();
         expect(screen.getByText('SEC Filings')).toBeInTheDocument();
@@ -137,20 +139,24 @@ describe('the stream rows', () => {
 
         const text = bodyText();
         expect(text).not.toContain('stock-market');
+        expect(text).not.toContain('stock-tickers');
         expect(text).not.toContain('stock-split');
         expect(text).not.toContain('sec-companyfacts');
         expect(text).not.toContain('us-national-weather');
     });
 
-    it('distinguishes the two stock streams', () => {
+    it('distinguishes the stock streams', () => {
         //
-        // they sit adjacent in the listing and differ only in scope, which is the
-        // whole reason stream-name.js matches on the WHOLE id rather than a prefix.
-        // A prefix match would label the split feed 'S&P 500'.
+        // they sit adjacent in the listing. The split feed differs from the other
+        // two only in scope, which is the whole reason stream-name.js matches on
+        // the WHOLE id rather than a prefix: a prefix match would label the split
+        // feed 'S&P 500 Options'. The two S&P 500 streams are labeled for which
+        // one each is (#314).
         //
         setup();
 
-        expect(screen.getByText('S&P 500')).toBeInTheDocument();
+        expect(screen.getByText('S&P 500 Options')).toBeInTheDocument();
+        expect(screen.getByText('S&P 500 Tickers')).toBeInTheDocument();
         expect(screen.getByText('Stock Splits')).toBeInTheDocument();
     });
 });
@@ -174,7 +180,7 @@ describe('each row before data arrives', () => {
 
         const figures = [...document.querySelectorAll('.stream-row-figure')].map((cell) => cell.textContent);
 
-        expect(figures).toHaveLength(18);
+        expect(figures).toHaveLength(21);
         expect(figures.every((figure) => figure === 'n/a')).toBe(true);
         document.querySelectorAll('.stream-row').forEach((row) => {
             expect(row.textContent).not.toContain('0%');
@@ -186,8 +192,8 @@ describe('each row before data arrives', () => {
 
         const lines = [...document.querySelectorAll('.stream-row-status')].map((line) => line.textContent);
 
-        expect(lines).toEqual(['Loading', 'Loading', 'Loading', 'Loading', 'Loading', 'Loading']);
-        expect(document.querySelectorAll('.stream-row-spinner')).toHaveLength(6);
+        expect(lines).toEqual(['Loading', 'Loading', 'Loading', 'Loading', 'Loading', 'Loading', 'Loading']);
+        expect(document.querySelectorAll('.stream-row-spinner')).toHaveLength(7);
     });
 });
 
@@ -413,7 +419,7 @@ describe('the sort, kept for the next visit', () => {
 
         expect(pressed()).toEqual(['Stream']);
         expect(rowNames()).toEqual([
-            'Bureau of Labor Statistics', 'S&P 500', 'SEC Company Facts', 'SEC Filings', 'Stock Splits', 'US Weather Alerts',
+            'Bureau of Labor Statistics', 'S&P 500 Options', 'S&P 500 Tickers', 'SEC Company Facts', 'SEC Filings', 'Stock Splits', 'US Weather Alerts',
         ]);
     });
 
@@ -550,8 +556,12 @@ describe('the order the reader drags the rows into, kept for the next visit (#21
 
         setup();
 
+        //
+        // the stock tickers, which the order kept before them does not name, go
+        // at its end (#314) -- see listing-preference.js
+        //
         expect(rowNames()).toEqual([
-            'Bureau of Labor Statistics', 'S&P 500', 'Stock Splits', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts',
+            'Bureau of Labor Statistics', 'S&P 500 Options', 'Stock Splits', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts', 'S&P 500 Tickers',
         ]);
     });
 
@@ -560,16 +570,16 @@ describe('the order the reader drags the rows into, kept for the next visit (#21
 
         setup();
 
-        expect(rowNames().slice(0, 3)).toEqual(['SEC Filings', 'Bureau of Labor Statistics', 'S&P 500']);
+        expect(rowNames().slice(0, 3)).toEqual(['SEC Filings', 'Bureau of Labor Statistics', 'S&P 500 Options']);
     });
 
     it('keeps a row the reader moves', () => {
         setup();
 
-        move('S&P 500', 'ArrowDown');
+        move('S&P 500 Options', 'ArrowDown');
 
-        expect(rowNames().slice(0, 2)).toEqual(['Stock Splits', 'S&P 500']);
-        expect(kept()).toEqual(['stock-split', 'stock-market', 'bls', 'sec', 'sec-companyfacts', 'us-national-weather']);
+        expect(rowNames().slice(0, 2)).toEqual(['S&P 500 Tickers', 'S&P 500 Options']);
+        expect(kept()).toEqual(['stock-tickers', 'stock-market', 'stock-split', 'bls', 'sec', 'sec-companyfacts', 'us-national-weather']);
     });
 
     it('offers Reset order only once the reader\'s order differs from the page\'s', () => {
@@ -577,10 +587,10 @@ describe('the order the reader drags the rows into, kept for the next visit (#21
 
         expect(reset()).toBeNull();
 
-        move('S&P 500', 'ArrowDown');
+        move('S&P 500 Options', 'ArrowDown');
         expect(reset()).not.toBeNull();
 
-        move('S&P 500', 'ArrowUp');
+        move('S&P 500 Options', 'ArrowUp');
         expect(reset()).toBeNull();
     });
 
@@ -591,7 +601,7 @@ describe('the order the reader drags the rows into, kept for the next visit (#21
 
         fireEvent.click(reset());
 
-        expect(rowNames()[0]).toBe('S&P 500');
+        expect(rowNames()[0]).toBe('S&P 500 Options');
         expect(kept()).toBeUndefined();
         expect(reset()).toBeNull();
     });
@@ -604,7 +614,7 @@ describe('the order the reader drags the rows into, kept for the next visit (#21
         fireEvent.click(screen.getByRole('button', { name: /^Sort: / }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Reset order' }));
 
-        expect(rowNames()[0]).toBe('S&P 500');
+        expect(rowNames()[0]).toBe('S&P 500 Options');
         expect(kept()).toBeUndefined();
     });
 
@@ -630,9 +640,18 @@ describe('the controls on each row', () => {
     it('names every row\'s controls for the stream they act on', () => {
         setup();
 
-        expect(screen.getByRole('link', { name: 'Triggers for S&P 500' })).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Triggers for S&P 500 Options' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Alarms for SEC Filings' }))
             .toHaveAttribute('href', '/stream/sec/alarm');
+    });
+
+    it('gives the stock tickers a bell and no triggers, which stay the stock market\'s (#314)', () => {
+        setup();
+
+        expect(screen.getByRole('link', { name: 'Alarms for S&P 500 Tickers' }))
+            .toHaveAttribute('href', '/stream/stock-tickers/alarm');
+        expect(screen.queryByRole('link', { name: 'Triggers for S&P 500 Tickers' })).toBeNull();
+        expect(screen.getAllByRole('link', { name: /^Triggers for / })).toHaveLength(1);
     });
 
     it('has no chart button, since every stream is drawn at once', () => {
@@ -665,7 +684,7 @@ describe('the icons over the rows', () => {
         const items = await screen.findAllByRole('menuitem');
 
         expect(items.map((item) => item.textContent)).toEqual([
-            'S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts',
+            'S&P 500 Options', 'S&P 500 Tickers', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts',
         ]);
         items.forEach((item, index) => {
             const url = new URL(item.getAttribute('href'));
@@ -725,9 +744,9 @@ describe('resilience', () => {
 
         setup();
 
-        expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(6);
-        expect(screen.getAllByRole('button', { name: /^Retry / })).toHaveLength(6);
-        expect(screen.getByText('S&P 500')).toBeInTheDocument();
+        expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(7);
+        expect(screen.getAllByRole('button', { name: /^Retry / })).toHaveLength(7);
+        expect(screen.getByText('S&P 500 Options')).toBeInTheDocument();
 
         quiet.mockRestore();
     });
@@ -741,7 +760,7 @@ describe('resilience', () => {
         try {
             setup();
 
-            expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(6);
+            expect(await screen.findAllByText('Could not load this stream.')).toHaveLength(7);
         } finally {
             global.fetch = original;
             quiet.mockRestore();

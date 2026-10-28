@@ -291,7 +291,7 @@ describe('the address on a wide screen (#235)', () => {
         splits();
         fireEvent.click(barOf('Day 2'));
 
-        fireEvent.click(chartButton('S&P 500'));
+        fireEvent.click(chartButton('S&P 500 Options'));
 
         expect(where()).toBe('/?item=stock-market');
     });
@@ -456,13 +456,13 @@ describe('a link copied from a wide screen (#235)', () => {
         fireEvent.click(chartButton('Bureau of Labor'));
         const address = where();
 
-        fireEvent.click(chartButton('S&P 500'));
+        fireEvent.click(chartButton('S&P 500 Options'));
         const after = { month: monthShown(), address: where() };
 
         unmount();
         window.history.replaceState(null, '', address);
         setup();
-        fireEvent.click(chartButton('S&P 500'));
+        fireEvent.click(chartButton('S&P 500 Options'));
 
         expect({ month: monthShown(), address: where() }).toEqual(after);
         expect(monthMenu().value).toBe(monthBack(0));

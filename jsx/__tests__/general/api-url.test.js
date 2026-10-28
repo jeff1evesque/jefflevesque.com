@@ -720,6 +720,8 @@ describe('what is sent is what is documented', () => {
         ['Neighborhood', 'neighborhood', { Uri: 'urn:x', Day: '2026-09-18', Limit: 10 }],
         ['Quotes', 'quotes', { Symbol: 'NVDA', Day: '2026-09-23', Limit: 10 }],
         ['LastQuotes', 'last-quotes', { Day: '2026-09-23', Limit: 10 }],
+        ['MinuteQuotes', 'minute-quotes', { Symbol: 'AAPL', Day: '2026-10-26', From: '10:00', To: '10:30', Limit: 31 }],
+        ['MinuteQuotesAt', 'minute-quotes-at', { Day: '2026-10-26', Time: '10:31', Limit: 1000 }],
     ])('knowledge graph tables: %s sends exactly what its own route declares', (operation, segment, values) => {
         //
         // per route, which is the point of the split. One route with a flat list
@@ -747,6 +749,8 @@ describe('what is sent is what is documented', () => {
             '/knowledge-graph/tables/facts',
             '/knowledge-graph/tables/find',
             '/knowledge-graph/tables/last-quotes',
+            '/knowledge-graph/tables/minute-quotes',
+            '/knowledge-graph/tables/minute-quotes-at',
             '/knowledge-graph/tables/neighborhood',
             '/knowledge-graph/tables/node-types',
             '/knowledge-graph/tables/quotes',

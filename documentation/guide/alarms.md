@@ -11,7 +11,8 @@ You choose which streams and models to hear about.
 
 ## What a stream's alarm is
 
-Each stream has one alarm, its ingest alarm.
+Each stream has one alarm, its ingest alarm. The S&P 500 Tickers, the newest stream,
+has none yet.
 
 - **Into alarm:** a stream goes into alarm when it has had no new records for longer
   than its usual gap.

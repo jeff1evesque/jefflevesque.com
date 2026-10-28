@@ -238,11 +238,24 @@ export async function unsubscribeModel(model, alarm) {
 /**
  * a stream's alarms, each { id, name }. Public, so asked with no token, and the
  * same for a signed-out reader as for a signed-in one.
+ *
+ * Note: none for a stream the api does not know yet, which it answers 404 'no
+ *       such stream': the stock tickers' until their alarm is added (#314). So
+ *       their page says they have none, and lists the alarm once there is one,
+ *       rather than saying the list could not be had.
  */
 export async function streamAlarms(stream) {
-    const report = await answer(await send(alarmsUrl(stream), undefined));
+    try {
+        const report = await answer(await send(alarmsUrl(stream), undefined));
 
-    return Array.isArray(report) ? report : [];
+        return Array.isArray(report) ? report : [];
+    } catch (error) {
+        if (error instanceof AccountError && error.status === 404) {
+            return [];
+        }
+
+        throw error;
+    }
 }
 
 /**

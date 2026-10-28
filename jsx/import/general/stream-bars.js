@@ -53,7 +53,7 @@
  */
 
 import THROUGHPUT_KEY from './throughput-key.js';
-import { INGEST_SCHEDULE, coverageBucket, intervalExpected, intervalHoliday } from './ingest-schedule.js';
+import { INGEST_SCHEDULE, coverageBucket, firstRun, intervalExpected, intervalHoliday } from './ingest-schedule.js';
 import { missingIntervals } from './ingest-gaps.js';
 import { stepInterval, windowStart } from './rolling-window.js';
 import { canonicalStream } from './stream-id.js';
@@ -118,6 +118,12 @@ export function streamBars(chart_data, stream, rate, field_datetime, stream_sour
         rows.map((row) => coverageBucket(stream, r, row[field_datetime]).valueOf())
     );
 
+    //
+    // where a schedule that begins with its first run begins (#314): before
+    // it, or before any run at all, nothing was due -- see FIRST_RUN
+    //
+    const first_run = firstRun(chart_data, field_datetime, stream_source);
+
     const bars = [];
 
     for (let cursor = start; cursor && cursor <= now; cursor = stepInterval(cursor, r)) {
@@ -136,7 +142,7 @@ export function streamBars(chart_data, stream, rate, field_datetime, stream_sour
             bars.push({ start: new Date(key), kind: 'failed', records: 0, failed: row.throughput, health: 0 });
         } else if (missing.has(key)) {
             bars.push({ start: new Date(key), kind: 'missed' });
-        } else if (!intervalExpected(stream, r, cursor)) {
+        } else if (!intervalExpected(stream, r, cursor, first_run)) {
             const holiday = intervalHoliday(stream, r, cursor);
 
             bars.push({ start: new Date(key), kind: 'off', ...(holiday ? { holiday } : {}) });
@@ -215,7 +221,9 @@ export function scheduleLabel(stream) {
     }
 
     if (schedule.every) {
-        return `${schedule.weekdays ? 'weekdays' : 'daily'}, every ${schedule.every} min`;
+        const every = schedule.every === 1 ? 'every minute' : `every ${schedule.every} min`;
+
+        return `${schedule.weekdays ? 'weekdays' : 'daily'}, ${every}`;
     }
 
     if (schedule.days) {

@@ -70,14 +70,12 @@ describe('the listing', () => {
 
     it('renders each stream under its display label', () => {
         //
-        // 'S&P 500' is queried with getAllByText because it legitimately appears
-        // twice -- once as the stock-market label, once as its coverage note. The
-        // two come from different maps in stream-name.js and happen to read the
-        // same, which getByText would reject as ambiguous.
+        // 'S&P 500 Options' is the stock-market label, and 'S&P 500' its
+        // coverage note: two strings from different maps in stream-name.js
         //
         setup();
 
-        expect(screen.getAllByText('S&P 500').length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByText('S&P 500 Options')).toBeInTheDocument();
         expect(screen.getByText('Stock Splits')).toBeInTheDocument();
         expect(screen.getByText('Bureau of Labor Statistics')).toBeInTheDocument();
         expect(screen.getByText('SEC Filings')).toBeInTheDocument();
@@ -85,11 +83,18 @@ describe('the listing', () => {
         expect(screen.getByText('US Weather Alerts')).toBeInTheDocument();
     });
 
+    it('lists no stream without a dataset, such as the stock tickers (#314)', () => {
+        setup();
+
+        expect(screen.queryByText('S&P 500 Tickers')).toBeNull();
+    });
+
     it('never leaks a raw stream id to the screen', () => {
         setup();
 
         const text = bodyText();
         expect(text).not.toContain('stock-market');
+        expect(text).not.toContain('stock-tickers');
         expect(text).not.toContain('sec-companyfacts');
         expect(text).not.toContain('us-national-weather');
     });
@@ -98,14 +103,15 @@ describe('the listing', () => {
 describe('the coverage row', () => {
     it('states the universe for the two stock streams', () => {
         //
-        // the pair that needs it: they sit adjacent and differ precisely in scope,
-        // which the titles alone leave ambiguous. 'S&P 500' the label and 'S&P 500'
-        // the coverage are separate strings from separate maps.
+        // the pair that needs it here: they sit adjacent and differ precisely in
+        // scope, which the titles alone leave ambiguous. 'S&P 500 Options' the
+        // label and 'S&P 500' the coverage are separate strings from separate
+        // maps.
         //
         setup();
 
         expect(screen.getByText('Market-wide')).toBeInTheDocument();
-        expect(screen.getAllByText('S&P 500').length).toBeGreaterThanOrEqual(2);
+        expect(screen.getByText('S&P 500')).toBeInTheDocument();
     });
 
     it('fills the Coverage column for the two stock streams alone', () => {
@@ -118,7 +124,7 @@ describe('the coverage row', () => {
 
         const coverage = column('Coverage');
 
-        expect(coverage['S&P 500']).toHaveTextContent('S&P 500');
+        expect(coverage['S&P 500 Options']).toHaveTextContent('S&P 500');
         expect(coverage['Stock Splits']).toHaveTextContent('Market-wide');
 
         ['Bureau of Labor Statistics', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts'].forEach((name) => {
@@ -141,7 +147,7 @@ describe('the coverage row', () => {
 
         expect(lag['Bureau of Labor Statistics']).toHaveTextContent('1-2 months');
 
-        ['S&P 500', 'Stock Splits', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts'].forEach((name) => {
+        ['S&P 500 Options', 'Stock Splits', 'SEC Filings', 'SEC Company Facts', 'US Weather Alerts'].forEach((name) => {
             expect(lag[name]).toHaveClass('listing-table-blank');
         });
     });
@@ -267,7 +273,7 @@ describe('resilience', () => {
         //
         setup();
 
-        expect(screen.getAllByText('S&P 500').length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByText('S&P 500 Options')).toBeInTheDocument();
         expect(screen.getAllByText('Hive').length).toBe(6);
         expect(screen.getAllByText('n/a').length).toBeGreaterThan(0);
     });

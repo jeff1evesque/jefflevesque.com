@@ -21,7 +21,7 @@
             "name": "Stream",
             "in": "query",
             "required": true,
-            "description": "The stream to report on, by its id. The names three of them went by before -- stockmarket, stockmarketstocksplit and usnationalweather -- are still accepted for now. The sec stream reads two feeds, and answers each as a series of its own in group_by: sec, its filings, and companyfacts, the XBRL numbers the S&P 500 companies filed.",
+            "description": "The stream to report on, by its id. Two quote the S&P 500: the stock-market stream, S&P 500 Options on /stream, is the 20-minute run whose main product is the option chains, though it quotes the stocks too; the stock-tickers stream, S&P 500 Tickers, is the poll that quotes its 503 stocks every minute of the trading day, a row per poll in one series, price, and this api also takes it as stocktickers. The names three of them went by before -- stockmarket, stockmarketstocksplit and usnationalweather -- are still accepted for now. The sec stream reads two feeds, and answers each as a series of its own in group_by: sec, its filings, and companyfacts, the XBRL numbers the S&P 500 companies filed.",
             "schema": {
               "type": "string",
               "enum": [
@@ -29,6 +29,7 @@
                 "sec",
                 "stock-market",
                 "stock-split",
+                "stock-tickers",
                 "us-national-weather"
               ]
             },
@@ -135,7 +136,7 @@
                 "examples": {
                   "unknown stream": {
                     "value": {
-                      "report": "Stream=nope NOT recognized, expected one of bls, sec, stock-market, stock-split, us-national-weather"
+                      "report": "Stream=nope NOT recognized, expected one of bls, sec, stock-market, stock-split, stock-tickers, us-national-weather"
                     }
                   },
                   "missing parameters": {
@@ -206,6 +207,7 @@
                               "sec",
                               "stock-market",
                               "stock-split",
+                              "stock-tickers",
                               "us-national-weather"
                             ]
                           },
@@ -231,6 +233,7 @@
                                   "sec",
                                   "stock-market",
                                   "stock-split",
+                                  "stock-tickers",
                                   "us-national-weather"
                                 ],
                                 "description": "The stream, by the same id the report's Stream takes."
@@ -388,6 +391,7 @@
                 "sec",
                 "stock-market",
                 "stock-split",
+                "stock-tickers",
                 "us-national-weather"
               ]
             },
@@ -522,6 +526,7 @@
                 "sec",
                 "stock-market",
                 "stock-split",
+                "stock-tickers",
                 "us-national-weather"
               ]
             },

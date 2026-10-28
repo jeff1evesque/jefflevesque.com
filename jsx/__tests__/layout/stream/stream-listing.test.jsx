@@ -579,7 +579,7 @@ describe('the per-row control tray', () => {
         const link = tray(page, 'stock-market').querySelector('[data-testid="QueryStatsIcon"]').closest('a');
 
         expect(link).toHaveAttribute('href', '/stream/stock-market/trigger');
-        expect(link).toHaveAttribute('aria-label', 'Triggers for S&P 500');
+        expect(link).toHaveAttribute('aria-label', 'Triggers for S&P 500 Options');
         expect(page.state).not.toHaveProperty('bottom_sheet_open');
     });
 });

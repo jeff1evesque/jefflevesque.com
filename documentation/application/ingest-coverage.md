@@ -43,8 +43,9 @@ which draws them.
 Two kinds of interval are not misses, and are drawn apart from them:
 
 - an interval no run was due in -- a weekend on a weekday-only stream, a federal
-  holiday for the SEC filings, an hour outside its hours, a minute between its runs --
-  is a thin hatched strip;
+  holiday for the SEC filings, a market holiday or the afternoon of an early close for
+  the S&P 500 Tickers, an hour outside its hours, a minute between its runs -- is a thin
+  hatched strip;
 - an interval older than the first row the report returned, or the one still filling,
   is left empty: neither can be called a miss yet.
 
@@ -61,9 +62,9 @@ it never turns red.
 The coverage counts every interval a run was due in since the window began, and
 that includes the intervals before the stream's first row, which the rows leave
 empty rather than crossed. So a stream whose rows start partway through the window
-reads low with nothing missed. By the month on 2026-10-04, the S&P 500 stream read
-41.67% because its rows start in June, with no miss to point at, and red there would
-have been a false alarm.
+reads low with nothing missed. By the month on 2026-10-04, the S&P 500 Options stream
+read 41.67% because its rows start in June, with no miss to point at, and red there
+would have been a false alarm.
 
 A schedule can say when it began, and nothing before then counts as due. The SEC's
 company facts run once a day at 23:15 eastern, Monday to Saturday, from 2026-10-04, so
@@ -77,7 +78,7 @@ hundreds missed.
 - [#30](https://github.com/jeff1evesque/jefflevesque.com/issues/30): the bls stream's
   schedule, corrected to the one hour it reports at.
 - [#34](https://github.com/jeff1evesque/jefflevesque.com/issues/34): coverage read
-  `n/a` at the minute rate for every stream but the S&P 500.
+  `n/a` at the minute rate for every stream but the S&P 500 Options.
 - [#36](https://github.com/jeff1evesque/jefflevesque.com/issues/36): the stock market
   stream's cadence, corrected from 10 minutes to 20.
 - [#152](https://github.com/jeff1evesque/jefflevesque.com/issues/152): `/stream` draws
@@ -86,3 +87,6 @@ hundreds missed.
   coverage is green at 95% or more, and never red.
 - [#211](https://github.com/jeff1evesque/jefflevesque.com/issues/211): the SEC's company
   facts, graded once a day from the day their schedule began.
+- [#314](https://github.com/jeff1evesque/jefflevesque.com/issues/314): the S&P 500
+  Tickers, graded a minute at a time, and on the market's own calendar: no minute of a
+  market holiday is due, nor any from an early close on.

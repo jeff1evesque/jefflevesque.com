@@ -418,11 +418,21 @@ describe('streamAlarms', () => {
         await expect(streamAlarms('sec')).resolves.toHaveLength(1);
     });
 
-    it('rejects with the api\'s message for a stream it does not know', async () => {
+    it('has none for a stream the api does not know yet, rather than failing (#314)', async () => {
+        //
+        // the stock tickers', until their alarm is added: their page says they
+        // have none, and lists the alarm once the api answers it
+        //
         answering(404, { error: 'no such stream' });
 
-        await expect(streamAlarms('no-such-stream'))
-            .rejects.toMatchObject({ status: 404, message: 'no such stream' });
+        await expect(streamAlarms('stock-tickers')).resolves.toEqual([]);
+    });
+
+    it('still rejects with the api\'s message for any other failure', async () => {
+        answering(500, { error: 'alarms unavailable' });
+
+        await expect(streamAlarms('bls'))
+            .rejects.toMatchObject({ status: 500, message: 'alarms unavailable' });
     });
 
     it('resolves to an empty list for an answer that holds no list', async () => {

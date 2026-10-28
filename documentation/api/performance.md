@@ -10,7 +10,7 @@ trailing window: one ending now, or one ending at an earlier [`End`](#an-earlier
 
 | Parameter | Values | The application sends |
 |---|---|---|
-| `Stream` | `bls`, `sec`, `stock-market`, `stock-split`, `us-national-weather` | each stream in turn, one request per row, and one for the SEC's two rows -- see [The sec stream's two feeds](#the-sec-streams-two-feeds) |
+| `Stream` | `bls`, `sec`, `stock-market`, `stock-split`, `stock-tickers`, `us-national-weather` | each stream in turn, one request per row, and one for the SEC's two rows -- see [The sec stream's two feeds](#the-sec-streams-two-feeds) |
 | `Interval` | `minute`, `hour`, `day`, `month`; `minute` when omitted | the rate chosen over the rows |
 | `Timezone` | an IANA time zone, such as `America/New_York`; `UTC` when omitted | the reader's own, from the browser |
 | `End` | an ISO 8601 date-time with a UTC offset or `Z`, such as `2026-09-17T23:00:00-04:00`; now when omitted | the start of the last bar on screen, once a reader opens a bar or pages back; nothing for the window ending now |
@@ -19,12 +19,28 @@ trailing window: one ending now, or one ending at an earlier [`End`](#an-earlier
 urls. Three streams went by other names before -- `stockmarket`, `stockmarketstocksplit`
 and `usnationalweather` -- and the api still accepts those for now. It may also still
 name streams by them in its answers, such as the archive listing below; the application
-matches a stream by its id either way.
+matches a stream by its id either way. The api names the newest, `stock-tickers`, the
+same way, as `stocktickers`, and takes either.
 
 The window trails from now, and its buckets are laid out on a calendar, so the time
 zone travels with the request rather than being applied to the answer: a trailing 20
 days ending at 22:00 in Tokyo is not the same 20 dates as one ending at 09:00 in New
 York.
+
+## The S&P 500's two streams
+
+Two streams quote the S&P 500, and `/stream` draws them as rows of their own, S&P 500
+Options and, after it, S&P 500 Tickers:
+
+| Stream | Its row | Runs | What it is for |
+|---|---|---|---|
+| `stock-market` | S&P 500 Options | every 20 minutes | the option chains, though it quotes the stocks too |
+| `stock-tickers` | S&P 500 Tickers | every minute from 09:30 to 15:59 Eastern, Monday to Friday, and once at 16:00: 391 polls a day | the 503 stocks, a minute at a time |
+
+A `stock-tickers` poll writes one row, in one series, `price`: its `total_success` is
+the stocks it got a price for, and its `total_fail` the rest. It does not poll on an
+NYSE holiday, and on a day the market closes early, at 13:00, it polls nothing from
+13:00 on.
 
 ## The sec stream's two feeds
 

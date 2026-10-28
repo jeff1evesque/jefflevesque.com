@@ -96,7 +96,7 @@ describe('selecting a stream', () => {
          * date would hide the current day's quotes.
          */
         setup();
-        selectStream('S&P 500');
+        selectStream('S&P 500 Options');
 
         expect(selectedMonth()).toBe(monthsBack(null, 0));
     });
@@ -162,7 +162,7 @@ describe('selecting a stream', () => {
         expect(streams().size).toBe(6);
 
         spy.mockClear();
-        selectStream('S&P 500');
+        selectStream('S&P 500 Options');
         expect([...streams()]).toEqual(['stock-market']);
 
         spy.mockRestore();
@@ -221,7 +221,7 @@ describe('opening on the stream last charted', () => {
         saved('retired-stream');
         setup();
 
-        expect(charted()).toBe('S&P 500');
+        expect(charted()).toBe('S&P 500 Options');
         expect(selectedMonth()).toBe(monthsBack(null, 0));
     });
 });

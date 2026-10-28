@@ -118,6 +118,9 @@ const TERMS = `${DOCUMENTATION}/terms/`;
 // the weather stream's dataset is 'us-weather-alert' -- and the datalake's names
 // are its own, so they are not assumed to stay alike.
 //
+// Note: the stock tickers have no dataset yet (#314), so /data does not list
+//       them, and /stream does
+//
 const DATASETS = {
     [STOCK_MARKET]: 'stock-market',
     [STOCK_SPLIT]: 'stock-split',
@@ -132,6 +135,10 @@ const DATASETS = {
 // under another: the company facts are a second feed of the sec stream, and
 // answered as its series 'companyfacts', beside the filings' 'sec' (#211). Their
 // row and the filings' read one report.
+//
+// Note: the stock tickers are asked for by their own id, 'stock-tickers', which
+//       the api takes for 'stocktickers' (#314). The hyphenated id is the one
+//       its migration to hyphenated ids keeps, so it is not mapped here
 //
 const PERFORMANCE_STREAMS = {
     [SEC_COMPANYFACTS]: SEC,
@@ -260,16 +267,23 @@ const TABLES_VALUES = {
     Neighborhood: { path: 'neighborhood', values: ['Uri', 'Day'] },
     Quotes: { path: 'quotes', values: ['Symbol', 'Day'] },
     LastQuotes: { path: 'last-quotes', values: ['Day'] },
+    //
+    // one stock's minutes through a day, or from 'From' to 'To' of it, and every
+    // stock at the minute 'Time' names: 'HH:MM' eastern (#314)
+    //
+    MinuteQuotes: { path: 'minute-quotes', values: ['Symbol', 'Day', 'From', 'To'] },
+    MinuteQuotesAt: { path: 'minute-quotes-at', values: ['Day', 'Time'] },
 };
 
 /**
  * one question of the published tables: which days are published, which links
  * exist and how many nodes of each type a day holds, which entities match some
  * text, what is held about one entity, what one entity is linked to within a day,
- * and one stock's quotes through a day or every stock's last.
+ * one stock's quotes through a day or every stock's last, and one stock's minutes
+ * or every stock at one minute.
  *
- * Note: 'Day' is required by Neighborhood, NodeTypes, Quotes and LastQuotes, and
- *       optional for the rest. That asymmetry is the api's, and it is real -- the
+ * Note: 'Day' is required by Neighborhood, NodeTypes, Quotes, LastQuotes,
+ *       MinuteQuotes and MinuteQuotesAt, and optional for the rest. That asymmetry is the api's, and it is real -- the
  *       numeric ids the tables join on are renumbered daily, so an edge only means
  *       anything joined within its own day, and a node counted across days is
  *       counted once for every day that holds it. Uris are stable across days,
