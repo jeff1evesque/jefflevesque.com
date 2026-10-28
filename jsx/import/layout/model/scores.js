@@ -1038,10 +1038,13 @@ export function liveKind(kind) {
 }
 
 /**
- * what a live version learned from, from format 4 on (#295): '7 days, Oct 5 to
- * Oct 19' -- the days it trained on, then the oldest and newest of every day it
- * read, the days it stopped on among them -- or '1 day, Oct 5' for one, and
+ * what a live version learned from, from format 4 on (#295), as the oldest and
+ * newest of every day it read: 'Oct 5 – Oct 19', or 'Oct 5' for one day, and
  * nothing where the listing gives none, as one before format 4.
+ *
+ * Note: no count of its days (#315). The count was of the days it trained on,
+ *       while the first and last days also take in the days it stopped on, so
+ *       '7 days, Oct 5 to Oct 19' did not add up.
  */
 export function trainedOn(live) {
     const days = live ? live.days : null;
@@ -1050,11 +1053,36 @@ export function trainedOn(live) {
         return '';
     }
 
-    const count = `${days.training} ${days.training === 1 ? 'day' : 'days'}`;
-
     return days.first === days.last
-        ? `${count}, ${shortDay(days.first)}`
-        : `${count}, ${shortDay(days.first)} to ${shortDay(days.last)}`;
+        ? shortDay(days.first)
+        : `${shortDay(days.first)} – ${shortDay(days.last)}`;
+}
+
+/**
+ * the check of a live version's fine-tune, from the trainer's format 6 (#315),
+ * in words: whether it passed, and how much better or worse than the tested
+ * model it did on days neither trained on -- 'Passed, 0.002 better', 'Passed,
+ * 0.003 worse, within the 0.005 allowed', 'Failed, 0.008 worse, past the 0.005
+ * allowed', or 'Passed, level' where the gap prints as 0.000. Each gap to 3
+ * places, as every loss gap prints, and nothing where the listing gives no check.
+ */
+export function fineTuneWords(fineTune) {
+    if (!fineTune) {
+        return '';
+    }
+
+    const verdict = fineTune.passed ? 'Passed' : 'Failed';
+    const stands = standing(fineTune.by, 'loss');
+
+    if (stands === 'level') {
+        return `${verdict}, level`;
+    }
+
+    const gap = `${verdict}, ${formatGap(fineTune.by, 'loss')} ${stands}`;
+
+    return stands === 'better'
+        ? gap
+        : `${gap}, ${fineTune.passed ? 'within' : 'past'} the ${formatGap(fineTune.slack, 'loss')} allowed`;
 }
 
 /**
