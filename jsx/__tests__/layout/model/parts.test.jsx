@@ -273,8 +273,8 @@ describe('partGap (#300)', () => {
 });
 
 describe('axisNote (#300)', () => {
-    it('says a score where lower is better has its axis flipped, so better is up', () => {
-        expect(axisNote('loss')).toBe('Lower is better, so the axis is flipped: better is up.');
+    it('says where a score where lower is better has its best numbers, its axis flipped (#318)', () => {
+        expect(axisNote('loss')).toBe('Lower is better, so the smallest numbers are at the top.');
     });
 
     it('says a score where higher is better is the right way up', () => {
@@ -505,7 +505,7 @@ describe('Legend', () => {
 
         expect(items).toHaveLength(2);
         expect(items[1]).toHaveClass('model-legend-note');
-        expect(items[1]).toHaveTextContent('Lower is better, so the axis is flipped: better is up.');
+        expect(items[1]).toHaveTextContent('Lower is better, so the smallest numbers are at the top.');
         expect(items[1].querySelector('svg')).toBeNull();
     });
 
