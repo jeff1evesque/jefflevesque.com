@@ -15,11 +15,13 @@ reader chooses.
 
 `Data` names a **dataset**, not a stream. The two are the same string for five of the
 six streams `/data` lists, and not for the weather stream, whose id is answered with a
-400:
+400. The seventh stream, `stock-tickers`, the S&P 500 Tickers, has no dataset yet, and
+`/data` does not list it:
 
 | Stream | Dataset |
 |---|---|
 | `stock-market` | `stock-market` |
+| `stock-tickers` | none yet |
 | `stock-split` | `stock-split` |
 | `bls` | `bls` |
 | `sec` | `sec` |
