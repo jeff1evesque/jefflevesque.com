@@ -1527,6 +1527,400 @@
 }
 
 //
+// the key of how long each attempt took, under its line (#318), set in as far as
+// its heading and its line are
+//
+.model-page .model-attempts > .model-legend {
+  margin-left: 56px;
+}
+
+//
+// the attempts' title, and when the newest test ran at its right (#318), under
+// it where the line is too narrow for both
+//
+.model-attempts-top {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  justify-content: space-between;
+}
+
+.model-attempts-newest {
+  color: $gray-6;
+  font-size: 13px;
+  margin: 0;
+}
+
+//
+// what the attempts' chart's axis is, over it (#318), as far in as its values'
+// gutter is wide, and 8px over the chart's top line
+//
+.model-page .model-axis-label {
+  color: $gray-6;
+  font-size: 13px;
+  margin: 0 0 -4px 56px;
+}
+
+//
+// the last of the attempts' charts, its nights over its axis as buttons (#318)
+// -- see attempts-chart.jsx's NightAxis: each as wide as its night's band, from
+// the values' gutter to the chart's 12px right margin, as tall as the axis's two
+// lines, over the chart's 4px bottom margin
+//
+.model-chart-frame {
+  position: relative;
+}
+
+.model-nights {
+  bottom: 4px;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  height: 40px;
+  left: 56px;
+  position: absolute;
+  right: 12px;
+}
+
+.model-night {
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+
+  //
+  // the night picked, tinted under its name as its band is in each chart: the
+  // better color at a tenth, attempts-chart.jsx's PICKED_OPACITY, which is
+  // '--stream-shade-0' in either theme
+  //
+  &[aria-pressed='true'] {
+    background-color: color-mix(in srgb, var(--stream-shade-0) 10%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: -2px;
+  }
+}
+
+//
+// how to pick a night, over its panel (#318)
+//
+.model-attempts-hint {
+  color: $gray-6;
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+//
+// the panel of the night picked (#318) -- see night-panel.jsx: on a tint a step
+// off the card inside a light rule, the night's name and kind over the market
+// day, three boxes of its scores, what came of it, where it started, how long it
+// took, and which days it used, 14px apart
+//
+.model-night-panel {
+  background-color: $white-2;
+  border: 1px solid $gray-2;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.model-night-head {
+  display: grid;
+  gap: 2px;
+}
+
+.model-page .model-night-title {
+  color: $gray-9;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.model-night-sub {
+  color: $gray-6;
+  font-size: 14px;
+  margin: 0;
+}
+
+//
+// the new version's score, the version in charge's and the simple guess's, a
+// box each, side by side on a phone too: each its name after its mark over the
+// value, in the page's ink, since a name or a number in its series' color is one
+// some readers can't read -- see parts.jsx
+//
+.model-night-boxes {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.model-night-box {
+  background-color: $white-1;
+  border: 1px solid $gray-2;
+  border-radius: 6px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.model-night-box-name {
+  align-items: center;
+  color: $gray-6;
+  display: flex;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.model-night-box-value {
+  color: $gray-9;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.model-night-result {
+  color: $gray-8;
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+//
+// took over on a tint of the better color, as a new version that took over is
+// filled with it in the chart, and kept back on the page's light gray
+//
+.model-night-pill {
+  border-radius: 999px;
+  color: $gray-9;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 6px;
+  padding: 1px 10px;
+}
+
+.model-night-pill-took {
+  background-color: color-mix(in srgb, var(--stream-shade-0) 16%, transparent);
+}
+
+.model-night-pill-kept {
+  background-color: $gray-1;
+}
+
+.model-night-line {
+  color: $gray-7;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.model-night-line-name {
+  color: $gray-8;
+  font-weight: 600;
+}
+
+//
+// which days a night used: a strip of its days, each a box with its date, after
+// the name of its month, a key of what each box's look means, and the same in
+// words. A test day is the strip's orange, with the darkest ink on it in either
+// theme
+//
+.model-night-days {
+  display: grid;
+  gap: 10px;
+}
+
+.model-page .model-night-days-title {
+  color: $gray-8;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.model-day-strip {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.model-day-month {
+  color: $gray-7;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.model-day {
+  align-items: center;
+  border-radius: 6px;
+  box-sizing: border-box;
+  display: inline-flex;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.model-day-test {
+  background-color: $orange;
+  border: 1px solid mix($orange, $gray-9-fixed, 80%);
+  color: $gray-9-fixed;
+}
+
+//
+// the full strip, once a night's history lists its days (#318): a row for each
+// month, its name in a column of its own so the rows' days line up. A day
+// studied is filled with a deep teal, and one used to decide when to stop with
+// a light one; one skipped is struck through on the page's light gray, one whose
+// result isn't in yet sits inside a dashed gray, and one not picked this night
+// is outlined in the deep teal it would have been filled with. The grays are the
+// theme's own, and each teal a pair: on a dark page the deep teal sat too near
+// the page, and is lighter
+//
+$day-teal: #0f766e;
+$day-teal-light: #99f6e4;
+$day-teal-edge: #2dd4bf;
+$day-teal-ink: #134e4a;
+$dark-day-teal: #14b8a6;
+
+.model-day-rows {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.model-day-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  > .model-day-month {
+    margin-right: 0;
+    min-width: 30px;
+  }
+}
+
+.model-day-studied {
+  background-color: $day-teal;
+  border: 1px solid $day-teal;
+  color: $white-1-fixed;
+
+  @include dark {
+    background-color: $dark-day-teal;
+    border-color: $dark-day-teal;
+    color: $gray-9-fixed;
+  }
+}
+
+.model-day-stopping {
+  background-color: $day-teal-light;
+  border: 1px solid $day-teal-edge;
+  color: $day-teal-ink;
+
+  @include dark {
+    background-color: $day-teal-ink;
+    color: $day-teal-light;
+  }
+}
+
+.model-day-skipped {
+  background-color: $gray-1;
+  border: 1px dashed $gray-6;
+  color: $gray-7;
+  text-decoration: line-through;
+}
+
+.model-day-pending {
+  background-color: $white-1;
+  border: 1px dashed $gray-6;
+  color: $gray-7;
+}
+
+.model-day-unpicked {
+  background-color: $white-1;
+  border: 2px solid $day-teal;
+  color: $day-teal;
+
+  @include dark {
+    border-color: $day-teal-edge;
+    color: $day-teal-edge;
+  }
+}
+
+.model-day-legend {
+  color: $gray-7;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 6px 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+  }
+}
+
+.model-day-swatch {
+  border-radius: 4px;
+  box-sizing: border-box;
+  display: inline-block;
+  height: 14px;
+  width: 14px;
+}
+
+.model-day-lists {
+  display: grid;
+  font-size: 14px;
+  gap: 4px;
+  margin: 0;
+
+  > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+  }
+
+  dt {
+    color: $gray-8;
+    font-weight: 600;
+    min-width: 200px;
+  }
+
+  dd {
+    color: $gray-7;
+    margin: 0;
+  }
+}
+
+//
+// a night's name in the table of numbers: the morning its test ran over the
+// market day it was tested after, smaller and muted (#318)
+//
+.model-night-tested,
+.model-night-after {
+  display: block;
+}
+
+.model-night-after {
+  color: $gray-6;
+  font-size: 0.8rem;
+}
+
+//
 // the track record's card on a hold with no result in yet (#300): when its
 // results come in, in the middle of a light tint where the chart would be
 //
@@ -2463,6 +2857,17 @@
   line-height: 1.45;
 }
 
+//
+// what the score card's figure is, under it, and under a phone's score line
+// (#318): its published predictions, scored after the fact, in the muted gray
+//
+.model-stat-scored,
+.model-summary-details > .model-score-scored {
+  color: $gray-6;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .model-stat-value {
   color: $gray-9;
   font-size: 26px;
@@ -3103,8 +3508,49 @@
   // charts start at the card's edge as its title does (#300)
   //
   .model-page .model-card-minor,
-  .model-page .model-attempts > .model-card-sub {
+  .model-page .model-attempts > .model-card-sub,
+  .model-page .model-axis-label {
     margin-left: 0;
+  }
+
+  //
+  // a phone's nights from the card's edge, as its charts are (#318), and the
+  // panel closer: its three boxes still side by side, smaller. The key of how
+  // long each attempt took is left out, as every chart's is on a phone: the
+  // popup a tap opens names each part
+  //
+  .model-nights {
+    left: 0;
+  }
+
+  .model-page .model-attempts > .model-legend {
+    display: none;
+  }
+
+  .model-night-panel {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .model-night-boxes {
+    gap: 6px;
+  }
+
+  .model-night-box {
+    padding: 8px;
+  }
+
+  .model-night-box-name {
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  .model-night-box-value {
+    font-size: 18px;
+  }
+
+  .model-day-lists dt {
+    min-width: 0;
   }
 
   //
