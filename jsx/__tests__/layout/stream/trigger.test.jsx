@@ -482,7 +482,7 @@ describe('the chart itself', () => {
         await waitForLoad();
 
         await waitFor(() => expect(mockSeen['chart']).toBeDefined());
-        expect(mockSeen['chart'].title).toBe('S&P 500');
+        expect(mockSeen['chart'].title).toBe('S&P 500 Options');
         expect(mockSeen['chart'].y_label).toBe('Total Alerts');
     });
 
