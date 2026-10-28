@@ -8,8 +8,9 @@
  * (#274), about loss's three parts in /model's list (#283), about a model's
  * own page as #300 lays it out -- its column, its cards, its charts' panel, when
  * its results come in, and a phone's boxes -- about /model's title over its
- * open filters, beside the lists' first line (#306), and about a picker's name
- * with an info icon (#311), read out of the partial.
+ * open filters, beside the lists' first line (#306), about a picker's name
+ * with an info icon (#311), and about the attempts' nights and the panel of the
+ * night picked (#318), read out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see where a
  * cell lands. What can be held is what each rule says: a wide row's cells side
@@ -617,10 +618,6 @@ describe('a model\'s own page, as #300 lays it out', () => {
         expect(declared(popup, 'width')).toBe('max-content');
     });
 
-    it('holds no panel under the attempts\' charts, which the popups took the place of (#300)', () => {
-        expect(source).not.toMatch(/model-attempt-panel/);
-    });
-
     it('says in the middle of a light tint, where the track record\'s chart would be, when a hold\'s results come in', () => {
         const none = rule('.model-track-none');
 
@@ -653,7 +650,7 @@ describe('a model\'s own page, as #300 lays it out', () => {
 
     describe('on a phone', () => {
         it('starts the attempts\' headings and lines at the card\'s edge, as its title does, the charts\' values inside them (#300)', () => {
-            expect(declared(rule('.model-page .model-card-minor,.model-page .model-attempts > .model-card-sub'), 'margin-left')).toBe('0');
+            expect(declared(rule('.model-page .model-card-minor,.model-page .model-attempts > .model-card-sub,.model-page .model-axis-label'), 'margin-left')).toBe('0');
         });
 
         it('keeps of a legend only which way the axis runs: the popup a tap opens names every line and mark (#300)', () => {
@@ -694,6 +691,90 @@ describe('a model\'s own page, as #300 lays it out', () => {
             expect(declared(rule('.model-page .model-by-hold'), 'gap')).toBe('6px');
             expect(declared(rule('.model-page .model-by-hold .model-card-head h5'), 'font-size')).toBe('17px');
         });
+    });
+});
+
+describe('the attempts\' nights and the panel of the one picked (#318)', () => {
+    const rule = (selector) => RULES.find((each) => each.selectors.join() === selector);
+
+    it('says over the attempts\' chart what its axis is, set in as far as its values\' gutter is wide', () => {
+        expect(declared(rule('.model-page .model-axis-label'), 'margin')).toBe('0 0 -4px 56px');
+        expect(declared(rule('.model-page .model-axis-label'), 'font-size')).toBe('13px');
+    });
+
+    it('lays the nights\' buttons over their names, from the values\' gutter to the chart\'s right margin, as tall as the names\' two lines', () => {
+        const nights = rule('.model-nights');
+
+        expect(declared(rule('.model-chart-frame'), 'position')).toBe('relative');
+        expect(declared(nights, 'position')).toBe('absolute');
+        expect(declared(nights, 'left')).toBe('56px');
+        expect(declared(nights, 'right')).toBe('12px');
+        expect(declared(nights, 'bottom')).toBe('4px');
+        expect(declared(nights, 'height')).toBe('40px');
+        expect(declared(nights, 'grid-auto-flow')).toBe('column');
+        expect(declared(nights, 'grid-auto-columns')).toBe('minmax(0, 1fr)');
+    });
+
+    it('tints the night picked under its name as its band is in each chart, the better color at a tenth, and rings it for the keyboard', () => {
+        const night = whole('.model-night').body;
+
+        expect(night).toMatch(/&\[aria-pressed='true'\]\s*\{\s*background-color: color-mix\(in srgb, var\(--stream-shade-0\) 10%, transparent\);/);
+        expect(night).toMatch(/&:focus-visible\s*\{\s*outline: 2px solid \$focus;/);
+    });
+
+    it('sets the key of how long each attempt took in as far as its heading is, and leaves it out on a phone', () => {
+        const [wide, phone] = rulesOf('.model-page .model-attempts > .model-legend');
+
+        expect(declared(wide, 'margin-left')).toBe('56px');
+        expect(declared(phone, 'display')).toBe('none');
+    });
+
+    it('draws the panel on a tint inside a light rule, its three boxes side by side, on a phone too', () => {
+        const panel = rule('.model-night-panel');
+
+        expect(declared(panel, 'background-color')).toBe('$white-2');
+        expect(declared(panel, 'border')).toBe('1px solid $gray-2');
+        expect(declared(panel, 'padding')).toBe('16px');
+        expect(declared(rule('.model-night-boxes'), 'grid-template-columns')).toBe('repeat(3, minmax(0, 1fr))');
+        expect(rulesOf('.model-night-boxes').some((each) => declared(each, 'grid-template-columns') && declared(each, 'grid-template-columns') !== 'repeat(3, minmax(0, 1fr))')).toBe(false);
+    });
+
+    it('draws a box\'s value in the page\'s ink, not its series\' color', () => {
+        expect(declared(rule('.model-night-box-value'), 'color')).toBe('$gray-9');
+    });
+
+    it('draws a test day orange, with the darkest ink on it in either theme', () => {
+        const test = rule('.model-day-test');
+
+        expect(declared(test, 'background-color')).toBe('$orange');
+        expect(declared(test, 'color')).toBe('$gray-9-fixed');
+    });
+
+    it('draws each kind of day in the strip as the mockup does: studied teal, stopped on light teal, skipped struck through, not in yet dashed, not picked outlined', () => {
+        expect(declared(whole('.model-day-studied'), 'background-color')).toBe('$day-teal');
+        expect(declared(whole('.model-day-stopping'), 'background-color')).toBe('$day-teal-light');
+        expect(declared(rule('.model-day-skipped'), 'text-decoration')).toBe('line-through');
+        expect(declared(rule('.model-day-skipped'), 'border')).toBe('1px dashed $gray-6');
+        expect(declared(rule('.model-day-pending'), 'border')).toBe('1px dashed $gray-6');
+        expect(declared(whole('.model-day-unpicked'), 'border')).toBe('2px solid $day-teal');
+        expect(declared(rule('.model-day'), 'box-sizing')).toBe('border-box');
+    });
+
+    it('gives each teal kind of day a pair of its own on a dark page', () => {
+        ['.model-day-studied', '.model-day-stopping', '.model-day-unpicked'].forEach((selector) => {
+            expect(whole(selector).body).toMatch(/@include dark \{/);
+        });
+    });
+
+    it('starts a phone\'s nights at the card\'s edge, as its charts do', () => {
+        expect(declared(rulesOf('.model-nights')[1], 'left')).toBe('0');
+    });
+
+    it('says under the score card\'s figure, and under a phone\'s score line, what its score is, in the muted gray', () => {
+        const scored = rule('.model-stat-scored,.model-summary-details > .model-score-scored');
+
+        expect(declared(scored, 'color')).toBe('$gray-6');
+        expect(declared(scored, 'font-size')).toBe('13px');
     });
 });
 
