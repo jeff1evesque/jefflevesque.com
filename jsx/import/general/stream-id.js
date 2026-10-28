@@ -33,9 +33,17 @@ export const US_NATIONAL_WEATHER = 'us-national-weather';
 export const SEC_COMPANYFACTS = 'sec-companyfacts';
 
 //
-// in the order the /stream and /data listings draw them
+// the S&P 500's stocks quoted every minute of the trading day (#314), beside
+// stock-market's 20-minute run. The performance api answers it as
+// 'stocktickers', and takes this id as its alias
 //
-export const STREAMS = [STOCK_MARKET, STOCK_SPLIT, BLS, SEC, SEC_COMPANYFACTS, US_NATIONAL_WEATHER];
+export const STOCK_TICKERS = 'stock-tickers';
+
+//
+// in the order the /stream and /data listings draw them. /data lists only the
+// streams with a dataset -- see DATASETS in api-url.js
+//
+export const STREAMS = [STOCK_MARKET, STOCK_TICKERS, STOCK_SPLIT, BLS, SEC, SEC_COMPANYFACTS, US_NATIONAL_WEATHER];
 
 //
 // every name a stream has gone by, with its case and its hyphens taken off, and
@@ -51,6 +59,7 @@ export const STREAMS = [STOCK_MARKET, STOCK_SPLIT, BLS, SEC, SEC_COMPANYFACTS, U
 //
 const NAMES = new Map([
     ['stockmarket', STOCK_MARKET],
+    ['stocktickers', STOCK_TICKERS],
     ['stockmarketstocksplit', STOCK_SPLIT],
     ['stocksplit', STOCK_SPLIT],
     ['bls', BLS],
