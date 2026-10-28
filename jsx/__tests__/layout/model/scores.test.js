@@ -31,6 +31,7 @@ import {
     TRADE_SCORES,
     WINDOW,
     alignDays,
+    attemptSeconds,
     averageDays,
     betterBy,
     chartColors,
@@ -67,6 +68,8 @@ import {
     longDay,
     lossParts,
     namedHold,
+    newestTest,
+    nightName,
     noResultsYet,
     noteOf,
     onThe,
@@ -93,6 +96,7 @@ import {
     trackLine,
     tradesOptions,
     trainedOn,
+    twoPasses,
     newYorkToday,
     weekDay,
     whenRows,
@@ -113,6 +117,8 @@ import {
     olderTrackOf,
     optionsListingOf,
     optionsTrackOf,
+    ptGnnHistory,
+    ptOptionsHistory,
     trackOf,
 } from '../../../test-support/model-fixtures.js';
 
@@ -314,6 +320,85 @@ describe('how long an attempt took, and when it started (#247)', () => {
         expect(newYorkToday(new Date('2026-12-01T04:30:00Z'))).toBe('2026-11-30');
         expect(newYorkToday(new Date('2026-12-01T05:30:00Z'))).toBe('2026-12-01');
         expect(newYorkToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+});
+
+describe('a night\'s time in all, its second pass counted in, and its name (#318)', () => {
+    //
+    // a night's times as the history gives them, in seconds
+    //
+    const night = (total, again = null, overrides = {}) => ({ total_seconds: total, trained_again_seconds: again, trained_again: again === null ? null : true, ...overrides });
+
+    it('adds a second pass to the first pass\'s whole time', () => {
+        expect(attemptSeconds(night(2592.5, 657.7))).toBeCloseTo(3250.2);
+        expect(formatDuration(attemptSeconds(night(2592.5, 657.7)))).toBe('54 min 10 s');
+        expect(attemptSeconds(night(13.7, 4.1))).toBeCloseTo(17.8);
+        expect(attemptSeconds(night(100, 0))).toBe(100);
+    });
+
+    it('is the first pass\'s time alone where there was no second pass, or it reads as none', () => {
+        [null, undefined, -3, NaN, '657.7'].forEach((again) => {
+            expect(attemptSeconds(night(2592.5, again))).toBe(2592.5);
+        });
+    });
+
+    it('is none where the first pass has no time, as before the trainer kept them, whatever the second pass says', () => {
+        [null, undefined, -1, NaN].forEach((total) => {
+            expect(attemptSeconds(night(total, 657.7))).toBeNull();
+        });
+        expect(attemptSeconds(null)).toBeNull();
+    });
+
+    it('notes a night with a second pass that its time is two passes, the first one\'s training and test, then training again', () => {
+        expect(twoPasses(night(2592.5, 657.7))).toBe(
+            'Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again.'
+        );
+    });
+
+    it('says the first pass took over where the second pass\'s version did not, its time counted all the same', () => {
+        expect(twoPasses(night(2592.5, 657.7, { trained_again: false }))).toBe(
+            'Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again. The first pass took over.'
+        );
+    });
+
+    it('notes nothing for a night with one pass, or no first pass\'s time', () => {
+        expect(twoPasses(night(2592.5))).toBe('');
+        expect(twoPasses(night(2592.5, -3))).toBe('');
+        expect(twoPasses(night(null, 657.7))).toBe('');
+        expect(twoPasses(null)).toBe('');
+    });
+
+    it('reads pt-gnn\'s and pt-options\' real nights: one second pass, on pt-gnn\'s Oct 27 night alone', () => {
+        const noted = (rows) => rows.map(twoPasses).filter(Boolean);
+
+        expect(noted(ptGnnHistory())).toHaveLength(1);
+        expect(noted(ptOptionsHistory())).toEqual([]);
+        expect(ptOptionsHistory().map((row) => formatDuration(attemptSeconds(row)))).toEqual(
+            ['1 h 21 min 6 s', '30 min 1 s', '1 h 31 min 42 s', '41 min 0 s', '57 min 0 s']
+        );
+    });
+
+    it('names a night by its weekday and day, with no comma, the same day in every zone', () => {
+        expect(nightName('2026-10-27')).toBe('Tue Oct 27');
+        expect(nightName('2026-10-24')).toBe('Sat Oct 24');
+        expect(nightName('2026-11-01')).toBe('Sun Nov 1');
+        expect(nightName('')).toBe('');
+        expect(nightName(null)).toBe('');
+    });
+
+    it('says when the newest night\'s test ran, the morning and its time in Eastern time', () => {
+        expect(newestTest(ptOptionsHistory())).toBe('Wed Oct 28, 5:39 AM ET');
+        expect(newestTest(ptGnnHistory())).toBe('Wed Oct 28, 4:43 AM ET');
+    });
+
+    it('says nothing of a newest night with no start, nor of a history with no nights', () => {
+        const rows = ptOptionsHistory();
+
+        rows[rows.length - 1] = { ...rows[rows.length - 1], started: null };
+
+        expect(newestTest(rows)).toBe('');
+        expect(newestTest([])).toBe('');
+        expect(newestTest(null)).toBe('');
     });
 });
 
@@ -525,6 +610,11 @@ describe('chartColors', () => {
     it('draws the live version green, the baseline amber and how long an attempt took teal, in either theme (#251)', () => {
         expect(chartColors('light')).toMatchObject({ live: '#237616', baseline: '#c98500', took: '#1baf7a' });
         expect(chartColors('dark')).toMatchObject({ live: '#4a993e', baseline: '#eda100', took: '#199e70' });
+    });
+
+    it('draws a second pass in a teal of its own, dark by day and light by night (#318)', () => {
+        expect(chartColors('light').tookAgain).toBe('#0b5f58');
+        expect(chartColors('dark').tookAgain).toBe('#7fdcc8');
     });
 
     it('dashes the baseline, a longer dash on a model\'s page (#300), and lightens an attempt\'s scoring to half in both themes', () => {
