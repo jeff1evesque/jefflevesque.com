@@ -194,10 +194,10 @@ describe('a row whose report is not in', () => {
     });
 
     it('says it is still loading once it has taken a while, and keeps its spinner', () => {
-        setup([stream('S&P 500', { status: 'slow' })]);
+        setup([stream('S&P 500 Options', { status: 'slow' })]);
 
-        expect(status('S&P 500')).toBe('Still loading. This stream can take a while.');
-        expect(spinner('S&P 500')).not.toBeNull();
+        expect(status('S&P 500 Options')).toBe('Still loading. This stream can take a while.');
+        expect(spinner('S&P 500 Options')).not.toBeNull();
     });
 
     it('says it could not load, with no spinner, and a button that asks again', () => {
@@ -229,7 +229,7 @@ describe('a row whose report is not in', () => {
     });
 
     it('does not hold up a row whose report is in', () => {
-        setup([stream('S&P 500', { status: 'slow' }), stream('SEC Filings', { bars: BARS })]);
+        setup([stream('S&P 500 Options', { status: 'slow' }), stream('SEC Filings', { bars: BARS })]);
 
         expect(status('SEC Filings')).toBeNull();
         expect(rowOf('SEC Filings').querySelectorAll('.stream-bar-reported')).toHaveLength(2);
@@ -892,7 +892,7 @@ describe('sorting by a figure', () => {
 describe('sorting by name (#216)', () => {
     const ROWS = [
         stream('US Weather Alerts', { figures: { health: '100%', coverage: '99%', total: '9' } }),
-        stream('S&P 500', { figures: { health: '100%', coverage: '42%', total: '7' } }),
+        stream('S&P 500 Options', { figures: { health: '100%', coverage: '42%', total: '7' } }),
         stream('Bureau of Labor Statistics', { figures: { health: '100%', coverage: '95%', total: '5' } }),
         stream('SEC Filings', { figures: { health: '100%', coverage: '100%', total: '3' } }),
     ];
@@ -928,7 +928,7 @@ describe('sorting by name (#216)', () => {
 
         fireEvent.click(heading());
 
-        expect(names()).toEqual(['Bureau of Labor Statistics', 'S&P 500', 'SEC Filings', 'US Weather Alerts']);
+        expect(names()).toEqual(['Bureau of Labor Statistics', 'S&P 500 Options', 'SEC Filings', 'US Weather Alerts']);
         expect(heading()).toHaveAttribute('aria-pressed', 'true');
         expect(heading()).toHaveClass('stream-rows-sort-active');
         expect(mark()).toBe('asc');
@@ -942,12 +942,12 @@ describe('sorting by name (#216)', () => {
         fireEvent.click(heading());
         fireEvent.click(heading());
 
-        expect(names()).toEqual(['US Weather Alerts', 'SEC Filings', 'S&P 500', 'Bureau of Labor Statistics']);
+        expect(names()).toEqual(['US Weather Alerts', 'SEC Filings', 'S&P 500 Options', 'Bureau of Labor Statistics']);
         expect(mark()).toBe('desc');
 
         fireEvent.click(heading());
 
-        expect(names()).toEqual(['US Weather Alerts', 'S&P 500', 'Bureau of Labor Statistics', 'SEC Filings']);
+        expect(names()).toEqual(['US Weather Alerts', 'S&P 500 Options', 'Bureau of Labor Statistics', 'SEC Filings']);
         expect(told.mock.calls.map(([sort]) => sort)).toEqual([
             { key: 'name', dir: 'asc' },
             { key: 'name', dir: 'desc' },
@@ -960,7 +960,7 @@ describe('sorting by name (#216)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Sort by Total Records' }));
 
-        expect(names()).toEqual(['US Weather Alerts', 'S&P 500', 'Bureau of Labor Statistics', 'SEC Filings']);
+        expect(names()).toEqual(['US Weather Alerts', 'S&P 500 Options', 'Bureau of Labor Statistics', 'SEC Filings']);
         expect(mark()).toBe('none');
     });
 
