@@ -12,7 +12,8 @@ import streamName, { streamCoverage } from '../../import/general/stream-name.js'
 
 describe('streamName', () => {
     it('labels every stream it knows, by its id', () => {
-        expect(streamName('stock-market')).toBe('S&P 500');
+        expect(streamName('stock-market')).toBe('S&P 500 Options');
+        expect(streamName('stock-tickers')).toBe('S&P 500 Tickers');
         expect(streamName('stock-split')).toBe('Stock Splits');
         expect(streamName('us-national-weather')).toBe('US Weather Alerts');
         expect(streamName('bls')).toBe('Bureau of Labor Statistics');
@@ -27,9 +28,11 @@ describe('streamName', () => {
         // ingest performance metrics'. Every name leads to the id now, and the
         // id to the label.
         //
-        expect(streamName('StockMarket')).toBe('S&P 500');
-        expect(streamName('stockmarket')).toBe('S&P 500');
-        expect(streamName('STOCKMARKET')).toBe('S&P 500');
+        expect(streamName('StockMarket')).toBe('S&P 500 Options');
+        expect(streamName('stockmarket')).toBe('S&P 500 Options');
+        expect(streamName('STOCKMARKET')).toBe('S&P 500 Options');
+        expect(streamName('stocktickers')).toBe('S&P 500 Tickers');
+        expect(streamName('StockTickers')).toBe('S&P 500 Tickers');
         expect(streamName('StockMarketStockSplit')).toBe('Stock Splits');
         expect(streamName('USNationalWeather')).toBe('US Weather Alerts');
     });
@@ -37,11 +40,21 @@ describe('streamName', () => {
     it('matches the whole name, so the two stock streams stay distinct', () => {
         //
         // 'stockmarketstocksplit' is not a 'stockmarket' that picked up a suffix.
-        // A prefix match would label the split feed 'S&P 500', which is exactly
-        // the wrong scope.
+        // A prefix match would label the split feed 'S&P 500 Options', which is
+        // exactly the wrong scope.
         //
-        expect(streamName('stock-split')).not.toBe('S&P 500');
+        expect(streamName('stock-split')).not.toBe('S&P 500 Options');
         expect(streamName('stockmarketstocksplit')).toBe('Stock Splits');
+    });
+
+    it('says which of the two S&P 500 streams each is (#314)', () => {
+        //
+        // both carry the S&P 500, so neither is labeled for the index alone: the
+        // 20-minute run for its option chains, the minute poll for its tickers
+        //
+        expect(streamName('stock-market')).not.toBe(streamName('stock-tickers'));
+        expect(streamName('stock-market')).not.toBe('S&P 500');
+        expect(streamName('stock-tickers')).not.toBe('S&P 500');
     });
 
     it('passes an unknown id through unchanged', () => {
@@ -63,12 +76,14 @@ describe('streamName', () => {
 });
 
 describe('streamCoverage', () => {
-    it('states the universe for the two streams that need it', () => {
+    it('states the universe for the three streams that need it', () => {
         //
-        // only the stock streams qualify: they sit adjacent in the listing and
-        // differ precisely in scope, which the titles alone leave ambiguous.
+        // only the stock streams qualify: they sit adjacent in the listing, and
+        // the split feed differs from the two S&P 500 streams precisely in
+        // scope, which the titles alone leave ambiguous.
         //
         expect(streamCoverage('stock-market')).toBe('S&P 500');
+        expect(streamCoverage('stock-tickers')).toBe('S&P 500');
         expect(streamCoverage('stock-split')).toBe('Market-wide');
     });
 
