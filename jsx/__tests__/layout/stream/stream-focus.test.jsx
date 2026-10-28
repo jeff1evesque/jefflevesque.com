@@ -165,13 +165,13 @@ describe('a stream opened from its name', () => {
     it('takes the title, with its controls beside it, and its schedule under it', () => {
         setup();
 
-        clickName('S&P 500');
+        clickName('S&P 500 Options');
 
         const intro = document.querySelector('.stream-rows-intro');
 
-        expect(within(intro).getByRole('heading')).toHaveTextContent('S&P 500');
-        expect(within(intro).getByRole('link', { name: 'Triggers for S&P 500' })).toBeInTheDocument();
-        expect(within(intro).getByRole('link', { name: 'Alarms for S&P 500' }))
+        expect(within(intro).getByRole('heading')).toHaveTextContent('S&P 500 Options');
+        expect(within(intro).getByRole('link', { name: 'Triggers for S&P 500 Options' })).toBeInTheDocument();
+        expect(within(intro).getByRole('link', { name: 'Alarms for S&P 500 Options' }))
             .toHaveAttribute('href', '/stream/stock-market/alarm');
         expect(intro.querySelector('span').textContent)
             .toBe('weekdays, every 20 min · Last 20 Days, one bar per day');
@@ -183,9 +183,9 @@ describe('a stream opened from its name', () => {
         const intro = document.querySelector('.stream-rows-intro');
 
         expect(within(intro).getByRole('heading')).toHaveTextContent('Streams');
-        expect(intro.querySelector('.stream-rows-count').textContent).toBe('6');
+        expect(intro.querySelector('.stream-rows-count').textContent).toBe('7');
 
-        clickName('S&P 500');
+        clickName('S&P 500 Options');
 
         expect(intro.querySelector('.stream-rows-count')).toBeNull();
     });
