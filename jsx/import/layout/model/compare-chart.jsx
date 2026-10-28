@@ -320,6 +320,7 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
                                     {...axisStyle(colors)}
                                 />
                                 <Tooltip content={NoBox} cursor={{ stroke: colors.muted, strokeWidth: 1 }} />
+                                {/* each line joined across the days its model was not scored between its first and its last (#315) */}
                                 {picks.map((pick) => (
                                     <Line
                                         key={`base-${pick.model.name}`}
@@ -330,6 +331,7 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
                                         strokeDasharray={BASELINE_DASH}
                                         dot={false}
                                         isAnimationActive={false}
+                                        connectNulls
                                     />
                                 ))}
                                 {picks.map((pick) => (
@@ -341,6 +343,7 @@ function CompareChart({ picks, records, score, task, tasks = [task], onScore = n
                                         strokeWidth={2}
                                         dot={false}
                                         isAnimationActive={false}
+                                        connectNulls
                                     />
                                 ))}
                             </ComposedChart>
