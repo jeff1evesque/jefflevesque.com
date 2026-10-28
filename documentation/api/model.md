@@ -21,7 +21,9 @@ a signed-in reader, each night's picks of an options model: the options it ranks
 
 Each night the trainer builds a new version of every model, then scores it and the
 live version on the same held-out days. The new version goes live only if its loss is
-no higher. Each day a model predicts is scored once that day's prices are in, an
+no higher. From format 6, it goes live when its loss beats the baseline's instead, and
+then trains again with the held-out days before it predicts. Each day a model
+predicts is scored once that day's prices are in, an
 options model's once each hold's sell day is, and from format 5 a stock model's 5 and
 20-day holds once their last day is. A new version is still judged on its 1-day hold
 alone.
@@ -144,7 +146,7 @@ A **model** has:
 | `started` | the first day it predicted, as `YYYY-MM-DD` |
 | `retired` | the day it stopped being trained, or `null` while it still is |
 | `scored_days` | the rows of its track record. Under `average_days`, the model is New |
-| `live` | the version making its predictions: `since`, the night it went live, and `kind`, `first` while its first version is still live, or `nightly` or `weekly` for the update or retrain that made it. For a retired model, or one whose live version was taken down, the last version that predicted. From format 4, `days`, what it learned from, or `null` where the trainer has no record of it: `training`, how many days it trained on, `stopping`, how many decided when it stopped, and `first` and `last`, the oldest and newest of all those days |
+| `live` | the version making its predictions: `since`, the night it went live, and `kind`, `first` while its first version is still live, or `nightly` or `weekly` for the update or retrain that made it. For a retired model, or one whose live version was taken down, the last version that predicted. From format 4, `days`, what it learned from, or `null` where the trainer has no record of it: `training`, how many days it trained on, `stopping`, how many decided when it stopped, and `first` and `last`, the oldest and newest of all those days. From format 6, a version that trained again with its held-out days counts every day it trained on, held-out days included, and its `stopping` is 0. Also from format 6, `fine_tune`, the trainer's check of that second run, on the 3 days its first run stopped on, which the second run never trained on: `passed`, whether it passed; `by`, the first run's loss on those days less the second run's, above 0 where the second run did better; and `slack`, how much worse it may do and still pass. A second run that fails leaves the first run live. `null` where there was no check, as for a version from before format 6 |
 | `attempts` | the rows of its history: `total`, and `went_live`, those that replaced the live version |
 | `score` | each score averaged over the last `average_days` rows of its track record, or all of them while it has fewer; `null` while it has none. `loss`, `auc_up`, `auc_beats` and `acc_up` are always there, `null` where its task has none of them, and from format 3 `profit_auc`, `top10_gain` and `top10_wins` where it has them. An options model's are its 1-day hold's, and from format 5 a stock model's too |
 | `baseline` | the baseline's scores averaged over the same days |
@@ -201,6 +203,19 @@ A CSV string with a header row, oldest night first. Each row is one nightly atte
 model's as its plain scores, which decide what goes live. From format 5 a stock model's
 history is as it was: an attempt is still judged on the 1-day hold alone.
 
+From format 6, `trained_again`: `true` when the attempt beat the baseline and then
+trained again with its held-out days before it went live, and `false` when it was
+kept back or went live as it was tested. It is empty for attempts made before format
+6, which the live version's loss judged too. The live version's scores are then those
+of the version as it was tested, before it trained again, so none of the held-out days
+is one it learned. Three more columns, empty where there was no second run:
+
+- `trained_again_seconds`, how long the second run trained, to one decimal.
+  `training_seconds` and `total_seconds` stay the first run's;
+- `stopping_tested_loss` and `stopping_again_loss`, the first and the second run's
+  loss on the days the first run stopped on, the check the listing's
+  `live.fine_tune` reports.
+
 ## Response: a track record
 
 A CSV string with a header row, oldest day first. Each row is one day the model
@@ -212,6 +227,12 @@ From format 2, `down_days` and `down_in_a_row` are the check that took the live 
 down, as the listing's `down` gives it, on the day whose score set it off. They are
 empty on every other row. While a model is down it predicts nothing, so its track
 record has no rows until a new version goes live.
+
+From format 6, `tested_<score>` for each of the task's scores: where the live version
+trained again with its held-out days, the version as it was tested predicts each day
+too, and these are its scores on the day's 1-day hold, beside the live version's. They
+show whether training again helps or hurts, on days neither version trained on. They
+are empty where the live version is the one that was tested.
 
 From format 3, an options model's track record has a set of columns for each hold:
 each score again as `<score>_1d`, `<score>_5d` and `<score>_20d`, and the baseline's as
