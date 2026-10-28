@@ -11,10 +11,12 @@ The routes are declared in
 !!! note "A stream is named by its id"
 
     `:stream`, and the `?item=` that `/stream` and `/data` take, are a
-    stream's id: `stock-market`, `stock-split`, `bls`, `sec`, `sec-companyfacts` or
-    `us-national-weather`, from
+    stream's id: `stock-market`, `stock-tickers`, `stock-split`, `bls`, `sec`,
+    `sec-companyfacts` or `us-national-weather`, from
     [`jsx/import/general/stream-id.js`](https://github.com/jeff1evesque/jefflevesque.com/blob/master/jsx/import/general/stream-id.js).
-    The same id is what the site sends the performance api, but for
+    The S&P 500's two streams are `stock-market`, the S&P 500 Options, and
+    `stock-tickers`, the S&P 500 Tickers, which `/data` does not list: it has no
+    dataset yet. The same id is what the site sends the performance api, but for
     `sec-companyfacts`, the SEC's company facts, which it asks for as a series of
     `sec`.
 
