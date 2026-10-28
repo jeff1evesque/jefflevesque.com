@@ -263,6 +263,29 @@ function get(type, url, callback, worker, source, stream, on_error) {
 
         return promise;
 
+    } else if (type === 'stock-tickers-ingest') {
+        //
+        // a row per poll, a minute apart: the stocks it got a price for, and
+        // the rest (#314)
+        //
+        if (url) {
+            var promise = get_promise(url, callback, source, stream, on_error);
+        } else {
+            const yesterday = today.getDate() < 2 ? '01' : String(today.getDate() - 1).padStart(2, '0');
+            const csv = `group_by,window_start,total_success,total_fail,window_every
+                price,${yyyy}-${mm}-${yesterday} 13:30:00,503,0,1.minutes
+                price,${yyyy}-${mm}-${yesterday} 13:31:00,503,0,1.minutes
+                price,${yyyy}-${mm}-${yesterday} 13:32:00,501,2,1.minutes
+                price,${yyyy}-${mm}-${dd} 13:30:00,503,0,1.minutes
+                price,${yyyy}-${mm}-${dd} 13:31:00,502,1,1.minutes
+                price,${yyyy}-${mm}-${dd} 13:32:00,503,0,1.minutes
+                price,${yyyy}-${mm}-${dd} 13:33:00,503,0,1.minutes
+            ,,,`;
+            var promise = papaParseCsv(csv, callback, worker, false, true, source, stream);
+        }
+
+        return promise;
+
     } else if (type === 'stock-split-ingest') {
         if (url) {
             var promise = get_promise(url, callback, source, stream, on_error);
