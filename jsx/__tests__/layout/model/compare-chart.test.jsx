@@ -76,6 +76,25 @@ describe('the comparison', () => {
         expect(screen.getByRole('heading', { name: 'Comparing pt-gnn, tables and fresh' })).toBeInTheDocument();
     });
 
+    it('joins each model\'s line and baseline across the days it was not scored between its first and its last (#315)', () => {
+        const every = trackOf(10);
+        const { container } = draw({ records: { 'pt-gnn': every.filter((row, at) => at < 3 || at > 5), tables: every } });
+        const lines = [...container.querySelectorAll('.recharts-line-curve')];
+
+        expect(lines).toHaveLength(4);
+        lines.forEach((line) => expect(line.getAttribute('d').match(/M/g)).toHaveLength(1));
+    });
+
+    it('still starts a model\'s line on its first day, where the other was scored before it (#315)', () => {
+        const every = trackOf(10);
+        const firstX = (line) => Number(/^M\s*(-?[\d.]+)/.exec(line.getAttribute('d'))[1]);
+        const { container } = draw({ records: { 'pt-gnn': every.slice(4), tables: every } });
+        const [, , ptGnnLine, tablesLine] = container.querySelectorAll('.recharts-line-curve');
+
+        expect(ptGnnLine).toHaveAttribute('stroke', COMPARE_COLORS[0]);
+        expect(firstX(ptGnnLine)).toBeGreaterThan(firstX(tablesLine));
+    });
+
     it('draws each model in the color of its slot, and its baseline in the same', () => {
         const { container } = draw();
         const strokes = [...container.querySelectorAll('.recharts-line-curve')].map((line) => line.getAttribute('stroke'));

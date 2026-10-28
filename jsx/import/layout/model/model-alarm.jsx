@@ -309,7 +309,7 @@ class ModelAlarm extends Component {
                     {`It emails you when a new version of ${model.name} goes live ahead of the baseline: on the days it was tested on, which it was not trained on, its loss is lower than both the version it replaced and the know-nothing baseline’s. Lower is better.`}
                 </p>
                 <p>
-                    {'A version goes live most nights, whenever its loss is no higher than the live version’s, but far fewer go live ahead of the baseline. A model’s first version never sets it off: it has no live version to beat.'}
+                    {'Not every new version that goes live beats both, so it goes off less often than a model goes live. A model’s first version never sets it off: it has no live version to beat.'}
                 </p>
             </section>
         );

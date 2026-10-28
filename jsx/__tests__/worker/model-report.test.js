@@ -103,7 +103,7 @@ describe('the listing', () => {
             retired: null,
             scored_days: 30,
             average_days: 20,
-            live: { since: '2026-10-10', kind: 'nightly', days: null },
+            live: { since: '2026-10-10', kind: 'nightly', days: null, fine_tune: null },
             attempts: { total: 30, went_live: 4 },
             score: { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54, ...NO_PARTS },
             baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52, ...NO_PARTS },
@@ -191,7 +191,7 @@ describe('the listing', () => {
     it('reads a live block or an attempts block that is not an object as empty', () => {
         const [model] = run({ kind: 'list', report: listingOf([entry({ live: 'x', attempts: null })]) }).models;
 
-        expect(model.live).toEqual({ since: null, kind: null, days: null });
+        expect(model.live).toEqual({ since: null, kind: null, days: null, fine_tune: null });
         expect(model.attempts).toEqual({ total: 0, went_live: 0 });
     });
 
@@ -425,7 +425,7 @@ describe('the listing', () => {
         const read = (days) => run({ kind: 'list', report: listingOf([entry({ live: { since: '2026-10-23', kind: 'first', days: days } })]) }).models[0].live;
 
         it('keeps the days it trained on, those that decided when it stopped, and the first and last of them', () => {
-            expect(read(DAYS)).toEqual({ since: '2026-10-23', kind: 'first', days: DAYS });
+            expect(read(DAYS)).toEqual({ since: '2026-10-23', kind: 'first', days: DAYS, fine_tune: null });
         });
 
         it('keeps a version that learned from one day, and trims the days it names, as every other day', () => {
@@ -454,6 +454,35 @@ describe('the listing', () => {
             expect(read(days).days).toBeNull();
         });
     });
+
+    describe('the check of the live version\'s fine-tune, from format 6 on (#315)', () => {
+        const CHECK = { passed: true, by: 0.0021, slack: 0.005 };
+
+        //
+        // the check a listing of one model whose live version's fine-tune was
+        // checked as `check` reads as
+        //
+        const read = (check) => run({ kind: 'list', report: listingOf([entry({ live: { since: '2026-10-28', kind: 'nightly', fine_tune: check } })]) }).models[0].live.fine_tune;
+
+        it('keeps whether it passed, by how much it beat the tested model, and how much worse it may do', () => {
+            expect(read(CHECK)).toEqual(CHECK);
+            expect(read({ passed: false, by: -0.0079, slack: 0.005 })).toEqual({ passed: false, by: -0.0079, slack: 0.005 });
+            expect(read({ ...CHECK, slack: 0 })).toEqual({ ...CHECK, slack: 0 });
+        });
+
+        it.each([
+            ['gives none, as before format 6', undefined],
+            ['is null', null],
+            ['is not an object', 'passed'],
+            ['says whether it passed as text', { ...CHECK, passed: 'true' }],
+            ['gives no gap', { ...CHECK, by: null }],
+            ['gives a gap that is not a number', { ...CHECK, by: 'small' }],
+            ['gives no slack', { ...CHECK, slack: undefined }],
+            ['gives a slack below zero', { ...CHECK, slack: -0.005 }],
+        ])('reads one that %s as none, rather than as a guess', (name, check) => {
+            expect(read(check)).toBeNull();
+        });
+    });
 });
 
 describe('the history', () => {
@@ -480,6 +509,7 @@ describe('the history', () => {
                 day: '2026-10-12',
                 kind: 'weekly',
                 went_live: true,
+                trained_again: null,
                 started: null,
                 training_seconds: null,
                 total_seconds: null,
@@ -489,6 +519,33 @@ describe('the history', () => {
             },
             expect.objectContaining({ day: '2026-10-13', kind: 'nightly', went_live: false }),
         ]);
+    });
+
+    describe('trained_again, from the trainer\'s format 6 (#315)', () => {
+        const sixth = ['day', 'kind', 'went_live', 'trained_again', ...header.slice(3)];
+
+        function judged(day, went, again) {
+            return [day, 'nightly', went, again, ...night(day, 'nightly', went, 1.6).slice(3)];
+        }
+
+        it.each([
+            ['true', true], ['True', true], ['1', true],
+            ['false', false], ['False', false], ['0', false],
+            ['', null], [' ', null], ['yes', null],
+        ])('reads trained_again %p as %p', (cell, again) => {
+            const [row] = run({ kind: 'history', report: csv(sixth, [judged('2026-10-27', 'true', cell)]) }).rows;
+
+            expect(row.trained_again).toBe(again);
+        });
+
+        it('reads a night before format 6, its cell empty, as one the live version judged too', () => {
+            const rows = run({
+                kind: 'history',
+                report: csv(sixth, [judged('2026-10-26', 'false', ''), judged('2026-10-27', 'false', 'false')]),
+            }).rows;
+
+            expect(rows.map((row) => row.trained_again)).toEqual([null, false]);
+        });
     });
 
     it.each([
@@ -586,6 +643,7 @@ describe('the history', () => {
                 day: '2026-10-13',
                 kind: 'weekly',
                 went_live: true,
+                trained_again: null,
                 started: null,
                 training_seconds: null,
                 total_seconds: null,

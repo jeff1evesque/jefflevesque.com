@@ -93,8 +93,8 @@ import {
     columnOf,
     comesInLine,
     emptyHolds,
+    fineTuneWords,
     formatDuration,
-    formatGap,
     formatScore,
     formatStarted,
     heldOut,
@@ -104,7 +104,6 @@ import {
     holdsFor,
     holdsOf,
     listedHolds,
-    liveKind,
     lossParts,
     namedHold,
     newYorkToday,
@@ -134,6 +133,13 @@ import {
 // was tested on
 //
 const DOWN_LINE = 'Nothing predicts until a new version beats the baseline on the days it was tested on.';
+
+//
+// the name of the Live version card's row, and of a phone's line under the
+// boxes, saying whether the live version's fine-tune passed the trainer's check
+// (#315)
+//
+const FINE_TUNE = 'Fine-tune check';
 
 //
 // each chart's card, as its placeholder draws it while its report is on its way
@@ -183,8 +189,11 @@ export function placeAmong(model, models, task, score, hold = null) {
 }
 
 /**
- * the live version, as the first figure says it: when it went live, and how --
- * or, for one the trainer took down, when, and the check that did it (#263).
+ * the live version, as the first figure says it: when it went live, and that it
+ * is the model's first -- or, for one the trainer took down, when, and the check
+ * that did it (#263). A version an update or a retrain made says no more than
+ * when: 'nightly update' and 'weekly retrain' are the trainer's words, and meant
+ * nothing to a reader (#315).
  */
 export function liveFigure(model) {
     const status = statusOf(model);
@@ -212,35 +221,29 @@ export function liveFigure(model) {
 
     return {
         value: shortDay(model.live.since) || '–',
-        detail: `went live after a ${liveKind(model.live.kind)}`,
+        detail: '',
     };
 }
 
 //
 // a figure's line as a sentence of its note, where a phone has no room for the
-// line under the figure: 'went live after a weekly retrain' as 'Went live after
-// a weekly retrain.', and nothing for no line
+// line under the figure: 'its first version, not yet beaten' as 'Its first
+// version, not yet beaten.', and nothing for no line
 //
 export function sentence(line) {
     return line ? `${line.charAt(0).toUpperCase()}${line.slice(1)}.` : '';
 }
 
 /**
- * the line under the Live version card's figure on a wide screen (#267): what
- * made the live version, 'weekly retrain' (#300), or how it came to be live as
+ * the line under the Live version card's figure on a wide screen (#267): as
  * liveFigure says it, for a first version or a retired model -- or, for one taken
  * down, why: 'Its 5-day hold did worse than the baseline 5 scored days in a
- * row.' The card says what happens next on a line of its own, in gray.
+ * row.' The card says what happens next on a line of its own, in gray. None for
+ * a version an update or a retrain made (#315).
  */
 export function liveLine(model) {
-    const status = statusOf(model);
-
-    if (status === 'down') {
+    if (statusOf(model) === 'down') {
         return sentence(checkWords(model.down));
-    }
-
-    if ((status === 'live' || status === 'new') && model.live.kind && model.live.kind !== 'first') {
-        return liveKind(model.live.kind);
     }
 
     return liveFigure(model).detail;
@@ -253,24 +256,29 @@ export function liveLine(model) {
  *                                         format 5 (#300), `predicts` -- see
  *                                         scores.js's predictsLine
  *     Trained on                          what the live version learned from, from
- *                                         format 4 (#295): '7 days, Oct 5 to Oct
- *                                         19' -- see scores.js's trainedOn
- *     Beat the version it replaced by     how much lower its loss was than the
- *                                         version before it, on the night it went
- *                                         live: loss, which decides what goes
- *                                         live, whatever score is picked
- *     First predicted                     the listing's `started`
+ *                                         format 4 (#295), as its first and last
+ *                                         days: 'Oct 5 – Oct 19' -- see
+ *                                         scores.js's trainedOn
+ *     Fine-tune check                     whether its fine-tune on its held-out
+ *                                         days passed the trainer's check, and by
+ *                                         how much, from format 6 (#315): 'Passed,
+ *                                         0.002 better' -- see scores.js's
+ *                                         fineTuneWords
  *
  * No Predicts for a model without holds. No Trained on where the listing says
- * nothing of it, as before format 4. No Beat row for a first version, one taken
- * down, a retired model, a night the history does not hold, or a version that
- * only matched the one before it. The checks come after the rows, as a table
- * (#300) -- see ChecksTable.
+ * nothing of it, as before format 4, and no Fine-tune check where it gives no
+ * check, as before format 6. The checks come after the rows, as a table (#300)
+ * -- see ChecksTable.
+ *
+ * Note: #315 took out two rows. 'Beat the version it replaced by', a gap in
+ *       loss over 3 held-out days too small to mean anything; and 'First
+ *       predicted', the model's first day, which beside the live version's read
+ *       as if that version had predicted before it went live.
  */
-export function liveRows(model, history, predicts = '') {
-    const status = statusOf(model);
+export function liveRows(model, predicts = '') {
     const rows = [];
     const trained = trainedOn(model.live);
+    const checked = fineTuneWords(model.live && model.live.fine_tune);
 
     if (predicts) {
         rows.push({ key: 'predicts', name: 'Predicts', value: predicts });
@@ -280,17 +288,8 @@ export function liveRows(model, history, predicts = '') {
         rows.push({ key: 'trained', name: 'Trained on', value: trained });
     }
 
-    if ((status === 'live' || status === 'new') && model.live.kind && model.live.kind !== 'first' && Array.isArray(history)) {
-        const night = history.find((row) => row.day === model.live.since && row.went_live);
-        const gap = night ? betterBy(night.attempt.loss, night.live.loss, 'loss') : null;
-
-        if (standing(gap, 'loss') === 'better') {
-            rows.push({ key: 'beat', name: 'Beat the version it replaced by', value: formatGap(gap, 'loss') });
-        }
-    }
-
-    if (model.started) {
-        rows.push({ key: 'started', name: 'First predicted', value: shortDay(model.started) });
+    if (checked) {
+        rows.push({ key: 'fine-tune', name: FINE_TUNE, value: checked });
     }
 
     return rows;
@@ -579,9 +578,10 @@ function holdsAbout(task, holds, window) {
 }
 
 /**
- * a stock model's scores on each of its holds (#300), under the summary: a row
- * for each hold and one for Combined, saying how many days it has scored and
- * when its results come in, and a column for each of its task's scores, each
+ * a model's scores on each of its holds (#300), a stock model's or from #315 an
+ * options model's, under the summary: a row for each hold, and a stock model's
+ * one for Combined, saying how many days it has scored and when its results
+ * come in, and a column for each of its task's scores, each
  * cell the hold's average and how it stands against the baseline's. All from the
  * listing's `holds`, as the score card's figure is. The hold picked is shaded.
  *
@@ -852,6 +852,7 @@ class ModelPage extends Component {
         const { history, listing, track } = this.state;
         const status = statusOf(model);
         const live = liveFigure(model);
+        const line = liveLine(model);
 
         //
         // the score card's figure on the hold, where the listing gives the
@@ -897,10 +898,13 @@ class ModelPage extends Component {
         const checks = checksOf(model);
 
         //
-        // what the live version trained on, from format 4 (#295), as a phone's
-        // line under the boxes says it. A wide screen's card says it in its rows
+        // what the live version trained on, from format 4 (#295), and whether its
+        // fine-tune passed the trainer's check, from format 6 (#315), as a phone's
+        // lines under the boxes say them. A wide screen's card says them in its
+        // rows
         //
         const trained = trainedOn(model.live);
+        const checked = fineTuneWords(model.live.fine_tune);
 
         //
         // how the score stands against the baseline's, after the list's arrow
@@ -977,10 +981,10 @@ class ModelPage extends Component {
                         <div className='model-stat-head'>
                             <span className='model-stat-label'>Live version</span>
                             <span className='model-stat-value'>{live.value}</span>
-                            <span className='model-stat-detail'>{liveLine(model)}</span>
+                            {line ? <span className='model-stat-detail'>{line}</span> : null}
                             {down ? <span className='model-stat-down'>{down}</span> : null}
                         </div>
-                        <CardRows rows={liveRows(model, history, stock ? predictsLine(model, today) : '')}>
+                        <CardRows rows={liveRows(model, stock ? predictsLine(model, today) : '')}>
                             {checks ? <Checks table={checks} note={note} /> : null}
                         </CardRows>
                     </div>
@@ -1026,7 +1030,7 @@ class ModelPage extends Component {
                                 label: 'Attempts that went live',
                                 short: 'Went live',
                                 note: [
-                                    'Of every nightly attempt, how many scored a loss no higher than the live version’s and replaced it.',
+                                    'Of every nightly attempt, how many went live and replaced the live version.',
                                     sentence(retrains),
                                 ].filter(Boolean).join(' '),
                                 value: went,
@@ -1054,6 +1058,13 @@ class ModelPage extends Component {
                                 <p className='model-trained-line'>
                                     <span className='model-trained-name'>Trained on</span>
                                     <span className='model-trained-value'>{trained}</span>
+                                </p>
+                            ) : null}
+                        {checked
+                            ? (
+                                <p className='model-trained-line model-fine-tune-line'>
+                                    <span className='model-trained-name'>{FINE_TUNE}</span>
+                                    <span className='model-trained-value'>{checked}</span>
                                 </p>
                             ) : null}
                     </div>
@@ -1248,10 +1259,11 @@ class ModelPage extends Component {
         const stock = !tradesOptions(task);
 
         //
-        // a stock model the listing gives holds (#300): its scores on each, and
-        // last, when each one's results come in
+        // a model the listing gives holds: its scores on each (#300), an options
+        // model's too (#315), and last, for a stock model, when each one's
+        // results come in
         //
-        const listed = stock && listedHolds(model).length > 0;
+        const listed = listedHolds(model).length > 0;
 
         return (
             <>
@@ -1284,7 +1296,7 @@ class ModelPage extends Component {
                     ? <AttemptsChart rows={history} score={score} held={this.held(model, task)} />
                     : <p className='model-status model-status-empty'>No nightly attempts yet.</p>))}
                 {this.report(track, 'track record', TRACK_CARD, () => this.trackRecord(model, task, score, holds))}
-                {listed ? <WhenCard rows={whenRows(task, model, track, newYorkToday())} /> : null}
+                {stock && listed ? <WhenCard rows={whenRows(task, model, track, newYorkToday())} /> : null}
             </>
         );
     }

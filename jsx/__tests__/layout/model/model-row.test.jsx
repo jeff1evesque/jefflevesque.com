@@ -535,6 +535,19 @@ describe('TrendLine', () => {
         expect(container.querySelector('.model-trend svg')).toHaveAttribute('height', '44');
     });
 
+    it('joins its lines across the days it was not scored between its first and its last, and still starts on its first (#315)', () => {
+        const every = trackOf(10);
+        const taken = every.filter((row, at) => at >= 3 && (at < 5 || at > 7));
+        const firstX = (line) => Number(/^M\s*(-?[\d.]+)/.exec(line.getAttribute('d'))[1]);
+        const whole = trend({ axis: recentDays({ a: every }), rows: every }).container.querySelectorAll('.recharts-line-curve')[1];
+        const { container } = trend({ axis: recentDays({ a: every }), rows: taken });
+        const [baseline, value] = container.querySelectorAll('.recharts-line-curve');
+
+        expect(baseline.getAttribute('d').match(/M/g)).toHaveLength(1);
+        expect(value.getAttribute('d').match(/M/g)).toHaveLength(1);
+        expect(firstX(value)).toBeGreaterThan(firstX(whole));
+    });
+
     it('is named by the days it is handed, the listing\'s average_days (#293)', () => {
         trend({ days: 30 });
 

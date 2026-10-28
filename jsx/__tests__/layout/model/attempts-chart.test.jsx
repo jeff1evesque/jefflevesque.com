@@ -141,7 +141,19 @@ describe('attemptPoints', () => {
     it('has no difference for a night with no score', () => {
         const rows = historyOf(1, { 0: { attempt: { loss: null, auc_up: null, auc_beats: null, acc_up: null } } });
 
-        expect(attemptPoints(rows, 'loss')[0]).toMatchObject({ attempt: null, gap: null });
+        expect(attemptPoints(rows, 'loss')[0]).toMatchObject({ attempt: null, gap: null, baselineGap: null });
+    });
+
+    it('marks a night the baseline alone judged, one whose trained_again is filled in either way, and signs the attempt against the baseline (#315)', () => {
+        const rows = historyOf(4, {
+            0: { trained_again: true, attempt: { loss: 1.6 }, baseline: { loss: 1.65 } },
+            1: { trained_again: false },
+            2: { trained_again: null },
+        });
+        const points = attemptPoints(rows, 'loss');
+
+        expect(points.map((point) => point.byBaseline)).toEqual([true, true, false, false]);
+        expect(points[0].baselineGap).toBeCloseTo(0.05);
     });
 
     it('splits a night with times into its training and the scoring after it, in seconds (#247)', () => {
@@ -205,6 +217,25 @@ describe('verdictOf (#300)', () => {
 
     it('says how far it stood on the score on screen, a share in points', () => {
         expect(verdictOf({ went_live: false, live: 0.5, gap: 0.012 }, 'acc_up')).toBe('Kept back: 1.2 pts better than live version');
+    });
+});
+
+describe('verdictOf, on a night the baseline alone judged, from the trainer\'s format 6 (#315)', () => {
+    const point = (overrides) => ({ went_live: true, byBaseline: true, live: 1.62, gap: -0.002, baselineGap: 0.046, ...overrides });
+
+    it('says how far the attempt beat or missed the baseline, rather than the live version', () => {
+        expect(verdictOf(point(), 'loss')).toBe('Went live: 0.046 better than baseline');
+        expect(verdictOf(point({ went_live: false, baselineGap: -0.004 }), 'loss')).toBe('Kept back: 0.004 worse than baseline');
+        expect(verdictOf(point({ went_live: false, baselineGap: 0.0001 }), 'loss')).toBe('Kept back: level with baseline');
+    });
+
+    it('says it of a model\'s first version too', () => {
+        expect(verdictOf(point({ live: null, gap: null }), 'loss')).toBe('Went live: 0.046 better than baseline');
+    });
+
+    it('keeps the live version\'s verdict on an older night, and where the baseline has no score', () => {
+        expect(verdictOf(point({ byBaseline: false }), 'loss')).toBe('Went live: 0.002 worse than live version');
+        expect(verdictOf(point({ baselineGap: null }), 'loss')).toBe('Went live: 0.002 worse than live version');
     });
 });
 
@@ -622,6 +653,14 @@ describe('the popups (#300)', () => {
         });
         expect(popup.querySelectorAll('.model-tip-row svg.model-mark')).toHaveLength(3);
         expect(popup.querySelector('.model-tip-row circle')).toHaveAttribute('stroke', chartColors('light').better);
+    });
+
+    it('says what came of an attempt against the baseline on a night the baseline alone judged (#315)', () => {
+        const { container } = draw({ rows: timedHistoryOf({ 0: { trained_again: false } }) });
+
+        pointAt(container, 110);
+
+        expect(readPopup(popupOf(container)).foot).toBe('Kept back: 0.050 better than baseline');
     });
 
     it('draws one popup at a time: the charts that share the night pointed at show none', () => {

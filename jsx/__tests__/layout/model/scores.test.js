@@ -42,6 +42,7 @@ import {
     comesIn,
     comesInLine,
     compareBlocked,
+    fineTuneWords,
     firstResult,
     formatDuration,
     formatGap,
@@ -466,13 +467,17 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
 describe('trainedOn, what a live version learned from (#295)', () => {
     const DAYS = { training: 7, stopping: 3, first: '2026-10-05', last: '2026-10-19' };
 
-    it('says the days it trained on, and the first and last of every day it read', () => {
-        expect(trainedOn({ since: '2026-10-23', kind: 'first', days: DAYS })).toBe('7 days, Oct 5 to Oct 19');
+    it('says the first and last of every day it read, and no count of them, which did not add up (#315)', () => {
+        expect(trainedOn({ since: '2026-10-23', kind: 'first', days: DAYS })).toBe('Oct 5 – Oct 19');
+        expect(trainedOn({ days: { ...DAYS, training: 1 } })).toBe('Oct 5 – Oct 19');
     });
 
-    it('says one day as a day, and a first day that is its last once', () => {
-        expect(trainedOn({ days: { ...DAYS, training: 1 } })).toBe('1 day, Oct 5 to Oct 19');
-        expect(trainedOn({ days: { ...DAYS, training: 1, first: '2026-10-19' } })).toBe('1 day, Oct 19');
+    it('says a first day that is its last once', () => {
+        expect(trainedOn({ days: { ...DAYS, training: 1, stopping: 0, first: '2026-10-19' } })).toBe('Oct 19');
+    });
+
+    it('says every day of a version that trained again with its held-out days, from format 6 (#315)', () => {
+        expect(trainedOn({ days: { training: 13, stopping: 0, first: '2026-10-05', last: '2026-10-22' } })).toBe('Oct 5 – Oct 22');
     });
 
     it('says nothing where the listing gives none, as before format 4', () => {
@@ -480,6 +485,27 @@ describe('trainedOn, what a live version learned from (#295)', () => {
         expect(trainedOn({ since: '2026-10-23', kind: 'first' })).toBe('');
         expect(trainedOn(null)).toBe('');
         expect(trainedOn(undefined)).toBe('');
+    });
+});
+
+describe('fineTuneWords, the check of a live version\'s fine-tune, from format 6 (#315)', () => {
+    it('says it passed, and by how much it did better', () => {
+        expect(fineTuneWords({ passed: true, by: 0.0021, slack: 0.005 })).toBe('Passed, 0.002 better');
+    });
+
+    it('says a gap that prints as 0.000 is level, either way', () => {
+        expect(fineTuneWords({ passed: true, by: 0.0004, slack: 0.005 })).toBe('Passed, level');
+        expect(fineTuneWords({ passed: true, by: -0.0004, slack: 0.005 })).toBe('Passed, level');
+    });
+
+    it('says by how much it did worse, within or past the gap allowed', () => {
+        expect(fineTuneWords({ passed: true, by: -0.0031, slack: 0.005 })).toBe('Passed, 0.003 worse, within the 0.005 allowed');
+        expect(fineTuneWords({ passed: false, by: -0.0079, slack: 0.005 })).toBe('Failed, 0.008 worse, past the 0.005 allowed');
+    });
+
+    it('says nothing where the listing gives no check', () => {
+        expect(fineTuneWords(null)).toBe('');
+        expect(fineTuneWords(undefined)).toBe('');
     });
 });
 

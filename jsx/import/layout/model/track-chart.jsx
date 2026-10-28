@@ -474,11 +474,12 @@ function TrackChart({ name, rows, score, others, other, otherRows, onOther, went
                                         isAnimationActive={false}
                                         shape={(props) => <DayDot {...props} color={colors.better} />}
                                     />
-                                    <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={PAGE_DASH} dot={false} isAnimationActive={false} />
+                                    {/* each line joined across the days a model was not scored between its first and its last (#315) */}
+                                    <Line dataKey='baseline' stroke={colors.baseline} strokeWidth={2} strokeDasharray={PAGE_DASH} dot={false} isAnimationActive={false} connectNulls />
                                     {shown
-                                        ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
+                                        ? <Line dataKey='other' stroke={OTHER_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
                                         : null}
-                                    <Line dataKey='average' stroke={colors.better} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                                    <Line dataKey='average' stroke={colors.better} strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls />
                                     {ticks.map((day) => (
                                         <ReferenceLine
                                             key={day}

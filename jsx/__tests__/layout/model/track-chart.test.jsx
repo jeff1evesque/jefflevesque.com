@@ -294,6 +294,26 @@ describe('another model of the task', () => {
         expect(within(screen.getByRole('list', { name: 'Legend' })).getByText('tables')).toHaveClass('model-legend-name');
     });
 
+    it('joins each line across the days a model was not scored between its first and its last, beside one scored on them (#315)', () => {
+        const every = trackOf(10);
+        const { container } = draw({ rows: every.filter((row, at) => at < 3 || at > 5), other: 'tables', otherRows: every });
+        const lines = [...container.querySelectorAll('.recharts-line-curve')];
+
+        expect(lines).toHaveLength(3);
+        lines.forEach((line) => expect(line.getAttribute('d').match(/M/g)).toHaveLength(1));
+        expect(container.querySelectorAll('.model-day-dot')).toHaveLength(7);
+    });
+
+    it('still starts a model\'s line on its first day, where the other model was scored before it (#315)', () => {
+        const every = trackOf(10);
+        const firstX = (line) => Number(/^M\s*(-?[\d.]+)/.exec(line.getAttribute('d'))[1]);
+        const { container } = draw({ rows: every.slice(4), other: 'tables', otherRows: every });
+        const [, theirs, average] = container.querySelectorAll('.recharts-line-curve');
+
+        expect(theirs).toHaveAttribute('stroke', COMPARE_COLORS[0]);
+        expect(firstX(average)).toBeGreaterThan(firstX(theirs));
+    });
+
     it('says so while its record is on its way, and draws no line for it yet', () => {
         const { container } = draw({ other: 'tables', otherRows: undefined });
 

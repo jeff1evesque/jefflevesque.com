@@ -163,6 +163,10 @@ AttemptMark.propTypes = {
  * in seconds: the training, and the rest of the attempt after it. Both are null
  * where it has none, or a total shorter than its training, which no attempt
  * can take.
+ *
+ * `byBaseline` says the baseline alone judged the night, as the trainer does
+ * from its format 6 (#315), which fills every such night's `trained_again`, and
+ * `baselineGap` how much better than the baseline the attempt was.
  */
 export function attemptPoints(rows, score) {
     return rows.map((row) => {
@@ -171,15 +175,18 @@ export function attemptPoints(rows, score) {
         const timed = Number.isFinite(training) && Number.isFinite(total) && training >= 0 && total >= training;
         const attempt = scoreIn(row.attempt, score);
         const live = scoreIn(row.live, score);
+        const baseline = scoreIn(row.baseline, score);
 
         return {
             day: row.day,
             kind: row.kind,
             went_live: row.went_live,
+            byBaseline: typeof row.trained_again === 'boolean',
             attempt: attempt,
             live: live,
-            baseline: scoreIn(row.baseline, score),
+            baseline: baseline,
             gap: betterBy(attempt, live, score),
+            baselineGap: betterBy(attempt, baseline, score),
             started: row.started || null,
             training: timed ? training : null,
             scoring: timed ? total - training : null,
@@ -241,10 +248,21 @@ export function attemptsAbout(held) {
 /**
  * what became of a night's attempt, beside how far it beat or missed the live
  * version on `score` (#300): 'Went live: 0.003 better than live version', or
- * a first version's, which had none to beat.
+ * a first version's, which had none to beat. On a night the baseline alone
+ * judged (#315), how far it beat or missed the baseline: 'Went live: 0.046
+ * better than baseline'.
  */
 export function verdictOf(point, score) {
     const went = point.went_live ? 'Went live' : 'Kept back';
+
+    if (point.byBaseline && point.baselineGap !== null) {
+        const against = standing(point.baselineGap, score);
+
+        return against === 'level'
+            ? `${went}: level with baseline`
+            : `${went}: ${formatGap(point.baselineGap, score)} ${against} than baseline`;
+    }
+
     const stands = standing(point.gap, score);
 
     if (point.live === null) {
@@ -593,6 +611,7 @@ AttemptsChart.propTypes = {
         day: PropTypes.string.isRequired,
         kind: PropTypes.string.isRequired,
         went_live: PropTypes.bool.isRequired,
+        trained_again: PropTypes.bool,
         started: PropTypes.string,
         training_seconds: PropTypes.number,
         total_seconds: PropTypes.number,
