@@ -33,7 +33,7 @@ const ROWS = [
     {
         name: 'stock-market',
         detail: { 'Health': '99.6%', 'Rate': 'Hour', 'Total Records': '1,284,113', 'RDF': 'Available' },
-        control_tray: <button type='button'>Chart S&amp;P 500</button>,
+        control_tray: <button type='button'>Chart S&amp;P 500 Options</button>,
     },
     {
         name: 'stock-split',
@@ -94,7 +94,7 @@ describe('the table', () => {
     it('draws a row per stream, under the name the page shows for it', () => {
         setup();
 
-        expect(names()).toEqual(['S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings']);
+        expect(names()).toEqual(['S&P 500 Options', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings']);
     });
 
     it('right-aligns a numeric column, and labels every cell with its column', () => {
@@ -150,7 +150,7 @@ describe('the table', () => {
         setup();
 
         expect(cell('Bureau of Labor Statistics', 'Lag')).toHaveClass('listing-table-partial');
-        expect(cell('S&P 500', 'Lag')).toHaveClass('listing-table-partial', 'listing-table-blank');
+        expect(cell('S&P 500 Options', 'Lag')).toHaveClass('listing-table-partial', 'listing-table-blank');
         ['Health', 'Rate', 'Total Records', 'RDF'].forEach((label) => {
             expect(cell('Bureau of Labor Statistics', label)).not.toHaveClass('listing-table-partial');
         });
@@ -184,7 +184,7 @@ describe('the table', () => {
     it('draws the page\'s own controls in the last cell', () => {
         setup();
 
-        expect(screen.getByRole('button', { name: 'Chart S&P 500' }).closest('td'))
+        expect(screen.getByRole('button', { name: 'Chart S&P 500 Options' }).closest('td'))
             .toHaveClass('listing-table-controls');
     });
 
@@ -228,11 +228,11 @@ describe('a row still loading', () => {
             ],
         });
 
-        const cell = nameCell('S&P 500');
+        const cell = nameCell('S&P 500 Options');
 
         expect(cell.children).toHaveLength(1);
         expect(cell.firstElementChild).toHaveClass('listing-table-name-text');
-        expect(cell.firstElementChild.firstChild.textContent).toBe('S&P 500');
+        expect(cell.firstElementChild.firstChild.textContent).toBe('S&P 500 Options');
         expect(cell.firstElementChild.lastElementChild).toHaveClass('listing-table-loader');
         expect(cell.querySelector('.listing-table-loader .dot')).not.toBeNull();
     });
@@ -279,23 +279,23 @@ describe('sorting by a header', () => {
         setup();
 
         fireEvent.click(header('Total Records'));
-        expect(names()).toEqual(['Bureau of Labor Statistics', 'SEC Filings', 'S&P 500', 'Stock Splits']);
+        expect(names()).toEqual(['Bureau of Labor Statistics', 'SEC Filings', 'S&P 500 Options', 'Stock Splits']);
 
         fireEvent.click(header('Total Records'));
-        expect(names()).toEqual(['Stock Splits', 'S&P 500', 'SEC Filings', 'Bureau of Labor Statistics']);
+        expect(names()).toEqual(['Stock Splits', 'S&P 500 Options', 'SEC Filings', 'Bureau of Labor Statistics']);
 
         fireEvent.click(header('Total Records'));
-        expect(names()).toEqual(['S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings']);
+        expect(names()).toEqual(['S&P 500 Options', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings']);
     });
 
     it('sorts a figure not measured yet last, either way round', () => {
         setup();
 
         fireEvent.click(header('Health'));
-        expect(names()).toEqual(['SEC Filings', 'Stock Splits', 'S&P 500', 'Bureau of Labor Statistics']);
+        expect(names()).toEqual(['SEC Filings', 'Stock Splits', 'S&P 500 Options', 'Bureau of Labor Statistics']);
 
         fireEvent.click(header('Health'));
-        expect(names()).toEqual(['S&P 500', 'Stock Splits', 'SEC Filings', 'Bureau of Labor Statistics']);
+        expect(names()).toEqual(['S&P 500 Options', 'Stock Splits', 'SEC Filings', 'Bureau of Labor Statistics']);
     });
 
     it('sorts the name column by the name shown', () => {
@@ -303,7 +303,7 @@ describe('sorting by a header', () => {
 
         fireEvent.click(header('Stream'));
 
-        expect(names()).toEqual(['Bureau of Labor Statistics', 'S&P 500', 'SEC Filings', 'Stock Splits']);
+        expect(names()).toEqual(['Bureau of Labor Statistics', 'S&P 500 Options', 'SEC Filings', 'Stock Splits']);
     });
 
     it('says which way it is sorted, for a screen reader', () => {
@@ -347,10 +347,10 @@ describe('the sort menu', () => {
         setup();
 
         fireEvent.change(menu(), { target: { value: 'Total Records|descending' } });
-        expect(names()).toEqual(['Stock Splits', 'S&P 500', 'SEC Filings', 'Bureau of Labor Statistics']);
+        expect(names()).toEqual(['Stock Splits', 'S&P 500 Options', 'SEC Filings', 'Bureau of Labor Statistics']);
 
         fireEvent.change(menu(), { target: { value: '' } });
-        expect(names()).toEqual(['S&P 500', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings']);
+        expect(names()).toEqual(['S&P 500 Options', 'Stock Splits', 'Bureau of Labor Statistics', 'SEC Filings']);
     });
 });
 
@@ -362,7 +362,7 @@ describe('the filter', () => {
 
         fireEvent.change(filter(), { target: { value: 's&p' } });
 
-        expect(names()).toEqual(['S&P 500']);
+        expect(names()).toEqual(['S&P 500 Options']);
     });
 
     it('narrows the rows by the stream\'s id as well', () => {
@@ -370,7 +370,7 @@ describe('the filter', () => {
 
         fireEvent.change(filter(), { target: { value: 'stock-' } });
 
-        expect(names()).toEqual(['S&P 500', 'Stock Splits']);
+        expect(names()).toEqual(['S&P 500 Options', 'Stock Splits']);
     });
 
     it('draws a magnifying glass, rather than an at sign', () => {
@@ -387,7 +387,7 @@ describe('the reader\'s order', () => {
     it('follows the order it is given, the rest after it in the page\'s', () => {
         setup({ order: ['sec', 'bls'], onReorder: jest.fn() });
 
-        expect(names()).toEqual(['SEC Filings', 'Bureau of Labor Statistics', 'S&P 500', 'Stock Splits']);
+        expect(names()).toEqual(['SEC Filings', 'Bureau of Labor Statistics', 'S&P 500 Options', 'Stock Splits']);
     });
 
     it('moves a row with the arrow keys, and says where it went', () => {
@@ -399,7 +399,7 @@ describe('the reader\'s order', () => {
         expect(onReorder).toHaveBeenCalledWith(['stock-market', 'stock-split', 'sec', 'bls']);
         expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('SEC Filings, 3 of 4');
 
-        fireEvent.keyDown(grip('S&P 500'), { key: 'ArrowDown' });
+        fireEvent.keyDown(grip('S&P 500 Options'), { key: 'ArrowDown' });
 
         expect(onReorder).toHaveBeenLastCalledWith(['stock-split', 'stock-market', 'bls', 'sec']);
     });
@@ -408,7 +408,7 @@ describe('the reader\'s order', () => {
         const onReorder = jest.fn();
         setup({ onReorder: onReorder });
 
-        fireEvent.keyDown(grip('S&P 500'), { key: 'ArrowUp' });
+        fireEvent.keyDown(grip('S&P 500 Options'), { key: 'ArrowUp' });
         fireEvent.keyDown(grip('SEC Filings'), { key: 'ArrowDown' });
         fireEvent.keyDown(grip('SEC Filings'), { key: 'Enter' });
 
