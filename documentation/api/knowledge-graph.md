@@ -11,6 +11,8 @@ GET https://api.jefflevesque.com/v1/public/knowledge-graph/tables/facts
 GET https://api.jefflevesque.com/v1/public/knowledge-graph/tables/neighborhood
 GET https://api.jefflevesque.com/v1/public/knowledge-graph/tables/quotes
 GET https://api.jefflevesque.com/v1/public/knowledge-graph/tables/last-quotes
+GET https://api.jefflevesque.com/v1/public/knowledge-graph/tables/minute-quotes
+GET https://api.jefflevesque.com/v1/public/knowledge-graph/tables/minute-quotes-at
 ```
 
 The published builds of the knowledge graph, and each build's schema: its node types,
@@ -21,8 +23,8 @@ draws the default build, and is that graph and nothing else.
 The `tables` paths answer a different kind of question. The first two say what a build
 **is**; these say what the published tables **contain**, a day at a time — which days
 there are, which links and node types a day holds, which entities match some text, what
-is held about one of them, and the day's stock quotes. The **Retrieval Graph**,
-`/graph/retrieval`, draws one day from them.
+is held about one of them, and the day's stock quotes, every 20 minutes and every
+minute. The **Retrieval Graph**, `/graph/retrieval`, draws one day from them.
 
 ## The calls
 
@@ -38,6 +40,8 @@ is held about one of them, and the day's stock quotes. The **Retrieval Graph**,
 | `/knowledge-graph/tables/neighborhood` | the edges touching one entity | nothing yet |
 | `/knowledge-graph/tables/quotes` | one stock's quotes through a day | nothing yet |
 | `/knowledge-graph/tables/last-quotes` | every stock's last quote of a day | nothing yet |
+| `/knowledge-graph/tables/minute-quotes` | one stock's minutes through a day | nothing yet |
+| `/knowledge-graph/tables/minute-quotes-at` | every stock at one minute of a day | nothing yet |
 
 **No query string is accepted on either build path.** Those two are told apart by
 their paths, so anything on the query string is a caller error rather than something
@@ -204,6 +208,8 @@ answer — it was asked and nothing matched.
 | `tables/neighborhood` | `Uri`, `Day` | the edges touching one entity, within that day |
 | `tables/quotes` | `Symbol`, `Day` | one stock's snapshots that day, oldest first — about 19, every 20 minutes from 9:40 AM to 3:40 PM Eastern |
 | `tables/last-quotes` | `Day` | every stock's last snapshot that day, one row each |
+| `tables/minute-quotes` | `Symbol`, `Day`, optionally `From` and `To` | one stock's minutes that day, oldest first — 391 on a full day, one a minute from 9:30 AM to 4:00 PM Eastern — or only those from `From` to `To` |
+| `tables/minute-quotes-at` | `Day`, `Time` | every stock at that minute, one row each by ticker — about 503 |
 
 **A day says which run published it, and when.** Each `days` row carries a `run`,
 written as the listing writes a build's, and it is the `run` of the build that holds the
@@ -246,8 +252,50 @@ close — `market_quotes_netChange`, `market_quotes_netPercentChange` and
 `market_quotes_totalVolume`. A `Symbol` is a ticker in capitals, such as `NVDA` or
 `BRK.B`, compared for equality: `nvda` is a `400`, not an empty answer.
 
+**The minute quotes are a stock a minute.** `minute-quotes` and `minute-quotes-at` read
+the builder's table of one row per S&P 500 stock per minute of the trading day, about
+196,000 rows a day. Each row carries the table's own columns, under its own names:
+`ticker`, `capture_time` (UTC), `quote_time`, `trade_time`, `bid`, `ask`, `bid_size`,
+`ask_size`, `last`, `mark`, `open`, `high`, `low`, `prev_close`, `volume`, `net_change`
+and `net_percent_change`. `volume` is the day's running total as of the poll, and
+`prev_close` the **previous** session's close, which the two changes are measured from.
+`minute-quotes` without `From` or `To` is the stock's whole day, 391 minutes, which wants
+a `Limit` past 100. `minute-quotes-at` is about 503 rows, so a `Limit` of 1000 for all of
+them, each the row `minute-quotes` answers for its stock with `From` and `To` both that
+minute.
+
+**`From`, `To` and `Time` are New York's**, as `HH:MM` on a 24-hour clock: `09:30`, not
+`9:30`. Each is converted against its own `Day`, so 10:31 is 14:31 UTC in summer and
+15:31 in winter, and each is the whole of its minute: `From=10:00&To=10:30` is 31
+minutes, both ends included, and holds a capture taken at 10:30:59. A `From` later than
+its `To` is a `400`, rather than an empty answer that would read as a quiet market. A
+minute with no poll, such as before 9:30 or after an early close, answers no rows.
+
+**Both wait on the builder.** A day published before it wrote the minute quotes answers
+no rows, and until the first day of them is published, both paths answer `404`, with
+`nothing published answers this yet`.
+
 A value meaningless to the path is refused rather than ignored, the same way a query
 string is refused on the build paths.
+
+### Sample questions
+
+The minute quotes answer questions like these, each beside the calls that answer it,
+written as paths under `tables/`, where `<day>` is one that `days` lists. The tables are
+built at night, so these questions are about past days, not the minute that just
+happened.
+
+| Question | Call |
+|---|---|
+| What did AAPL's price do between 10:00 and 10:30 yesterday? | `minute-quotes?Symbol=AAPL&Day=<day>&From=10:00&To=10:30` |
+| What were AAPL's bid and ask at 10:31? | `minute-quotes?Symbol=AAPL&Day=<day>&From=10:31&To=10:31` |
+| When during the day was AAPL's gap between bid and ask the widest? | `minute-quotes?Symbol=AAPL&Day=<day>&Limit=391`, then `ask - bid` per row |
+| How many AAPL shares traded in the first 5 minutes? | `minute-quotes?Symbol=AAPL&Day=<day>&From=09:30&To=09:35`, then the difference in `volume` |
+| Which stocks were up the most 5 minutes after the open? | `minute-quotes-at?Day=<day>&Time=09:35&Limit=1000`, sorted on `last / open - 1` |
+| Which stocks had the widest gaps between bid and ask at 3:55? | `minute-quotes-at?Day=<day>&Time=15:55&Limit=1000`, sorted on `(ask - bid) / mark` |
+| How did bank stocks move in the 10 minutes after the 10:00 JOLTS report? | the banks from `find` and `neighborhood`, then `minute-quotes-at` at 10:00 and 10:10, each with `Limit=1000` |
+| How did a stock move in the minutes after it filed with the SEC during market hours? | the filing's time from `facts`, then `minute-quotes` from that minute |
+| What did the price really do after a 5-minute prediction? | `minute-quotes?Symbol=<ticker>&Day=<day>&From=<the prediction's minute>&To=<5 minutes later>` |
 
 ### What the Retrieval Graph reads
 
@@ -321,7 +369,7 @@ api:
 
 | Answer | `Cache-Control` |
 |---|---|
-| one naming a `Day` — always, for `node-types`, `neighborhood`, `quotes` and `last-quotes` | `public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800` |
+| one naming a `Day` — always, for `node-types`, `neighborhood`, `quotes`, `last-quotes`, `minute-quotes` and `minute-quotes-at` | `public, max-age=86400, stale-while-revalidate=604800, stale-if-error=604800` |
 | one naming no `Day` | `public, max-age=300` |
 | the listing | `public, max-age=300, stale-if-error=86400` |
 | `days` | `public, max-age=300, stale-if-error=86400` |
@@ -342,8 +390,8 @@ The shared cache keys on the whole url, query string included.
 
 | Status | Path | `report` |
 |---|---|---|
-| 400 | all | an object whose `error` names the problem: a query string on a build path, an id not shaped like one, a value missing that the path requires (`Day is required for NodeTypes`), a value it does not take, or one not shaped as it takes it |
-| 404 | `/<id>`, `tables/*` but `days` | an object whose `error` says the id is not in the listing, or that the named `Day` is not a published day |
+| 400 | all | an object whose `error` names the problem: a query string on a build path, an id not shaped like one, a value missing that the path requires (`Day is required for NodeTypes`), a value it does not take, or one not shaped as it takes it, such as a `From` that is not `HH:MM` or is later than its `To` |
+| 404 | `/<id>`, `tables/*` but `days` | an object whose `error` says the id is not in the listing, or that the named `Day` is not a published day; and from `minute-quotes` and `minute-quotes-at`, until the first day of minute quotes is published, `nothing published answers this yet` |
 | 500 | all | an object whose `error` says what failed |
 | 504 | `tables/facts`, `tables/neighborhood` | an object whose `error` says the question was too large to answer inside the request window |
 
@@ -376,7 +424,7 @@ what a wrong path looks like, as distinct from a wrong value.
 
 ## Try it
 
-Ten operations, one for each call, and each takes only what its own path takes —
+Twelve operations, one for each call, and each takes only what its own path takes —
 Execute sends what the form shows and nothing else.
 
 **Every published build** takes no parameter; Execute answers the listing, newest
@@ -388,7 +436,10 @@ the day the Retrieval Graph draws. From there the tables follow one another:
 **Entities matching some text** to get a `Uri`, that `Uri` to **The values held
 about one entity**, and the same `Uri` with a `Day` to **The edges touching one
 entity**. **One stock's quotes through a day** takes a ticker and a `Day`, and
-**Every stock's last quote of a day** a `Day` alone.
+**Every stock's last quote of a day** a `Day` alone. **One stock's minutes through a
+day** takes a ticker, a `Day` and, optionally, `From` and `To`, and **Every stock at one
+minute of a day** a `Day` and a `Time`. Both answer 404 until the first day of minute
+quotes is published.
 
 Two filled-in values go stale, and for the same reason. The listing keeps only recent
 builds, so an id that has rolled off answers 404 — copy a current one out of the
