@@ -168,9 +168,17 @@ describe('the page', () => {
 
         expect(about).toHaveTextContent('It emails you when a new version of pt-gnn goes live ahead of the baseline');
         expect(about).toHaveTextContent('lower than both the version it replaced and the know-nothing baseline’s');
-        expect(about).toHaveTextContent('A version goes live most nights');
-        expect(about).toHaveTextContent('far fewer go live ahead of the baseline');
+        expect(about).toHaveTextContent('Not every new version that goes live beats both, so it goes off less often than a model goes live.');
         expect(about).toHaveTextContent('first version never sets it off');
+    });
+
+    it('says nothing of how a version goes live, which the trainer changes (#315)', async () => {
+        await openAlarm();
+
+        const about = screen.getByRole('region', { name: 'What sets it off' });
+
+        expect(about).not.toHaveTextContent('no higher than the live version');
+        expect(about).not.toHaveTextContent('most nights');
     });
 
     it('can be drawn by the name alone', async () => {
