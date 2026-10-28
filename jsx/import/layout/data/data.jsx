@@ -55,6 +55,13 @@ import { ThemeModeContext } from '../../general/theme-mode.jsx';
 import chartHeight from '../../general/chart-height.js';
 import scrollMargin from '../../general/scroll-margin.js';
 
+//
+// the streams this page lists: those with a datalake dataset, in the order
+// /stream lists them. The stock tickers have none yet (#314), so they are on
+// /stream and not here -- see DATASETS in api-url.js
+//
+const DATA_STREAMS = STREAMS.filter((stream) => Boolean(DATASETS[stream]));
+
 {/*
 
     whether a stream's datalake table carries an rdf column, so the listing can
@@ -371,7 +378,7 @@ export function recordsLabel(stream, value, selected, now, lag = BLS_PUBLICATION
 export function linkedDataset(search) {
     const asked = new URLSearchParams(search).get('item');
 
-    return STREAMS.includes(asked) ? asked : null;
+    return DATA_STREAMS.includes(asked) ? asked : null;
 }
 
 
@@ -593,7 +600,7 @@ class DataLayout extends Component {
         // screen too, so a phone's link opens the same dataset there (#235)
         //
         const linked = linkedDataset(window.location.search);
-        const opening = linked || readChart('data', STREAMS) || STOCK_MARKET;
+        const opening = linked || readChart('data', DATA_STREAMS) || STOCK_MARKET;
 
         //
         // and a group of it the address names opens once its month comes, where
@@ -625,7 +632,7 @@ class DataLayout extends Component {
             capitalized name for the listing, lower-cased for everything else.
 
         */}
-        const streams = STREAMS;
+        const streams = DATA_STREAMS;
 
         let list_article = [];
         streams.forEach((stream) => {
@@ -725,7 +732,7 @@ class DataLayout extends Component {
             // was last asked for. They come apart from its records, so a phone's
             // Partitions box waits for its own -- see figures (#230)
             //
-            ...Object.fromEntries(STREAMS.map((stream) => [`promise_partitions_${stream}`, false])),
+            ...Object.fromEntries(DATA_STREAMS.map((stream) => [`promise_partitions_${stream}`, false])),
             promise_list_ticker_complete: false,
             item: 'n/a',
             ticker: 'n/a',
@@ -764,7 +771,7 @@ class DataLayout extends Component {
             // the order this reader dragged the listing into, or null for the
             // page's own -- see listing-preference.js
             //
-            listing_order: readOrder('data', STREAMS),
+            listing_order: readOrder('data', DATA_STREAMS),
             //
             // whether the chart's group names are shown under it (#167): folded
             // into a green bar unless this browser kept them shown
@@ -787,7 +794,7 @@ class DataLayout extends Component {
             // each stream's datalake dataset, which is its own name for the data
             // -- see DATASETS
             //
-            data_map: Object.fromEntries(STREAMS.map((stream) => [stream, [DATASETS[stream]]])),
+            data_map: Object.fromEntries(DATA_STREAMS.map((stream) => [stream, [DATASETS[stream]]])),
             'records_stock-market': 'n/a',
             'records_stock-split': 'n/a',
             records_bls: 'n/a',
@@ -1186,7 +1193,7 @@ class DataLayout extends Component {
         });
 
         this.state.data_map[type].forEach((dataset) => {
-            if (STREAMS.includes(type)) {
+            if (DATA_STREAMS.includes(type)) {
                 //
                 // built by api-url.js, which also builds the 'This request' link
                 // under the chart, so the link names this exact request
