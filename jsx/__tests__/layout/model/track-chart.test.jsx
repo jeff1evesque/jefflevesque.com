@@ -190,7 +190,7 @@ describe('the chart', () => {
         draw({ rows: trackOf(6) });
 
         expect(within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem').map((item) => item.textContent))
-            .toEqual(['Each day', 'Last 20 days’ average', 'Baseline, last 20 days', 'Lower is better, so the axis is flipped: better is up.']);
+            .toEqual(['Each day', 'Last 20 days’ average', 'Baseline, last 20 days', 'Lower is better, so the smallest numbers are at the top.']);
     });
 
     it('flips the loss axis, and says so last in its legend (#300)', () => {
@@ -200,7 +200,7 @@ describe('the chart', () => {
         const bottom = ticks.reduce((a, b) => (a.y > b.y ? a : b));
 
         expect(top.value).toBeLessThan(bottom.value);
-        expect(screen.getByText('Lower is better, so the axis is flipped: better is up.')).toHaveClass('model-legend-note');
+        expect(screen.getByText('Lower is better, so the smallest numbers are at the top.')).toHaveClass('model-legend-note');
     });
 
     it('keeps its values in a 56px gutter on a wide screen, and on a phone inside the plot, which starts at the card\'s edge (#300)', () => {
