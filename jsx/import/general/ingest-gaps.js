@@ -99,19 +99,23 @@ function presentIntervals(chart_data, stream, rate, field_datetime) {
 
 */}
 export function missingIntervals(chart_data, stream, rate, field_datetime, now = new Date(), clock = now) {
-    const expected = expectedIntervals(stream, rate, now);
-
-    if (!expected.length) {
-        return [];
-    }
-
     const present = presentIntervals(chart_data, stream, rate, field_datetime);
 
     if (!present.size) {
         return [];
     }
 
+    //
+    // Note: the first row is also where a schedule that begins with its first
+    //       run begins (#314) -- see FIRST_RUN in ingest-schedule.js
+    //
     const first = Math.min(...present);
+    const expected = expectedIntervals(stream, rate, now, new Date(first));
+
+    if (!expected.length) {
+        return [];
+    }
+
     const current = intervalStart(rate, clock);
 
     return expected.filter((v) => {
