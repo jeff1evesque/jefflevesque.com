@@ -8,8 +8,11 @@
  * row. So the id stays as it is and only the rendered label is swapped here. The
  * ids themselves are stream-id.js's.
  *
- * 'stock-market' names the whole market but carries only the S&P 500, which the
- * label says.
+ * Two streams carry the S&P 500, so each label says which one it is (#314).
+ * 'stock-market' is the 20-minute run, and is labeled for the option chains that
+ * are its main product, though it quotes the stocks too. 'stock-tickers' is the
+ * poll that quotes the stocks every minute of the trading day. Both cover the
+ * S&P 500, and their 'Coverage' says so.
  *
  * 'stock-split' is labeled for what it is rather than given the index name:
  * split detection runs against the entire market, not the index (a July sample
@@ -22,6 +25,7 @@
 
 import {
     STOCK_MARKET,
+    STOCK_TICKERS,
     STOCK_SPLIT,
     BLS,
     SEC,
@@ -31,7 +35,8 @@ import {
 } from './stream-id.js';
 
 const STREAM_LABELS = {
-    [STOCK_MARKET]: 'S&P 500',
+    [STOCK_MARKET]: 'S&P 500 Options',
+    [STOCK_TICKERS]: 'S&P 500 Tickers',
     [STOCK_SPLIT]: 'Stock Splits',
     [US_NATIONAL_WEATHER]: 'US Weather Alerts',
     [BLS]: 'Bureau of Labor Statistics',
@@ -59,13 +64,15 @@ export default function streamName(name) {
 {/*
 
     the universe a stream covers, for streams where the title alone would leave
-    it ambiguous. only the two stock streams qualify: they sit adjacent in the
-    listing and differ precisely in scope. a stream absent from this map renders
-    no 'Coverage' row rather than an empty one
+    it ambiguous. only the stock streams qualify: they sit adjacent in the
+    listing, and the split feed differs from the two S&P 500 streams precisely
+    in scope. a stream absent from this map renders no 'Coverage' row rather
+    than an empty one
 
 */}
 const STREAM_COVERAGE = {
     [STOCK_MARKET]: 'S&P 500',
+    [STOCK_TICKERS]: 'S&P 500',
     [STOCK_SPLIT]: 'Market-wide'
 };
 
