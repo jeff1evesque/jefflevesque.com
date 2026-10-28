@@ -171,24 +171,73 @@ function timesAt(day, nth) {
     };
 }
 
+//
+// the day after `day`, 'YYYY-MM-DD': the morning a night's test runs (#318)
+//
+function dayAfter(day) {
+    const next = new Date(`${day}T12:00:00Z`);
+
+    next.setUTCDate(next.getUTCDate() + 1);
+
+    return next.toISOString().slice(0, 10);
+}
+
+//
+// a night's test days, as the worker hands them (#318): the three weekdays
+// before the two whose results aren't in yet
+//
+function testDaysOf(day) {
+    const before = [];
+    const at = new Date(`${day}T12:00:00Z`);
+
+    while (before.length < 5) {
+        at.setUTCDate(at.getUTCDate() - 1);
+
+        if (at.getUTCDay() !== 0 && at.getUTCDay() !== 6) {
+            before.unshift(at.toISOString().slice(0, 10));
+        }
+    }
+
+    return before.slice(0, 3);
+}
+
 /**
- * a history: one night per weekday from `from`. `nights` overrides each night
- * by its index. A night from 2026-10-15 on has times, and one before has none.
+ * a history: one night per weekday from `from`, as the worker hands it. `nights`
+ * overrides each night by its index. A night from 2026-10-15 on has times, and
+ * one before has none. Each is named for the morning after it, when its test
+ * runs, and lists its three test days and how many earlier days it studied, 7
+ * and one more each night (#318). A nightly update says the morning the version
+ * it started from took over, the newest night before it that went live, unless
+ * `nights` says otherwise.
  */
 export function historyOf(count = 5, nights = {}, from = '2026-10-01') {
     const days = weekdays(count, from);
     const firstTimed = days.filter((day) => day < TIMED_FROM).length;
-
-    return days.map((day, at) => ({
+    const rows = days.map((day, at) => ({
         day: day,
+        tested: dayAfter(day),
         kind: 'nightly',
         went_live: false,
+        held_out_days: testDaysOf(day),
+        training_days: 7 + at,
+        trained_again_seconds: null,
         ...timesAt(day, at - firstTimed),
         attempt: scoresAt(1.61 + at * 0.001),
         live: scoresAt(1.6),
         baseline: baselineAt(),
         ...(nights[at] || {}),
     }));
+    let tookOver = null;
+
+    return rows.map((row) => {
+        const started = row.kind === 'nightly' ? tookOver : null;
+
+        if (row.went_live) {
+            tookOver = row.tested;
+        }
+
+        return { from: started, ...row };
+    });
 }
 
 /**
@@ -197,6 +246,46 @@ export function historyOf(count = 5, nights = {}, from = '2026-10-01') {
  */
 export function timedHistoryOf(nights = {}) {
     return historyOf(5, nights, '2026-10-12');
+}
+
+/**
+ * pt-options' history as the worker read it from the live report on Oct 28, 2026
+ * (#318): its loss and profit AUC, to four places. Its Oct 26 night took over,
+ * tested early Tue Oct 27 on Oct 20, 21 and 22, and its Oct 27 night was kept
+ * back, behind the simple guess. Its first night had no version in charge.
+ */
+export function ptOptionsHistory() {
+    return [
+    { day: '2026-10-21', tested: '2026-10-22', from: null, kind: 'weekly', went_live: true, trained_again: null, started: '2026-10-22T09:50:05+00:00', held_out_days: ['2026-10-14', '2026-10-15', '2026-10-19'], training_days: 7, training_seconds: 4816.9, total_seconds: 4865.8, trained_again_seconds: null, attempt: { loss: 0.5849, profit_auc: 0.63 }, live: { loss: null, profit_auc: null }, baseline: { loss: 0.5229, profit_auc: 0.65 } },
+    { day: '2026-10-22', tested: '2026-10-23', from: '2026-10-22', kind: 'nightly', went_live: true, trained_again: null, started: '2026-10-23T10:22:26+00:00', held_out_days: ['2026-10-15', '2026-10-19', '2026-10-20'], training_days: 8, training_seconds: 1705.0, total_seconds: 1800.8, trained_again_seconds: null, attempt: { loss: 0.6344, profit_auc: 0.6848 }, live: { loss: 0.6344, profit_auc: 0.6848 }, baseline: { loss: 0.6244, profit_auc: 0.6273 } },
+    { day: '2026-10-23', tested: '2026-10-24', from: null, kind: 'weekly', went_live: true, trained_again: null, started: '2026-10-24T10:23:41+00:00', held_out_days: ['2026-10-19', '2026-10-20', '2026-10-21'], training_days: 9, training_seconds: 5403.2, total_seconds: 5502.0, trained_again_seconds: null, attempt: { loss: 0.581, profit_auc: 0.7276 }, live: { loss: 0.6344, profit_auc: 0.6928 }, baseline: { loss: 0.6314, profit_auc: 0.6111 } },
+    { day: '2026-10-26', tested: '2026-10-27', from: '2026-10-24', kind: 'nightly', went_live: true, trained_again: null, started: '2026-10-27T09:32:33+00:00', held_out_days: ['2026-10-20', '2026-10-21', '2026-10-22'], training_days: 10, training_seconds: 2353.0, total_seconds: 2459.7, trained_again_seconds: null, attempt: { loss: 0.5758, profit_auc: 0.7329 }, live: { loss: 0.5771, profit_auc: 0.7331 }, baseline: { loss: 0.6218, profit_auc: 0.6258 } },
+    { day: '2026-10-27', tested: '2026-10-28', from: '2026-10-27', kind: 'nightly', went_live: false, trained_again: false, started: '2026-10-28T09:39:38+00:00', held_out_days: ['2026-10-21', '2026-10-22', '2026-10-23'], training_days: 11, training_seconds: 3315.6, total_seconds: 3420.3, trained_again_seconds: null, attempt: { loss: 0.6094, profit_auc: 0.6476 }, live: { loss: 0.6238, profit_auc: 0.6361 }, baseline: { loss: 0.5967, profit_auc: 0.589 } },
+    ];
+}
+
+/**
+ * pt-gnn's history as the worker read it from the live report on Oct 28, 2026
+ * (#318): its loss and up/down AUC, to four places. Its first six nights have no
+ * times, and its Oct 27 night trained again for 657.7 s after its first pass's
+ * 2592.5 s, and took over.
+ */
+export function ptGnnHistory() {
+    return [
+    { day: '2026-10-09', tested: '2026-10-10', from: null, kind: 'weekly', went_live: true, trained_again: null, started: null, held_out_days: ['2026-10-06', '2026-10-07', '2026-10-08'], training_days: 1, training_seconds: null, total_seconds: null, trained_again_seconds: null, attempt: { loss: 1.6954, auc_up: 0.5528 }, live: { loss: null, auc_up: null }, baseline: { loss: 1.65, auc_up: 0.5 } },
+    { day: '2026-10-12', tested: '2026-10-13', from: '2026-10-10', kind: 'nightly', went_live: false, trained_again: null, started: null, held_out_days: ['2026-10-07', '2026-10-08', '2026-10-09'], training_days: 2, training_seconds: null, total_seconds: null, trained_again_seconds: null, attempt: { loss: 1.7303, auc_up: 0.4603 }, live: { loss: 1.7161, auc_up: 0.529 }, baseline: { loss: 1.684, auc_up: 0.5 } },
+    { day: '2026-10-13', tested: '2026-10-14', from: '2026-10-10', kind: 'nightly', went_live: true, trained_again: null, started: null, held_out_days: ['2026-10-08', '2026-10-09', '2026-10-12'], training_days: 3, training_seconds: null, total_seconds: null, trained_again_seconds: null, attempt: { loss: 1.6622, auc_up: 0.4995 }, live: { loss: 1.7004, auc_up: 0.5048 }, baseline: { loss: 1.6476, auc_up: 0.5 } },
+    { day: '2026-10-14', tested: '2026-10-15', from: '2026-10-14', kind: 'nightly', went_live: false, trained_again: null, started: null, held_out_days: ['2026-10-09', '2026-10-12', '2026-10-13'], training_days: 4, training_seconds: null, total_seconds: null, trained_again_seconds: null, attempt: { loss: 1.6742, auc_up: 0.51 }, live: { loss: 1.6735, auc_up: 0.5116 }, baseline: { loss: 1.6546, auc_up: 0.5 } },
+    { day: '2026-10-15', tested: '2026-10-16', from: '2026-10-14', kind: 'nightly', went_live: false, trained_again: null, started: '2026-10-16T07:54:22+00:00', held_out_days: ['2026-10-12', '2026-10-13', '2026-10-14'], training_days: 5, training_seconds: 1016.6, total_seconds: 1109.2, trained_again_seconds: null, attempt: { loss: 1.6603, auc_up: 0.5104 }, live: { loss: 1.6561, auc_up: 0.5068 }, baseline: { loss: 1.6463, auc_up: 0.5 } },
+    { day: '2026-10-16', tested: '2026-10-17', from: null, kind: 'weekly', went_live: true, trained_again: null, started: '2026-10-17T17:46:21+00:00', held_out_days: ['2026-10-13', '2026-10-14', '2026-10-15'], training_days: 6, training_seconds: 2112.1, total_seconds: 2207.2, trained_again_seconds: null, attempt: { loss: 1.671, auc_up: 0.5142 }, live: { loss: 1.6815, auc_up: 0.5131 }, baseline: { loss: 1.6475, auc_up: 0.5 } },
+    { day: '2026-10-19', tested: '2026-10-20', from: '2026-10-17', kind: 'nightly', went_live: false, trained_again: null, started: '2026-10-20T12:02:59+00:00', held_out_days: ['2026-10-13', '2026-10-14', '2026-10-15'], training_days: 6, training_seconds: 1156.9, total_seconds: 1254.0, trained_again_seconds: null, attempt: { loss: 1.6594, auc_up: 0.5148 }, live: { loss: 1.6716, auc_up: 0.5148 }, baseline: { loss: 1.6449, auc_up: 0.5 } },
+    { day: '2026-10-20', tested: '2026-10-21', from: '2026-10-17', kind: 'nightly', went_live: false, trained_again: null, started: '2026-10-21T14:46:19+00:00', held_out_days: ['2026-10-14', '2026-10-15', '2026-10-19'], training_days: 7, training_seconds: 1299.4, total_seconds: 1387.5, trained_again_seconds: null, attempt: { loss: 1.6547, auc_up: 0.5237 }, live: { loss: 1.6675, auc_up: 0.5237 }, baseline: { loss: 1.6395, auc_up: 0.5 } },
+    { day: '2026-10-21', tested: '2026-10-22', from: '2026-10-17', kind: 'nightly', went_live: true, trained_again: null, started: '2026-10-22T09:22:43+00:00', held_out_days: ['2026-10-15', '2026-10-19', '2026-10-20'], training_days: 8, training_seconds: 1514.7, total_seconds: 1602.4, trained_again_seconds: null, attempt: { loss: 1.6774, auc_up: 0.5352 }, live: { loss: 1.6903, auc_up: 0.5352 }, baseline: { loss: 1.6958, auc_up: 0.5 } },
+    { day: '2026-10-22', tested: '2026-10-23', from: '2026-10-22', kind: 'nightly', went_live: true, trained_again: null, started: '2026-10-23T09:42:46+00:00', held_out_days: ['2026-10-19', '2026-10-20', '2026-10-21'], training_days: 9, training_seconds: 2247.8, total_seconds: 2335.2, trained_again_seconds: null, attempt: { loss: 1.6628, auc_up: 0.4962 }, live: { loss: 1.6689, auc_up: 0.4938 }, baseline: { loss: 1.6551, auc_up: 0.5 } },
+    { day: '2026-10-23', tested: '2026-10-24', from: null, kind: 'weekly', went_live: true, trained_again: null, started: '2026-10-24T09:49:35+00:00', held_out_days: ['2026-10-20', '2026-10-21', '2026-10-22'], training_days: 10, training_seconds: 1912.8, total_seconds: 2000.3, trained_again_seconds: null, attempt: { loss: 1.6757, auc_up: 0.5 }, live: { loss: 1.6825, auc_up: 0.479 }, baseline: { loss: 1.6757, auc_up: 0.5 } },
+    { day: '2026-10-26', tested: '2026-10-27', from: '2026-10-24', kind: 'nightly', went_live: false, trained_again: null, started: '2026-10-27T08:37:16+00:00', held_out_days: ['2026-10-21', '2026-10-22', '2026-10-23'], training_days: 11, training_seconds: 3174.2, total_seconds: 3269.5, trained_again_seconds: null, attempt: { loss: 1.6759, auc_up: 0.4952 }, live: { loss: 1.6799, auc_up: 0.5 }, baseline: { loss: 1.6738, auc_up: 0.5 } },
+    { day: '2026-10-27', tested: '2026-10-28', from: '2026-10-24', kind: 'nightly', went_live: true, trained_again: true, started: '2026-10-28T08:43:08+00:00', held_out_days: ['2026-10-22', '2026-10-23', '2026-10-26'], training_days: 12, training_seconds: 2495.8, total_seconds: 2592.5, trained_again_seconds: 657.7, attempt: { loss: 1.6771, auc_up: 0.5 }, live: { loss: 1.6771, auc_up: 0.5 }, baseline: { loss: 1.6938, auc_up: 0.5 } },
+    ];
 }
 
 /**
