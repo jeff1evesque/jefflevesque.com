@@ -9,8 +9,9 @@
  * own page as #300 lays it out -- its column, its cards, its charts' panel, when
  * its results come in, and a phone's boxes -- about /model's title over its
  * open filters, beside the lists' first line (#306), about a picker's name
- * with an info icon (#311), and about the attempts' nights and the panel of the
- * night picked (#318), read out of the partial.
+ * with an info icon (#311), about the attempts' nights and the panel of the
+ * night picked (#318), and about how wide the lines under a model's name and its
+ * cards' titles run (#320), read out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see where a
  * cell lands. What can be held is what each rule says: a wide row's cells side
@@ -578,7 +579,17 @@ describe('a model\'s own page, as #300 lays it out', () => {
         expect(declared(back, 'align-self')).toBe('flex-start');
         expect(declared(RULES.find((each) => each.selectors.join() === '.model-heading h4' && declared(each, 'font-size')), 'font-size')).toBe('28px');
         expect(declared(lede, 'font-size')).toBe('15px');
-        expect(declared(lede, 'max-width')).toBe('860px');
+    });
+
+    it('runs the line under the model\'s name as wide as the cards under it, with no width of its own (#320)', () => {
+        expect(ruleOf('.model-lede', 'max-width')).toBeUndefined();
+    });
+
+    it('runs the lines under Scores by hold\'s title and the attempts\' across their card, where every other card\'s stops at 860px (#320)', () => {
+        const across = rule('.model-page .model-by-hold .model-card-sub,.model-page .model-attempts > .model-card-head > .model-card-sub');
+
+        expect(declared(across, 'max-width')).toBe('none');
+        expect(declared(rule('.model-page .model-card-sub'), 'max-width')).toBe('860px');
     });
 
     it('frames each card 16px inside, its parts 12px apart, its title at 18px over a gray line, and 12px inside on a phone', () => {

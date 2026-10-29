@@ -106,6 +106,7 @@ import {
     holdsFor,
     holdsOf,
     listedHolds,
+    liveNight,
     lossParts,
     namedHold,
     newYorkToday,
@@ -117,6 +118,7 @@ import {
     scoreIn,
     scoreOf,
     scoreOnHold,
+    scoredSpan,
     scoresFor,
     scoresOn,
     shortDay,
@@ -198,14 +200,19 @@ export function placeAmong(model, models, task, score, hold = null) {
  * that did it (#263). A version an update or a retrain made says no more than
  * when: 'nightly update' and 'weekly retrain' are the trainer's words, and meant
  * nothing to a reader (#315).
+ *
+ * When is the morning the version ran, 'Wed Oct 28', as the Attempts card's Last
+ * attempt and the attempts' chart name it from the model's `history` (#320). By
+ * the trainer's own day, the same version read 'Oct 27' beside them.
  */
-export function liveFigure(model) {
+export function liveFigure(model, history = null) {
     const status = statusOf(model);
+    const since = nightName(liveNight(model.live.since, history));
 
     if (status === 'retired') {
         return {
             value: `Retired ${shortDay(model.retired)}`,
-            detail: model.live.since ? `its last version went live ${shortDay(model.live.since)}` : 'no longer trained',
+            detail: since ? `its last version went live ${since}` : 'no longer trained',
         };
     }
 
@@ -218,13 +225,13 @@ export function liveFigure(model) {
 
     if (model.live.kind === 'first' || !model.live.kind) {
         return {
-            value: shortDay(model.live.since) || '–',
+            value: since || '–',
             detail: 'its first version, not yet beaten',
         };
     }
 
     return {
-        value: shortDay(model.live.since) || '–',
+        value: since || '–',
         detail: '',
     };
 }
@@ -245,12 +252,12 @@ export function sentence(line) {
  * row.' The card says what happens next on a line of its own, in gray. None for
  * a version an update or a retrain made (#315).
  */
-export function liveLine(model) {
+export function liveLine(model, history = null) {
     if (statusOf(model) === 'down') {
         return sentence(checkWords(model.down));
     }
 
-    return liveFigure(model).detail;
+    return liveFigure(model, history).detail;
 }
 
 /**
@@ -332,15 +339,20 @@ export const ATTEMPTS_NOTE = `Each night’s attempt is tested on the newest ${H
  * the Attempts card's rows on a wide screen (#267), as liveRows gives them: how
  * many nightly updates and weekly retrains went live, of how many, '3 of 7 went
  * live' -- a kind with no attempts has no row -- then the newest night, named for
- * the morning its test ran (#318), 'Wed Oct 28, took over', when it started and
- * how long it took, where the history has its times, and its loss on its test
- * days beside the version in charge's. Last, for a model with holds, `held`,
- * that attempts are judged on the 1-day hold. None where there is no history.
+ * the morning its test ran (#318), 'Wed Oct 28, took over', and when it started
+ * and how long it took, where the history has its times. Last, for a model with
+ * holds, `held`, that attempts are judged on the 1-day hold. None where there is
+ * no history.
  *
  * Its time is the whole attempt (#318): from format 6 a second pass training
  * the new version again counts too, and the info icon after it says it is two
  * passes -- see scores.js's attemptSeconds and twoPasses. A night with one pass
  * reads as it always did.
+ *
+ * Note: #320 took out the night's test loss beside the version in charge's. A
+ *       test score sat beside the score card's real one, and read as a second
+ *       answer to the same question. The attempts' card has the test's scores,
+ *       under a title and a line that say what the test is.
  */
 export function attemptRows(history, held = false) {
     if (!Array.isArray(history) || !history.length) {
@@ -358,17 +370,10 @@ export function attemptRows(history, held = false) {
     });
 
     const last = history[history.length - 1];
-    const attempt = scoreIn(last.attempt, 'loss');
-    const live = scoreIn(last.live, 'loss');
     const seconds = attemptSeconds(last);
     const more = [
         { key: 'started', name: 'Started', value: formatStarted(last.started) },
         { key: 'took', name: 'Took', value: seconds === null ? '' : <TookValue seconds={seconds} note={twoPasses(last)} /> },
-        {
-            key: 'loss',
-            name: 'Its test loss',
-            value: attempt === null ? '' : `${formatScore(attempt, 'loss')}${live === null ? '' : `, version in charge ${formatScore(live, 'loss')}`}`,
-        },
     ];
 
     return rows.concat(
@@ -543,15 +548,16 @@ function heldFigure(task, on, key) {
 }
 
 //
-// how many days a hold has scored, and how many of them its figures take in
-// (#300): 'last 20 of 34 scored days', '14 scored days so far', or none yet
+// how many days a hold has scored, and how many of them its figures average
+// (#300), saying they are an average (#320): 'Average of the last 20 of 34
+// scored days', 'Average of 14 scored days so far', or none yet
 //
 function scoredDays(days, window) {
     if (!days) {
         return 'no scored days yet';
     }
 
-    return days >= window ? `last ${window} of ${days} scored days` : `${days} scored ${days === 1 ? 'day' : 'days'} so far`;
+    return days >= window ? `Average of the last ${window} of ${days} scored days` : `Average of ${days} scored ${days === 1 ? 'day' : 'days'} so far`;
 }
 
 //
@@ -582,15 +588,24 @@ HoldsTitle.propTypes = {
 };
 
 //
-// what the Scores by hold table holds, under its title (#300): each hold's
-// scores over its own latest days, beside the baseline's, what Combined is, and
-// why it has no top 10 where the task has one
+// that each number under the Scores by hold card's title is an average, of what,
+// and against what its "worse" or "better" is (#320), as the card's line and a
+// phone's say it
+//
+function averageWords(window) {
+    return `Each number is an average over the hold’s latest ${window} scored days, or all of them while it has fewer. The “worse” or “better” under it compares it with the baseline’s average over the same days.`;
+}
+
+//
+// what the Scores by hold table holds, under its title (#300): that each number
+// is an average of the hold's own latest days, and against what it stands
+// (#320), what Combined is, and why it has no top 10 where the task has one
 //
 function holdsAbout(task, holds, window) {
     const combined = holds.some((each) => each.days === COMBINED);
 
     return [
-        `Each hold’s scores over its own latest ${window} scored days, beside the baseline’s on the same days.`,
+        averageWords(window),
         combined ? 'Combined is the average of the 1, 5 and 20-day scores of the same prediction days, so it comes in with the 20-day result.' : '',
         combined && heldOut(task, COMBINED).length ? 'The top 10 has no combined score: a 20-day gain and a 1-day gain aren’t the same kind of number.' : '',
     ].filter(Boolean).join(' ');
@@ -604,6 +619,10 @@ function holdsAbout(task, holds, window) {
  * cell the hold's average and how it stands against the baseline's. All from the
  * listing's `holds`, as the score card's figure is. The hold picked is shaded.
  *
+ * Under each hold's count, the days it averages (#320), from the model's track
+ * record, `rows` -- see scores.js's scoredSpan -- so its numbers can't read as the
+ * version in charge's. None while the record is on its way, or could not be had.
+ *
  * On a phone, '<score> by hold' in its place: the score picked, on every hold, a
  * line each, so nothing runs past the screen's edge. Both are drawn, each under
  * a line of its own saying what it holds, and the stylesheet shows the one that
@@ -612,12 +631,13 @@ function holdsAbout(task, holds, window) {
  * Its title folds it away and opens it again, as every section of the page
  * does, kept between visits -- see parts.jsx's useFolds.
  */
-export function HoldsTable({ model, task, score, hold }) {
+export function HoldsTable({ model, task, score, hold, rows }) {
     const holds = listedHolds(model);
     const keys = scoresFor(task);
     const shown = scoreOnHold(score, hold);
     const window = averageDays(model);
     const [folds, toggle] = useFolds('model-page');
+    const spanOf = (days) => scoredSpan(rows, days, window);
 
     if (folds.holds) {
         return (
@@ -635,7 +655,7 @@ export function HoldsTable({ model, task, score, hold }) {
                 <HoldsTitle label={scoreOf(shown).label} folded={false} onFold={() => toggle('holds')} />
                 <p className='model-card-sub model-holds-wide'>{holdsAbout(task, holds, window)}</p>
                 <p className='model-card-sub model-holds-phone'>
-                    {`Each over its hold’s own latest ${window} scored days. Pick another score above to see it on every hold.`}
+                    {`${averageWords(window)} Pick another score above to see it on every hold.`}
                 </p>
             </div>
             <div className='model-holds-wide model-holds-box'>
@@ -649,12 +669,14 @@ export function HoldsTable({ model, task, score, hold }) {
                     <tbody>
                         {holds.map((each) => {
                             const on = scoresOn(model, each.days);
+                            const span = on.days ? spanOf(each.days) : '';
 
                             return (
                                 <tr key={each.label} className={each.days === hold ? 'model-holds-picked' : null}>
                                     <th scope='row'>
                                         <span className='model-holds-name'>{each.label}</span>
                                         <span className='model-holds-about'>{scoredDays(on.days, window)}</span>
+                                        {span ? <span className='model-holds-about'>{span}</span> : null}
                                         <span className='model-holds-about'>{comesInLine(task, each.days)}</span>
                                     </th>
                                     {keys.map((key) => {
@@ -677,6 +699,7 @@ export function HoldsTable({ model, task, score, hold }) {
                 {holds.map((each) => {
                     const on = scoresOn(model, each.days);
                     const figure = heldFigure(task, on, shown);
+                    const span = on.days ? spanOf(each.days) : '';
 
                     return (
                         <li key={each.label} className={each.days === hold ? 'model-holds-picked' : null}>
@@ -684,6 +707,7 @@ export function HoldsTable({ model, task, score, hold }) {
                             <span className='model-holds-value'>{figure.value}</span>
                             <span className='model-holds-about'>{scoredDays(on.days, window)}</span>
                             {figure.gap}
+                            {span ? <span className='model-holds-about'>{span}</span> : null}
                         </li>
                     );
                 })}
@@ -702,6 +726,10 @@ HoldsTable.propTypes = {
     }),
     score: PropTypes.string.isRequired,
     hold: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([COMBINED])]),
+    rows: PropTypes.arrayOf(PropTypes.shape({
+        day: PropTypes.string.isRequired,
+        score: PropTypes.object,
+    })),
 };
 
 /**
@@ -870,8 +898,8 @@ class ModelPage extends Component {
     summary(model, task, score, hold) {
         const { history, listing, track } = this.state;
         const status = statusOf(model);
-        const live = liveFigure(model);
-        const line = liveLine(model);
+        const live = liveFigure(model, history);
+        const line = liveLine(model, history);
 
         //
         // the score card's figure on the hold, where the listing gives the
@@ -978,6 +1006,13 @@ class ModelPage extends Component {
         const downBox = status === 'down' ? { short: 'Taken down', shortValue: shortDay(model.down.since) } : {};
 
         //
+        // a live version's box on a phone: its day without the weekday, 'Oct 28',
+        // where 'Wed Oct 28' wrapped onto two lines and made the three boxes
+        // taller (#320), as 'Taken down Oct 19' had (#272)
+        //
+        const liveBox = status === 'live' || status === 'new' ? { shortValue: shortDay(liveNight(model.live.since, history)) || live.value } : {};
+
+        //
         // the three figures: a card each on a wide screen, and on a phone one
         // row of /stream's tinted boxes, a name over a value, with the line under
         // each card's value moved into its box's note -- three cards stacked
@@ -1043,6 +1078,7 @@ class ModelPage extends Component {
                                 label: 'Live version',
                                 note: sentence(live.detail),
                                 value: live.value,
+                                ...liveBox,
                                 ...downBox,
                             },
                             {
@@ -1312,7 +1348,7 @@ class ModelPage extends Component {
                 </div>
                 {stock ? <p className='model-hold-line'>{holdLine(task, holds.hold)}</p> : null}
                 {this.summary(model, task, score, holds.hold)}
-                {listed ? <HoldsTable model={model} task={task} score={score} hold={holds.hold} /> : null}
+                {listed ? <HoldsTable model={model} task={task} score={score} hold={holds.hold} rows={track} /> : null}
                 {this.report(history, 'nightly attempts', ATTEMPTS_CARD, () => (history.length
                     ? <AttemptsChart rows={history} score={score} held={this.held(model, task)} />
                     : <p className='model-status model-status-empty'>No nightly attempts yet.</p>))}

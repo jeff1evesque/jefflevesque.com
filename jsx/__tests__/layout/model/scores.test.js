@@ -65,6 +65,7 @@ import {
     listLine,
     listedHolds,
     liveKind,
+    liveNight,
     longDay,
     lossParts,
     namedHold,
@@ -81,6 +82,7 @@ import {
     scoreIn,
     scoreOf,
     scoreOnHold,
+    scoredSpan,
     scoresFor,
     emptyHolds,
     scoresAt,
@@ -1190,21 +1192,21 @@ describe('trackLine, what a track record says of its days (#300)', () => {
     const stocks = { id: 'direction', scores: STOCK_SCORES };
 
     it('says a model with no holds is scored once each day\'s prices are in', () => {
-        expect(trackLine(stocks, null)).toBe('Each day’s real predictions, scored once that day’s prices are in.');
-        expect(trackLine(undefined)).toBe('Each day’s real predictions, scored once that day’s prices are in.');
+        expect(trackLine(stocks, null)).toBe('The actual predictions the site published each day, scored once that day’s prices are in.');
+        expect(trackLine(undefined)).toBe('The actual predictions the site published each day, scored once that day’s prices are in.');
     });
 
     it('says a stock model\'s 1-day hold is scored the next trading day', () => {
-        expect(trackLine(stocks, 1)).toBe('Each day’s real predictions, scored the next trading day.');
+        expect(trackLine(stocks, 1)).toBe('The actual predictions the site published each day, scored the next trading day.');
     });
 
     it('says a longer hold is scored once its sell day is in, and that its newest days are not yet', () => {
-        expect(trackLine(stocks, 5)).toBe('Each day’s real predictions, scored once the 5-day hold’s sell day is in, 6 trading days later. The newest days aren’t in yet.');
-        expect(trackLine(stocks, 20)).toBe('Each day’s real predictions, scored once the 20-day hold’s sell day is in, 21 trading days later. The newest days aren’t in yet.');
+        expect(trackLine(stocks, 5)).toBe('The actual predictions the site published each day, scored once the 5-day hold’s sell day is in, 6 trading days later. The newest days aren’t in yet.');
+        expect(trackLine(stocks, 20)).toBe('The actual predictions the site published each day, scored once the 20-day hold’s sell day is in, 21 trading days later. The newest days aren’t in yet.');
     });
 
     it('says an options model\'s 1-day hold is scored a day after its sell day', () => {
-        expect(trackLine(OPTIONS_TASK, 1)).toBe('Each day’s real predictions, scored once the 1-day hold’s sell day is in, 2 trading days later. The newest days aren’t in yet.');
+        expect(trackLine(OPTIONS_TASK, 1)).toBe('The actual predictions the site published each day, scored once the 1-day hold’s sell day is in, 2 trading days later. The newest days aren’t in yet.');
     });
 
     it('says Combined is the average of each day\'s three, in with its 20-day result', () => {
@@ -1294,6 +1296,83 @@ describe('firstResult, the day a hold\'s first result came in (#300)', () => {
         expect(firstResult(undefined, stocks, 1)).toBeNull();
         expect(firstResult(null, stocks, 1)).toBeNull();
         expect(firstResult([], stocks, 1)).toBeNull();
+    });
+});
+
+describe('scoredSpan, the days a hold\'s scores average over (#320)', () => {
+    it('is the first and last day of the record with a result on the hold', () => {
+        expect(scoredSpan(trackOf(10, '2026-10-12'), 1, WINDOW)).toBe('Oct 12 to Oct 23');
+    });
+
+    it('takes in only the latest days the scores average, of those with a result on the hold', () => {
+        expect(scoredSpan(trackOf(30, '2026-09-14'), 1, WINDOW)).toBe('Sep 28 to Oct 23');
+        expect(scoredSpan(trackOf(10, '2026-10-12'), 1, 5)).toBe('Oct 19 to Oct 23');
+        expect(scoredSpan(heldTrackOf(30, { from: '2026-09-14' }), 5, WINDOW)).toBe('Sep 21 to Oct 16');
+    });
+
+    it('names one day alone where only one counts', () => {
+        expect(scoredSpan(trackOf(1, '2026-10-12'), 1, WINDOW)).toBe('Oct 12');
+        expect(scoredSpan(trackOf(10, '2026-10-12'), 1, 1)).toBe('Oct 23');
+    });
+
+    it('reads the 1-day hold, or no hold, from the record\'s own columns, as firstResult does', () => {
+        const rows = heldTrackOf(10, { from: '2026-10-12' }).map((row, at) => (at < 2 ? { ...row, score: { ...row.score, loss: null } } : row));
+
+        expect(scoredSpan(rows, 1, WINDOW)).toBe('Oct 14 to Oct 23');
+        expect(scoredSpan(rows, null, WINDOW)).toBe('Oct 14 to Oct 23');
+        expect(scoredSpan(rows, undefined, WINDOW)).toBe('Oct 14 to Oct 23');
+    });
+
+    it('reads a longer hold, and Combined, from their own columns', () => {
+        const rows = heldTrackOf(10, { from: '2026-10-12', twenty: 3 });
+
+        expect(scoredSpan(rows, 5, WINDOW)).toBe('Oct 12 to Oct 16');
+        expect(scoredSpan(rows, COMBINED, WINDOW)).toBe('Oct 12 to Oct 14');
+    });
+
+    it('is nothing while the record is on its way, where it could not be had, or where no day has a result on the hold', () => {
+        expect(scoredSpan(undefined, 1, WINDOW)).toBe('');
+        expect(scoredSpan(null, 1, WINDOW)).toBe('');
+        expect(scoredSpan([], 1, WINDOW)).toBe('');
+        expect(scoredSpan(heldTrackOf(10), 20, WINDOW)).toBe('');
+        expect(scoredSpan(trackOf(10), 5, WINDOW)).toBe('');
+    });
+});
+
+describe('liveNight, the morning the live version ran (#320)', () => {
+    it('is the morning the night it went live on ran, as the history has it, and the attempts name it', () => {
+        expect(liveNight('2026-10-27', ptGnnHistory())).toBe('2026-10-28');
+        expect(nightName(liveNight('2026-10-27', ptGnnHistory()))).toBe('Wed Oct 28');
+    });
+
+    it('takes that morning from the history even where the night ran more than a day late', () => {
+        const rows = ptOptionsHistory();
+
+        rows[2] = { ...rows[2], tested: '2026-10-26' };
+
+        expect(liveNight('2026-10-23', rows)).toBe('2026-10-26');
+    });
+
+    it('is the day after it where no night in the history is its day or names its morning, or there is no history, as on /model', () => {
+        const rows = ptOptionsHistory();
+
+        rows[3] = { ...rows[3], tested: null };
+
+        expect(liveNight('2026-10-20', ptOptionsHistory())).toBe('2026-10-21');
+        expect(liveNight('2026-10-26', rows)).toBe('2026-10-27');
+        expect(liveNight('2026-10-27')).toBe('2026-10-28');
+        expect(liveNight('2026-10-27', null)).toBe('2026-10-28');
+        expect(liveNight('2026-10-27', [])).toBe('2026-10-28');
+    });
+
+    it('carries the day after into the next month', () => {
+        expect(liveNight('2026-10-31')).toBe('2026-11-01');
+    });
+
+    it('is nothing for no day', () => {
+        expect(liveNight(null)).toBe('');
+        expect(liveNight(undefined)).toBe('');
+        expect(liveNight('', ptGnnHistory())).toBe('');
     });
 });
 

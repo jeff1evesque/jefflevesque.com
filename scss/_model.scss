@@ -102,7 +102,8 @@
 // a model's own page, as #300 lays it out: one column, 22px between each of
 // its parts -- the way back, its name over what it predicts, its pickers, the
 // line saying what the hold is, 14px under them, the three figures, and each
-// card -- the name at 28px, and the line under it in 15px type
+// card -- the name at 28px, and the line under it in 15px type, as wide as the
+// cards under it (#320)
 //
 .model-page {
   display: flex;
@@ -141,7 +142,6 @@
     color: $gray-7;
     font-size: 15px;
     line-height: 1.5;
-    max-width: 860px;
   }
 }
 
@@ -1505,6 +1505,15 @@
   font-size: 14px;
   line-height: 1.5;
   max-width: 860px;
+}
+
+//
+// the line under Scores by hold's title, and under the attempts' (#320), across
+// the whole card, as the line under the model's name runs across the page
+//
+.model-page .model-by-hold .model-card-sub,
+.model-page .model-attempts > .model-card-head > .model-card-sub {
+  max-width: none;
 }
 
 .model-page .model-legend {
