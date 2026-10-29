@@ -202,9 +202,14 @@ describe('a row', () => {
     });
 
     it('says at its foot when the live version went live and how, and how many attempts did, a line each (#300)', () => {
-        expect(sinceOf(draw().container)).toEqual(['Live since Oct 9, nightly update', '4 of 30 attempts went live']);
+        expect(sinceOf(draw().container)).toEqual(['Live since Sat Oct 10, nightly update', '4 of 30 attempts went live']);
         expect(sinceOf(draw({ model: modelOf({ live: { since: '2026-10-05', kind: 'first' } }) }).container))
-            .toEqual(['Live since Oct 5, first version', '4 of 30 attempts went live']);
+            .toEqual(['Live since Tue Oct 6, first version', '4 of 30 attempts went live']);
+    });
+
+    it('names the morning after the day its live version went live, with its weekday, as the attempts name each night (#320)', () => {
+        expect(sinceOf(draw({ model: modelOf({ live: { since: '2026-10-27', kind: 'nightly' } }) }).container)[0])
+            .toBe('Live since Wed Oct 28, nightly update');
     });
 
     it('says when a retired model retired, and dims it', () => {
@@ -217,7 +222,7 @@ describe('a row', () => {
     it('says there is no live version yet where there is no day, and leaves out how it went live where the listing does not say', () => {
         expect(sinceOf(draw({ model: modelOf({ live: { since: null, kind: null } }) }).container))
             .toEqual(['No live version yet', '4 of 30 attempts went live']);
-        expect(sinceOf(draw({ model: modelOf({ live: { since: '2026-10-09', kind: null } }) }).container)[0]).toBe('Live since Oct 9');
+        expect(sinceOf(draw({ model: modelOf({ live: { since: '2026-10-09', kind: null } }) }).container)[0]).toBe('Live since Sat Oct 10');
     });
 });
 
