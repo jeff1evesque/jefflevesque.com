@@ -58,8 +58,10 @@ import {
     formatScore,
     holdsOf,
     liveKind,
+    liveNight,
     lossParts,
     namedHold,
+    nightName,
     noteOf,
     scoreIn,
     scoreOf,
@@ -341,9 +343,14 @@ function daysLabel(model, hold, rows) {
 
 //
 // when the live version went live and how, and how many attempts did, as the
-// foot of a row says it (#300): 'Live since Oct 9, nightly update', '4 of 30
+// foot of a row says it (#300): 'Live since Wed Oct 28, nightly update', '4 of 30
 // attempts went live'. A retired model's says when it retired, and one taken
-// down when it was, and why (#263)
+// down when it was, and why (#263).
+//
+// When is the morning the version ran, as its page names it (#320). The list has
+// no history, so it is the day after the trainer's own -- see scores.js's
+// liveNight -- which differs from the page's only for a night the trainer ran
+// more than a day late
 //
 function sinceOf(model, status) {
     const went = `${model.attempts.went_live} of ${model.attempts.total} attempts went live`;
@@ -361,7 +368,7 @@ function sinceOf(model, status) {
     const kind = liveKind(model.live.kind);
 
     return {
-        since: model.live.since ? `Live since ${shortDay(model.live.since)}${kind ? `, ${kind}` : ''}` : 'No live version yet',
+        since: model.live.since ? `Live since ${nightName(liveNight(model.live.since))}${kind ? `, ${kind}` : ''}` : 'No live version yet',
         went: went,
     };
 }
