@@ -249,7 +249,7 @@ describe('the title and the line under it (#300)', () => {
     it('says under the title the line it is handed: when each day is scored', () => {
         const { container } = draw({ about: trackLine(undefined, null) });
 
-        expect(container.querySelector('.model-card-sub')).toHaveTextContent('Each day’s real predictions, scored once that day’s prices are in.');
+        expect(container.querySelector('.model-card-sub')).toHaveTextContent('The actual predictions the site published each day, scored once that day’s prices are in.');
     });
 
     it('says nothing under the title where it is handed nothing', () => {
@@ -723,7 +723,7 @@ describe('an options model\'s holds (#279)', () => {
         const task = { id: 'options', scores: ['loss', 'profit_auc', 'top10_gain', 'top10_wins'] };
         const { container } = held({ about: trackLine(task, 5) });
 
-        expect(screen.getByText('Each day’s real predictions, scored once the 5-day hold’s sell day is in, 6 trading days later. The newest days aren’t in yet.')).toBeInTheDocument();
+        expect(screen.getByText('The actual predictions the site published each day, scored once the 5-day hold’s sell day is in, 6 trading days later. The newest days aren’t in yet.')).toBeInTheDocument();
         expect(screen.getByRole('heading', { level: 5, name: 'Track record, 5-day hold: Loss' })).toBeInTheDocument();
         expect(container.querySelector('.model-chart')).toHaveAttribute('aria-label', expect.stringMatching(/^Loss on the 5-day hold of pt-options and the know-nothing baseline/));
 
@@ -771,7 +771,7 @@ describe('an options model\'s holds (#279)', () => {
     it('leave a stock model\'s line and title as they were, naming no hold', () => {
         draw({ about: trackLine(undefined, null) });
 
-        expect(screen.getByText('Each day’s real predictions, scored once that day’s prices are in.')).toBeInTheDocument();
+        expect(screen.getByText('The actual predictions the site published each day, scored once that day’s prices are in.')).toBeInTheDocument();
         expect(screen.getByRole('heading', { level: 5, name: 'Track record: Loss' })).toBeInTheDocument();
     });
 });
