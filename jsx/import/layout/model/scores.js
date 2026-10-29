@@ -538,14 +538,15 @@ export function scoresAt(model, hold, rows) {
 
 /**
  * what a model's track record says of its days on a hold, under the record's
- * title (#300): when each day is scored -- 'Each day’s real predictions, scored
- * the next trading day', or on a longer hold once its sell day is in, and that
- * its newest days are not yet -- or Combined's average. For no hold, once the
- * day's prices are in.
+ * title (#300): that they are the predictions the site published (#320), and
+ * when each day is scored -- 'The actual predictions the site published each
+ * day, scored the next trading day', or on a longer hold once its sell day is in,
+ * and that its newest days are not yet -- or Combined's average. For no hold,
+ * once the day's prices are in.
  */
 export function trackLine(task, hold) {
     if (!hold) {
-        return 'Each day’s real predictions, scored once that day’s prices are in.';
+        return 'The actual predictions the site published each day, scored once that day’s prices are in.';
     }
 
     if (hold === COMBINED) {
@@ -553,10 +554,10 @@ export function trackLine(task, hold) {
     }
 
     if (resultDays(task, hold) === 1) {
-        return 'Each day’s real predictions, scored the next trading day.';
+        return 'The actual predictions the site published each day, scored the next trading day.';
     }
 
-    return `Each day’s real predictions, scored once the ${holdName(hold)}’s sell day is in, ${resultLag(task, hold)}. The newest days aren’t in yet.`;
+    return `The actual predictions the site published each day, scored once the ${holdName(hold)}’s sell day is in, ${resultLag(task, hold)}. The newest days aren’t in yet.`;
 }
 
 //
@@ -613,6 +614,46 @@ export function firstResult(rows, task, hold) {
     const came = first < 0 ? null : rows[first + resultDays(task, hold)];
 
     return came ? { day: came.day, predicted: rows[first].day } : null;
+}
+
+/**
+ * the days a hold's scores average over (#320), as Scores by hold says them under
+ * each hold's count: the first and last of the latest `window` days of a model's
+ * track record, `rows`, with a result on the hold -- the days the listing's
+ * `holds` average -- 'Oct 12 to Oct 23', or one day's, 'Oct 12'. The 1-day hold's
+ * are the record's own columns, as firstResult reads them. Nothing while the
+ * record is on its way, where it could not be had, or where it has no day on the
+ * hold.
+ */
+export function scoredSpan(rows, hold, window) {
+    const column = !hold || hold === DEFAULT_HOLD ? DEFAULT_SCORE : columnOf(DEFAULT_SCORE, hold);
+    const scored = Array.isArray(rows) ? rows.filter((row) => scoreIn(row.score, column) !== null).slice(-window) : [];
+
+    if (!scored.length) {
+        return '';
+    }
+
+    const first = scored[0].day;
+    const last = scored[scored.length - 1].day;
+
+    return first === last ? shortDay(first) : `${shortDay(first)} to ${shortDay(last)}`;
+}
+
+/**
+ * the morning the version that went live on `since` ran (#320), as the attempts
+ * name each night -- see nightName: `tested` of the night in `history` whose
+ * `day` it is, or where there is none, as on /model, which has no history, the
+ * day after it, as the worker's testedOn says a night with no `started`. Nothing
+ * for no day.
+ */
+export function liveNight(since, history = null) {
+    if (!since) {
+        return '';
+    }
+
+    const night = Array.isArray(history) ? history.find((row) => row.day === since && row.tested) : null;
+
+    return night ? night.tested : daysAfter(since, 1);
 }
 
 //
