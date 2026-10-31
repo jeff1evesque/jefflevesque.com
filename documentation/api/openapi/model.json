@@ -230,6 +230,43 @@
                                             "description": "The newest of all those days, as YYYY-MM-DD."
                                           }
                                         }
+                                      },
+                                      "held_out": {
+                                        "type": [
+                                          "object",
+                                          "null"
+                                        ],
+                                        "description": "From format 10: how the version did on the held-out days its go-live was decided on, which it never trained on, beside the version it replaced and the know-nothing baseline, all three scored on those days. null for a version with no row in its history.",
+                                        "required": [
+                                          "days",
+                                          "loss",
+                                          "replaced_loss",
+                                          "baseline_loss"
+                                        ],
+                                        "properties": {
+                                          "days": {
+                                            "type": "array",
+                                            "description": "The held-out days, oldest first, each YYYY-MM-DD.",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "loss": {
+                                            "type": "number",
+                                            "description": "The version's loss on those days, as it was tested, before any second run."
+                                          },
+                                          "replaced_loss": {
+                                            "type": [
+                                              "number",
+                                              "null"
+                                            ],
+                                            "description": "The loss of the version it replaced, on the same days; null for a first version, which replaced none."
+                                          },
+                                          "baseline_loss": {
+                                            "type": "number",
+                                            "description": "The know-nothing baseline's loss on those days."
+                                          }
+                                        }
                                       }
                                     }
                                   },
@@ -1412,6 +1449,151 @@
                                 "hold": 20
                               }
                             ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "list-held-out": {
+                    "summary": "The listing from format 10: each live version's held_out, its loss on the days its go-live was decided on beside the version it replaced and the baseline's, pt-options' ahead of both and pt-gnn's of the baseline alone",
+                    "value": {
+                      "report": {
+                        "format_version": 10,
+                        "average_days": 20,
+                        "tasks": [
+                          {
+                            "id": "next-day-move",
+                            "name": "Stock moves",
+                            "description": "Each S&P 500 stock's move from 9:40 AM on the next trading day to 3:40 PM that day, or 5 or 20 trading days later, scored once the last day's prices are in.",
+                            "scores": [
+                              "loss",
+                              "auc_up",
+                              "auc_beats",
+                              "acc_up",
+                              "top10_gain",
+                              "top10_wins"
+                            ]
+                          },
+                          {
+                            "id": "option-picks",
+                            "name": "Option picks",
+                            "description": "Each S&P 500 option's chance of making money, bought at the 9:40 AM ask on the next trading day and sold at the 3:40 PM bid 1, 5 or 20 trading days later, scored once the sell day's prices are in.",
+                            "scores": [
+                              "loss",
+                              "profit_auc",
+                              "top10_gain",
+                              "top10_wins"
+                            ]
+                          }
+                        ],
+                        "models": [
+                          {
+                            "name": "pt-gnn",
+                            "task": "next-day-move",
+                            "description": "Graph neural network trained on each day's whole graph",
+                            "started": "2026-10-12",
+                            "retired": null,
+                            "scored_days": 8,
+                            "live": {
+                              "since": "2026-10-29",
+                              "kind": "nightly",
+                              "days": {
+                                "training": 11,
+                                "stopping": 3,
+                                "first": "2026-10-05",
+                                "last": "2026-10-23"
+                              },
+                              "fine_tune": {
+                                "passed": false,
+                                "by": -0.00851,
+                                "slack": 0.005
+                              },
+                              "held_out": {
+                                "days": [
+                                  "2026-10-26",
+                                  "2026-10-27",
+                                  "2026-10-28"
+                                ],
+                                "loss": 1.66757,
+                                "replaced_loss": 1.66703,
+                                "baseline_loss": 1.67592
+                              }
+                            },
+                            "attempts": {
+                              "total": 15,
+                              "went_live": 8
+                            },
+                            "score": {
+                              "loss": 1.69509,
+                              "auc_up": 0.49501,
+                              "auc_beats": 0.49942,
+                              "acc_up": 0.47242,
+                              "top10_gain": -0.00424,
+                              "top10_wins": 3.66667
+                            },
+                            "baseline": {
+                              "loss": 1.668,
+                              "auc_up": 0.5,
+                              "auc_beats": 0.5,
+                              "acc_up": 0.47689,
+                              "top10_gain": -0.00058,
+                              "top10_wins": 4.28098
+                            }
+                          },
+                          {
+                            "name": "pt-options",
+                            "task": "option-picks",
+                            "description": "Graph neural network that scores every S&P 500 option on each day's whole graph",
+                            "started": "2026-10-22",
+                            "retired": null,
+                            "scored_days": 4,
+                            "live": {
+                              "since": "2026-10-29",
+                              "kind": "nightly",
+                              "days": {
+                                "training": 13,
+                                "stopping": 0,
+                                "first": "2026-10-05",
+                                "last": "2026-10-27"
+                              },
+                              "fine_tune": {
+                                "passed": true,
+                                "by": 0.00993,
+                                "slack": 0.005
+                              },
+                              "held_out": {
+                                "days": [
+                                  "2026-10-23",
+                                  "2026-10-26",
+                                  "2026-10-27"
+                                ],
+                                "loss": 0.60164,
+                                "replaced_loss": 0.63394,
+                                "baseline_loss": 0.61186
+                              }
+                            },
+                            "attempts": {
+                              "total": 7,
+                              "went_live": 5
+                            },
+                            "score": {
+                              "loss": 0.62817,
+                              "auc_up": null,
+                              "auc_beats": null,
+                              "acc_up": null,
+                              "profit_auc": 0.64859,
+                              "top10_gain": -0.03692,
+                              "top10_wins": 3.5
+                            },
+                            "baseline": {
+                              "loss": 0.59365,
+                              "auc_up": null,
+                              "auc_beats": null,
+                              "acc_up": null,
+                              "profit_auc": 0.60807,
+                              "top10_gain": -0.19359,
+                              "top10_wins": 1.91518
+                            }
                           }
                         ]
                       }
