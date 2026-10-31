@@ -962,7 +962,7 @@ describe('the panel of the night picked (#318)', () => {
         const { container } = draw({ rows: ptGnnHistory() });
 
         expect(container.querySelector('.model-night-panel')).toHaveTextContent(
-            'How long it took: 54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s fine-tuning. Started 4:43 AM ET.'
+            'How long it took: 54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s fine-tuning. Started Wed Oct 28, 4:43 AM ET.'
         );
     });
 });
@@ -1133,7 +1133,7 @@ describe('the fine-tuning in how long each attempt took (#318, #324)', () => {
         expect(readPopup(popupOf(container))).toEqual({
             title: 'Wed Oct 28 · nightly update',
             rows: [['Training', '41 min 36 s'], ['Scoring', '1 min 37 s'], ['Fine-tuning', '10 min 58 s']],
-            foot: '54 min 10 s in all, started 4:43 AM ET',
+            foot: '54 min 10 s in all, started Wed Oct 28, 4:43 AM ET',
         });
         expect(popupOf(container).querySelectorAll('.model-tip-row rect')[2]).toHaveAttribute('fill', chartColors('light').tookAgain);
     });
@@ -1248,7 +1248,7 @@ describe('the popups (#300)', () => {
         });
     });
 
-    it('says how long the night pointed at took: its training and its scoring, each after its mark, and when it started in Eastern time', () => {
+    it('says how long the night pointed at took: its training and its scoring, each after its mark, and when it started, its day and time in Eastern time (#327)', () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
         pointAt(container, 430, TOOK);
@@ -1259,8 +1259,9 @@ describe('the popups (#300)', () => {
         expect(readPopup(popup)).toEqual({
             title: 'Fri Oct 16 · nightly update',
             rows: [['Training', '7 min 17 s'], ['Scoring', '1 min 35 s']],
-            foot: '8 min 52 s in all, started 3:58 AM ET',
+            foot: '8 min 52 s in all, started Fri Oct 16, 3:58 AM ET',
         });
+        expect(popup.querySelector('.model-tip-foot .model-tip-when')).toHaveTextContent(/^started Fri Oct 16, 3:58 AM ET$/);
         expect(popup.querySelectorAll('.model-tip-row svg.model-mark')).toHaveLength(2);
     });
 
@@ -1283,6 +1284,7 @@ describe('the popups (#300)', () => {
         pointAt(container, 540, TOOK);
 
         expect(readPopup(popupOf(container)).foot).toBe('9 min 52 s in all');
+        expect(popupOf(container).querySelector('.model-tip-when')).toBeNull();
     });
 
     it('prints a night under ten seconds to a tenth', () => {
@@ -1293,7 +1295,7 @@ describe('the popups (#300)', () => {
         expect(readPopup(popupOf(container))).toEqual({
             title: 'Sat Oct 17 · nightly update',
             rows: [['Training', '2.3 s'], ['Scoring', '0.3 s']],
-            foot: '2.6 s in all, started 3:58 AM ET',
+            foot: '2.6 s in all, started Sat Oct 17, 3:58 AM ET',
         });
     });
 
