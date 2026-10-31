@@ -50,7 +50,7 @@ const TOOK = '.model-chart-took';
 // what the card says under its title for every model on loss, and what it adds
 // for a stock model with holds (#300, #318)
 //
-const ABOUT = 'Every night a new version takes a test: the 3 newest days whose results are known, which it never studied. The version in charge takes the same test, so you can compare. Lower is better. The new version takes over if it beats the simple guess.';
+const ABOUT = 'Every night a new version takes a test: the 3 newest days whose results are known, which it never trained on. The version in charge takes the same test, so you can compare. Lower is better. The new version takes over if it beats the simple guess.';
 const HELD = 'These are the 1-day hold’s scores, since the test days have no 5 or 20-day results yet, so the hold picker doesn’t move this card.';
 
 //
@@ -217,10 +217,16 @@ describe('attemptPoints', () => {
         });
     });
 
-    it('carries each kind of day a night\'s history lists, and none of any it lists none of (#318)', () => {
+    it('carries each kind of day a night\'s history lists, the days its fine-tuning trained on among them, and none of any it lists none of (#318, #334)', () => {
         const rows = ptOptionsHistory();
 
-        rows[3] = { ...rows[3], studied_days: ['2026-10-06', '2026-10-08'], stopping_days: ['2026-10-05'], unpicked_days: ['2026-10-09'] };
+        rows[3] = {
+            ...rows[3],
+            studied_days: ['2026-10-06', '2026-10-08'],
+            stopping_days: ['2026-10-05'],
+            unpicked_days: ['2026-10-09'],
+            trained_again_days: ['2026-10-06', '2026-10-20', '2026-10-21', '2026-10-22'],
+        };
 
         const points = attemptPoints(rows, 'loss');
 
@@ -230,8 +236,21 @@ describe('attemptPoints', () => {
             skipped: [],
             pending: [],
             unpicked: ['2026-10-09'],
+            tuned: ['2026-10-06', '2026-10-20', '2026-10-21', '2026-10-22'],
         });
-        expect(points[4].days).toEqual({ studied: [], stopping: [], skipped: [], pending: [], unpicked: [] });
+        expect(points[4].days).toEqual({ studied: [], stopping: [], skipped: [], pending: [], unpicked: [], tuned: [] });
+    });
+
+    it('carries the morning the version in charge took over, for a weekly retrain as for a nightly update, and none where the history gives none (#334)', () => {
+        const rows = ptOptionsHistory();
+
+        rows[2] = { ...rows[2], charge: '2026-10-23' };
+        rows[3] = { ...rows[3], charge: '2026-10-24' };
+
+        const points = attemptPoints(rows, 'loss');
+
+        expect(points.map((point) => point.charge)).toEqual([null, null, '2026-10-23', '2026-10-24', null]);
+        expect(points[2]).toMatchObject({ kind: 'weekly', from: null, charge: '2026-10-23' });
     });
 
     it('calls a night with no version in charge a first version, and none from a history without the day lists (#318)', () => {
@@ -879,7 +898,8 @@ describe('the panel of the night picked (#318)', () => {
         expect(boxesOf(container)).toEqual([['New version', '0.576'], ['Version in charge', '0.577'], ['Simple guess', '0.622']]);
         expect(panel.querySelector('.model-night-result')).toHaveTextContent('Took over. On loss it beat the simple guess by 0.046 and the version in charge by 0.001.');
         expect(panel).toHaveTextContent('Started from the version that took over Sat Oct 24.');
-        expect(panel.querySelector('.model-day-lists')).toHaveTextContent('Studied or used to stop10 earlier daysTestOct 20, 21 and 22');
+        expect(panel.querySelector('.model-day-lists')).toHaveTextContent('Training and validation10 earlier days');
+        expect(panel.querySelector('.model-day-lists')).toHaveTextContent('TestOct 20, 21 and 22');
     });
 
     it('draws the full strip of the night picked where the history lists its days, as the trainer is to', () => {
@@ -896,11 +916,18 @@ describe('the panel of the night picked (#318)', () => {
         const { container } = draw({ rows: rows });
         const panel = container.querySelector('.model-night-panel');
 
+        //
+        // each line of the lists, a screen reader's (#334), as its name and its
+        // days: the names start as the key's do, whatever more they say
+        //
+        const lines = [...panel.querySelectorAll('.model-day-lists > div')]
+            .map((line) => [line.querySelector('dt').textContent, line.querySelector('dd').textContent]);
+
         expect(panel.querySelector('.model-day-rows')).not.toBeNull();
         expect(panel.querySelectorAll('.model-day-row .model-day-studied')).toHaveLength(8);
-        expect([...panel.querySelectorAll('.model-day-lists dt')].map((name) => name.textContent))
-            .toEqual(['Studied', 'Used to decide when to stop', 'Test', 'Skipped', 'Results not in yet']);
-        expect(panel.querySelector('.model-day-lists')).toHaveTextContent('Used to decide when to stopOct 7, 12 and 13');
+        expect(lines).toHaveLength(5);
+        [/^Trained on/, /^Validation/, /^Test/, /^Skipped/, /^Results not in yet/].forEach((name, at) => expect(lines[at][0]).toMatch(name));
+        expect(lines[1][1]).toBe('Oct 7, 12 and 13');
     });
 
     it('shows pt-options\' newest night first, kept back behind the simple guess though it beat the version in charge', () => {
@@ -954,8 +981,8 @@ describe('the panel of the night picked (#318)', () => {
 
         expect([...days.querySelectorAll('.model-day')].map((day) => day.textContent)).toEqual(['20', '21', '22']);
         expect(days.querySelectorAll('.model-day-test')).toHaveLength(4);
-        expect(days.querySelector('.model-day-legend')).toHaveTextContent(/^Test, never studied$/);
-        expect([...days.querySelectorAll('dt')].map((name) => name.textContent)).toEqual(['Studied or used to stop', 'Test']);
+        expect(days.querySelector('.model-day-legend')).toHaveTextContent(/^Test, never trained on$/);
+        expect([...days.querySelectorAll('dt')].map((name) => name.textContent)).toEqual(['Training and validation', 'Test']);
     });
 
     it('says how long pt-gnn\'s Oct 27 night took in all, its fine-tuning among its parts (#318, #324)', () => {
