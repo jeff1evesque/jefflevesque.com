@@ -1215,13 +1215,25 @@ describe('two tasks, from format 3 on (#279)', () => {
             .toEqual(['0.720', '0.620', '0.268']);
     });
 
-    it('keeps the options list on its one figure for Loss, which adds up other scores (#283)', async () => {
+    it('shows the options list\'s two parts on Loss, centered under their line, its link to its picks still under its description (#322)', async () => {
         await both();
 
-        expect(group('Option picks').querySelector('.model-list')).not.toHaveClass('model-list-parts');
-        expect(group('Option picks').querySelector('.model-cell-parts')).toBeNull();
-        expect(daysIn('Option picks')).toHaveTextContent(/^last 20 days$/);
-        expect(group('Option picks').querySelector('.model-score-value')).toHaveTextContent('0.840');
+        const row = group('Option picks').querySelector('.model-row');
+        const newest = optionsTrackOf(5).slice(-1)[0];
+
+        expect(group('Option picks').querySelector('.model-list')).toHaveClass('model-list-parts');
+        expect(row).toHaveClass('model-row-centered');
+        expect(row.querySelector('.model-cell-parts')).toHaveClass('model-cell-parts-centered');
+        expect(row.querySelector('.model-part-cells')).toHaveClass('model-part-cells-centered');
+        expect([...row.querySelectorAll('.model-part-cell-name')].map((name) => name.textContent)).toEqual(['Makes money', 'Size of the gain']);
+        expect([...row.querySelectorAll('.model-part-cell-value')].map((value) => value.textContent))
+            .toEqual([formatScore(newest.average.profit_log_loss_1d, 'loss'), formatScore(newest.average.gain_pinball_1d, 'loss')]);
+        expect(daysIn('Option picks')).toHaveTextContent(/^Loss 0\.840, part by part, last 20 days$/);
+        expect(daysIn('Option picks')).toHaveAccessibleDescription(noteOf('loss', OPTIONS_TASK));
+        expect(row.querySelector('.model-score-value')).toBeNull();
+        expect(within(row).getByRole('link', { name: 'See its picks ›' }).previousElementSibling).toHaveClass('model-description');
+        expect(group('Next-day direction').querySelector('.model-row')).not.toHaveClass('model-row-centered');
+        expect(group('Next-day direction').querySelector('.model-cell-parts')).not.toHaveClass('model-cell-parts-centered');
     });
 
     it('lets a stock model and pt-options be ticked together on Top 10 gain, drawn each beside its own baseline', async () => {
@@ -1642,6 +1654,14 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
         const optionsRow = () => rowOf('pt-options');
         const valueIn = () => optionsRow().querySelector('.model-score-value');
         const daysIn = () => optionsRow().querySelector('.model-score-days');
+        const noteIn = (row = optionsRow()) => row.querySelector('.model-parts-note');
+        const partsIn = (row = optionsRow()) => [...row.querySelectorAll('.model-part-cell-value')].map((value) => value.textContent);
+
+        //
+        // the options list on Profit AUC, a score of one figure: Loss shows its
+        // two parts (#322)
+        //
+        const AUC = { 'option-picks': 'profit_auc' };
 
         it('offers its three holds on 1 day, with the line saying what the hold is', async () => {
             answer(optionsListingOf(), (name) => (name === 'pt-options' ? optionsTrackOf(30) : withTop10(trackOf(5))));
@@ -1662,11 +1682,11 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
 
             answer(optionsListingOf(), (name) => (name === 'pt-options' ? rows : withTop10(trackOf(5))));
 
-            const { unmount } = await open({ holds: { 'option-picks': 5 }, onHold: onHold });
+            const { unmount } = await open({ scores: AUC, holds: { 'option-picks': 5 }, onHold: onHold });
 
-            expect(valueIn()).toHaveTextContent(formatScore(newest(5).average.loss_5d, 'loss'));
+            expect(valueIn()).toHaveTextContent(formatScore(newest(5).average.profit_auc_5d, 'profit_auc'));
             expect(daysIn()).toHaveTextContent('last 20 days');
-            expect(optionsRow().querySelector('.model-cell-score .model-gap')).toHaveTextContent(`, ${formatScore(newest(5).baseline_average.loss_5d, 'loss')}`);
+            expect(optionsRow().querySelector('.model-cell-score .model-gap')).toHaveTextContent(`, ${formatScore(newest(5).baseline_average.profit_auc_5d, 'profit_auc')}`);
             expect(group('Option picks').querySelector('.model-hold-line')).toHaveTextContent('5-day hold: sold at the 3:40 PM bid 5 trading days after the buy day.');
 
             await userEvent.click(within(within(group('Option picks')).getByRole('group', { name: 'Hold' })).getByRole('button', { name: '20 days' }));
@@ -1674,10 +1694,30 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
             expect(onHold).toHaveBeenCalledWith('option-picks', 20);
 
             unmount();
+            await open({ scores: AUC, holds: { 'option-picks': 20 } });
+
+            expect(valueIn()).toHaveTextContent(formatScore(newest(20).average.profit_auc_20d, 'profit_auc'));
+            expect(daysIn()).toHaveTextContent(`${scored(20).length} days so far`);
+        });
+
+        it('shows loss and its two parts on a longer hold as its track record has them, and its days (#322)', async () => {
+            const rows = optionsTrackOf(30);
+            const scored = (hold) => rows.filter((row) => row.score[`loss_${hold}d`] !== null);
+            const newest = (hold) => scored(hold)[scored(hold).length - 1];
+            const last = rows[rows.length - 1];
+
+            answer(optionsListingOf(), (name) => (name === 'pt-options' ? rows : withTop10(trackOf(5))));
+
+            const { unmount } = await open({ holds: { 'option-picks': 5 } });
+
+            expect(noteIn()).toHaveTextContent(`Loss ${formatScore(newest(5).average.loss_5d, 'loss')}, part by part, last 20 days`);
+            expect(partsIn()).toEqual([formatScore(last.average.profit_log_loss_5d, 'loss'), formatScore(last.average.gain_pinball_5d, 'loss')]);
+
+            unmount();
             await open({ holds: { 'option-picks': 20 } });
 
-            expect(valueIn()).toHaveTextContent(formatScore(newest(20).average.loss_20d, 'loss'));
-            expect(daysIn()).toHaveTextContent(`${scored(20).length} days so far`);
+            expect(noteIn()).toHaveTextContent(`Loss ${formatScore(newest(20).average.loss_20d, 'loss')}, part by part, ${scored(20).length} days so far`);
+            expect(partsIn()).toEqual([formatScore(last.average.profit_log_loss_20d, 'loss'), formatScore(last.average.gain_pinball_20d, 'loss')]);
         });
 
         //
@@ -1711,7 +1751,8 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
 
             expect(offIn('Option picks', 'Hold')).toEqual(['5 days', '20 days']);
             expect(pressedIn('Option picks', 'Hold')).toEqual(['1 day']);
-            expect(valueIn()).toHaveTextContent(formatScore(optionsListingOf().models.find((model) => model.name === 'pt-options').score.loss, 'loss'));
+            expect(noteIn()).toHaveTextContent(`Loss ${formatScore(optionsListingOf().models.find((model) => model.name === 'pt-options').score.loss, 'loss')}, part by part, last 20 days`);
+            expect(optionsRow().querySelector('.model-part-cell-value .graph-pending-bar')).not.toBeNull();
 
             await act(async () => record.resolve(optionsTrackOf(30)));
 
@@ -1728,7 +1769,7 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
         });
 
         it('holds bars in a row\'s figures on a longer hold while its track record is on its way, where another\'s is in', async () => {
-            await twoOptions(new Promise(() => {}), { holds: { 'option-picks': 5 } });
+            await twoOptions(new Promise(() => {}), { scores: AUC, holds: { 'option-picks': 5 } });
 
             expect(pressedIn('Option picks', 'Hold')).toEqual(['5 days']);
             expect(otherRow().querySelector('.model-score-value .graph-pending-bar')).not.toBeNull();
@@ -1736,12 +1777,28 @@ describe('the lists\' holds, from format 5 on (#300)', () => {
             expect(valueIn().querySelector('.graph-pending-bar')).toBeNull();
         });
 
+        it('holds bars in place of a row\'s loss, its days and its parts there too (#322)', async () => {
+            await twoOptions(new Promise(() => {}), { holds: { 'option-picks': 5 } });
+
+            expect(pressedIn('Option picks', 'Hold')).toEqual(['5 days']);
+            expect(noteIn(otherRow()).querySelector('.graph-pending-bar')).not.toBeNull();
+            expect(otherRow().querySelector('.model-part-cell-value .graph-pending-bar')).not.toBeNull();
+            expect(noteIn().querySelector('.graph-pending-bar')).toBeNull();
+        });
+
         it('shows a dash on a longer hold where a model\'s track record could not be had, where another\'s is in', async () => {
-            await twoOptions(Promise.resolve(null), { holds: { 'option-picks': 5 } });
+            await twoOptions(Promise.resolve(null), { scores: AUC, holds: { 'option-picks': 5 } });
 
             expect(pressedIn('Option picks', 'Hold')).toEqual(['5 days']);
             expect(otherRow().querySelector('.model-score-value')).toHaveTextContent('–');
             expect(otherRow().querySelector('.model-score-days')).toHaveTextContent('no scored days yet');
+        });
+
+        it('shows a dash for a row\'s loss and its parts there too (#322)', async () => {
+            await twoOptions(Promise.resolve(null), { holds: { 'option-picks': 5 } });
+
+            expect(noteIn(otherRow())).toHaveTextContent(/^Loss –, part by part, no scored days yet$/);
+            expect(partsIn(otherRow())).toEqual(['–', '–']);
         });
     });
 
