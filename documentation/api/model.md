@@ -135,12 +135,43 @@ A track record carries them for each hold alone, as `profit_log_loss_1d`,
 `gain_pinball_1d` and so on, and the baseline's as `baseline_profit_log_loss_1d` and so
 on. Its plain columns have neither.
 
+A history and a track record carry more scores than these. Nothing on the site reads
+them, and none decides anything: going live and taking a version down go by `loss`. A
+stock model's come under the same prefixes as its other scores, and in a track record
+for each hold too, though not for Combined:
+
+| Score | What it measures |
+|---|---|
+| `share_up` | the share of stocks that went up. It describes the days, so it is the same for the model and the baseline |
+| `up_brier` | the Brier score of the chance each stock goes up: the average squared gap between the chance and what happened, 1 for up and 0 for down. Lower is better, and a 50% chance for every stock scores 0.25 |
+| `up_precision` | of the stocks it gave a 50% or higher chance of going up, the share that did. 0 where it gave none |
+| `up_recall` | of the stocks that went up, the share it gave a 50% or higher chance. 0 where none went up |
+| `up_f1` | precision and recall in one number, their harmonic mean |
+| `beats_brier`, `beats_precision`, `beats_recall`, `beats_f1` | the same, for whether each stock beat the average stock |
+| `beats_accuracy` | the share of stocks whose beat-the-average call was right, 0 to 1 |
+| `move_pinball_p10`, `move_pinball_p50`, `move_pinball_p90` | the pinball loss of each of its three guesses at the size of the move, the 10th, 50th and 90th percentile. `move_pinball` is their average |
+| `move_inside_p10_p90` | the share of moves that landed between its 10th and 90th percentile guesses. A range as wide as it should be holds 8 in 10, 0.8 |
+| `move_auc_bigger_than_expected` | how well its middle guess ranks the stocks that moved more than the options expected above the ones that didn't: 0.5 is a coin flip |
+| `move_rank_correlation` | how closely the order of its middle guesses matches the order of the real moves, -1 to 1: 0 is no relation |
+
+The baseline gives every stock the same chance, so it says yes to all of them or to
+none. Its precision and recall are then the share that went up and 1, or 0 and 0.
+
+An options model's come in a history under `attempt_`, `live_` and `baseline_` as its
+plain scores do, and in a track record for each hold alone, as its loss's parts do:
+
+| Score | What it measures |
+|---|---|
+| `share_profit` | the share of options that made money. It describes the days, so it is the same for the model and the baseline |
+| `gain_inside_p10_p90` | the share of options whose gain landed between its 10th and 90th percentile guesses. A range as wide as it should be holds 8 in 10, 0.8 |
+
 ## Response: the listing
 
 `report` is an object of `tasks` and `models`, and from 2026-10-15 on, `format_version`.
 From format 4 it also has `average_days`: how many of a model's latest scored days its
 `score` and `baseline` average, and how many it needs before it is no longer New. A
-listing before format 4 has none, and both are 20.
+listing before format 4 has none, and both are 20. It also has `updated`, when it was
+written, in UTC with its offset, e.g. `2026-10-30T10:58:39+00:00`.
 
 A **task** is what a model predicts, and `/model` draws one list per task, in the
 listing's order: `id`, the name a model gives it; `name`; `description`, one line on
