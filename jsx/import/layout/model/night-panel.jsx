@@ -17,13 +17,14 @@
  *                           older nights were decided by older rules
  *     where it started      the version that took over before it, for a nightly
  *                           update, or from scratch
- *     how long it took      the whole time and its parts, from format 6 a second
- *                           pass among them
+ *     how long it took      the whole time and its parts, from format 6 its
+ *                           fine-tuning among them (#324)
  *     which days it used    its days as a strip, a row for each month, a box for
  *                           each day in the look of its kind -- studied, used to
  *                           decide when to stop, test, skipped, results not in
  *                           yet, or not picked this night -- a key of the kinds
- *                           drawn, and the same in words
+ *                           drawn, and the same in words, the days used to
+ *                           decide when to stop with a note on how (#324)
  *
  * Note: which earlier days a night studied, and which it stopped on, skipped,
  *       had no results for yet or didn't pick, are the trainer's to list. Until
@@ -33,6 +34,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
+import InfoNote from '../../general/info-note.jsx';
 import {
     formatDuration,
     formatGap,
@@ -110,7 +112,8 @@ export function startedFrom(point) {
 /**
  * how long a night's attempt took, in all and in its parts, and when it started:
  * '54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days,
- * then 10 min 58 s training again. Started 4:43 AM ET.' A night from before the
+ * then 10 min 58 s fine-tuning. Started 4:43 AM ET.' -- the fine-tuning by the
+ * name the Live version card gives its check (#324). A night from before the
  * trainer kept times says so.
  */
 export function tookWords(point) {
@@ -121,7 +124,7 @@ export function tookWords(point) {
     const started = formatStarted(point.started);
     const parts = point.again === null
         ? `${formatDuration(point.took)} in all: ${formatDuration(point.training)} training, then ${formatDuration(point.scoring)} scoring the test days.`
-        : `${formatDuration(point.took)} in all: ${formatDuration(point.training)} training, ${formatDuration(point.scoring)} scoring the test days, then ${formatDuration(point.again)} training again.`;
+        : `${formatDuration(point.took)} in all: ${formatDuration(point.training)} training, ${formatDuration(point.scoring)} scoring the test days, then ${formatDuration(point.again)} fine-tuning.`;
 
     return started ? `${parts} Started ${started}.` : parts;
 }
@@ -165,7 +168,10 @@ export function dayList(days) {
 //
 // each kind of day the full strip marks (#318), in the order its key and its
 // lists give them: where a night's history lists them, `listed`, its class, its
-// name in the key, in the lists and in a day's title
+// name in the key, in the lists and in a day's title. The days used to decide
+// when to stop carry a note on how they decide it, after their name in the
+// lists alone (#324): the key is hidden from a screen reader, and one icon will
+// do
 //
 const KINDS = [
     { key: 'studied', listed: 'studied', look: 'model-day-studied', name: 'Studied', list: 'Studied', title: 'studied' },
@@ -176,6 +182,7 @@ const KINDS = [
         name: 'Used to decide when to stop',
         list: 'Used to decide when to stop',
         title: 'used to decide when to stop',
+        note: 'The model never trains on these days. After each epoch it’s scored on them, and training stops once that score stops getting better. It keeps the epoch that scored best.',
     },
     { key: 'test', listed: null, look: 'model-day-test', name: 'Test, never studied', list: 'Test', title: 'test, never studied' },
     { key: 'skipped', listed: 'skipped', look: 'model-day-skipped', name: 'Skipped, incomplete data', list: 'Skipped', title: 'skipped, incomplete data' },
@@ -314,7 +321,7 @@ function DaysUsed({ test, studied, days = null }) {
                 <dl className='model-day-lists'>
                     {drawn.map((kind) => (
                         <div key={kind.key}>
-                            <dt>{kind.list}</dt>
+                            <dt>{kind.note ? <InfoNote note={kind.note} className='model-noted'>{kind.list}</InfoNote> : kind.list}</dt>
                             <dd>{dayList(kind.days)}</dd>
                         </div>
                     ))}
