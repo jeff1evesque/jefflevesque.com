@@ -782,6 +782,11 @@ describe('the attempts\' nights and the panel of the one picked (#318)', () => {
         expect(declared(rulesOf('.model-nights')[1], 'left')).toBe('0');
     });
 
+    it('starts every line\'s days in line, past the longest name and its info icon, and lets a phone\'s lines flow (#324)', () => {
+        expect(whole('.model-day-lists').body).toMatch(/dt\s*\{\s*color: \$gray-8;\s*font-weight: 600;\s*min-width: 216px;\s*\}/);
+        expect(declared(rulesOf('.model-day-lists dt')[0], 'min-width')).toBe('0');
+    });
+
     it('says under the score card\'s figure, and under a phone\'s score line, what its score is, in the muted gray', () => {
         const scored = rule('.model-stat-scored,.model-summary-details > .model-score-scored');
 
