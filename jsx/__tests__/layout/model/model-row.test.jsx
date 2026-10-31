@@ -29,7 +29,7 @@ import ModelRow, { PartCells, TrendLine, trendSpan } from '../../../import/layou
 import { ThemeModeContext } from '../../../import/general/theme-mode.jsx';
 import { COMPARE_COLORS, SCORES, chartColors, formatScore, noteOf, recentDays, shortDay } from '../../../import/layout/model/scores.js';
 import { STOCK_SCORES, heldModelOf, heldTrackOf, tapAt } from '../../../test-support/model-fixtures.js';
-import { OPTIONS_TASK, downModelOf, modelOf, olderTrackOf, optionsModelOf, pointAt, trackOf } from '../../../test-support/model-fixtures.js';
+import { OPTIONS_TASK, downModelOf, modelOf, olderTrackOf, optionsModelOf, optionsTrackOf, pointAt, trackOf } from '../../../test-support/model-fixtures.js';
 
 function draw(props = {}) {
     const onPick = props.onPick || jest.fn();
@@ -462,6 +462,53 @@ describe('loss\'s three parts, in place of its sum (#283)', () => {
             'model-cell-trend',
             'model-cell-since',
         ]);
+    });
+});
+
+describe('an options model\'s two parts, in place of its sum (#322)', () => {
+    const textsOf = (container, selector) => [...container.querySelectorAll(selector)].map((each) => each.textContent);
+    const options = (props = {}) => draw({ model: optionsModelOf(), task: OPTIONS_TASK, rows: optionsTrackOf(30), parts: true, ...props });
+
+    it('name its two parts, each over its figure and how it stands, on the 1-day hold its plain columns repeat', () => {
+        const rows = optionsTrackOf(30);
+        const newest = rows[rows.length - 1];
+        const { container } = options({ rows: rows });
+        const note = container.querySelector('.model-parts-note');
+
+        expect(textsOf(container, '.model-part-cell-name')).toEqual(['Makes money', 'Size of the gain']);
+        expect(textsOf(container, '.model-part-cell-value'))
+            .toEqual([formatScore(newest.average.profit_log_loss_1d, 'loss'), formatScore(newest.average.gain_pinball_1d, 'loss')]);
+        expect([...container.querySelectorAll('.model-part-cell .model-gap')].map((gap) => gap.classList[1])).toEqual(['model-gap-better', 'model-gap-level']);
+        expect(note).toHaveTextContent(/^Loss 0\.840, part by part, last 20 days$/);
+        expect(note).toHaveAccessibleDescription(noteOf('loss', OPTIONS_TASK));
+    });
+
+    it('stand centered under their line, the row marked so its live version\'s line lines up with the first', () => {
+        const { container } = options();
+
+        expect(container.querySelector('.model-row')).toHaveClass('model-row-centered');
+        expect(container.querySelector('.model-cell-parts')).toHaveClass('model-cell-parts-centered');
+        expect(screen.getByRole('list', { name: 'Loss, part by part' })).toHaveClass('model-part-cells', 'model-part-cells-centered');
+        expect(screen.getByRole('link', { name: 'See its picks ›' }).previousElementSibling).toHaveClass('model-description');
+    });
+
+    it('leave a stock model\'s three, and an options model\'s one score on another, as they were', () => {
+        const stock = draw({ parts: true }).container;
+        const auc = options({ parts: false, score: 'profit_auc' }).container;
+
+        expect(stock.querySelector('.model-row')).not.toHaveClass('model-row-centered');
+        expect(stock.querySelector('.model-cell-parts')).not.toHaveClass('model-cell-parts-centered');
+        expect(stock.querySelector('.model-part-cells')).not.toHaveClass('model-part-cells-centered');
+        expect(auc.querySelector('.model-row')).not.toHaveClass('model-row-centered');
+        expect(auc.querySelector('.model-cell-parts')).toBeNull();
+    });
+
+    it('hold a bar for each of its two figures while the track record is on its way, and a dash where it has no columns for them', () => {
+        const pending = options({ rows: undefined }).container;
+        const older = options({ rows: trackOf(10) }).container;
+
+        expect(pending.querySelectorAll('.model-part-cell-value > .graph-pending-bar')).toHaveLength(2);
+        expect(textsOf(older, '.model-part-cell-value')).toEqual(['–', '–']);
     });
 });
 
@@ -959,6 +1006,24 @@ describe('PartCells on its own (#283, #300)', () => {
         expect(container.querySelector('.model-part-cell-value')).toHaveTextContent(formatScore(rows[9].average.up_log_loss, 'loss'));
         expect(container.querySelector('.model-parts-note')).toHaveTextContent(/^Loss 1\.600, part by part, last 20 days$/);
         expect(container.querySelector('.model-parts-note')).toHaveAccessibleDescription(noteOf('loss'));
+    });
+
+    it('reads an options model\'s loss, days and parts on a longer hold off its track record, where the listing gives none on it (#322)', () => {
+        const rows = optionsTrackOf(30);
+        const scored = rows.filter((row) => row.score.loss_5d !== null);
+        const { container } = render(<PartCells model={optionsModelOf()} rows={rows} task={OPTIONS_TASK} hold={5} />);
+
+        expect(container.querySelector('.model-parts-note'))
+            .toHaveTextContent(`Loss ${formatScore(scored[scored.length - 1].average.loss_5d, 'loss')}, part by part, last 20 days`);
+        expect([...container.querySelectorAll('.model-part-cell-value')].map((value) => value.textContent))
+            .toEqual([formatScore(rows[29].average.profit_log_loss_5d, 'loss'), formatScore(rows[29].average.gain_pinball_5d, 'loss')]);
+    });
+
+    it('holds a bar in place of the loss and days over them there while the track record is on its way (#322)', () => {
+        const { container } = render(<PartCells model={optionsModelOf()} rows={undefined} task={OPTIONS_TASK} hold={5} />);
+
+        expect(container.querySelector('.model-parts-note .graph-pending-bar')).not.toBeNull();
+        expect(container.querySelector('.model-parts-note')).not.toHaveTextContent('Loss');
     });
 });
 
