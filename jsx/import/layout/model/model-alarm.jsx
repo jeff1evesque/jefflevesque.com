@@ -2,11 +2,12 @@
  * model-alarm.jsx: /model/:model/alarm, a model's alarms (#255).
  *
  * A model has one alarm, 'live', until it retires. It emails a subscriber when a
- * new version goes live ahead of the baseline: on the days it was tested on, its
- * loss is lower than both the version it replaced and the know-nothing baseline's.
- * Most nights a model goes live, but far fewer go live ahead of the baseline, and a
- * first version never sets it off, since it has no live version to beat. The
- * account api judges the emails; nothing here does.
+ * new version goes live ahead of its previous version (#326): on the days it was
+ * tested on, its loss is lower than both the version it replaced and the
+ * know-nothing baseline's. From format 6 every version that goes live is ahead of
+ * the baseline, but far fewer are ahead of the version they replaced, and a first
+ * version never sets it off, since it has no live version to beat. The account api
+ * judges the emails; nothing here does.
  *
  * The page is the stream alarm page's subscribing and no more -- see
  * layout/stream/alarm.jsx, whose archive, workflows and performance summary are a
@@ -306,7 +307,7 @@ class ModelAlarm extends Component {
             <section className='model-alarm-about' aria-labelledby='model-alarm-about'>
                 <h5 id='model-alarm-about'>What sets it off</h5>
                 <p>
-                    {`It emails you when a new version of ${model.name} goes live ahead of the baseline: on the days it was tested on, which it was not trained on, its loss is lower than both the version it replaced and the know-nothing baseline’s. Lower is better.`}
+                    {`It emails you when a new version of ${model.name} goes live ahead of its previous version: on the days it was tested on, which it was not trained on, its loss is lower than both the version it replaced and the know-nothing baseline’s. Lower is better.`}
                 </p>
                 <p>
                     {'Not every new version that goes live beats both, so it goes off less often than a model goes live. A model’s first version never sets it off: it has no live version to beat.'}

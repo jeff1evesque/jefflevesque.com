@@ -5,7 +5,7 @@ An alarm tells you, by email, about something on the site you asked to hear abou
 - **A stream's alarm:** when one of the site's streams has gone quiet, because the data
   it collects has stopped arriving.
 - **A model's alarm:** when one of the models has a new version that goes live ahead of
-  the baseline.
+  its previous version.
 
 You choose which streams and models to hear about.
 
@@ -32,9 +32,10 @@ until it retires.
 - **What sets it off:** a new version goes live, and on the days it was tested on, which
   it was not trained on, its loss is lower than both the version it replaced and the
   know-nothing baseline's. Lower is better.
-- **How often:** less often than a model goes live, since not every new version that
-  goes live beats both. From 2026-10-09 to 2026-10-16, two models went live 7 times
-  between them, and once ahead of the baseline.
+- **How often:** less often than a model goes live. Every new version that goes live is
+  ahead of the baseline, but few are ahead of the version they replaced. From 2026-10-27
+  to 2026-10-29, the four models went live 6 times between them, and 2 of those were
+  ahead of their previous version.
 - **Never for a first version:** it has no live version to beat, and a model is only
   listed, and so can only be subscribed to, once its first version is live.
 - **A retired model** is no longer trained, so it can't go live again, and has no alarm
