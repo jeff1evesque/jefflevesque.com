@@ -3,10 +3,11 @@
  * days (#243), how long a night's attempt took (#247), the trainer's checks that
  * take a live version down for doing worse than the baseline (#263), the three
  * scores loss adds up (#265), and the lists that show them in place of their sum
- * (#283), and the scores of an options model and of every model's top 10, and an
- * options model's holds (#279), and from format 5 a stock model's, with their
- * average, Combined (#300). From format 6 an attempt's second pass counts in how
- * long it took, and each night is named for the morning its test ran (#318).
+ * (#283), an options model's two among them (#322), and the scores of an options
+ * model and of every model's top 10, and an options model's holds (#279), and
+ * from format 5 a stock model's, with their average, Combined (#300). From
+ * format 6 an attempt's second pass counts in how long it took, and each night
+ * is named for the morning its test ran (#318).
  *
  * The api scores the stock models four ways, which a listing before format 3
  * gives every task:
@@ -22,11 +23,11 @@
  *     acc_up       the share of stocks whose direction was called right
  *
  * From format 3, each task names its scores -- see scoresFor -- and the pages
- * offer a task's from a picker of its own. An options model has loss, which adds
- * up two scores for each hold it is held, and three more -- see TRADE_SCORES --
- * and the stock models have the top 10's two beside their four. Each of those is
- * of what a model's picks would have made, so models of different tasks can be
- * compared on one -- see compareBlocked.
+ * offer a task's from a picker of its own. An options model has loss, which on
+ * each hold adds up two scores -- see OPTION_LOSS_PARTS -- and three more -- see
+ * TRADE_SCORES -- and the stock models have the top 10's two beside their four.
+ * Each of those is of what a model's picks would have made, so models of
+ * different tasks can be compared on one -- see compareBlocked.
  *
  * Every chart draws "better" upward, so loss's axis is flipped, and every
  * difference here is signed the same way: positive is better, whichever way the
@@ -56,7 +57,7 @@ export const SCORES = [
         label: 'Loss',
         lower: true,
         note: 'Loss adds three scores: up or down, beating the average stock, and the size of the move. Lower is better. A coin flip scores 0.693 on each of the first two. The baseline is what knowing nothing scored on the same days.',
-        optionsNote: 'Loss adds up, for each hold that is on, the log loss of the chance each option makes money and the pinball loss of its gain. Lower is better, and the baseline beside it is a know-nothing model’s.',
+        optionsNote: 'Loss adds two scores: whether the option makes money, and the size of its gain. Lower is better. The baseline is what knowing nothing scored on the same days.',
         combinedNote: 'On Combined, loss is the average of the day’s 1, 5 and 20-day losses. Each adds three scores: up or down, beating the average stock, and the size of the move. Lower is better. The baseline is what knowing nothing scored on the same days.',
     },
     {
@@ -155,6 +156,26 @@ export const LOSS_PARTS = [
     { key: 'beats_log_loss', label: 'Beats the average stock' },
     { key: 'move_pinball', label: 'Size of the move' },
 ];
+
+//
+// the two scores an options model's loss adds up on each hold (#322), each by
+// the column a track record gives it on the hold, `<key>_1d` and so on, and by
+// its name on the pages: the log loss of the chance each option makes money,
+// and the pinball loss of its gain. Compared and printed as loss is, as the
+// stock models' three are. A track record's plain columns have neither
+//
+export const OPTION_LOSS_PARTS = [
+    { key: 'profit_log_loss', label: 'Makes money' },
+    { key: 'gain_pinball', label: 'Size of the gain' },
+];
+
+/**
+ * the parts loss adds up for the models of `task` (#322): an options model's
+ * two, or a stock model's three.
+ */
+export function partsOf(task) {
+    return tradesOptions(task) ? OPTION_LOSS_PARTS : LOSS_PARTS;
+}
 
 //
 // the score the pages open on, the one that decides what goes live
@@ -989,27 +1010,31 @@ export function standing(gap, key) {
 }
 
 /**
- * the three parts of a track record's day's average loss (#265): each part's
- * average, `value`, the baseline's over the same days, `baseline`, and how the
- * part stands against it, `stands` -- better, worse or level, as loss is
- * compared, or null where the baseline has none. The newest day's are over the
- * same days as the listing's score, so the three add up to it.
+ * the parts of a track record's day's average loss, for the models of `task`:
+ * a stock model's three (#265), or an options model's two (#322) -- see
+ * partsOf. Each part's average, `value`, the baseline's over the same days,
+ * `baseline`, and how the part stands against it, `stands` -- better, worse or
+ * level, as loss is compared, or null where the baseline has none. The newest
+ * day's are over the same days as the listing's score, so the parts add up to
+ * it.
  *
- * None for a day without all three, as in a track record without their columns:
- * two parts alone would not add up to the loss.
+ * None for a day without every part, as in a track record without their
+ * columns: the others alone would not add up to the loss.
  *
  * On a `hold` (#300), the hold's own parts, over its own latest scored days, as
- * the listing's `holds` has its loss.
+ * the listing's `holds` has its loss. An options model's are only a hold's: on
+ * none, the 1-day hold's, which its plain columns repeat.
  *
  * Note: compared as the two are printed, since the page prints the word beside
  *       them. tables-gnn's size of the move was 0.26018 against the baseline's
  *       0.26065 over its first five days: less than half a thousandth apart,
  *       which standing calls level, and printed as 0.260 and 0.261.
  */
-export function lossParts(row, hold = null) {
-    const averageOf = (field, key) => (row && row[field] ? row[field][columnOf(key, hold)] : null);
+export function lossParts(row, hold = null, task = undefined) {
+    const on = hold || (tradesOptions(task) ? DEFAULT_HOLD : null);
+    const averageOf = (field, key) => (row && row[field] ? row[field][columnOf(key, on)] : null);
     const printed = (value) => Number(formatScore(value, 'loss'));
-    const parts = LOSS_PARTS.map((part) => {
+    const parts = partsOf(task).map((part) => {
         const value = averageOf('average', part.key);
         const baseline = averageOf('baseline_average', part.key);
 
@@ -1026,14 +1051,13 @@ export function lossParts(row, hold = null) {
 }
 
 /**
- * whether /model's list shows loss's three parts in place of its sum (#283):
- * while Loss is picked, for a task of stocks. A total of three things read as
- * nothing a reader could name, and hid which of them a model beat the baseline
- * on. An options model's loss adds up other scores, hold by hold, and its list
- * shows the sum.
+ * whether /model's list shows loss's parts in place of its sum (#283): while
+ * Loss is picked. A total of three things read as nothing a reader could name,
+ * and hid which of them a model beat the baseline on. An options model's list
+ * showed its sum, until it showed its two parts too (#322).
  */
-export function showsParts(score, task) {
-    return score === DEFAULT_SCORE && !tradesOptions(task);
+export function showsParts(score) {
+    return score === DEFAULT_SCORE;
 }
 
 /**
