@@ -6,8 +6,9 @@
  * (#283), an options model's two among them (#322), and the scores of an options
  * model and of every model's top 10, and an options model's holds (#279), and
  * from format 5 a stock model's, with their average, Combined (#300). From
- * format 6 an attempt's second pass counts in how long it took, and each night
- * is named for the morning its test ran (#318).
+ * format 6 an attempt's fine-tuning counts in how long it took, and each night
+ * is named for the morning its test ran (#318), the fine-tuning by that name
+ * (#324).
  *
  * The api scores the stock models four ways, which a listing before format 3
  * gives every task:
@@ -784,7 +785,7 @@ const BASELINE = { light: '#c98500', dark: '#eda100' };
 const TOOK = { light: '#1baf7a', dark: '#199e70' };
 
 //
-// a second pass training the new version again, on top of its bar (#318): a
+// the new version's fine-tuning, on top of its bar (#318, #324): a
 // dark teal by day and a light one by night, each apart from the training under
 // it and from the scoring's lighter top -- under each kind of colorblindness
 // too -- and 7.5:1 and 10.3:1 on the page
@@ -1316,7 +1317,7 @@ export const SCORING_OPACITY = 0.5;
 /**
  * the colors every chart draws in, for `theme`: its text and muted gray, its
  * grid and its page, better and worse, the live version and the baseline, how
- * long an attempt took, and its second pass (#318).
+ * long an attempt took, and its fine-tuning (#318).
  */
 export function chartColors(theme) {
     const shade = themeColors(theme);
@@ -1484,10 +1485,11 @@ export function newestTest(rows) {
 }
 
 /**
- * how long a night's attempt took in all (#318): its first pass, the history's
- * `total_seconds`, and where it trained again, the second pass after it,
- * `trained_again_seconds`. None where the first pass has no time, as before the
- * trainer kept them, so a night with one pass reads as it always did.
+ * how long a night's attempt took in all (#318): its training and test, the
+ * history's `total_seconds`, and where it was fine-tuned, the fine-tuning after
+ * it, `trained_again_seconds`. None where the training and test have no time, as
+ * before the trainer kept them, so a night with no fine-tuning reads as it always
+ * did.
  */
 export function attemptSeconds(row) {
     const first = row ? row.total_seconds : null;
@@ -1500,21 +1502,22 @@ export function attemptSeconds(row) {
 }
 
 /**
- * the note on a night's time where it trained again (#318), which says the time
- * is two passes: 'Two passes: 43 min 13 s for the new version’s training and
- * test, then 10 min 58 s training it again.' A second pass whose version did not
- * take over -- `trained_again` false: it failed its check, or ran out of time --
- * still ran, and counts, and the note says the first pass took over. Nothing for
- * a night with one pass.
+ * the note on a night's time where it was fine-tuned (#318), which says what the
+ * time is made of, by the name the Live version card gives the fine-tuning's
+ * check (#324): '43 min 13 s for the new version’s training and test, then 10
+ * min 58 s fine-tuning it.' A fine-tuning whose version did not go live --
+ * `trained_again` false: it failed its check, or ran out of time -- still ran,
+ * and counts, and the note says the tested version went live instead. Nothing
+ * for a night with no fine-tuning.
  */
 export function twoPasses(row) {
     if (attemptSeconds(row) === null || !finite(row.trained_again_seconds) || row.trained_again_seconds < 0) {
         return '';
     }
 
-    const passes = `Two passes: ${formatDuration(row.total_seconds)} for the new version’s training and test, then ${formatDuration(row.trained_again_seconds)} training it again.`;
+    const passes = `${formatDuration(row.total_seconds)} for the new version’s training and test, then ${formatDuration(row.trained_again_seconds)} fine-tuning it.`;
 
-    return row.trained_again === false ? `${passes} The first pass took over.` : passes;
+    return row.trained_again === false ? `${passes} The tested version went live instead.` : passes;
 }
 
 /**
