@@ -1133,11 +1133,12 @@
 }
 
 //
-// loss's three parts in place of its sum (#283), as #300 lays them out: a
-// line over them saying what they add up to, over a rule as wide as the three,
-// as #283 drew it, so the line reads as theirs, and a column each, its name over
-// its figure over how it stands. A phone's card lays them out a line each --
-// see below
+// loss's parts in place of its sum (#283), as #300 lays them out: a line over
+// them saying what they add up to, over a rule as wide as the three, as #283
+// drew it, so the line reads as theirs, and a column each, its name over its
+// figure over how it stands -- a stock model's three, or an options model's two
+// (#322), see below. A phone's card lays them out a line each -- see further
+// below
 //
 .model-parts-note {
   border-bottom: 1px solid $gray-3;
@@ -1150,10 +1151,43 @@
 .model-part-cells {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+//
+// an options model's two parts (#322), centered in the room three take, under
+// a rule only as wide as they are: the first at the rule's left end, the second
+// ending at its right, and as much room left of the rule as right of it. Spread
+// across the three's room, the second stood halfway along, the rest empty after
+// it. The room each side is at most a fifth of the whole, and never so much
+// that the rule is narrower than 21rem, wider than the line over it.
+//
+// When its live version went live lines up with the first part where it stands
+// under them, on a row on two lines. On a row on one line it has its own column
+//
+$model-parts-inset: clamp(0px, calc((100% - 21rem) / 2), 20%);
+
+.model-cell-parts-centered {
+  padding-inline: $model-parts-inset;
+}
+
+.model-part-cells.model-part-cells-centered {
+  grid-auto-columns: max-content;
+  justify-content: space-between;
+}
+
+.model-row-centered .model-cell-since {
+  padding-left: $model-parts-inset;
+}
+
+@container (min-width: 1150px) {
+  .model-list-parts .model-row-centered .model-cell-since {
+    padding-left: 0;
+  }
 }
 
 .model-part-cell {
@@ -3411,6 +3445,16 @@ $dark-day-teal: #14b8a6;
 
   .model-parts-note {
     text-align: left;
+  }
+
+  //
+  // an options model's two parts a line each across the card, as a stock
+  // model's three are, and when its live version went live at the card's left
+  // edge (#322)
+  //
+  .model-cell-parts-centered,
+  .model-row-centered .model-cell-since {
+    padding-inline: 0;
   }
 
   .model-part-cells {

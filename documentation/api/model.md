@@ -124,6 +124,17 @@ under the same prefixes: `attempt_up_log_loss`, `live_up_log_loss` and
 `baseline_up_log_loss` in a history, and `up_log_loss` and `baseline_up_log_loss` in a
 track record. The listing carries only `loss`.
 
+An options model's `loss` on a hold is two scores added up, each lower-is-better:
+
+| Part | What it measures |
+|---|---|
+| `profit_log_loss` | the log loss of the chance each option makes money |
+| `gain_pinball` | the pinball loss of its gain |
+
+A track record carries them for each hold alone, as `profit_log_loss_1d`,
+`gain_pinball_1d` and so on, and the baseline's as `baseline_profit_log_loss_1d` and so
+on. Its plain columns have neither.
+
 ## Response: the listing
 
 `report` is an object of `tasks` and `models`, and from 2026-10-15 on, `format_version`.

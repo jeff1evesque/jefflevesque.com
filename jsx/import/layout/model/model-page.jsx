@@ -424,12 +424,13 @@ CardRows.propTypes = {
 };
 
 /**
- * the three scores loss adds up (#265), under the score's figure while Loss is
- * picked: each part's average, and how far it stands from the baseline's, after
- * the list's arrow (#300) -- 'Up or down 0.723 ▼ 0.010 worse'.
+ * the scores loss adds up, a stock model's three (#265) or an options model's
+ * two (#322), under the score's figure while Loss is picked: each part's
+ * average, and how far it stands from the baseline's, after the list's arrow
+ * (#300) -- 'Up or down 0.723 ▼ 0.010 worse'.
  *
  * `parts` are lossParts' of the track record's newest day, over the same days as
- * the figure, so the three add up to it.
+ * the figure, so they add up to it.
  */
 export function LossParts({ parts }) {
     return (
@@ -966,12 +967,12 @@ class ModelPage extends Component {
         }
 
         //
-        // the three scores loss adds up, while Loss is picked (#265), from the
-        // track record's newest day, on the hold (#300): none while the track
-        // record is on its way, where it could not be had, and where it has no
-        // columns for them
+        // the scores loss adds up, while Loss is picked (#265), the task's (#322),
+        // from the track record's newest day, on the hold (#300): none while the
+        // track record is on its way, where it could not be had, and where it has
+        // no columns for them
         //
-        const parts = score === 'loss' && Array.isArray(track) && track.length ? lossParts(track[track.length - 1], on.hold) : [];
+        const parts = score === 'loss' && Array.isArray(track) && track.length ? lossParts(track[track.length - 1], on.hold, task) : [];
         const lossBy = parts.length ? <LossParts parts={parts} /> : null;
 
         //

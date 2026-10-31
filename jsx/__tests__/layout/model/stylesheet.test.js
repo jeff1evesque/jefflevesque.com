@@ -10,8 +10,9 @@
  * its results come in, and a phone's boxes -- about /model's title over its
  * open filters, beside the lists' first line (#306), about a picker's name
  * with an info icon (#311), about the attempts' nights and the panel of the
- * night picked (#318), and about how wide the lines under a model's name and its
- * cards' titles run (#320), read out of the partial.
+ * night picked (#318), about how wide the lines under a model's name and its
+ * cards' titles run (#320), and about an options model's two parts in /model's
+ * list (#322), read out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see where a
  * cell lands. What can be held is what each rule says: a wide row's cells side
@@ -934,14 +935,16 @@ describe('an options model\'s picks page (#290)', () => {
 });
 
 describe('loss\'s three parts in /model\'s list (#283), as #300 lays them out', () => {
-    it('stand under a line saying what they add up to, three columns across a wide row', () => {
+    it('stand under a line saying what they add up to, a column each across a wide row, as many as the task has (#322)', () => {
         const [cells] = rulesOf('.model-part-cells');
 
         expect(declared(rulesOf('.model-parts-note')[0], 'text-align')).toBe('center');
         expect(declared(rulesOf('.model-parts-note')[0], 'border-bottom')).toBe('1px solid $gray-3');
         expect(declared(rulesOf('.model-parts-note')[0], 'padding-bottom')).toBe('4px');
         expect(declared(cells, 'display')).toBe('grid');
-        expect(declared(cells, 'grid-template-columns')).toBe('repeat(3, minmax(0, 1fr))');
+        expect(declared(cells, 'grid-auto-flow')).toBe('column');
+        expect(declared(cells, 'grid-auto-columns')).toBe('minmax(0, 1fr)');
+        expect(declared(cells, 'grid-template-columns')).toBeNull();
         expect(declared(cells, 'gap')).toBe('12px');
     });
 
@@ -965,6 +968,29 @@ describe('loss\'s three parts in /model\'s list (#283), as #300 lays them out', 
         expect(declared(part, 'grid-template-columns')).toBe('minmax(0, 1fr) auto auto');
         expect(declared(part, 'border-bottom')).toBe('1px solid $gray-1');
         expect(declared(rulesOf('.model-parts-note')[1], 'text-align')).toBe('left');
+    });
+});
+
+describe('an options model\'s two parts in /model\'s list (#322)', () => {
+    it('stand centered in the room three take, at the two ends of a rule only as wide as they are, never under 21rem, the room each side at most a fifth', () => {
+        const parts = rulesOf('.model-part-cells.model-part-cells-centered')[0];
+
+        expect(source).toMatch(/\$model-parts-inset: clamp\(0px, calc\(\(100% - 21rem\) \/ 2\), 20%\);/);
+        expect(declared(rulesOf('.model-cell-parts-centered')[0], 'padding-inline')).toBe('$model-parts-inset');
+        expect(declared(parts, 'grid-auto-columns')).toBe('max-content');
+        expect(declared(parts, 'justify-content')).toBe('space-between');
+    });
+
+    it('line when the live version went live up with the first part on a row on two lines, and not on a row on one line, where it has a column of its own', () => {
+        expect(declared(rulesOf('.model-row-centered .model-cell-since')[0], 'padding-left')).toBe('$model-parts-inset');
+        expect(source).toMatch(/@container \(min-width: 1150px\) \{\s*\.model-list-parts \.model-row-centered \.model-cell-since \{\s*padding-left: 0;/);
+    });
+
+    it('take no room at their sides on a phone\'s card, where each is a line across it, as a stock model\'s three are', () => {
+        const flat = '.model-cell-parts-centered,.model-row-centered .model-cell-since';
+
+        expect(declared(rulesOf(flat)[0], 'padding-inline')).toBe('0');
+        expect(source.indexOf('.model-cell-parts-centered,\n  .model-row-centered .model-cell-since {')).toBeGreaterThan(source.indexOf('@media (max-width: 767.98px) {'));
     });
 });
 

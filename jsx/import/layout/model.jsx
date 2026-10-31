@@ -778,7 +778,7 @@ class ModelLayout extends Component {
 
             const { holds, hold, empty } = this.holdFor(task);
             const score = this.scoreFor(task);
-            const parts = showsParts(score, task);
+            const parts = showsParts(score);
 
             //
             // a list as #300 lays it out: the task's name over what it predicts,

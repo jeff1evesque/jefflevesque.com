@@ -1,9 +1,9 @@
 /**
  * scores.test.js: what the model pages know about a score, a model's status and
- * its days (#243), which lists show loss's three parts (#283), and a model's
- * holds (#279), from format 5 a stock model's and Combined (#300), with what a
- * model's page says of them: when each comes in and was first scored, which a
- * model predicts, and the note under its checks (#300).
+ * its days (#243), which lists show loss's parts (#283), an options model's two
+ * (#322), and a model's holds (#279), from format 5 a stock model's and
+ * Combined (#300), with what a model's page says of them: when each comes in and
+ * was first scored, which a model predicts, and the note under its checks (#300).
  *
  * The rule every chart and figure leans on is betterBy's: a difference is
  * positive where it is better, whichever way the score runs. Loss is lower-is-
@@ -24,6 +24,7 @@ import {
     HOLD_SCHEDULE,
     KNOWN_SCORES,
     LOSS_PARTS,
+    OPTION_LOSS_PARTS,
     PAGE_DASH,
     SCORES,
     SCORING_OPACITY,
@@ -74,6 +75,7 @@ import {
     noResultsYet,
     noteOf,
     onThe,
+    partsOf,
     predictsLine,
     recentDays,
     resultDays,
@@ -106,6 +108,7 @@ import {
 import { colors_categorical, themeColors } from '../../../import/general/colors.js';
 import {
     OPTIONS_TASK,
+    OPTION_GAIN_PINBALL,
     STOCK_SCORES,
     TASKS,
     behindOf,
@@ -228,7 +231,61 @@ describe('loss\'s three parts (#265)', () => {
     });
 });
 
-describe('showsParts: the lists that show loss\'s three parts in place of its sum (#283)', () => {
+describe('an options model\'s two parts (#322)', () => {
+    const last = (hold) => {
+        const rows = optionsTrackOf(30);
+        const newest = rows[rows.length - 1];
+
+        return { newest: newest, parts: lossParts(newest, hold, OPTIONS_TASK) };
+    };
+
+    it('are the two columns its track record adds up to loss on each hold, by the names the pages give them', () => {
+        expect(OPTION_LOSS_PARTS).toEqual([
+            { key: 'profit_log_loss', label: 'Makes money' },
+            { key: 'gain_pinball', label: 'Size of the gain' },
+        ]);
+        OPTION_LOSS_PARTS.forEach((part) => expect(KNOWN_SCORES.map((score) => score.key)).not.toContain(part.key));
+    });
+
+    it('are the parts of a task that trades options, and a stock task\'s are its three, as before format 3 too', () => {
+        expect(partsOf(OPTIONS_TASK)).toBe(OPTION_LOSS_PARTS);
+        expect(partsOf(TASKS[0])).toBe(LOSS_PARTS);
+        expect(partsOf({ id: 'next-day-move', scores: STOCK_SCORES })).toBe(LOSS_PARTS);
+        expect(partsOf(undefined)).toBe(LOSS_PARTS);
+    });
+
+    it('read a hold\'s averages of each, beside the baseline\'s, adding up to its loss', () => {
+        const { newest, parts } = last(5);
+
+        expect(parts.map((part) => [part.label, part.stands])).toEqual([['Makes money', 'better'], ['Size of the gain', 'level']]);
+        expect(parts[0].value).toBe(newest.average.profit_log_loss_5d);
+        expect(parts[0].baseline).toBe(newest.baseline_average.profit_log_loss_5d);
+        expect(parts[1].value).toBeCloseTo(OPTION_GAIN_PINBALL, 10);
+        expect(parts[1].baseline).toBeCloseTo(OPTION_GAIN_PINBALL, 10);
+        expect(parts.reduce((sum, part) => sum + part.value, 0)).toBeCloseTo(newest.average.loss_5d, 10);
+        expect(parts.reduce((sum, part) => sum + part.baseline, 0)).toBeCloseTo(newest.baseline_average.loss_5d, 10);
+    });
+
+    it('are the 1-day hold\'s on no hold, the hold its plain columns repeat, which have no parts', () => {
+        const { newest, parts } = last(null);
+
+        expect(newest.average.profit_log_loss).toBeUndefined();
+        expect(parts[0].value).toBe(newest.average.profit_log_loss_1d);
+        expect(parts[1].value).toBe(newest.average.gain_pinball_1d);
+        expect(lossParts(newest, undefined, OPTIONS_TASK)).toEqual(parts);
+    });
+
+    it('are none on a hold with no result yet, nor for a track record without their columns, nor read as a stock model\'s', () => {
+        const { newest } = last(20);
+        const without = { ...newest, average: { ...newest.average, gain_pinball_1d: null } };
+
+        expect(lossParts(optionsTrackOf(10).slice(-1)[0], 20, OPTIONS_TASK)).toEqual([]);
+        expect(lossParts(without, 1, OPTIONS_TASK)).toEqual([]);
+        expect(lossParts(newest, 1)).toEqual([]);
+    });
+});
+
+describe('showsParts: the lists that show loss\'s parts in place of its sum (#283)', () => {
     it('is true on Loss, for a task of stocks, before format 3 and from it on', () => {
         expect(showsParts('loss', TASKS[0])).toBe(true);
         expect(showsParts('loss', { id: 'next-day-move', scores: STOCK_SCORES })).toBe(true);
@@ -241,8 +298,9 @@ describe('showsParts: the lists that show loss\'s three parts in place of its su
         });
     });
 
-    it('is false for a task that trades options, whose loss adds up other scores', () => {
-        expect(showsParts('loss', OPTIONS_TASK)).toBe(false);
+    it('is true on Loss for a task that trades options too, whose two parts its list shows (#322)', () => {
+        expect(showsParts('loss', OPTIONS_TASK)).toBe(true);
+        expect(showsParts('profit_auc', OPTIONS_TASK)).toBe(false);
     });
 });
 
@@ -803,11 +861,12 @@ describe('each task\'s scores, from format 3 on (#279)', () => {
         expect(noteOf('top10_wins', options)).toMatch(/^How many of each night’s top 10 made money: the model’s 10 best options/);
     });
 
-    it('say what an options model\'s loss adds up, and the stock models\' loss as before', () => {
+    it('say what an options model\'s loss adds up, its two parts as the pages name them (#322), and the stock models\' loss as before', () => {
         expect(noteOf('loss', options)).toBe(
-            'Loss adds up, for each hold that is on, the log loss of the chance each option makes money and the pinball loss of its gain. '
-            + 'Lower is better, and the baseline beside it is a know-nothing model’s.',
+            'Loss adds two scores: whether the option makes money, and the size of its gain. Lower is better. '
+            + 'The baseline is what knowing nothing scored on the same days.',
         );
+        expect(noteOf('loss', options)).toMatch(/makes money, and the size of its gain/);
         expect(noteOf('loss', stocks)).toBe(scoreOf('loss').note);
         expect(noteOf('auc_up', stocks)).toBe(scoreOf('auc_up').note);
     });
