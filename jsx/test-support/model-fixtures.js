@@ -426,17 +426,26 @@ export function optionsListingOf(models = null) {
 }
 
 //
+// the pinball loss of an options model's gain on every day and hold, the second
+// of the two its loss adds up (#322)
+//
+export const OPTION_GAIN_PINBALL = 0.12;
+
+//
 // an options model's scores on a day whose loss is `loss`, the same on each of
 // its holds, as `<score>` and each `<score>_1d`, `_5d` and `_20d` -- but a hold
-// whose result is not in yet, which is null
+// whose result is not in yet, which is null. Each hold's loss is its two parts
+// added up (#322), which the plain columns have neither of, as a track record's
+// have not
 //
 function optionsScoresAt(loss, gain, held = { 1: true, 5: true, 20: true }) {
     const plain = { loss: loss, profit_auc: 1.39 - loss, top10_gain: gain, top10_wins: 6 + gain * 10 };
+    const each = { ...plain, profit_log_loss: loss - OPTION_GAIN_PINBALL, gain_pinball: OPTION_GAIN_PINBALL };
     const scores = { ...plain, ...NO_STOCK, ...NO_PARTS };
 
     [1, 5, 20].forEach((hold) => {
-        Object.keys(plain).forEach((key) => {
-            scores[`${key}_${hold}d`] = held[hold] ? plain[key] : null;
+        Object.keys(each).forEach((key) => {
+            scores[`${key}_${hold}d`] = held[hold] ? each[key] : null;
         });
     });
 
