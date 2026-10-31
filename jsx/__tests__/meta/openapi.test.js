@@ -589,6 +589,48 @@ describe('model.json, from format 10 on (#326)', () => {
     });
 });
 
+describe('model.json, formats 6 to 10, and a history\'s lists of days (#330)', () => {
+    const responses = documentOf('model').paths['/model'].get.responses;
+    const media = responses['200'].content['application/json'];
+    const listed = media.schema.properties.report.anyOf[0].properties.format_version.description;
+    const LISTS = ['studied_days', 'stopping_days', 'unpicked_days', 'skipped_days', 'pending_days', 'trained_again_days'];
+
+    //
+    // the format 9 history's rows, each keyed by its header, every cell as written
+    //
+    const [header, ...lines] = media.examples['history-days'].value.report.trim().split('\n');
+    const rows = lines.map((line) => Object.fromEntries(line.split(',').map((cell, at) => [header.split(',')[at], cell])));
+
+    it('names formats 6 to 10, and what each added', () => {
+        expect(listed).toMatch(/6: training again: a history's trained_again, trained_again_seconds, stopping_tested_loss and stopping_again_loss; a track record's tested_ scores; live's fine_tune; and live's days/);
+        expect(listed).toMatch(/7: the 5-minute task, next-5-minutes, and its reports' columns\./);
+        expect(listed).toMatch(/8: a history's studied_days, stopping_days, skipped_days, pending_days and trained_again_days\./);
+        expect(listed).toMatch(/9: a history's unpicked_days, and its skipped_days counted from the attempt's oldest day to learn from/);
+        expect(listed).toMatch(/10: live's held_out\./);
+    });
+
+    it('describes a history\'s attempt, and each of its lists of days with the format that added it', () => {
+        const said = responses['200'].description;
+
+        expect(said).toMatch(/went_live, true when it replaced the live version; attempt, the attempt's name/);
+        expect(said).toMatch(/from format 8, five lists of days, each YYYY-MM-DD with a space between them, empty for attempts made before format 8: studied_days/);
+        expect(said).toMatch(/from format 9, unpicked_days/);
+        LISTS.forEach((list) => expect({ list, said: said.includes(`${list}, `) }).toEqual({ list, said: true }));
+    });
+
+    it('shows them in a history of format 9: each a list of days or empty, none before format 8, and the second run\'s days where it had one', () => {
+        const DAYS = /^(\d{4}-\d{2}-\d{2}( \d{4}-\d{2}-\d{2})*)?$/;
+        const listing = rows.filter((row) => row.studied_days);
+
+        expect(header.split(',')).toEqual(expect.arrayContaining(['attempt', ...LISTS]));
+        rows.forEach((row) => LISTS.forEach((list) => expect({ day: row.day, list, days: DAYS.test(row[list]) }).toEqual({ day: row.day, list, days: true })));
+        expect(LISTS.map((list) => rows[0][list])).toEqual(['', '', '', '', '', '']);
+        expect(listing.length).toBeGreaterThan(0);
+        expect(listing.map((row) => Boolean(row.trained_again_days))).toEqual(listing.map((row) => Boolean(row.trained_again_seconds)));
+        expect(listing.some((row) => row.trained_again_days)).toBe(true);
+    });
+});
+
 describe('model.json, loss\'s three parts (#265)', () => {
     const PARTS = ['up_log_loss', 'beats_log_loss', 'move_pinball'];
     const responses = documentOf('model').paths['/model'].get.responses;
