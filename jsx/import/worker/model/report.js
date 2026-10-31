@@ -39,7 +39,9 @@
  *
  * Every set of scores carries the three loss adds up beside the four (#265) --
  * see PARTS. A history and a track record give them; the listing does not, and
- * neither would a report without their columns, so there each is null.
+ * neither would a report without their columns, so there each is null. An
+ * options model's track record gives the two its loss adds up for each hold
+ * (#322) -- see OPTION_PARTS.
  *
  * From format 3 (#279) a set of scores also carries each of MORE the report
  * gives: an options model's scores, the top 10's of every model, and an options
@@ -116,8 +118,17 @@ export default () => {
     const TRADES = ['profit_auc', 'top10_gain', 'top10_wins'];
     const MORE = TRADES.slice();
 
+    //
+    // the two scores an options model's loss adds up on each hold (#322): the log
+    // loss of the chance each option makes money, and the pinball loss of its
+    // gain. Its track record gives them for each hold alone, `<score>_1d` and so
+    // on, and averaged as its other columns of the hold are, they add up to its
+    // loss
+    //
+    const OPTION_PARTS = ['profit_log_loss', 'gain_pinball'];
+
     HOLDS.forEach(function (hold) {
-        READ.concat(TRADES).forEach(function (score) {
+        READ.concat(TRADES, OPTION_PARTS).forEach(function (score) {
             MORE.push(score + hold);
         });
     });
