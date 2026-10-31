@@ -563,6 +563,32 @@ describe('model.json, from format 5 on (#300)', () => {
     });
 });
 
+describe('model.json, from format 10 on (#326)', () => {
+    const media = documentOf('model').paths['/model'].get.responses['200'].content['application/json'];
+    const live = media.schema.properties.report.anyOf[0].properties.models.items.properties.live;
+    const report = media.examples['list-held-out'].value.report;
+    const held = Object.fromEntries(report.models.map((each) => [each.name, each.live.held_out]));
+
+    it('documents on each live version how it did on the days its go-live was decided on, beside the version it replaced and the baseline', () => {
+        const heldOut = live.properties.held_out;
+
+        expect(heldOut.type).toEqual(['object', 'null']);
+        expect(heldOut.required).toEqual(['days', 'loss', 'replaced_loss', 'baseline_loss']);
+        expect(heldOut.properties.replaced_loss.type).toEqual(['number', 'null']);
+        expect(heldOut.description).toMatch(/^From format 10/);
+        expect(live.required).not.toContain('held_out');
+    });
+
+    it('shows it in a listing of format 10: one go-live ahead of the version it replaced, which sets the alarm off, and one ahead of the baseline alone', () => {
+        const ahead = (each) => each.loss < each.replaced_loss && each.loss < each.baseline_loss;
+
+        expect(report.format_version).toBe(10);
+        expect(Object.values(held).map((each) => each.days.length)).toEqual([3, 3]);
+        expect(Object.values(held).every((each) => each.loss < each.baseline_loss)).toBe(true);
+        expect([ahead(held['pt-options']), ahead(held['pt-gnn'])]).toEqual([true, false]);
+    });
+});
+
 describe('model.json, loss\'s three parts (#265)', () => {
     const PARTS = ['up_log_loss', 'beats_log_loss', 'move_pinball'];
     const responses = documentOf('model').paths['/model'].get.responses;
