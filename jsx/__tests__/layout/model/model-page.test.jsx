@@ -48,6 +48,8 @@ import ModelPageRoute, {
     ATTEMPTS_LINE,
     ATTEMPTS_NOTE,
     CardRows,
+    IN_CHARGE,
+    IN_CHARGE_SHORT,
     ModelPage,
     SCORED_LINE,
     attemptRows,
@@ -567,14 +569,43 @@ describe('the summary', () => {
         return within(cards).getByText(label).closest('.model-stat');
     }
 
-    it('says when the live version went live, with no line of what made it (#315), and how many attempts did, of every kind (#300)', async () => {
+    it('says when the live version went live, that it is the version in charge (#334), with no line of what made it (#315), and how many attempts did, of every kind (#300)', async () => {
         answer({ history: historyOf(4, { 1: { kind: 'weekly', went_live: true }, 3: { kind: 'weekly' } }) });
 
         await open();
 
-        expect(stat('Live version').querySelector('.model-stat-head')).toHaveTextContent(/^Live versionSat Oct 10$/);
-        expect(stat('Live version').querySelector('.model-stat-detail')).toBeNull();
+        const details = [...stat('Live version').querySelectorAll('.model-stat-detail')].map((line) => line.textContent);
+
+        expect(stat('Live version').querySelector('.model-stat-head')).toHaveTextContent(/^Live versionSat Oct 10the version in charge$/);
+        expect(details).toEqual(['the version in charge']);
+        expect(stat('Live version').querySelector('.model-stat-detail').previousElementSibling).toHaveClass('model-stat-value');
         expect(stat('Attempts that went live')).toHaveTextContent('4 of 30of every nightly update and weekly retrain');
+    });
+
+    it('words the line under the live version\'s day as the charts call it, and a phone\'s box shorter (#334)', () => {
+        expect(IN_CHARGE).toBe('the version in charge');
+        expect(IN_CHARGE_SHORT).toBe('in charge');
+    });
+
+    it('says a New model\'s first version is the version in charge, over the line that says it is its first (#334)', async () => {
+        answer();
+
+        await open('fresh');
+
+        const details = [...stat('Live version').querySelectorAll('.model-stat-detail')].map((line) => line.textContent);
+
+        expect(details).toEqual(['the version in charge', 'its first version, not yet beaten']);
+    });
+
+    it('says nothing of a version in charge for a retired model, which has none (#334)', async () => {
+        answer({ history: testedMonday() });
+
+        await open('beater');
+
+        const details = [...stat('Live version').querySelectorAll('.model-stat-detail')].map((line) => line.textContent);
+
+        expect(details).toEqual(['its last version went live Mon Oct 12']);
+        expect(stat('Live version')).not.toHaveTextContent('in charge');
     });
 
     it('names the live version for the morning its night\'s test ran, as the Last attempt row names that night, and a retired model\'s last version too (#320)', async () => {
@@ -845,7 +876,7 @@ describe('a live version taken down for doing worse than the baseline (#263)', (
         expect(checksIn('cards')).toEqual([CHECKS, ['4 of 5', '0 of 10', 'not yet']]);
         expect(checksIn('boxes')).toEqual(checksIn('cards'));
         expect(noteOf(2)).toHaveAccessibleDescription(LOSS_NOTE);
-        expect(stat('Live version').querySelector('.model-stat-head')).toHaveTextContent(/^Live versionSat Oct 10$/);
+        expect(stat('Live version').querySelector('.model-stat-head')).toHaveTextContent(/^Live versionSat Oct 10the version in charge$/);
         expect(document.querySelector('.model-stat-down')).toBeNull();
         expect(screen.queryByText(DOWN_LINE)).toBeNull();
         expect(document.querySelector('.model-down-line')).toBeNull();
@@ -1036,6 +1067,40 @@ describe('the summary, on a phone', () => {
 
         expect(values()[0].querySelector('.stream-focus-short')).toHaveTextContent(/^Oct 6$/);
         expect(values()[0].querySelector('.stream-focus-long')).toHaveTextContent(/^Tue Oct 6$/);
+    });
+
+    it('says \'in charge\' under a Live or a New model\'s day, in its box itself, and nothing under the other two boxes (#334)', async () => {
+        answer({ history: historyOf(4, RETRAINS) });
+
+        const { unmount } = await open();
+        const subs = () => boxes().map((box) => box.querySelector('.stream-focus-figure-sub'));
+
+        expect(subs()[0]).toHaveTextContent(/^in charge$/);
+        expect(boxes()[0].lastElementChild).toBe(subs()[0]);
+        expect(subs().slice(1)).toEqual([null, null]);
+        expect(named(boxes()[0])).toBe('Live version');
+        expect(values()[0]).not.toHaveTextContent('in charge');
+
+        unmount();
+        answer();
+        await open('fresh');
+
+        expect(subs()[0]).toHaveTextContent(/^in charge$/);
+        expect(notes()[0]).toHaveAccessibleDescription('Its first version, not yet beaten.');
+    });
+
+    it('says nothing of a version in charge in a taken-down or a retired model\'s box, which has none (#334)', async () => {
+        answer({ listing: listingOf([downModelOf()]) });
+
+        const { unmount } = await open('lagging');
+
+        expect(boxes()[0].querySelector('.stream-focus-figure-sub')).toBeNull();
+
+        unmount();
+        answer({ history: testedMonday() });
+        await open('beater');
+
+        expect(boxes()[0].querySelector('.stream-focus-figure-sub')).toBeNull();
     });
 
     it('gives a retired model\'s box no live version\'s day, only when it retired, and says in its note when its last version went live (#320)', async () => {

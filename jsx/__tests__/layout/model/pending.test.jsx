@@ -250,6 +250,14 @@ describe('PendingSummary', () => {
         expect(container.querySelectorAll('.stream-focus-figure-value > .graph-pending-bar')).toHaveLength(3);
     });
 
+    it('gives a phone\'s Live version box a second bar, for the \'in charge\' under its day, and the other two none (#334)', () => {
+        const { container } = render(<PendingSummary score='loss' />);
+        const boxes = [...container.querySelectorAll('.model-summary-boxes .stream-focus-figure')];
+
+        expect(boxes.map((box) => box.querySelectorAll('.stream-focus-figure-sub > .graph-pending-bar').length)).toEqual([1, 0, 0]);
+        expect(boxes[0].lastElementChild).toHaveClass('stream-focus-figure-sub');
+    });
+
     it('is hidden from a screen reader, which hears the page\'s loading line instead', () => {
         const { container } = render(<PendingSummary score='loss' />);
 

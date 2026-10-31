@@ -631,12 +631,20 @@ export default () => {
     // (#318). Once the trainer lists them, it says which days it studied, used to
     // decide when to stop, skipped, had no results for yet, and left unpicked --
     // `studied_days`, `stopping_days`, `skipped_days`, `pending_days` and
-    // `unpicked_days` -- each none until then. From them, and from when it
-    // started, each night is named for the
-    // morning its test ran, `tested` -- see testedOn -- and a nightly update says
-    // the morning the version it started from took over, `from`: the newest
-    // earlier night that went live. A weekly retrain starts from scratch, and has
-    // none
+    // `unpicked_days` -- each none until then. From the trainer's format 8 a night
+    // whose new version was fine-tuned lists the days the fine-tuning trained on,
+    // `trained_again_days` (#334): its test days and 3 older days it trained on,
+    // even where the fine-tuned version did not go live. From them, and from when
+    // it started, each night is named for the morning its test ran, `tested` --
+    // see testedOn -- and a nightly update says the morning the version it started
+    // from took over, `from`: the newest earlier night that went live. A weekly
+    // retrain starts from scratch, and has none.
+    //
+    // Every night says the morning the version in charge took over, `charge`
+    // (#334): the same newest earlier night that went live, the version the
+    // night's new one was tested against, for a weekly retrain as for a nightly
+    // update -- or none, where no night before it went live, as on a model's first
+    // night
     //
     function history(csv) {
         const rows = byDay(rowsOf(csv), function (row, day) {
@@ -656,6 +664,7 @@ export default () => {
                 skipped_days: daysIn(row.skipped_days),
                 pending_days: daysIn(row.pending_days),
                 unpicked_days: daysIn(row.unpicked_days),
+                trained_again_days: daysIn(row.trained_again_days),
                 training_seconds: numberOf(row.training_seconds),
                 total_seconds: numberOf(row.total_seconds),
                 trained_again_seconds: secondsOf(row.trained_again_seconds),
@@ -668,6 +677,7 @@ export default () => {
 
         rows.forEach(function (row) {
             row.from = row.kind === 'nightly' ? tookOver : null;
+            row.charge = tookOver;
 
             if (row.went_live) {
                 tookOver = row.tested;

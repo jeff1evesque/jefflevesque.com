@@ -1728,6 +1728,15 @@ $model-parts-inset: clamp(0px, calc((100% - 21rem) / 2), 20%);
   line-height: 1.3;
 }
 
+//
+// under the version in charge's score, the morning it took over (#334), in its
+// box name's gray and size, as a phone's is a size smaller
+//
+.model-night-box-since {
+  color: $gray-6;
+  font-size: 13px;
+}
+
 .model-night-result {
   color: $gray-8;
   font-size: 15px;
@@ -1823,12 +1832,12 @@ $model-parts-inset: clamp(0px, calc((100% - 21rem) / 2), 20%);
 //
 // the full strip, once a night's history lists its days (#318): a row for each
 // month, its name in a column of its own so the rows' days line up. A day
-// studied is filled with a deep teal, and one used to decide when to stop with
-// a light one; one skipped is struck through on the page's light gray, one whose
-// result isn't in yet sits inside a dashed gray, and one not picked this night
-// is outlined in the deep teal it would have been filled with. The grays are the
-// theme's own, and each teal a pair: on a dark page the deep teal sat too near
-// the page, and is lighter
+// trained on is filled with a deep teal, and a validation day with a light one;
+// one skipped is struck through on the page's light gray, one whose result isn't
+// in yet sits inside a dashed gray, and one not picked this night is outlined in
+// the deep teal it would have been filled with. The grays are the theme's own,
+// and each teal a pair: on a dark page the deep teal sat too near the page, and
+// is lighter
 //
 $day-teal: #0f766e;
 $day-teal-light: #99f6e4;
@@ -1900,6 +1909,48 @@ $dark-day-teal: #14b8a6;
   }
 }
 
+//
+// a day fine-tuning trained on (#334): its kind's look, and a small triangle in
+// the box's top-right corner, rounded to the box's own corner, like a page's
+// corner folded over. Fine-tuning trains on the test days and on a few days
+// trained on before, so a fill of its own would have hidden which of the two
+// each day was. The triangle is a darker shade of the box's own color: a black
+// one blended into a dark page at the box's edge, and the box's color holds in
+// either theme. Over the border, so it meets the box's edge. Only test days and
+// days trained on are fine-tuned on, and any other kind's corner is the page's
+// gray
+//
+$day-teal-fold: #053833;
+$day-orange-fold: #c2410c;
+
+.model-day-tuned {
+  position: relative;
+}
+
+.model-day-tuned::after {
+  background-color: $gray-6;
+  border-top-right-radius: 6px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  content: '';
+  height: 11px;
+  position: absolute;
+  right: -1px;
+  top: -1px;
+  width: 11px;
+}
+
+.model-day-studied.model-day-tuned::after {
+  background-color: $day-teal-fold;
+
+  @include dark {
+    background-color: $day-teal;
+  }
+}
+
+.model-day-test.model-day-tuned::after {
+  background-color: $day-orange-fold;
+}
+
 .model-day-legend {
   color: $gray-7;
   display: flex;
@@ -1925,6 +1976,36 @@ $dark-day-teal: #14b8a6;
   width: 14px;
 }
 
+//
+// the key's swatch for the days fine-tuning trained on (#334): an empty square
+// with the strip's folded corner, in a gray, since the corner takes the color of
+// each box it is drawn on
+//
+$day-fold-key: #8a8a8a;
+
+.model-day-swatch-tuned {
+  border: 1px solid $gray-5;
+  position: relative;
+}
+
+.model-day-swatch-tuned::after {
+  background-color: $day-fold-key;
+  border-top-right-radius: 4px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  content: '';
+  height: 6px;
+  position: absolute;
+  right: -1px;
+  top: -1px;
+  width: 6px;
+}
+
+//
+// the days in words: a screen reader's alone on a full strip, and on a night from
+// before the trainer listed its days, the count of the earlier days, which no
+// strip shows (#334). A line to itself, so its days follow its name; #324 had
+// lined each line's days up past the longest name, which is off the screen now
+//
 .model-day-lists {
   display: grid;
   font-size: 14px;
@@ -1937,14 +2018,9 @@ $dark-day-teal: #14b8a6;
     gap: 2px 12px;
   }
 
-  //
-  // as wide as the longest name and its info icon (#324): 'Used to decide when to
-  // stop' is 192px and its icon 17px more, so every line's days start in line
-  //
   dt {
     color: $gray-8;
     font-weight: 600;
-    min-width: 216px;
   }
 
   dd {
@@ -3615,8 +3691,8 @@ $dark-day-teal: #14b8a6;
     font-size: 18px;
   }
 
-  .model-day-lists dt {
-    min-width: 0;
+  .model-night-box-since {
+    font-size: 12px;
   }
 
   //

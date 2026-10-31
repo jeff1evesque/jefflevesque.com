@@ -178,6 +178,23 @@ describe('the color a value is drawn in (#206)', () => {
     });
 });
 
+describe('the line under a figure\'s value (#334)', () => {
+    const sub = own(first('.stream-focus-figure-sub'));
+
+    it('is in the names\' gray, at a model box name\'s size', () => {
+        expect(sub).toMatch(/color\s*:\s*\$gray-6\s*;/);
+        expect(sub).toMatch(/font-size\s*:\s*12px\s*;/);
+    });
+
+    it('stays on one line, so the three boxes keep one height', () => {
+        expect(sub).toMatch(/white-space\s*:\s*nowrap\s*;/);
+    });
+
+    it('leaves where it stands to the box it is in', () => {
+        expect(sub).not.toMatch(PLACED);
+    });
+});
+
 describe('the info icon after a figure\'s name (#206)', () => {
     const [noted] = blocks(source, '.stream-focus-figures .stream-focus-noted');
     const [icon] = noted ? blocks(noted, 'svg') : [];

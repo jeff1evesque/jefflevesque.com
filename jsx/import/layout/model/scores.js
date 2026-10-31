@@ -198,6 +198,17 @@ export const WINDOW = 20;
 export const HELD_OUT = 3;
 
 //
+// how a new version that passes its test is fine-tuned, as the trainer does it
+// (#334): on its test days, and on this many older days it already trained on,
+// drawn at random; and how much worse than before it may then do on its
+// validation days and still go live. A night's panel says both in the note on its
+// fine-tuned days. They are the trainer's first guesses, to be tuned, and the
+// listing gives neither for a night, so they are kept here, as HELD_OUT is
+//
+export const FINE_TUNE_OLDER = 3;
+export const FINE_TUNE_SLACK = 0.005;
+
+//
 // how many days a row's trend line spans, on the one axis every row shares
 //
 export const TREND_DAYS = 60;

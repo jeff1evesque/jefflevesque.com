@@ -10,7 +10,17 @@
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 
-import NightPanel, { dayList, daysDrawn, kindWords, resultWords, startedFrom, tookWords } from '../../../import/layout/model/night-panel.jsx';
+import NightPanel, {
+    TUNED,
+    chargeWords,
+    dayList,
+    daysDrawn,
+    kindWords,
+    resultWords,
+    startedFrom,
+    tookWords,
+    tunedDays,
+} from '../../../import/layout/model/night-panel.jsx';
 import { attemptPoints } from '../../../import/layout/model/attempts-chart.jsx';
 import { historyOf, ptGnnHistory, ptOptionsHistory, timedHistoryOf } from '../../../test-support/model-fixtures.js';
 
@@ -55,6 +65,7 @@ const OCT_26 = {
     skipped_days: ['2026-10-16'],
     pending_days: ['2026-10-23', '2026-10-26'],
     unpicked_days: [],
+    trained_again_days: [],
 };
 
 const NOV_23 = {
@@ -69,6 +80,7 @@ const NOV_23 = {
     skipped_days: ['2026-10-16'],
     pending_days: ['2026-11-20', '2026-11-23'],
     unpicked_days: ['2026-10-06', '2026-10-09', '2026-10-14', '2026-10-20', '2026-10-27', '2026-10-29', '2026-11-03', '2026-11-10'],
+    trained_again_days: [],
 };
 
 function listedNight(lists, at = 3) {
@@ -78,6 +90,24 @@ function listedNight(lists, at = 3) {
 
     return attemptPoints(rows, 'loss')[at];
 }
+
+//
+// a night with the days fine-tuning trained on (#334), as its history lists
+// them: on pt-options' Oct 26 night, its 3 test days and 3 days it trained on,
+// out of order, as a list need not be in order
+//
+const TUNED_DAYS = ['2026-10-22', '2026-10-06', '2026-10-20', '2026-10-13', '2026-10-21', '2026-10-09'];
+
+function withTuned(point, tuned = TUNED_DAYS) {
+    return { ...point, days: { ...point.days, tuned } };
+}
+
+//
+// the note on the days fine-tuning trained on, as the key gives it (#334)
+//
+const TUNED_NOTE = 'Once a new version beats the simple guess on its 3 test days, it’s trained a little more on those days, plus 3 older days it '
+    + 'already trained on, picked at random. Then it’s scored on the validation days again. If it does more than 0.005 worse there than before, '
+    + 'the version from before the fine-tune goes live instead.';
 
 //
 // what the full strip draws: each month's row, its name and then its days, each
@@ -155,6 +185,45 @@ describe('startedFrom', () => {
     });
 });
 
+describe('chargeWords (#334)', () => {
+    it('says the morning the version in charge took over, a weekly retrain\'s night as a nightly update\'s', () => {
+        expect(chargeWords({ ...optionsNight(3), charge: '2026-10-24' })).toBe('took over Sat Oct 24');
+        expect(chargeWords({ ...optionsNight(2), charge: '2026-10-23' })).toBe('took over Fri Oct 23');
+    });
+
+    it('says nothing on a model\'s first night, which had no version in charge, nor where the night doesn\'t say', () => {
+        expect(chargeWords({ ...optionsNight(0), charge: '2026-10-21' })).toBe('');
+        expect(chargeWords({ ...optionsNight(3), charge: null })).toBe('');
+        expect(chargeWords({ ...optionsNight(3), charge: undefined })).toBe('');
+    });
+});
+
+describe('tunedDays (#334)', () => {
+    it('gives the days fine-tuning trained on, oldest first, and leaves the history\'s own as they were', () => {
+        const days = { tuned: ['2026-10-22', '2026-10-06'] };
+
+        expect(tunedDays(days)).toEqual(['2026-10-06', '2026-10-22']);
+        expect(days.tuned).toEqual(['2026-10-22', '2026-10-06']);
+    });
+
+    it('gives none for a night that wasn\'t fine-tuned, or whose history doesn\'t say', () => {
+        expect(tunedDays({ tuned: [] })).toEqual([]);
+        expect(tunedDays({ studied: ['2026-10-06'] })).toEqual([]);
+        expect(tunedDays({ tuned: '2026-10-06' })).toEqual([]);
+        expect(tunedDays(null)).toEqual([]);
+        expect(tunedDays(undefined)).toEqual([]);
+    });
+});
+
+describe('TUNED (#334)', () => {
+    it('names the days fine-tuning trained on, and says in plain words what fine-tuning is, by the trainer\'s numbers', () => {
+        expect(TUNED.name).toBe('Fine-tuned on after the test');
+        expect(TUNED.list).toBe('Fine-tuned on after the test');
+        expect(TUNED.title).toBe('fine-tuned on after the test');
+        expect(TUNED.note).toBe(TUNED_NOTE);
+    });
+});
+
 describe('tookWords', () => {
     it('gives a night\'s whole time, its training and the scoring of its test days, and when it started, its day too (#327)', () => {
         expect(tookWords(optionsNight(3))).toBe('41 min 0 s in all: 39 min 13 s training, then 1 min 47 s scoring the test days. Started Tue Oct 27, 5:32 AM ET.');
@@ -223,6 +292,28 @@ describe('NightPanel', () => {
         expect(screen.getByRole('heading', { name: 'Thu Oct 22 · first version' })).toBeInTheDocument();
     });
 
+    it('says under the version in charge\'s score the morning it took over, in that box alone (#334)', () => {
+        const { container } = draw({ ...optionsNight(3), charge: '2026-10-24' });
+        const since = container.querySelectorAll('.model-night-box-since');
+
+        expect(since).toHaveLength(1);
+        expect(since[0]).toHaveTextContent(/^took over Sat Oct 24$/);
+        expect(since[0].parentElement).toHaveClass('model-night-box-live');
+        expect(since[0].previousElementSibling).toHaveClass('model-night-box-value');
+        expect(boxesOf(container)[1]).toEqual(['Version in charge', '0.577']);
+    });
+
+    it('says no morning under the version in charge on a first night, nor where the night doesn\'t say (#334)', () => {
+        const first = draw({ ...optionsNight(0), charge: '2026-10-21' });
+
+        expect(first.container.querySelector('.model-night-box-since')).toBeNull();
+        first.unmount();
+
+        const unsaid = draw({ ...optionsNight(3), charge: null });
+
+        expect(unsaid.container.querySelector('.model-night-box-since')).toBeNull();
+    });
+
     it('says the night took over, in a pill, and then by how much it stood from each on loss, as one sentence to a screen reader', () => {
         const { container } = draw(optionsNight(3));
         const result = container.querySelector('.model-night-result');
@@ -270,21 +361,36 @@ describe('NightPanel', () => {
         );
     });
 
-    it('shows its test days as a strip under their month, keyed, and in words beside how many earlier days it studied or used to stop', () => {
+    it('shows its test days as a strip under their month, keyed, and beside it how many earlier days it trained or validated on (#334)', () => {
         const { container } = draw(optionsNight(3));
         const days = container.querySelector('.model-night-days');
         const strip = days.querySelector('.model-day-strip');
+        const key = days.querySelector('.model-day-legend');
         const lists = days.querySelector('.model-day-lists');
 
         expect(within(days).getByRole('heading', { name: 'Which days it used' })).toBeInTheDocument();
         expect(strip).toHaveAttribute('aria-hidden', 'true');
         expect([...strip.children].map((each) => each.textContent)).toEqual(['Oct', '20', '21', '22']);
         expect([...strip.querySelectorAll('.model-day')].map((day) => day.getAttribute('title')))
-            .toEqual(['Oct 20: test, never studied', 'Oct 21: test, never studied', 'Oct 22: test, never studied']);
-        strip.querySelectorAll('.model-day').forEach((day) => expect(day).toHaveClass('model-day-test'));
-        expect(days.querySelector('.model-day-legend')).toHaveTextContent(/^Test, never studied$/);
-        expect([...lists.querySelectorAll('dt')].map((name) => name.textContent)).toEqual(['Studied or used to stop', 'Test']);
+            .toEqual(['Oct 20: test, never trained on', 'Oct 21: test, never trained on', 'Oct 22: test, never trained on']);
+        strip.querySelectorAll('.model-day')
+            .forEach((day) => expect(day.className).toBe('model-day model-day-test'));
+        expect(key).toHaveTextContent(/^Test, never trained on$/);
+        expect(key).not.toHaveAttribute('aria-hidden');
+        expect(key.querySelector('.model-day-swatch')).toHaveAttribute('aria-hidden', 'true');
+        expect([...lists.querySelectorAll('dt')].map((name) => name.textContent)).toEqual(['Training and validation', 'Test']);
         expect([...lists.querySelectorAll('dd')].map((value) => value.textContent)).toEqual(['10 earlier days', 'Oct 20, 21 and 22']);
+    });
+
+    it('keeps the count of earlier days on the screen, which no strip shows, and gives the test days in words to a screen reader alone (#334)', () => {
+        const { container } = draw(optionsNight(3));
+        const lists = container.querySelector('.model-day-lists');
+        const [count, test] = lists.children;
+
+        expect(lists).not.toHaveClass('visually-hidden');
+        expect(count).not.toHaveClass('visually-hidden');
+        expect(test).toHaveClass('visually-hidden');
+        expect(test).toHaveTextContent(/^TestOct 20, 21 and 22$/);
     });
 
     it('names a month again where the test days cross into the next', () => {
@@ -305,12 +411,14 @@ describe('NightPanel', () => {
 
         expect(counted.container.querySelector('.model-day-strip')).toBeNull();
         expect(counted.container.querySelector('.model-day-legend')).toBeNull();
-        expect([...counted.container.querySelectorAll('.model-day-lists dt')].map((name) => name.textContent)).toEqual(['Studied or used to stop']);
+        expect([...counted.container.querySelectorAll('.model-day-lists dt')].map((name) => name.textContent)).toEqual(['Training and validation']);
+        expect(counted.container.querySelector('.model-day-lists')).not.toHaveClass('visually-hidden');
         counted.unmount();
 
         const listed = draw({ ...optionsNight(3), studied: null });
 
         expect([...listed.container.querySelectorAll('.model-day-lists dt')].map((name) => name.textContent)).toEqual(['Test']);
+        expect(listed.container.querySelector('.model-day-lists')).toHaveClass('visually-hidden');
     });
 
     it('leaves out which days it used where the history says neither', () => {
@@ -336,7 +444,7 @@ describe('daysDrawn (#318)', () => {
         expect(days.studied).toEqual(['2026-10-09', '2026-10-06']);
     });
 
-    it('gives none until the history lists the days a night studied, as the trainer doesn\'t yet', () => {
+    it('gives none until the history lists the days a night trained on, as one from before format 8 doesn\'t', () => {
         expect(daysDrawn(['2026-10-20'], { studied: [], stopping: ['2026-10-05'], skipped: [], pending: [], unpicked: [] })).toBeNull();
         expect(daysDrawn(['2026-10-20'], null)).toBeNull();
         expect(daysDrawn(['2026-10-20'], {})).toBeNull();
@@ -364,43 +472,100 @@ describe('NightPanel\'s full strip, once the history lists the days (#318)', () 
             ],
         }]);
         expect([...strip.querySelectorAll('.model-day')].slice(0, 2).map((day) => day.getAttribute('title')))
-            .toEqual(['Oct 5: used to decide when to stop', 'Oct 6: studied']);
+            .toEqual(['Oct 5: validation, never trained on', 'Oct 6: trained on']);
+        expect(strip.querySelector('.model-day-test')).toHaveAttribute('title', 'Oct 20: test, never trained on');
         expect(strip.querySelector('.model-day-skipped')).toHaveAttribute('title', 'Oct 16: skipped, incomplete data');
         expect(strip.querySelector('.model-day-pending')).toHaveAttribute('title', 'Oct 23: results not in yet');
+        expect(strip.querySelector('.model-day-tuned')).toBeNull();
     });
 
-    it('keys only the kinds it draws, each after a swatch of its look, and says each in words in place of the count', () => {
+    it('keys only the kinds it draws, by training, validation and test, each after a swatch of its look the key hides from a screen reader (#334)', () => {
         const { container } = draw(listedNight(OCT_26));
-        const key = [...container.querySelectorAll('.model-day-legend li')];
-        const lists = container.querySelector('.model-day-lists');
+        const legend = container.querySelector('.model-day-legend');
+        const key = [...legend.querySelectorAll('li')];
 
         expect(key.map((item) => item.textContent)).toEqual([
-            'Studied', 'Used to decide when to stop', 'Test, never studied', 'Skipped, incomplete data', 'Results not in yet',
+            'Trained on', 'Validation, never trained on', 'Test, never trained on', 'Skipped, incomplete data', 'Results not in yet',
         ]);
         expect(key.map((item) => item.querySelector('.model-day-swatch').className.replace('model-day-swatch ', ''))).toEqual([
             'model-day-studied', 'model-day-stopping', 'model-day-test', 'model-day-skipped', 'model-day-pending',
         ]);
-        expect([...lists.querySelectorAll('dt')].map((name) => name.textContent))
-            .toEqual(['Studied', 'Used to decide when to stop', 'Test', 'Skipped', 'Results not in yet']);
-        expect([...lists.querySelectorAll('dd')].map((value) => value.textContent))
-            .toEqual(['Oct 6, 8, 9, 12, 13, 14 and 19', 'Oct 5, 7 and 15', 'Oct 20, 21 and 22', 'Oct 16', 'Oct 23 and 26']);
-        expect(screen.queryByText('Studied or used to stop')).toBeNull();
+        expect(legend).not.toHaveAttribute('aria-hidden');
+        key.forEach((item) => expect(item.querySelector('.model-day-swatch')).toHaveAttribute('aria-hidden', 'true'));
+        expect(screen.queryByText('Training and validation')).toBeNull();
         expect(screen.queryByText('Not picked this night')).toBeNull();
     });
 
-    it('notes on the line of the days used to decide when to stop how they decide it, and on no other line nor in the key (#324)', () => {
+    it('says each kind\'s days in words to a screen reader alone, as the strip and its key say them on the screen (#334)', () => {
         const { container } = draw(listedNight(OCT_26));
-        const names = [...container.querySelectorAll('.model-day-lists dt')];
-        const noted = names[1].querySelector('.model-noted');
+        const lists = container.querySelector('.model-day-lists');
 
-        expect(noted).toHaveTextContent(/^Used to decide when to stop$/);
-        expect(noted).toHaveAccessibleDescription(
+        expect(lists).toHaveClass('visually-hidden');
+        expect([...lists.querySelectorAll('dt')].map((name) => name.textContent))
+            .toEqual(['Trained on', 'Validation', 'Test', 'Skipped', 'Results not in yet']);
+        expect([...lists.querySelectorAll('dd')].map((value) => value.textContent))
+            .toEqual(['Oct 6, 8, 9, 12, 13, 14 and 19', 'Oct 5, 7 and 15', 'Oct 20, 21 and 22', 'Oct 16', 'Oct 23 and 26']);
+        expect(lists.querySelector('.model-noted')).toBeNull();
+    });
+
+    it('notes in the key, after the validation days\' name, how they decide when training stops, and on no other kind (#324, #334)', () => {
+        const { container } = draw(listedNight(OCT_26));
+        const noted = [...container.querySelectorAll('.model-day-legend .model-noted')];
+
+        expect(noted).toHaveLength(1);
+        expect(noted[0]).toHaveTextContent(/^Validation, never trained on$/);
+        expect(noted[0].parentElement.querySelector('.model-day-stopping')).toBeInTheDocument();
+        expect(noted[0]).toHaveAccessibleDescription(
             'The model never trains on these days. After each epoch it’s scored on them, and training stops once that score stops getting better. '
             + 'It keeps the epoch that scored best.',
         );
-        expect(noted.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
-        expect(container.querySelectorAll('.model-day-lists .model-noted')).toHaveLength(1);
-        expect(container.querySelector('.model-day-legend .model-noted')).toBeNull();
+        expect(noted[0].querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+    });
+
+    it('marks each day fine-tuning trained on by its box\'s corner, each keeping its kind\'s look, and says so in its title (#334)', () => {
+        const { container } = draw(withTuned(listedNight(OCT_26)));
+        const tuned = [...container.querySelectorAll('.model-day-row .model-day-tuned')];
+
+        expect(tuned.map((day) => [day.textContent, day.className])).toEqual([
+            ['6', 'model-day model-day-studied model-day-tuned'],
+            ['9', 'model-day model-day-studied model-day-tuned'],
+            ['13', 'model-day model-day-studied model-day-tuned'],
+            ['20', 'model-day model-day-test model-day-tuned'],
+            ['21', 'model-day model-day-test model-day-tuned'],
+            ['22', 'model-day model-day-test model-day-tuned'],
+        ]);
+        expect(tuned[0]).toHaveAttribute('title', 'Oct 6: trained on; fine-tuned on after the test');
+        expect(tuned[3]).toHaveAttribute('title', 'Oct 20: test, never trained on; fine-tuned on after the test');
+        expect(container.querySelector('.model-day[title^="Oct 8"]')).toHaveAttribute('title', 'Oct 8: trained on');
+        expect(container.querySelectorAll('.model-day-row .model-day')).toHaveLength(16);
+    });
+
+    it('keys the days fine-tuning trained on last, after a swatch with the corner, and notes what fine-tuning is (#334)', () => {
+        const { container } = draw(withTuned(listedNight(OCT_26)));
+        const last = container.querySelector('.model-day-legend li:last-child');
+        const noted = last.querySelector('.model-noted');
+
+        expect(last).toHaveTextContent(/^Fine-tuned on after the test$/);
+        expect(last.querySelector('.model-day-swatch')).toHaveClass('model-day-swatch-tuned');
+        expect(last.querySelector('.model-day-swatch')).toHaveAttribute('aria-hidden', 'true');
+        expect(noted).toHaveAccessibleDescription(TUNED_NOTE);
+        expect(container.querySelectorAll('.model-day-legend .model-noted')).toHaveLength(2);
+    });
+
+    it('says the days fine-tuning trained on in words to a screen reader, last, oldest first (#334)', () => {
+        const { container } = draw(withTuned(listedNight(OCT_26)));
+        const line = container.querySelector('.model-day-lists').lastChild;
+
+        expect(line.querySelector('dt')).toHaveTextContent(/^Fine-tuned on after the test$/);
+        expect(line.querySelector('dd')).toHaveTextContent(/^Oct 6, 9, 13, 20, 21 and 22$/);
+    });
+
+    it('neither marks nor keys fine-tuning on a night that wasn\'t fine-tuned (#334)', () => {
+        const { container } = draw(withTuned(listedNight(OCT_26), []));
+
+        expect(container.querySelector('.model-day-tuned')).toBeNull();
+        expect(container.querySelector('.model-day-swatch-tuned')).toBeNull();
+        expect(screen.queryByText('Fine-tuned on after the test')).toBeNull();
     });
 
     it('draws a row for each month, and the days the night didn\'t pick, outlined, keyed and in words', () => {
@@ -415,8 +580,8 @@ describe('NightPanel\'s full strip, once the history lists the days (#318)', () 
         expect(unpicked[0]).toHaveAttribute('title', 'Oct 6: not picked this night');
         expect(container.querySelector('.model-day-legend li:last-child')).toHaveTextContent(/^Not picked this night$/);
         expect(lists).toEqual([
-            ['Studied', 'Oct 5, 8, 12, 13, 15, 19, 21, 23, 26, 28 and 30, and Nov 2, 5, 6, 9, 11, 12, 13 and 16'],
-            ['Used to decide when to stop', 'Oct 7 and 22, and Nov 4'],
+            ['Trained on', 'Oct 5, 8, 12, 13, 15, 19, 21, 23, 26, 28 and 30, and Nov 2, 5, 6, 9, 11, 12, 13 and 16'],
+            ['Validation', 'Oct 7 and 22, and Nov 4'],
             ['Test', 'Nov 17, 18 and 19'],
             ['Skipped', 'Oct 16'],
             ['Results not in yet', 'Nov 20 and 23'],
@@ -437,14 +602,16 @@ describe('NightPanel\'s full strip, once the history lists the days (#318)', () 
         const { container } = draw(bare);
 
         expect(days.studied).toEqual([]);
-        expect([...container.querySelectorAll('.model-day-lists dt')].map((name) => name.textContent)).toEqual(['Studied or used to stop', 'Test']);
+        expect([...container.querySelectorAll('.model-day-lists dt')].map((name) => name.textContent)).toEqual(['Training and validation', 'Test']);
     });
 
-    it('keeps the test days and the count until the history lists the days the night studied', () => {
-        const { container } = draw(listedNight({ ...OCT_26, studied_days: [] }));
+    it('keeps the test days and the count until the history lists the days the night trained on, and marks none fine-tuned there', () => {
+        const { container } = draw(withTuned(listedNight({ ...OCT_26, studied_days: [] })));
 
         expect(container.querySelector('.model-day-rows')).toBeNull();
         expect([...container.querySelector('.model-day-strip').children].map((each) => each.textContent)).toEqual(['Oct', '20', '21', '22']);
-        expect([...container.querySelectorAll('.model-day-lists dt')].map((name) => name.textContent)).toEqual(['Studied or used to stop', 'Test']);
+        expect([...container.querySelectorAll('.model-day-lists dt')].map((name) => name.textContent)).toEqual(['Training and validation', 'Test']);
+        expect(container.querySelector('.model-day-tuned')).toBeNull();
+        expect(screen.queryByText('Fine-tuned on after the test')).toBeNull();
     });
 });

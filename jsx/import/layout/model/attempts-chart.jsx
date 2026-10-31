@@ -200,7 +200,14 @@ AttemptMark.propTypes = {
  * used to decide when to stop, as the history gives them (#318), and `days` its
  * lists of days by kind, where the history lists them: studied, used to decide
  * when to stop, skipped, results not in yet and not picked, each none for one
- * that doesn't -- see night-panel.jsx.
+ * that doesn't -- see night-panel.jsx. Among them, `tuned`, the days its
+ * fine-tuning trained on, from the trainer's format 8 (#334): its test days and
+ * 3 older days it trained on, none for a night that wasn't fine-tuned.
+ *
+ * `charge` is the morning the version in charge took over, the version the
+ * night's new one was tested against, for a weekly retrain as for a nightly
+ * update (#334), or none for a model's first night, which had none -- see
+ * worker/model/report.js.
  *
  * Where the night has times, `training` and `scoring` split the first pass, in
  * seconds: the training, and the rest of the attempt after it; `again` is its
@@ -225,6 +232,7 @@ export function attemptPoints(rows, score) {
             day: row.day,
             tested: row.tested || null,
             from: row.from || null,
+            charge: row.charge || null,
             kind: row.kind,
             went_live: row.went_live,
             first: loss(row.live) === null,
@@ -245,6 +253,7 @@ export function attemptPoints(rows, score) {
                 skipped: listed('skipped_days'),
                 pending: listed('pending_days'),
                 unpicked: listed('unpicked_days'),
+                tuned: listed('trained_again_days'),
             },
             started: row.started || null,
             training: timed ? training : null,
@@ -293,7 +302,7 @@ export function attemptKind(point) {
  */
 export function attemptsAbout(score, held = false) {
     const test = [
-        `Every night a new version takes a test: the ${HELD_OUT} newest days whose results are known, which it never studied.`,
+        `Every night a new version takes a test: the ${HELD_OUT} newest days whose results are known, which it never trained on.`,
         'The version in charge takes the same test, so you can compare.',
         `${scoreOf(score).lower ? 'Lower' : 'Higher'} is better.`,
         'The new version takes over if it beats the simple guess.',
@@ -959,6 +968,7 @@ AttemptsChart.propTypes = {
         day: PropTypes.string.isRequired,
         tested: PropTypes.string,
         from: PropTypes.string,
+        charge: PropTypes.string,
         kind: PropTypes.string.isRequired,
         went_live: PropTypes.bool.isRequired,
         trained_again: PropTypes.bool,
@@ -969,6 +979,7 @@ AttemptsChart.propTypes = {
         skipped_days: PropTypes.arrayOf(PropTypes.string),
         pending_days: PropTypes.arrayOf(PropTypes.string),
         unpicked_days: PropTypes.arrayOf(PropTypes.string),
+        trained_again_days: PropTypes.arrayOf(PropTypes.string),
         started: PropTypes.string,
         training_seconds: PropTypes.number,
         total_seconds: PropTypes.number,

@@ -13,6 +13,12 @@
  * Each figure brings its own name, note, value and color, as the page that draws
  * it reads them. A figure with an empty note has no icon (#315).
  *
+ * A figure may bring a line to go under its value, too (#334): a model's Live
+ * version box says 'in charge' under its day, where a wide screen's card says
+ * "the version in charge". A line a reader has to tap an icon to find is a line
+ * nobody reads, so it is drawn, small, in the box itself. /stream's figures and
+ * /data's bring none, and draw nothing under their values.
+ *
  * Note: a phone shortens what would not fit a third of its line: a name,
  *       'Records' for 'Total Records', and a count, '137M' for '136,963,495'.
  *       Both forms are drawn, and the stylesheet shows the one that fits.
@@ -93,6 +99,7 @@ function FigureBoxes({ figures }) {
                     <span className={`stream-focus-figure-value${figure.tone ? ` stream-focus-figure-${figure.tone}` : ''}`}>
                         <Fitted long={figure.value} short={shorter(figure.shortValue, figure.value)} />
                     </span>
+                    {figure.sub ? <span className='stream-focus-figure-sub'>{figure.sub}</span> : null}
                 </div>
             ))}
         </div>
@@ -102,8 +109,9 @@ function FigureBoxes({ figures }) {
 FigureBoxes.propTypes = {
     //
     // each figure: its name and a phone's shorter one, what its note says, its
-    // value and a phone's shorter one, and the last word of the class its value
-    // is colored by, or none for the page's own text
+    // value and a phone's shorter one, the line under its value, where it has
+    // one (#334), and the last word of the class its value is colored by, or
+    // none for the page's own text
     //
     figures: PropTypes.arrayOf(PropTypes.shape({
         key: PropTypes.string.isRequired,
@@ -112,6 +120,7 @@ FigureBoxes.propTypes = {
         note: PropTypes.string.isRequired,
         value: PropTypes.node,
         shortValue: PropTypes.node,
+        sub: PropTypes.string,
         tone: PropTypes.string,
     })).isRequired,
 };
