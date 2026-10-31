@@ -783,9 +783,57 @@ describe('the attempts\' nights and the panel of the one picked (#318)', () => {
         expect(declared(rulesOf('.model-nights')[1], 'left')).toBe('0');
     });
 
-    it('starts every line\'s days in line, past the longest name and its info icon, and lets a phone\'s lines flow (#324)', () => {
-        expect(whole('.model-day-lists').body).toMatch(/dt\s*\{\s*color: \$gray-8;\s*font-weight: 600;\s*min-width: 216px;\s*\}/);
-        expect(declared(rulesOf('.model-day-lists dt')[0], 'min-width')).toBe('0');
+    it('lets each line of days in words follow its name, as the lists are a screen reader\'s now, but for a count no strip shows (#324, #334)', () => {
+        expect(whole('.model-day-lists').body).toMatch(/dt\s*\{\s*color: \$gray-8;\s*font-weight: 600;\s*\}/);
+        expect(rulesOf('.model-day-lists dt')).toEqual([]);
+    });
+
+    it('marks a day fine-tuning trained on by a small triangle in its box\'s top-right corner, over its border, rounded to its corner (#334)', () => {
+        const corner = rule('.model-day-tuned::after');
+
+        expect(declared(rule('.model-day-tuned'), 'position')).toBe('relative');
+        expect(declared(corner, 'content')).toBe('\'\'');
+        expect(declared(corner, 'position')).toBe('absolute');
+        expect(declared(corner, 'top')).toBe('-1px');
+        expect(declared(corner, 'right')).toBe('-1px');
+        expect(declared(corner, 'width')).toBe('11px');
+        expect(declared(corner, 'height')).toBe('11px');
+        expect(declared(corner, 'border-top-right-radius')).toBe('6px');
+        expect(declared(corner, 'clip-path')).toBe('polygon(0 0, 100% 0, 100% 100%)');
+        expect(declared(corner, 'background-color')).toBe('$gray-6');
+    });
+
+    it('draws the corner in a darker shade of its box\'s own color: a deep teal on a day trained on, a darker teal at night, and a dark orange on a test day (#334)', () => {
+        const studied = whole('.model-day-studied.model-day-tuned::after');
+
+        expect(source).toMatch(/\$day-teal-fold: #053833;/);
+        expect(source).toMatch(/\$day-orange-fold: #c2410c;/);
+        expect(declared(studied, 'background-color')).toBe('$day-teal-fold');
+        expect(studied.body).toMatch(/@include dark \{\s*background-color: \$day-teal;\s*\}/);
+        expect(declared(whole('.model-day-test.model-day-tuned::after'), 'background-color')).toBe('$day-orange-fold');
+        expect(whole('.model-day-test.model-day-tuned::after').body).not.toMatch(/@include dark/);
+    });
+
+    it('keys the corner on an empty square, the corner in a gray, since it takes each box\'s color (#334)', () => {
+        const corner = rule('.model-day-swatch-tuned::after');
+
+        expect(source).toMatch(/\$day-fold-key: #8a8a8a;/);
+        expect(declared(rule('.model-day-swatch-tuned'), 'border')).toBe('1px solid $gray-5');
+        expect(declared(rule('.model-day-swatch-tuned'), 'position')).toBe('relative');
+        expect(declared(corner, 'background-color')).toBe('$day-fold-key');
+        expect(declared(corner, 'width')).toBe('6px');
+        expect(declared(corner, 'height')).toBe('6px');
+        expect(declared(corner, 'border-top-right-radius')).toBe('4px');
+        expect(declared(corner, 'clip-path')).toBe('polygon(0 0, 100% 0, 100% 100%)');
+    });
+
+    it('says under the version in charge\'s score when it took over in its box name\'s gray and size, a phone\'s a size smaller as its name\'s is (#334)', () => {
+        const [wide, phone] = rulesOf('.model-night-box-since');
+
+        expect(declared(wide, 'color')).toBe(declared(rule('.model-night-box-name'), 'color'));
+        expect(declared(wide, 'font-size')).toBe(declared(rule('.model-night-box-name'), 'font-size'));
+        expect(declared(phone, 'font-size')).toBe(declared(rulesOf('.model-night-box-name')[1], 'font-size'));
+        expect(declared(phone, 'font-size')).toBe('12px');
     });
 
     it('says under the score card\'s figure, and under a phone\'s score line, what its score is, in the muted gray', () => {
