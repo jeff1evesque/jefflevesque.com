@@ -9,7 +9,10 @@
  *                           was, 'Tue Oct 27 · nightly update', and the market day
  *                           it was tested after
  *     three boxes           the new version's score, the version in charge's and
- *                           the simple guess's, on the score picked
+ *                           the simple guess's, on the score picked, and under
+ *                           the version in charge's, the morning it took over
+ *                           (#334): the one at the top of the page may be a later
+ *                           version
  *     what came of it       took over or kept back, and how far the new version
  *                           beat or missed the simple guess and the version in
  *                           charge on loss, which decides. Worked out from the
@@ -20,15 +23,19 @@
  *     how long it took      the whole time and its parts, from format 6 its
  *                           fine-tuning among them (#324)
  *     which days it used    its days as a strip, a row for each month, a box for
- *                           each day in the look of its kind -- studied, used to
- *                           decide when to stop, test, skipped, results not in
- *                           yet, or not picked this night -- a key of the kinds
- *                           drawn, and the same in words, the days used to
- *                           decide when to stop with a note on how (#324)
+ *                           each day in the look of its kind -- trained on,
+ *                           validation, test, skipped, results not in yet, or not
+ *                           picked this night, by the names training, validation
+ *                           and test go by (#334) -- each day fine-tuning trained
+ *                           on marked by a corner of its box (#334), and a key of
+ *                           the kinds drawn, validation and fine-tuning each with
+ *                           a note on what it is (#324, #334). The same in words
+ *                           is for a screen reader alone (#334): on the screen it
+ *                           said the strip over again
  *
- * Note: which earlier days a night studied, and which it stopped on, skipped,
+ * Note: which earlier days a night trained on, and which it stopped on, skipped,
  *       had no results for yet or didn't pick, are the trainer's to list. Until
- *       a history lists the days a night studied, the strip is its test days
+ *       a history lists the days a night trained on, the strip is its test days
  *       alone, and the earlier days a count.
  */
 
@@ -36,6 +43,9 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import InfoNote from '../../general/info-note.jsx';
 import {
+    FINE_TUNE_OLDER,
+    FINE_TUNE_SLACK,
+    HELD_OUT,
     formatDuration,
     formatGap,
     formatScore,
@@ -110,6 +120,20 @@ export function startedFrom(point) {
 }
 
 /**
+ * which version was in charge on a night, by the morning it took over, as the
+ * version in charge's box says it under its score (#334): 'took over Fri Oct 30'.
+ * The page's Live version card names the version in charge now, and on an older
+ * night, or the night a new version took over, the one in charge was an earlier
+ * one, so the box said a score with no version to it. A bare date read as the
+ * market day the line over the boxes names, 'Tested after the market closed on Fri
+ * Oct 30.' Nothing on a model's first night, which had none, nor where the night
+ * doesn't say.
+ */
+export function chargeWords(point) {
+    return !point.first && point.charge ? `took over ${nightName(point.charge)}` : '';
+}
+
+/**
  * how long a night's attempt took, in all and in its parts, and when it started:
  * '54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days,
  * then 10 min 58 s fine-tuning. Started Wed Oct 28, 4:43 AM ET.' -- the
@@ -169,23 +193,25 @@ export function dayList(days) {
 //
 // each kind of day the full strip marks (#318), in the order its key and its
 // lists give them: where a night's history lists them, `listed`, its class, its
-// name in the key, in the lists and in a day's title. The days used to decide
-// when to stop carry a note on how they decide it, after their name in the
-// lists alone (#324): the key is hidden from a screen reader, and one icon will
-// do
+// name in the key, in the lists and in a day's title. The first three go by the
+// names training, validation and test go by, as the Live version card's
+// 'Trained on' does (#334): 'Studied' and 'Used to decide when to stop' were
+// words of the strip's own. The validation days carry a note on how they decide
+// when training stops (#324), after their name in the key (#334), where the lists
+// are now for a screen reader alone
 //
 const KINDS = [
-    { key: 'studied', listed: 'studied', look: 'model-day-studied', name: 'Studied', list: 'Studied', title: 'studied' },
+    { key: 'studied', listed: 'studied', look: 'model-day-studied', name: 'Trained on', list: 'Trained on', title: 'trained on' },
     {
         key: 'stopping',
         listed: 'stopping',
         look: 'model-day-stopping',
-        name: 'Used to decide when to stop',
-        list: 'Used to decide when to stop',
-        title: 'used to decide when to stop',
+        name: 'Validation, never trained on',
+        list: 'Validation',
+        title: 'validation, never trained on',
         note: 'The model never trains on these days. After each epoch it’s scored on them, and training stops once that score stops getting better. It keeps the epoch that scored best.',
     },
-    { key: 'test', listed: null, look: 'model-day-test', name: 'Test, never studied', list: 'Test', title: 'test, never studied' },
+    { key: 'test', listed: null, look: 'model-day-test', name: 'Test, never trained on', list: 'Test', title: 'test, never trained on' },
     { key: 'skipped', listed: 'skipped', look: 'model-day-skipped', name: 'Skipped, incomplete data', list: 'Skipped', title: 'skipped, incomplete data' },
     { key: 'pending', listed: 'pending', look: 'model-day-pending', name: 'Results not in yet', list: 'Results not in yet', title: 'results not in yet' },
     {
@@ -198,11 +224,30 @@ const KINDS = [
     },
 ];
 
+/**
+ * the days fine-tuning trained on (#334), as the key, the lists and a day's title
+ * name them, and the note after their name in the key. A new version that passes
+ * its test is trained a little more on its test days and on a few older days it
+ * already trained on, so a mark of their own would hide which of the two each day
+ * was: they keep their kind's look, and a corner of the box marks them -- see
+ * '.model-day-tuned' in '_model.scss'. The note says what fine-tuning is and
+ * when the version from before it goes live instead, in the words the panel's
+ * boxes use -- the simple guess -- by the trainer's numbers in scores.js.
+ */
+export const TUNED = {
+    key: 'tuned',
+    name: 'Fine-tuned on after the test',
+    list: 'Fine-tuned on after the test',
+    title: 'fine-tuned on after the test',
+    note: `Once a new version beats the simple guess on its ${HELD_OUT} test days, it’s trained a little more on those days, plus ${FINE_TUNE_OLDER} `
+        + 'older days it already trained on, picked at random. Then it’s scored on the validation days again. If it does more than '
+        + `${formatGap(FINE_TUNE_SLACK, 'loss')} worse there than before, the version from before the fine-tune goes live instead.`,
+};
+
 //
 // the strip of a night's test days alone, until its history lists the rest:
 // each day a box with its date in it, after the name of its month where the
 // month begins. The lists under it say the same in words, to a screen reader
-// as well
 //
 function DayStrip({ days }) {
     return (
@@ -210,7 +255,7 @@ function DayStrip({ days }) {
             {days.map((day, at) => (
                 <React.Fragment key={day}>
                     {!at || monthOf(day) !== monthOf(days[at - 1]) ? <span className='model-day-month'>{monthOf(day)}</span> : null}
-                    <span className='model-day model-day-test' title={`${shortDay(day)}: test, never studied`}>
+                    <span className='model-day model-day-test' title={`${shortDay(day)}: test, never trained on`}>
                         {dateOf(day)}
                     </span>
                 </React.Fragment>
@@ -227,10 +272,13 @@ DayStrip.propTypes = {
 // the full strip of a night's days (#318), as the canvas's late-November boards
 // draw it: a row for each month, its name before its days, oldest first, each
 // day a box in the look of its kind. `drawn` are the kinds the night has, each
-// with its days; a day listed twice is drawn once, as the first kind it is
+// with its days; a day listed twice is drawn once, as the first kind it is.
+// Each day of `tuned`, the days fine-tuning trained on, keeps its kind's look
+// and is marked by a corner of its box, and its title says so too (#334)
 //
-function FullStrip({ drawn }) {
+function FullStrip({ drawn, tuned }) {
     const kindOf = {};
+    const fineTuned = new Set(tuned);
 
     drawn.forEach((kind) => {
         kind.days.forEach((day) => {
@@ -256,7 +304,11 @@ function FullStrip({ drawn }) {
                 <div key={row.days[0]} className='model-day-row'>
                     <span className='model-day-month'>{row.month}</span>
                     {row.days.map((day) => (
-                        <span key={day} className={`model-day ${kindOf[day].look}`} title={`${shortDay(day)}: ${kindOf[day].title}`}>
+                        <span
+                            key={day}
+                            className={`model-day ${kindOf[day].look}${fineTuned.has(day) ? ' model-day-tuned' : ''}`}
+                            title={`${shortDay(day)}: ${kindOf[day].title}${fineTuned.has(day) ? `; ${TUNED.title}` : ''}`}
+                        >
                             {dateOf(day)}
                         </span>
                     ))}
@@ -273,13 +325,14 @@ FullStrip.propTypes = {
         title: PropTypes.string.isRequired,
         days: PropTypes.arrayOf(PropTypes.string).isRequired,
     })).isRequired,
+    tuned: PropTypes.arrayOf(PropTypes.string).isRequired,
 };
 
 /**
  * the kinds of day a night's history lists (#318), each with its days, oldest
  * first, in KINDS' order -- its test days among them -- and only those it has
- * days of. None until the history lists the days the night studied: the
- * trainer doesn't publish its lists yet.
+ * days of. None until the history lists the days the night trained on, as a
+ * history from before format 8 doesn't.
  */
 export function daysDrawn(test, days) {
     if (!days || !days.studied || !days.studied.length) {
@@ -292,15 +345,51 @@ export function daysDrawn(test, days) {
 }
 
 /**
+ * the days fine-tuning trained on (#334), oldest first, as a night's history
+ * lists them: its test days and a few older days it trained on. None for a
+ * night that wasn't fine-tuned, or whose history doesn't say.
+ */
+export function tunedDays(days) {
+    return days && Array.isArray(days.tuned) ? days.tuned.slice().sort() : [];
+}
+
+//
+// a kind's name in the key, after a swatch of its look, and after the name, the
+// kind's note where it has one (#334). The swatch alone is hidden from a screen
+// reader: the key holds the notes' icons now, which a reader must be able to
+// reach, where it had been hidden whole while the lists held the one note
+//
+function KeyItem({ look, name, note = '' }) {
+    return (
+        <li>
+            <span className={`model-day-swatch ${look}`} aria-hidden='true' />
+            {note ? <InfoNote note={note} className='model-noted'>{name}</InfoNote> : name}
+        </li>
+    );
+}
+
+KeyItem.propTypes = {
+    look: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    note: PropTypes.string,
+};
+
+/**
  * which days a night used (#318). Where its history lists them, every day it
- * studied, used to decide when to stop, was tested on, skipped, had no result
- * for yet or didn't pick, as a strip, a key of the kinds drawn, and a line of
- * each in words. Until it does, its test days, as a strip and in words, and how
- * many earlier days it studied or used to decide when to stop, 'Studied or used
- * to stop: 10 earlier days'. Nothing for a night that says none of it.
+ * trained on, validated on, was tested on, skipped, had no result for yet or
+ * didn't pick, as a strip, and a key of the kinds drawn, the days fine-tuning
+ * trained on marked in the strip and keyed last (#334). A line of each in words
+ * is for a screen reader alone (#334), as the strip and its key had said it all
+ * over again on the screen.
+ *
+ * Until the history lists them, its test days, as a strip, and how many earlier
+ * days it trained on or validated on, 'Training and validation: 10 earlier days',
+ * a count no strip shows. The test days' line in words is for a screen reader
+ * alone, as the full strip's lines are. Nothing for a night that says none of it.
  */
 function DaysUsed({ test, studied, days = null }) {
     const drawn = daysDrawn(test, days);
+    const tuned = tunedDays(days);
 
     if (!drawn && !test.length && studied === null) {
         return null;
@@ -310,19 +399,15 @@ function DaysUsed({ test, studied, days = null }) {
         return (
             <div className='model-night-days'>
                 <h6 className='model-night-days-title'>Which days it used</h6>
-                <FullStrip drawn={drawn} />
-                <ul className='model-day-legend' aria-hidden='true'>
-                    {drawn.map((kind) => (
-                        <li key={kind.key}>
-                            <span className={`model-day-swatch ${kind.look}`} />
-                            {kind.name}
-                        </li>
-                    ))}
+                <FullStrip drawn={drawn} tuned={tuned} />
+                <ul className='model-day-legend'>
+                    {drawn.map((kind) => <KeyItem key={kind.key} look={kind.look} name={kind.name} note={kind.note} />)}
+                    {tuned.length ? <KeyItem key={TUNED.key} look='model-day-swatch-tuned' name={TUNED.name} note={TUNED.note} /> : null}
                 </ul>
-                <dl className='model-day-lists'>
-                    {drawn.map((kind) => (
+                <dl className='model-day-lists visually-hidden'>
+                    {drawn.concat(tuned.length ? [{ ...TUNED, days: tuned }] : []).map((kind) => (
                         <div key={kind.key}>
-                            <dt>{kind.note ? <InfoNote note={kind.note} className='model-noted'>{kind.list}</InfoNote> : kind.list}</dt>
+                            <dt>{kind.list}</dt>
                             <dd>{dayList(kind.days)}</dd>
                         </div>
                     ))}
@@ -338,26 +423,23 @@ function DaysUsed({ test, studied, days = null }) {
                 ? (
                     <>
                         <DayStrip days={test} />
-                        <ul className='model-day-legend' aria-hidden='true'>
-                            <li>
-                                <span className='model-day-swatch model-day-test' />
-                                Test, never studied
-                            </li>
+                        <ul className='model-day-legend'>
+                            <KeyItem look='model-day-test' name='Test, never trained on' />
                         </ul>
                     </>
                 ) : null}
-            <dl className='model-day-lists'>
+            <dl className={studied === null ? 'model-day-lists visually-hidden' : 'model-day-lists'}>
                 {studied === null
                     ? null
                     : (
                         <div>
-                            <dt>Studied or used to stop</dt>
+                            <dt>Training and validation</dt>
                             <dd>{`${studied} earlier ${studied === 1 ? 'day' : 'days'}`}</dd>
                         </div>
                     )}
                 {test.length
                     ? (
-                        <div>
+                        <div className='visually-hidden'>
                             <dt>Test</dt>
                             <dd>{dayList(test)}</dd>
                         </div>
@@ -369,7 +451,7 @@ function DaysUsed({ test, studied, days = null }) {
 
 //
 // a night's lists of days by kind, as attempts-chart.jsx's attemptPoints gives
-// them (#318)
+// them (#318), and the days fine-tuning trained on (#334)
 //
 const LISTED = PropTypes.shape({
     studied: PropTypes.arrayOf(PropTypes.string),
@@ -377,6 +459,7 @@ const LISTED = PropTypes.shape({
     skipped: PropTypes.arrayOf(PropTypes.string),
     pending: PropTypes.arrayOf(PropTypes.string),
     unpicked: PropTypes.arrayOf(PropTypes.string),
+    tuned: PropTypes.arrayOf(PropTypes.string),
 });
 
 DaysUsed.propTypes = {
@@ -395,7 +478,13 @@ export default function NightPanel({ point, score, marks }) {
     const result = resultWords(point);
     const boxes = [
         { key: 'attempt', name: 'New version', mark: marks.attempt, value: formatScore(point.attempt, score) },
-        { key: 'live', name: 'Version in charge', mark: marks.live, value: point.first ? 'none yet' : formatScore(point.live, score) },
+        {
+            key: 'live',
+            name: 'Version in charge',
+            mark: marks.live,
+            value: point.first ? 'none yet' : formatScore(point.live, score),
+            since: chargeWords(point),
+        },
         { key: 'baseline', name: 'Simple guess', mark: marks.baseline, value: formatScore(point.baseline, score) },
     ];
 
@@ -413,6 +502,7 @@ export default function NightPanel({ point, score, marks }) {
                             {box.name}
                         </span>
                         <span className='model-night-box-value'>{box.value}</span>
+                        {box.since ? <span className='model-night-box-since'>{box.since}</span> : null}
                     </div>
                 ))}
             </div>
@@ -437,6 +527,7 @@ NightPanel.propTypes = {
         day: PropTypes.string.isRequired,
         tested: PropTypes.string,
         from: PropTypes.string,
+        charge: PropTypes.string,
         kind: PropTypes.string.isRequired,
         went_live: PropTypes.bool.isRequired,
         first: PropTypes.bool.isRequired,
