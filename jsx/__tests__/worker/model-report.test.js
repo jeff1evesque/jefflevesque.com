@@ -509,6 +509,7 @@ describe('the history', () => {
                 day: '2026-10-12',
                 tested: '2026-10-13',
                 from: null,
+                charge: null,
                 kind: 'weekly',
                 went_live: true,
                 trained_again: null,
@@ -519,6 +520,7 @@ describe('the history', () => {
                 skipped_days: [],
                 pending_days: [],
                 unpicked_days: [],
+                trained_again_days: [],
                 started: null,
                 training_seconds: null,
                 total_seconds: null,
@@ -527,7 +529,7 @@ describe('the history', () => {
                 live: { loss: 1.62, auc_up: 0.54, auc_beats: 0.51, acc_up: 0.52, ...NO_PARTS },
                 baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.51, ...NO_PARTS },
             },
-            expect.objectContaining({ day: '2026-10-13', tested: '2026-10-14', from: '2026-10-13', kind: 'nightly', went_live: false }),
+            expect.objectContaining({ day: '2026-10-13', tested: '2026-10-14', from: '2026-10-13', charge: '2026-10-13', kind: 'nightly', went_live: false }),
         ]);
     });
 
@@ -596,6 +598,25 @@ describe('the history', () => {
             expect(rows.map((row) => row.from)).toEqual([null, null, null]);
         });
 
+        it('says for every night the morning the version in charge took over: the newest night before it that went live, for a weekly retrain too (#334)', () => {
+            const rows = read(
+                tested('2026-10-21', { kind: 'weekly', went_live: 'true', started: '2026-10-22T09:50:05+00:00' }),
+                tested('2026-10-22', { went_live: 'true', started: '2026-10-23T10:22:26+00:00' }),
+                tested('2026-10-23', { kind: 'weekly', went_live: 'true', started: '2026-10-24T10:23:41+00:00' }),
+                tested('2026-10-26', { went_live: 'true', started: '2026-10-27T09:32:33+00:00' }),
+                tested('2026-10-27', { started: '2026-10-28T09:39:38+00:00' }),
+                tested('2026-10-28', { started: '2026-10-29T09:40:00+00:00' }),
+            );
+
+            expect(rows.map((row) => row.charge)).toEqual([null, '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-27', '2026-10-27']);
+        });
+
+        it('says no version in charge for a night with no night before it that went live, as a model\'s first (#334)', () => {
+            const rows = read(tested('2026-10-21'), tested('2026-10-22'), tested('2026-10-23', { kind: 'weekly' }));
+
+            expect(rows.map((row) => row.charge)).toEqual([null, null, null]);
+        });
+
         it('lists its test days, oldest first, each a day, and passes over anything that is not one', () => {
             const [listed, sorted, spaced, bad, none] = read(
                 tested('2026-10-26'),
@@ -626,6 +647,22 @@ describe('the history', () => {
                 ['2026-10-09'],
             ]);
             lists.forEach((name) => expect(older[name]).toEqual([]));
+        });
+
+        it('lists the days its fine-tuning trained on, from format 8, oldest first, and none where there was no fine-tuning or no column (#334)', () => {
+            const columns = tests.concat(['trained_again_days']);
+            const [tuned, untuned] = run({
+                kind: 'history',
+                report: csv(columns, [
+                    tested('2026-10-30', { trained_again: 'true' }).concat(['2026-10-28 2026-10-05 2026-10-26 2026-10-15 2026-10-27 2026-10-07']),
+                    tested('2026-10-31', { trained_again: 'false' }).concat(['']),
+                ]),
+            }).rows;
+            const [older] = read(tested('2026-10-26'));
+
+            expect(tuned.trained_again_days).toEqual(['2026-10-05', '2026-10-07', '2026-10-15', '2026-10-26', '2026-10-27', '2026-10-28']);
+            expect(untuned.trained_again_days).toEqual([]);
+            expect(older.trained_again_days).toEqual([]);
         });
 
         it.each([
@@ -767,6 +804,7 @@ describe('the history', () => {
                 day: '2026-10-13',
                 tested: '2026-10-14',
                 from: null,
+                charge: null,
                 kind: 'weekly',
                 went_live: true,
                 trained_again: null,
@@ -777,6 +815,7 @@ describe('the history', () => {
                 skipped_days: [],
                 pending_days: [],
                 unpicked_days: [],
+                trained_again_days: [],
                 started: null,
                 training_seconds: null,
                 total_seconds: null,
