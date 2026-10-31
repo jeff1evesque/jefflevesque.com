@@ -156,13 +156,13 @@ describe('startedFrom', () => {
 });
 
 describe('tookWords', () => {
-    it('gives a night\'s whole time, its training and the scoring of its test days, and when it started', () => {
-        expect(tookWords(optionsNight(3))).toBe('41 min 0 s in all: 39 min 13 s training, then 1 min 47 s scoring the test days. Started 5:32 AM ET.');
+    it('gives a night\'s whole time, its training and the scoring of its test days, and when it started, its day too (#327)', () => {
+        expect(tookWords(optionsNight(3))).toBe('41 min 0 s in all: 39 min 13 s training, then 1 min 47 s scoring the test days. Started Tue Oct 27, 5:32 AM ET.');
     });
 
     it('counts the fine-tuning in all, and gives it among the parts by that name (#318, #324)', () => {
         expect(tookWords(gnnNewest())).toBe(
-            '54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s fine-tuning. Started 4:43 AM ET.'
+            '54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s fine-tuning. Started Wed Oct 28, 4:43 AM ET.'
         );
     });
 
@@ -251,7 +251,7 @@ describe('NightPanel', () => {
 
         expect(lines).toEqual([
             'Started from the version that took over Sat Oct 24.',
-            'How long it took: 41 min 0 s in all: 39 min 13 s training, then 1 min 47 s scoring the test days. Started 5:32 AM ET.',
+            'How long it took: 41 min 0 s in all: 39 min 13 s training, then 1 min 47 s scoring the test days. Started Tue Oct 27, 5:32 AM ET.',
         ]);
         expect(container.querySelector('.model-night-line-name')).toHaveTextContent(/^How long it took:$/);
     });
@@ -266,7 +266,7 @@ describe('NightPanel', () => {
         const { container } = draw(gnnNewest());
 
         expect(container.querySelectorAll('.model-night-line')[1]).toHaveTextContent(
-            'How long it took: 54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s fine-tuning. Started 4:43 AM ET.'
+            'How long it took: 54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s fine-tuning. Started Wed Oct 28, 4:43 AM ET.'
         );
     });
 
