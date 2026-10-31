@@ -3,8 +3,8 @@
  * row out: its name and status, with its description under them -- and not its
  * page's address, which only puzzled a reader (#300) -- then its latest score --
  * over the listing's `average_days` (#293), against the
- * know-nothing baseline -- or, in a list that shows them, loss's three parts in
- * place of it (#283), then a trend line of its score, and last when its live
+ * know-nothing baseline -- or, in a list that shows them, loss's parts in place
+ * of it (#283, #322), then a trend line of its score, and last when its live
  * version went live and how many of its nightly attempts did. The box that ticks
  * it for the comparison comes first, and its bell, which leads to its alarm page
  * (#255), after its status; #300 draws neither. A retired model has no
@@ -47,7 +47,6 @@ import {
     COMBINED,
     COMPARE_COLORS,
     DEFAULT_SCORE,
-    LOSS_PARTS,
     TREND_DAYS,
     WINDOW,
     averageDays,
@@ -63,10 +62,10 @@ import {
     namedHold,
     nightName,
     noteOf,
+    partsOf,
     scoreIn,
     scoreOf,
     scoresAt,
-    scoresOn,
     shortDay,
     standing,
     statusOf,
@@ -374,25 +373,34 @@ function sinceOf(model, status) {
 }
 
 /**
- * loss's three parts in place of its sum (#283), as #300 lays them out: a line
+ * loss's parts in place of its sum (#283), as #300 lays them out: a line
  * over them, 'Loss 1.602, part by part, last 20 days', and a column
  * each across a wide screen -- its name, its average, and how it stands against
  * the baseline's -- or on a phone's card a line each. From the newest day of the
  * model's track record, as its own page has them (#265), on the hold the list is
  * on (#300). Bars while the record is on its way, and dashes where it could not
  * be had or has no parts.
+ *
+ * A stock model's three fill the room. An options model's two (#322) stand
+ * centered in it, under a line only as wide as they are -- see '_model.scss'.
+ * Its loss and days on a hold the listing gives no scores on, as before format
+ * 5, are its track record's, as a row's one score is, with a bar in their place
+ * while the record is on its way -- see scoresAt.
  */
 export function PartCells({ model, rows, task = undefined, hold = undefined }) {
-    const on = scoresOn(model, hold);
-    const parts = Array.isArray(rows) && rows.length ? lossParts(rows[rows.length - 1], on.hold) : [];
+    const on = scoresAt(model, hold, rows);
+    const parts = Array.isArray(rows) && rows.length ? lossParts(rows[rows.length - 1], on.hold, task) : [];
+    const centered = tradesOptions(task);
 
     return (
-        <div className='model-cell model-cell-parts'>
+        <div className={`model-cell model-cell-parts${centered ? ' model-cell-parts-centered' : ''}`}>
             <InfoNote note={noteOf(DEFAULT_SCORE, task, on.hold)} className='model-parts-note model-noted'>
-                {`Loss ${formatScore(scoreIn(on.score, DEFAULT_SCORE), DEFAULT_SCORE)}, part by part, ${daysLabel(model, hold)}`}
+                {on.pending
+                    ? <PendingBar width='14rem' />
+                    : `Loss ${formatScore(scoreIn(on.score, DEFAULT_SCORE), DEFAULT_SCORE)}, part by part, ${daysLabel(model, hold, rows)}`}
             </InfoNote>
-            <ul className='model-part-cells' aria-label='Loss, part by part'>
-                {LOSS_PARTS.map((each) => {
+            <ul className={`model-part-cells${centered ? ' model-part-cells-centered' : ''}`} aria-label='Loss, part by part'>
+                {partsOf(task).map((each) => {
                     const part = parts.find((one) => one.key === each.key);
 
                     return (
@@ -443,6 +451,13 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
     const address = `/model/${encodeURIComponent(model.name)}`;
 
     //
+    // an options model's parts stand centered in their room (#322), and when its
+    // live version went live lines up with the first of them wherever it stands
+    // under them -- see '_model.scss'
+    //
+    const centered = parts && tradesOptions(task);
+
+    //
     // the box, in a span so its tooltip still shows while it is disabled -- a
     // disabled input hears no pointer, and says why it cannot be ticked only
     // through what is around it
@@ -466,7 +481,7 @@ function ModelRow({ model, score, rows, axis, picked, blocked, onPick, held = fa
     // bell after its status, as #300 draws neither
     //
     return (
-        <div className={`model-row${status === 'retired' ? ' model-row-retired' : ''}`} role='listitem'>
+        <div className={`model-row${status === 'retired' ? ' model-row-retired' : ''}${centered ? ' model-row-centered' : ''}`} role='listitem'>
             <div className='model-cell model-cell-compare'>
                 {blocked ? <Tooltip title={blocked}>{box}</Tooltip> : box}
                 {ticked
