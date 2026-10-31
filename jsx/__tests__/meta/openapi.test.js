@@ -631,6 +631,37 @@ describe('model.json, formats 6 to 10, and a history\'s lists of days (#330)', (
     });
 });
 
+describe('model.json, the scores nothing reads, and the listing\'s updated (#332)', () => {
+    const responses = documentOf('model').paths['/model'].get.responses;
+    const media = responses['200'].content['application/json'];
+    const listing = media.schema.properties.report.anyOf[0];
+
+    //
+    // the scores a history and a track record carry beyond each task's own and
+    // loss's parts: a stock model's 16 and an options model's 2
+    //
+    const STOCK = [
+        'share_up', 'up_brier', 'up_precision', 'up_recall', 'up_f1',
+        'beats_brier', 'beats_accuracy', 'beats_precision', 'beats_recall', 'beats_f1',
+        'move_pinball_p10', 'move_pinball_p50', 'move_pinball_p90',
+        'move_inside_p10_p90', 'move_auc_bigger_than_expected', 'move_rank_correlation',
+    ];
+    const OPTIONS = ['share_profit', 'gain_inside_p10_p90'];
+
+    it('names each score a history and a track record carry beyond the task\'s, and says nothing reads them or decides by them', () => {
+        const said = responses['200'].description;
+
+        [...STOCK, ...OPTIONS].forEach((score) => expect({ score, named: new RegExp(`\\b${score}\\b`).test(said) }).toEqual({ score, named: true }));
+        expect(said).toMatch(/A history and a track record carry more scores, which nothing on the site reads and none of which decides anything: going live and taking a version down go by loss\./);
+    });
+
+    it('describes the listing\'s updated, a date-time a listing need not carry, and shows it in the format 10 example', () => {
+        expect(listing.properties.updated).toMatchObject({ type: 'string', format: 'date-time' });
+        expect(listing.required).not.toContain('updated');
+        expect(media.examples['list-held-out'].value.report.updated).toBe('2026-10-30T10:58:39+00:00');
+    });
+});
+
 describe('model.json, loss\'s three parts (#265)', () => {
     const PARTS = ['up_log_loss', 'beats_log_loss', 'move_pinball'];
     const responses = documentOf('model').paths['/model'].get.responses;
