@@ -79,6 +79,20 @@
 }
 
 //
+// a line under a figure's value, where the page gives one (#334): a model's
+// Live version box says 'in charge' under its day, on a phone, where the card
+// a wide screen draws says "the version in charge". In the names' gray, at the
+// size a model's box names are, and on one line, since each box is a third of
+// a phone's line, and a second line would make all three boxes taller. /stream
+// and /data give none
+//
+.stream-focus-figure-sub {
+  color: $gray-6;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+//
 // the info icon after each figure's name, whose note says what the figure
 // counts (#206): in the name's gray and at its size, as /graph's after a source
 // outside the graph. See info-note.jsx.
