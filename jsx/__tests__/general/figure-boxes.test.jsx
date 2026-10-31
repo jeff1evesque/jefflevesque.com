@@ -114,6 +114,23 @@ describe('the boxes', () => {
         expect(boxes()[0].querySelector('.stream-focus-figure-value')).toHaveTextContent('n/a');
         expect(boxes()[0].querySelector('.stream-focus-figure-value').className).toBe('stream-focus-figure-value');
     });
+
+    it('draw a figure\'s line under its value, last in its box, where it has one (#334)', () => {
+        draw([{ key: 'live', label: 'Live version', note: '', value: 'Sat Oct 31', shortValue: 'Oct 31', sub: 'in charge' }, ...FIGURES.slice(1)]);
+
+        const [live] = boxes();
+
+        expect(live.lastElementChild).toHaveClass('stream-focus-figure-sub');
+        expect(live.lastElementChild).toHaveTextContent(/^in charge$/);
+        expect(live.lastElementChild.previousElementSibling).toHaveClass('stream-focus-figure-value');
+        expect(live.querySelector('.stream-focus-figure-value')).not.toHaveTextContent('in charge');
+    });
+
+    it('draw nothing under a value where a figure has no line, as /stream\'s and /data\'s have none (#334)', () => {
+        draw();
+
+        expect(document.querySelector('.stream-focus-figure-sub')).toBeNull();
+    });
 });
 
 describe('shortCount', () => {
