@@ -209,7 +209,9 @@ PendingGroup.propTypes = {
 /**
  * a model page's three figures before the listing has them: a card each on a
  * wide screen, its name over a bar for its figure and one for its line, and two
- * rows under its rule, and on a phone the row of boxes, a name over a bar.
+ * rows under its rule, and on a phone the row of boxes, a name over a bar. The
+ * Live version's box has a second bar under its first, for the 'in charge'
+ * under its day (#334), so the row of boxes doesn't grow when the listing lands.
  */
 export function PendingSummary({ score }) {
     const label = scoreOf(score).label;
@@ -258,6 +260,12 @@ export function PendingSummary({ score }) {
                             <span className='stream-focus-figure-value'>
                                 <PendingBar width='3.5rem' delay={at * STAGGER} />
                             </span>
+                            {card.key === 'live'
+                                ? (
+                                    <span className='stream-focus-figure-sub'>
+                                        <PendingBar width='3rem' delay={(at + 1) * STAGGER} />
+                                    </span>
+                                ) : null}
                         </div>
                     ))}
                 </div>
