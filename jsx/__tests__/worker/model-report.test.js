@@ -1153,6 +1153,46 @@ describe('an options model, and every model\'s top 10, from format 3 on (#279)',
         expect(rows[2].hold_days).toEqual({ '1d': 2, '5d': 2, '20d': 0 });
     });
 
+    //
+    // the two an options model's loss adds up (#322), for each hold, the
+    // model's and the baseline's, after the columns `header` has: the chance's
+    // log loss, `loss` less 0.1, and the gain's pinball loss, 0.1, so the two add
+    // up to the hold's loss
+    //
+    const PARTS_OF_OPTIONS = ['profit_log_loss', 'gain_pinball'];
+    const withParts = [...header, ...['', 'baseline_'].flatMap((prefix) => HOLDS.flatMap((hold) => PARTS_OF_OPTIONS.map((part) => `${prefix}${part}${hold}`)))];
+
+    function partsDay(day, loss, held) {
+        const parts = (base) => HOLDS.flatMap((hold) => (held[hold] ? [Number((base - 0.1).toFixed(2)), 0.1] : ['', '']));
+
+        return [...optionsDay(day, loss, held), ...parts(loss), ...parts(1.1)];
+    }
+
+    it('reads the two its loss adds up on each hold, and averages them as the hold\'s other columns, adding up to its loss (#322)', () => {
+        const rows = run({
+            kind: 'track-record',
+            report: csv(withParts, [
+                partsDay('2026-10-12', 0.8, { _1d: true, _5d: true, _20d: false }),
+                partsDay('2026-10-13', 0.9, { _1d: true, _5d: true, _20d: false }),
+                partsDay('2026-10-14', 0.7, { _1d: true, _5d: false, _20d: false }),
+            ]),
+        }).rows;
+
+        expect(rows[0].score).toMatchObject({ profit_log_loss_1d: 0.7, gain_pinball_1d: 0.1, profit_log_loss_5d: 0.7, gain_pinball_20d: null });
+        expect(rows[0].baseline).toMatchObject({ profit_log_loss_1d: 1, gain_pinball_5d: 0.1 });
+        expect(rows[2].score).not.toHaveProperty('profit_log_loss');
+        expect(rows[2].average.profit_log_loss_1d + rows[2].average.gain_pinball_1d).toBeCloseTo(rows[2].average.loss_1d, 10);
+        expect(rows[2].average.profit_log_loss_5d + rows[2].average.gain_pinball_5d).toBeCloseTo(rows[2].average.loss_5d, 10);
+        expect(rows[2].baseline_average.profit_log_loss_5d + rows[2].baseline_average.gain_pinball_5d).toBeCloseTo(1.1, 10);
+        expect(rows[2].average.profit_log_loss_20d).toBeNull();
+    });
+
+    it('reads none of the two from a track record without their columns, as one before them', () => {
+        const [row] = run({ kind: 'track-record', report: csv(header, [optionsDay('2026-10-12', 0.8)]) }).rows;
+
+        PARTS_OF_OPTIONS.forEach((part) => HOLDS.forEach((hold) => expect(row.score).not.toHaveProperty(`${part}${hold}`)));
+    });
+
     it('reads the top 10 in a stock model\'s history, under each prefix', () => {
         const [row] = run({
             kind: 'history',
