@@ -181,6 +181,11 @@ without it is format 0.
 | 3 | a task's `scores`; `top10_gain` and `top10_wins`, and an options model's `profit_auc` and its track record's columns for each hold; the `hold` of `down` and of each check in `behind`; and the picks |
 | 4 | the listing's `average_days`; `down`'s `reason`, with `days` and `in_a_row` `null` where no check did it; and `live`'s `days` |
 | 5 | a stock model's track record's columns for each hold and for Combined, and its `down_hold`; the `hold` of a stock model's `down` and of each check in its `behind`; and each model's `holds` |
+| 6 | training again: a history's `trained_again`, `trained_again_seconds`, `stopping_tested_loss` and `stopping_again_loss`; a track record's `tested_` scores; `live`'s `fine_tune`; and `live`'s `days` counting both runs' days where the second run went live |
+| 7 | the 5-minute task, `next-5-minutes`, and its reports' columns |
+| 8 | a history's `studied_days`, `stopping_days`, `skipped_days`, `pending_days` and `trained_again_days` |
+| 9 | a history's `unpicked_days`, and its `skipped_days` counted from the attempt's oldest day to learn from, not its first day to train or stop on |
+| 10 | `live`'s `held_out` |
 
 It goes up with any change to the reports' keys or columns, or to what a value means,
 added columns included. A listing is published after every model's reports, so its
@@ -198,6 +203,7 @@ A CSV string with a header row, oldest night first. Each row is one nightly atte
 - `day`, the night it was trained;
 - `kind`, `nightly` for a nightly update or `weekly` for a weekly retrain;
 - `went_live`, `true` when it replaced the live version;
+- `attempt`, the attempt's name: its night and the model's, e.g. `20261029_pt-gnn`;
 - `held_out_days`, the days it was tested on, the newest whose results were known,
   which it never trained on: each `YYYY-MM-DD`, a space between them, e.g.
   `2026-10-20 2026-10-21 2026-10-22`;
@@ -236,6 +242,27 @@ is one it learned. Three more columns, empty where there was no second run:
 - `stopping_tested_loss` and `stopping_again_loss`, the first and the second run's
   loss on the days the first run stopped on, the check the listing's
   `live.fine_tune` reports.
+
+From format 8, five lists of days, each `YYYY-MM-DD` with a space between them, as in
+`held_out_days`, and empty for attempts made before format 8:
+
+- `studied_days`, the days it trained on;
+- `stopping_days`, the days used to decide when to stop, which it never trained on;
+- `skipped_days`, the trading days from its oldest day to learn from up to its last
+  held-out day that it left out, because their data was incomplete;
+- `pending_days`, the trading days after its last held-out day, up to its own night,
+  whose results weren't in yet;
+- `trained_again_days`, the days its second run trained on: the held-out days and 3
+  older days drawn from `studied_days`. It is set whenever `trained_again_seconds`
+  is, and empty where there was no second run.
+
+From format 9, `unpicked_days`, the older days a nightly update's random draw left
+out: of the latest 100 days with results, less the held-out ones, those in neither
+`studied_days` nor `stopping_days`. It is empty for a weekly retrain, which uses them
+all, and for an update while there are no more older days than its draw takes. Also
+from format 9, `skipped_days` counts from the attempt's oldest day to learn from, the
+first of those 100 days, rather than from its first day to train or stop on. For a
+model with holds, the lists are its 1-day hold's.
 
 ## Response: a track record
 
