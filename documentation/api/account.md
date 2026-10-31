@@ -45,7 +45,7 @@ and the alarms are a list of these, a stream's and a model's:
 
 ```json
 {"id": "ingest", "name": "Bureau of Labor Statistics ingest"}
-{"id": "live", "name": "pt-gnn goes live ahead of the baseline"}
+{"id": "live", "name": "pt-gnn goes live ahead of its previous version"}
 ```
 
 - **One alarm per stream, for now: its ingest alarm.** A stream goes into alarm when it
