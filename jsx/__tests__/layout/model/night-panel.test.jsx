@@ -160,9 +160,9 @@ describe('tookWords', () => {
         expect(tookWords(optionsNight(3))).toBe('41 min 0 s in all: 39 min 13 s training, then 1 min 47 s scoring the test days. Started 5:32 AM ET.');
     });
 
-    it('counts a second pass in all, and gives it among the parts (#318)', () => {
+    it('counts the fine-tuning in all, and gives it among the parts by that name (#318, #324)', () => {
         expect(tookWords(gnnNewest())).toBe(
-            '54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s training again. Started 4:43 AM ET.'
+            '54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s fine-tuning. Started 4:43 AM ET.'
         );
     });
 
@@ -262,11 +262,11 @@ describe('NightPanel', () => {
         expect([...container.querySelectorAll('.model-night-line')]).toHaveLength(1);
     });
 
-    it('gives pt-gnn\'s Oct 27 night\'s whole time, its second pass among its parts (#318)', () => {
+    it('gives pt-gnn\'s Oct 27 night\'s whole time, its fine-tuning among its parts (#318, #324)', () => {
         const { container } = draw(gnnNewest());
 
         expect(container.querySelectorAll('.model-night-line')[1]).toHaveTextContent(
-            'How long it took: 54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s training again. Started 4:43 AM ET.'
+            'How long it took: 54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s fine-tuning. Started 4:43 AM ET.'
         );
     });
 
@@ -386,6 +386,21 @@ describe('NightPanel\'s full strip, once the history lists the days (#318)', () 
             .toEqual(['Oct 6, 8, 9, 12, 13, 14 and 19', 'Oct 5, 7 and 15', 'Oct 20, 21 and 22', 'Oct 16', 'Oct 23 and 26']);
         expect(screen.queryByText('Studied or used to stop')).toBeNull();
         expect(screen.queryByText('Not picked this night')).toBeNull();
+    });
+
+    it('notes on the line of the days used to decide when to stop how they decide it, and on no other line nor in the key (#324)', () => {
+        const { container } = draw(listedNight(OCT_26));
+        const names = [...container.querySelectorAll('.model-day-lists dt')];
+        const noted = names[1].querySelector('.model-noted');
+
+        expect(noted).toHaveTextContent(/^Used to decide when to stop$/);
+        expect(noted).toHaveAccessibleDescription(
+            'The model never trains on these days. After each epoch it’s scored on them, and training stops once that score stops getting better. '
+            + 'It keeps the epoch that scored best.',
+        );
+        expect(noted.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+        expect(container.querySelectorAll('.model-day-lists .model-noted')).toHaveLength(1);
+        expect(container.querySelector('.model-day-legend .model-noted')).toBeNull();
     });
 
     it('draws a row for each month, and the days the night didn\'t pick, outlined, keyed and in words', () => {
