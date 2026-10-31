@@ -2069,6 +2069,15 @@ $dark-day-teal: #14b8a6;
 }
 
 //
+// when a night started, in the foot of its popup over the attempts' times
+// (#327): kept whole, so where it doesn't fit beside how long the night took,
+// it drops to a line of its own rather than leaving 'ET' alone on one
+//
+.model-tip-when {
+  white-space: nowrap;
+}
+
+//
 // on a wide screen, one slim line across the chart: the night, then each
 // number after its mark and name, side by side, and what became of the
 // attempt, wrapping only where the chart is too narrow for them

@@ -1446,10 +1446,14 @@ export function formatDuration(seconds) {
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
 /**
- * when an attempt started, as the pages print it: its time of day in Eastern
- * time, as the trading days are kept, '3:58 AM ET', in summer or winter.
- * Nothing for text that is not an instant with its offset, which would be read
- * in the reader's own zone.
+ * when an attempt started, as the pages print it: its day and time of day in
+ * Eastern time, as the trading days are kept, 'Fri Oct 16, 3:58 AM ET', in
+ * summer or winter. The day comes first (#327): a time alone left a reader
+ * asking whether it was this morning or yesterday's. It is the day it started
+ * in New York, as its night is named -- see worker/model/report.js's testedOn
+ * -- so a start past midnight UTC keeps its evening's day. Nothing for text
+ * that is not an instant with its offset, which would be read in the reader's
+ * own zone.
  *
  * Note: put together from its parts, since a newer Intl writes a narrow space
  *       before AM, which would print differently from one browser to the next.
@@ -1463,25 +1467,25 @@ export function formatStarted(text) {
 
     const parts = {};
 
-    new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York' })
+    new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York' })
         .formatToParts(at)
         .forEach((part) => {
             parts[part.type] = part.value;
         });
 
-    return `${parts.hour}:${parts.minute} ${parts.dayPeriod} ET`;
+    return `${parts.weekday} ${parts.month} ${parts.day}, ${parts.hour}:${parts.minute} ${parts.dayPeriod} ET`;
 }
 
 /**
  * when the newest of a history's nights was tested (#318), as the attempts'
- * card says it beside its title: 'Wed Oct 28, 5:39 AM ET'. Nothing for a
- * history with none, or whose newest night has no start.
+ * card says it beside its title: 'Wed Oct 28, 5:39 AM ET', when it started,
+ * whose day is the night's name (#327). Nothing for a history with none, or
+ * whose newest night has no start.
  */
 export function newestTest(rows) {
     const newest = Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
-    const at = newest ? formatStarted(newest.started) : '';
 
-    return at ? `${nightName(newest.tested)}, ${at}` : '';
+    return newest ? formatStarted(newest.started) : '';
 }
 
 /**

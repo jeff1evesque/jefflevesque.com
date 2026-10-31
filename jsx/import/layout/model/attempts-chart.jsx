@@ -637,6 +637,14 @@ function AttemptsChart({ rows, score, held = false }) {
             return { title: title, rows: [], foot: 'No times: they are kept from Oct 15, 2026 on' };
         }
 
+        //
+        // the foot: how long it took in all, and when it started. The start
+        // carries its day from #327 and is kept whole, so where the two don't fit
+        // on one line it drops to a line of its own, rather than leaving 'ET'
+        // alone on one
+        //
+        const total = `${formatDuration(point.took)} in all`;
+
         return {
             title: title,
             rows: [
@@ -646,7 +654,7 @@ function AttemptsChart({ rows, score, held = false }) {
                     { key: 'again', mark: <Mark kind='bar' color={colors.tookAgain} />, name: 'Fine-tuning', value: formatDuration(point.again) },
                 ]),
             ],
-            foot: `${formatDuration(point.took)} in all${started ? `, started ${started}` : ''}`,
+            foot: started ? <>{`${total}, `}<span className='model-tip-when'>{`started ${started}`}</span></> : total,
         };
     };
 

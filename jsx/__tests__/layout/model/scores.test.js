@@ -355,11 +355,17 @@ describe('how long an attempt took, and when it started (#247)', () => {
         [null, undefined, NaN, -1, '532'].forEach((value) => expect(formatDuration(value)).toBe(''));
     });
 
-    it('prints when an attempt started in Eastern time, in summer and in winter', () => {
-        expect(formatStarted('2026-10-16T07:58:10+00:00')).toBe('3:58 AM ET');
-        expect(formatStarted('2026-12-16T08:58:10+00:00')).toBe('3:58 AM ET');
-        expect(formatStarted('2026-07-01T16:05:00Z')).toBe('12:05 PM ET');
-        expect(formatStarted('2026-10-16T03:58:10-04:00')).toBe('3:58 AM ET');
+    it('prints when an attempt started, its day before its time, in Eastern time, in summer and in winter (#327)', () => {
+        expect(formatStarted('2026-10-16T07:58:10+00:00')).toBe('Fri Oct 16, 3:58 AM ET');
+        expect(formatStarted('2026-12-16T08:58:10+00:00')).toBe('Wed Dec 16, 3:58 AM ET');
+        expect(formatStarted('2026-07-01T16:05:00Z')).toBe('Wed Jul 1, 12:05 PM ET');
+        expect(formatStarted('2026-10-16T03:58:10-04:00')).toBe('Fri Oct 16, 3:58 AM ET');
+    });
+
+    it('dates a start past midnight UTC by its day in New York, as its night is named (#327)', () => {
+        expect(formatStarted('2026-10-30T02:10:00Z')).toBe('Thu Oct 29, 10:10 PM ET');
+        expect(formatStarted('2026-12-01T04:30:00+00:00')).toBe('Mon Nov 30, 11:30 PM ET');
+        expect(formatStarted('2026-10-30T00:05:00-04:00')).toBe('Fri Oct 30, 12:05 AM ET');
     });
 
     it('prints nothing for anything but an instant with its offset, which would be read in the reader\'s zone', () => {
@@ -447,7 +453,7 @@ describe('a night\'s time in all, its fine-tuning counted in, and its name (#318
         expect(nightName(null)).toBe('');
     });
 
-    it('says when the newest night\'s test ran, the morning and its time in Eastern time', () => {
+    it('says when the newest night\'s test ran, the morning and its time in Eastern time, as every start is printed (#327)', () => {
         expect(newestTest(ptOptionsHistory())).toBe('Wed Oct 28, 5:39 AM ET');
         expect(newestTest(ptGnnHistory())).toBe('Wed Oct 28, 4:43 AM ET');
     });

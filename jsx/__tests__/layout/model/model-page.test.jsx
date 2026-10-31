@@ -1444,7 +1444,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
     });
 
     describe('Attempts that went live', () => {
-        it('counts each kind that went live, then says how the newest night went, and when it started and how long it took', async () => {
+        it('counts each kind that went live, then says how the newest night went, and when it started, its day too (#327), and how long it took', async () => {
             answer({ history: timedHistoryOf({ 4: { went_live: true } }) });
             await open();
 
@@ -1454,7 +1454,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
             expect(rowsOf(card)).toEqual([
                 ['Nightly updates', '1 of 5 went live'],
                 ['Last attempt', 'Sat Oct 17, took over'],
-                ['Started', '3:58 AM ET'],
+                ['Started', 'Sat Oct 17, 3:58 AM ET'],
                 ['Took', '9 min 52 s'],
             ]);
         });

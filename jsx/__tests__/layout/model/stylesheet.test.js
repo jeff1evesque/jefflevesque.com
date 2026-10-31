@@ -11,8 +11,9 @@
  * open filters, beside the lists' first line (#306), about a picker's name
  * with an info icon (#311), about the attempts' nights and the panel of the
  * night picked (#318), about how wide the lines under a model's name and its
- * cards' titles run (#320), and about an options model's two parts in /model's
- * list (#322), read out of the partial.
+ * cards' titles run (#320), about an options model's two parts in /model's list
+ * (#322), and about when a night started, kept whole in its popup (#327), read
+ * out of the partial.
  *
  * jsdom lays nothing out and resolves no stylesheet, so no suite can see where a
  * cell lands. What can be held is what each rule says: a wide row's cells side
@@ -1080,5 +1081,11 @@ describe('the box over a trend line under the pointer (#296)', () => {
 
         expect(declared(row, 'grid-template-columns')).toBe('12px minmax(0, 1fr) auto');
         expect([declared(mark, 'width'), declared(mark, 'height')]).toEqual(['12px', '9px']);
+    });
+});
+
+describe('when a night started, in its popup over the attempts\' times (#327)', () => {
+    it('is kept whole, so a line never breaks inside it and leaves its ET alone', () => {
+        expect(declared(ruleOf('.model-tip-when', 'white-space'), 'white-space')).toBe('nowrap');
     });
 });
