@@ -51,6 +51,11 @@
  * Every take-down check is a table, a row for each hold, and every "better" and
  * "worse" than the baseline carries the list's arrow (#300).
  *
+ * While a version predicts, Live or New, its card says under its day that it is
+ * the version in charge, which is what the charts below call it, and a phone's
+ * box says 'in charge' under its day (#334). A model taken down or retired has
+ * none in charge, and says nothing of it.
+ *
  * The page is laid out as #300 lays it out: its parts 22px apart, a stock model
  * with holds closing on when each hold's results come in, and its Live version
  * card saying which holds it predicts. Every titled section folds, and stays
@@ -146,6 +151,16 @@ const DOWN_LINE = 'Nothing predicts until a new version beats the baseline on th
 // (#315)
 //
 const FINE_TUNE = 'Fine-tune check';
+
+//
+// the line under the Live version card's day while a version predicts, Live or
+// New (#334), and under a phone's box's: the attempts' chart and the panel of
+// the night picked call it the version in charge, and nothing on the card said
+// the two were one. A phone's box is a third of its line, and says it shorter,
+// in the box itself rather than in a note behind an icon nobody would tap
+//
+export const IN_CHARGE = 'the version in charge';
+export const IN_CHARGE_SHORT = 'in charge';
 
 //
 // each chart's card, as its placeholder draws it while its report is on its way
@@ -1007,11 +1022,19 @@ class ModelPage extends Component {
         const downBox = status === 'down' ? { short: 'Taken down', shortValue: shortDay(model.down.since) } : {};
 
         //
+        // whether a version predicts, Live or New, and so is the version in
+        // charge, as the card's line and a phone's box say under its day (#334).
+        // A model taken down or retired has none
+        //
+        const inCharge = status === 'live' || status === 'new';
+
+        //
         // a live version's box on a phone: its day without the weekday, 'Oct 28',
         // where 'Wed Oct 28' wrapped onto two lines and made the three boxes
-        // taller (#320), as 'Taken down Oct 19' had (#272)
+        // taller (#320), as 'Taken down Oct 19' had (#272), and 'in charge' under
+        // it (#334)
         //
-        const liveBox = status === 'live' || status === 'new' ? { shortValue: shortDay(liveNight(model.live.since, history)) || live.value } : {};
+        const liveBox = inCharge ? { shortValue: shortDay(liveNight(model.live.since, history)) || live.value, sub: IN_CHARGE_SHORT } : {};
 
         //
         // the three figures: a card each on a wide screen, and on a phone one
@@ -1023,7 +1046,9 @@ class ModelPage extends Component {
         // line, then its rows under a thin rule, as the parts of loss are drawn,
         // which had read cleanly where the cards' sentences ran together (#267).
         // The parts go in the score's card, under its place among its task's
-        // models.
+        // models. The Live version card's line says it is the version in charge
+        // while one predicts, in the Attempts card's look, over a first
+        // version's own line (#334).
         //
         // On a phone, under the boxes, in this order (#300): the score's line,
         // the parts (#265), why the live version was taken down, the checks, and
@@ -1036,6 +1061,7 @@ class ModelPage extends Component {
                         <div className='model-stat-head'>
                             <span className='model-stat-label'>Live version</span>
                             <span className='model-stat-value'>{live.value}</span>
+                            {inCharge ? <span className='model-stat-detail'>{IN_CHARGE}</span> : null}
                             {line ? <span className='model-stat-detail'>{line}</span> : null}
                             {down ? <span className='model-stat-down'>{down}</span> : null}
                         </div>
