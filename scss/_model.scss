@@ -1937,10 +1937,14 @@ $dark-day-teal: #14b8a6;
     gap: 2px 12px;
   }
 
+  //
+  // as wide as the longest name and its info icon (#324): 'Used to decide when to
+  // stop' is 192px and its icon 17px more, so every line's days start in line
+  //
   dt {
     color: $gray-8;
     font-weight: 600;
-    min-width: 200px;
+    min-width: 216px;
   }
 
   dd {
