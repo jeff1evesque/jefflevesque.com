@@ -249,12 +249,12 @@ describe('attemptPoints', () => {
         expect(points[4].training + points[4].scoring).toBeCloseTo(592.4);
     });
 
-    it('counts a second pass in the whole time, with the note saying it is two passes (#318)', () => {
+    it('counts the fine-tuning in the whole time, with the note saying what the time is made of (#318, #324)', () => {
         const point = attemptPoints(ptGnnHistory(), 'loss')[12];
 
         expect(point.again).toBe(657.7);
         expect(point.took).toBeCloseTo(3250.2);
-        expect(point.note).toBe('Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again.');
+        expect(point.note).toBe('43 min 13 s for the new version’s training and test, then 10 min 58 s fine-tuning it.');
     });
 
     it('has none of them for a night without times, one with only one of them, or a total under its training', () => {
@@ -333,12 +333,12 @@ describe('tookAbout (#318)', () => {
         expect(tookAbout(false)).toBe('Training, then scoring the test days in a lighter teal. A weekly retrain starts from scratch, so its bar stands taller.');
     });
 
-    it('says what the part on top is where a night has a second pass', () => {
-        expect(tookAbout(true)).toBe('Training, then scoring the test days in a lighter teal. On a night with a second pass, training it again sits on top in dark teal.');
+    it('says what the part on top is where a night was fine-tuned, by that name (#324)', () => {
+        expect(tookAbout(true)).toBe('Training, then scoring the test days in a lighter teal. On a night with fine-tuning, it sits on top in dark teal.');
     });
 
     it('names the teals as a dark page draws them', () => {
-        expect(tookAbout(true, true)).toBe('Training, then scoring the test days in a darker teal. On a night with a second pass, training it again sits on top in light teal.');
+        expect(tookAbout(true, true)).toBe('Training, then scoring the test days in a darker teal. On a night with fine-tuning, it sits on top in light teal.');
         expect(tookAbout(false, true)).toMatch(/^Training, then scoring the test days in a darker teal\. A weekly retrain/);
     });
 });
@@ -958,11 +958,11 @@ describe('the panel of the night picked (#318)', () => {
         expect([...days.querySelectorAll('dt')].map((name) => name.textContent)).toEqual(['Studied or used to stop', 'Test']);
     });
 
-    it('says how long pt-gnn\'s Oct 27 night took in all, its second pass among its parts (#318)', () => {
+    it('says how long pt-gnn\'s Oct 27 night took in all, its fine-tuning among its parts (#318, #324)', () => {
         const { container } = draw({ rows: ptGnnHistory() });
 
         expect(container.querySelector('.model-night-panel')).toHaveTextContent(
-            'How long it took: 54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s training again. Started 4:43 AM ET.'
+            'How long it took: 54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days, then 10 min 58 s fine-tuning. Started 4:43 AM ET.'
         );
     });
 });
@@ -1062,7 +1062,7 @@ describe('how long each attempt took (#247)', () => {
     });
 });
 
-describe('a second pass in how long each attempt took (#318)', () => {
+describe('the fine-tuning in how long each attempt took (#318, #324)', () => {
     //
     // pt-gnn's Oct 27 night, the newest and last, at the right of its 13 bands:
     // trained for 2495.8 s, scored by 2592.5 s, then trained again for 657.7 s
@@ -1103,9 +1103,9 @@ describe('a second pass in how long each attempt took (#318)', () => {
         const items = within(key).getAllByRole('listitem');
 
         expect(title.nextElementSibling).toHaveTextContent(
-            'Training, then scoring the test days in a lighter teal. On a night with a second pass, training it again sits on top in dark teal.'
+            'Training, then scoring the test days in a lighter teal. On a night with fine-tuning, it sits on top in dark teal.'
         );
-        expect(items.map((item) => item.textContent)).toEqual(['Training', 'Scoring the test days', 'Second pass: training again']);
+        expect(items.map((item) => item.textContent)).toEqual(['Training', 'Scoring the test days', 'Fine-tuning']);
         expect(items[2].querySelector('rect')).toHaveAttribute('fill', chartColors('light').tookAgain);
     });
 
@@ -1113,38 +1113,48 @@ describe('a second pass in how long each attempt took (#318)', () => {
         draw({ rows: ptGnnHistory() }, 'dark');
 
         expect(screen.getByRole('heading', { name: 'How long each attempt took' }).nextElementSibling).toHaveTextContent(
-            'Training, then scoring the test days in a darker teal. On a night with a second pass, training it again sits on top in light teal.'
+            'Training, then scoring the test days in a darker teal. On a night with fine-tuning, it sits on top in light teal.'
         );
     });
 
-    it('describes the second pass to a screen reader, and counts it in the longest night', () => {
+    it('describes the fine-tuning to a screen reader, and counts it in the longest night', () => {
         draw({ rows: timedHistoryOf({ 3: { went_live: true, trained_again: true, trained_again_seconds: 600 } }) });
 
         expect(screen.getByRole('img', {
-            name: 'How long each attempt took, training and then scoring, and on a night with a second pass, training again, on the 2 nights with times. The longest took 18 min 52 s.',
+            name: 'How long each attempt took, training and then scoring, and then fine-tuning where a night had it, on the 2 nights with times. The longest took 18 min 52 s.',
         })).toBeInTheDocument();
     });
 
-    it('gives pt-gnn\'s Oct 27 night a row for training again in its popup, and counts it in all', () => {
+    it('gives pt-gnn\'s Oct 27 night a row for its fine-tuning in its popup, and counts it in all', () => {
         const { container } = draw({ rows: ptGnnHistory() });
 
         pointAt(container, LAST, TOOK);
 
         expect(readPopup(popupOf(container))).toEqual({
             title: 'Wed Oct 28 · nightly update',
-            rows: [['Training', '41 min 36 s'], ['Scoring', '1 min 37 s'], ['Training again', '10 min 58 s']],
+            rows: [['Training', '41 min 36 s'], ['Scoring', '1 min 37 s'], ['Fine-tuning', '10 min 58 s']],
             foot: '54 min 10 s in all, started 4:43 AM ET',
         });
         expect(popupOf(container).querySelectorAll('.model-tip-row rect')[2]).toHaveAttribute('fill', chartColors('light').tookAgain);
     });
 
-    it('leaves a history with no second pass as it was: no third part, no key for one, no row for one', () => {
+    it('names it fine-tuning everywhere, and never a second pass nor training again (#324)', () => {
+        const { container } = draw({ rows: ptGnnHistory() });
+
+        pointAt(container, LAST, TOOK);
+
+        expect(readPopup(popupOf(container)).rows.map(([name]) => name)).toContain('Fine-tuning');
+        expect(document.body.textContent).not.toMatch(/second pass|training again|training it again/i);
+        expect(screen.getByRole('img', { name: /How long each attempt took/ }).getAttribute('aria-label')).not.toMatch(/second pass|again/i);
+    });
+
+    it('leaves a history with no fine-tuning as it was: no third part, no key for one, no row for one', () => {
         const { container } = draw({ rows: ptOptionsHistory() });
 
         pointAt(container, 430, TOOK);
 
         expect(container.querySelector('.model-took-again')).toBeNull();
-        expect(screen.queryByText('Second pass: training again')).toBeNull();
+        expect(screen.queryByText('Fine-tuning')).toBeNull();
         expect(readPopup(popupOf(container)).rows.map(([name]) => name)).toEqual(['Training', 'Scoring']);
         expect(screen.getByRole('img', { name: /^How long each attempt took, training and then scoring, on the 5 nights/ })).toBeInTheDocument();
     });
@@ -1538,7 +1548,7 @@ describe('the numbers', () => {
         expect(table.querySelector('.model-took-noted')).toBeNull();
     });
 
-    it('gives pt-gnn\'s Oct 27 night its whole time, both passes, with a note saying so (#318)', async () => {
+    it('gives pt-gnn\'s Oct 27 night its whole time, its fine-tuning counted in, with a note saying so (#318, #324)', async () => {
         draw({ rows: ptGnnHistory() });
 
         const [newest, older] = cellsOf(await opened());
@@ -1546,19 +1556,19 @@ describe('the numbers', () => {
 
         expect(newest[7]).toHaveTextContent(/^54 min 10 s$/);
         expect(noted).toHaveClass('model-noted');
-        expect(noted).toHaveAccessibleDescription('Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again.');
+        expect(noted).toHaveAccessibleDescription('43 min 13 s for the new version’s training and test, then 10 min 58 s fine-tuning it.');
         expect(older[7]).toHaveTextContent(/^54 min 30 s$/);
         expect(older[7].querySelector('.model-took-noted')).toBeNull();
     });
 
-    it('counts a second pass whose version did not take over, and says the first pass took over (#318)', async () => {
+    it('counts a fine-tuning whose version did not go live, and says the tested version went live instead (#318, #324)', async () => {
         draw({ rows: timedHistoryOf({ 4: { went_live: true, trained_again: false, trained_again_seconds: 120 } }) });
 
         const [newest] = cellsOf(await opened());
 
         expect(newest[7]).toHaveTextContent(/^11 min 52 s$/);
         expect(newest[7].querySelector('.model-took-noted')).toHaveAccessibleDescription(
-            'Two passes: 9 min 52 s for the new version’s training and test, then 2 min 0 s training it again. The first pass took over.'
+            '9 min 52 s for the new version’s training and test, then 2 min 0 s fine-tuning it. The tested version went live instead.'
         );
     });
 

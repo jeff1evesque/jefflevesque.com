@@ -383,7 +383,7 @@ describe('how long an attempt took, and when it started (#247)', () => {
     });
 });
 
-describe('a night\'s time in all, its second pass counted in, and its name (#318)', () => {
+describe('a night\'s time in all, its fine-tuning counted in, and its name (#318, #324)', () => {
     //
     // a night's times as the history gives them, in seconds
     //
@@ -409,15 +409,16 @@ describe('a night\'s time in all, its second pass counted in, and its name (#318
         expect(attemptSeconds(null)).toBeNull();
     });
 
-    it('notes a night with a second pass that its time is two passes, the first one\'s training and test, then training again', () => {
+    it('notes a fine-tuned night what its time is made of: the training and test, then the fine-tuning, by that name (#324)', () => {
         expect(twoPasses(night(2592.5, 657.7))).toBe(
-            'Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again.'
+            '43 min 13 s for the new version’s training and test, then 10 min 58 s fine-tuning it.'
         );
+        expect(twoPasses(night(2592.5, 657.7))).not.toMatch(/pass|again/i);
     });
 
-    it('says the first pass took over where the second pass\'s version did not, its time counted all the same', () => {
+    it('says the tested version went live instead where the fine-tuned one did not, its time counted all the same (#324)', () => {
         expect(twoPasses(night(2592.5, 657.7, { trained_again: false }))).toBe(
-            'Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again. The first pass took over.'
+            '43 min 13 s for the new version’s training and test, then 10 min 58 s fine-tuning it. The tested version went live instead.'
         );
     });
 

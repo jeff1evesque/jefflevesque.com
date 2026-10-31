@@ -1493,7 +1493,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
             ]);
         });
 
-        describe('how long the newest night took, its second pass counted in (#318)', () => {
+        describe('how long the newest night took, its fine-tuning counted in (#318, #324)', () => {
             //
             // the Took row's value, and the note on its info icon, or null where
             // it has none
@@ -1505,13 +1505,13 @@ describe('each card\'s rows on a wide screen (#267)', () => {
                 return { value: row.lastChild.textContent, noted: row.querySelector('.model-noted') };
             }
 
-            it('gives pt-gnn\'s Oct 27 night\'s whole time, both passes, with a note giving each', async () => {
+            it('gives pt-gnn\'s Oct 27 night\'s whole time, its fine-tuning counted in, with a note giving each part', async () => {
                 answer({ history: ptGnnHistory() });
                 await open();
 
                 expect(took().value).toBe('54 min 10 s');
                 expect(took().noted).toHaveAccessibleDescription(
-                    'Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again.'
+                    '43 min 13 s for the new version’s training and test, then 10 min 58 s fine-tuning it.'
                 );
                 expect(took().noted.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
             });
@@ -1522,7 +1522,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
 
                 await userEvent.hover(took().noted);
 
-                expect(await screen.findByRole('tooltip')).toHaveTextContent(/^Two passes: 43 min 13 s .* then 10 min 58 s training it again\.$/);
+                expect(await screen.findByRole('tooltip')).toHaveTextContent(/^43 min 13 s .* then 10 min 58 s fine-tuning it\.$/);
             });
 
             it('gives a night with no second pass its first pass\'s time, as before, with no note', async () => {
@@ -1532,7 +1532,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
                 expect(took()).toEqual({ value: '54 min 30 s', noted: null });
             });
 
-            it('counts a second pass whose version did not take over, and says the first pass took over', async () => {
+            it('counts a fine-tuning whose version did not go live, and says the tested version went live instead', async () => {
                 const history = ptGnnHistory();
 
                 history[history.length - 1] = { ...history[history.length - 1], trained_again: false };
@@ -1541,7 +1541,7 @@ describe('each card\'s rows on a wide screen (#267)', () => {
 
                 expect(took().value).toBe('54 min 10 s');
                 expect(took().noted).toHaveAccessibleDescription(
-                    'Two passes: 43 min 13 s for the new version’s training and test, then 10 min 58 s training it again. The first pass took over.'
+                    '43 min 13 s for the new version’s training and test, then 10 min 58 s fine-tuning it. The tested version went live instead.'
                 );
             });
 

@@ -21,8 +21,9 @@
  * and down in its red where it was worse, the axis saying which is which.
  *
  * The third draws how long each attempt took (#247): a bar of its training, the
- * scoring of its test days stacked on top as a lighter teal, and from format 6 a
- * second pass training it again on top of both, in a teal of its own (#318). Its
+ * scoring of its test days stacked on top as a lighter teal, and from format 6 its
+ * fine-tuning on top of both, in a teal of its own (#318), named as the Live
+ * version card names its check (#324). Its
  * axis is in seconds, minutes or hours, by its longest night (#251). The trainer
  * has kept these times since 2026-10-15, so an older night has no bar, and the
  * chart is left out while no night has one.
@@ -202,8 +203,8 @@ AttemptMark.propTypes = {
  * that doesn't -- see night-panel.jsx.
  *
  * Where the night has times, `training` and `scoring` split the first pass, in
- * seconds: the training, and the rest of the attempt after it; `again` is a
- * second pass training it again, from format 6 (#318), and `took` the whole
+ * seconds: the training, and the rest of the attempt after it; `again` is its
+ * fine-tuning, from format 6 (#318, #324), and `took` the whole
  * attempt -- see scores.js's attemptSeconds -- with `note` saying it is two
  * passes, where it is. Each is null where the night has no times, or a total
  * shorter than its training, which no attempt can take.
@@ -258,7 +259,7 @@ export function attemptPoints(rows, score) {
 /**
  * the unit of the axis of how long each attempt took: seconds, minutes once the
  * longest night of `points` passes two of them, or hours once it passes two
- * hours, a second pass counted in (#318). A model whose attempts take seconds
+ * hours, its fine-tuning counted in (#318). A model whose attempts take seconds
  * would draw bars no taller than a line on an axis of whole minutes.
  */
 export function durationUnit(points) {
@@ -316,17 +317,17 @@ export function axisLabel(score) {
 
 /**
  * what the line under how long each attempt took says (#318): which part of a
- * bar is which, and why a weekly retrain stands taller -- or, where a night has
- * a second pass, `again`, what the part on top is. Its teals in words for the
+ * bar is which, and why a weekly retrain stands taller -- or, where a night was
+ * fine-tuned, `again`, what the part on top is (#324). Its teals in words for the
  * theme they are drawn in: the scoring at half the training's teal is lighter
- * on a light page and darker on a dark one, and the second pass is the darkest
+ * on a light page and darker on a dark one, and the fine-tuning is the darkest
  * teal by day and the lightest by night.
  */
 export function tookAbout(again, dark = false) {
     const parts = `Training, then scoring the test days in a ${dark ? 'darker' : 'lighter'} teal.`;
 
     return again
-        ? `${parts} On a night with a second pass, training it again sits on top in ${dark ? 'light' : 'dark'} teal.`
+        ? `${parts} On a night with fine-tuning, it sits on top in ${dark ? 'light' : 'dark'} teal.`
         : `${parts} A weekly retrain starts from scratch, so its bar stands taller.`;
 }
 
@@ -642,7 +643,7 @@ function AttemptsChart({ rows, score, held = false }) {
                 { key: 'training', mark: <Mark kind='bar' color={colors.took} />, name: 'Training', value: formatDuration(point.training) },
                 { key: 'scoring', mark: <Mark kind='fade' color={colors.took} />, name: 'Scoring', value: formatDuration(point.scoring) },
                 ...(point.again === null ? [] : [
-                    { key: 'again', mark: <Mark kind='bar' color={colors.tookAgain} />, name: 'Training again', value: formatDuration(point.again) },
+                    { key: 'again', mark: <Mark kind='bar' color={colors.tookAgain} />, name: 'Fine-tuning', value: formatDuration(point.again) },
                 ]),
             ],
             foot: `${formatDuration(point.took)} in all${started ? `, started ${started}` : ''}`,
@@ -838,7 +839,7 @@ function AttemptsChart({ rows, score, held = false }) {
                             items={[
                                 { key: 'training', kind: 'bar', color: colors.took, label: 'Training' },
                                 { key: 'scoring', kind: 'fade', color: colors.took, label: 'Scoring the test days' },
-                                ...(again ? [{ key: 'again', kind: 'bar', color: colors.tookAgain, label: 'Second pass: training again' }] : []),
+                                ...(again ? [{ key: 'again', kind: 'bar', color: colors.tookAgain, label: 'Fine-tuning' }] : []),
                             ]}
                         />
                         <ClickAwayListener onClickAway={popup.away('took')}>
@@ -846,7 +847,7 @@ function AttemptsChart({ rows, score, held = false }) {
                                 className='model-chart model-chart-took'
                                 role='img'
                                 aria-label={[
-                                    `How long each attempt took, training and then scoring${again ? ', and on a night with a second pass, training again' : ''},`,
+                                    `How long each attempt took, training and then scoring${again ? ', and then fine-tuning where a night had it' : ''},`,
                                     `on the ${timed.length} ${timed.length === 1 ? 'night' : 'nights'} with times.`,
                                     `The longest took ${formatDuration(Math.max(...timed.map((point) => point.took)))}.`,
                                 ].join(' ')}

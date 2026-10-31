@@ -344,10 +344,10 @@ export const ATTEMPTS_NOTE = `Each night’s attempt is tested on the newest ${H
  * holds, `held`, that attempts are judged on the 1-day hold. None where there is
  * no history.
  *
- * Its time is the whole attempt (#318): from format 6 a second pass training
- * the new version again counts too, and the info icon after it says it is two
- * passes -- see scores.js's attemptSeconds and twoPasses. A night with one pass
- * reads as it always did.
+ * Its time is the whole attempt (#318): from format 6 the new version's
+ * fine-tuning counts too, and the info icon after it says what the time is made
+ * of -- see scores.js's attemptSeconds and twoPasses. A night with no
+ * fine-tuning reads as it always did.
  *
  * Note: #320 took out the night's test loss beside the version in charge's. A
  *       test score sat beside the score card's real one, and read as a second
