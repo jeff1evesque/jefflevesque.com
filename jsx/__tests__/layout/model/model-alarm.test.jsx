@@ -55,7 +55,7 @@ function deferred() {
     return { promise, resolve };
 }
 
-const ALARMS = [{ id: 'live', name: 'pt-gnn goes live ahead of the baseline' }];
+const ALARMS = [{ id: 'live', name: 'pt-gnn goes live ahead of its previous version' }];
 const HELD = { model: 'pt-gnn', alarm: 'live', since: '2026-10-18T12:00:00Z', terms: TERMS_VERSION };
 
 beforeEach(() => {
@@ -107,7 +107,7 @@ async function openSignedIn({ name = 'pt-gnn', held = [], alarms = ALARMS } = {}
     return view;
 }
 
-const alarmSwitch = () => screen.getByLabelText('pt-gnn goes live ahead of the baseline');
+const alarmSwitch = () => screen.getByLabelText('pt-gnn goes live ahead of its previous version');
 const acceptBox = () => screen.getByRole('checkbox', { name: 'I accept the terms and conditions' });
 
 describe('the page', () => {
@@ -119,11 +119,11 @@ describe('the page', () => {
     });
 
     it('reads its model from the address', async () => {
-        await openSignedIn({ name: 'tables', alarms: [{ id: 'live', name: 'tables goes live ahead of the baseline' }] });
+        await openSignedIn({ name: 'tables', alarms: [{ id: 'live', name: 'tables goes live ahead of its previous version' }] });
 
         expect(screen.getByRole('link', { name: '‹ tables' })).toHaveAttribute('href', '/model/tables');
         expect(modelAlarms).toHaveBeenCalledWith('tables');
-        expect(await screen.findByLabelText('tables goes live ahead of the baseline')).toBeInTheDocument();
+        expect(await screen.findByLabelText('tables goes live ahead of its previous version')).toBeInTheDocument();
     });
 
     it('escapes a name the address would read otherwise', async () => {
@@ -166,7 +166,7 @@ describe('the page', () => {
 
         const about = screen.getByRole('region', { name: 'What sets it off' });
 
-        expect(about).toHaveTextContent('It emails you when a new version of pt-gnn goes live ahead of the baseline');
+        expect(about).toHaveTextContent('It emails you when a new version of pt-gnn goes live ahead of its previous version');
         expect(about).toHaveTextContent('lower than both the version it replaced and the know-nothing baseline’s');
         expect(about).toHaveTextContent('Not every new version that goes live beats both, so it goes off less often than a model goes live.');
         expect(about).toHaveTextContent('first version never sets it off');
@@ -204,7 +204,7 @@ describe('signed out', () => {
         expect(screen.getByText(/You need to login to subscribe to model alarms/)).toBeInTheDocument();
         expect(within(document.querySelector('.agreement-button')).getAllByRole('link').map((link) => link.textContent))
             .toEqual(expect.arrayContaining(['Sign up']));
-        expect(screen.queryByLabelText('pt-gnn goes live ahead of the baseline')).toBeNull();
+        expect(screen.queryByLabelText('pt-gnn goes live ahead of its previous version')).toBeNull();
         expect(screen.queryByRole('checkbox')).toBeNull();
     });
 
@@ -239,7 +239,7 @@ describe('signed in', () => {
         await openSignedIn();
 
         expect(modelAlarms).toHaveBeenCalledWith('pt-gnn');
-        expect(await screen.findByLabelText('pt-gnn goes live ahead of the baseline')).not.toBeChecked();
+        expect(await screen.findByLabelText('pt-gnn goes live ahead of its previous version')).not.toBeChecked();
     });
 
     it('shows an alarm the reader holds switched on', async () => {
@@ -263,7 +263,7 @@ describe('signed in', () => {
     it('lets no switch be turned on before the terms are accepted', async () => {
         await openSignedIn();
 
-        await screen.findByLabelText('pt-gnn goes live ahead of the baseline');
+        await screen.findByLabelText('pt-gnn goes live ahead of its previous version');
 
         expect(alarmSwitch()).toBeDisabled();
         expect(screen.getByText(/Accept the terms and conditions above/)).toBeInTheDocument();
@@ -277,7 +277,7 @@ describe('signed in', () => {
         subscribeModel.mockResolvedValue(HELD);
 
         await openSignedIn();
-        await screen.findByLabelText('pt-gnn goes live ahead of the baseline');
+        await screen.findByLabelText('pt-gnn goes live ahead of its previous version');
 
         fireEvent.click(acceptBox());
         await waitFor(() => expect(alarmSwitch()).toBeEnabled());
@@ -303,7 +303,7 @@ describe('signed in', () => {
 
     it('moves a switch only once the api has answered', async () => {
         await openSignedIn();
-        await screen.findByLabelText('pt-gnn goes live ahead of the baseline');
+        await screen.findByLabelText('pt-gnn goes live ahead of its previous version');
 
         fireEvent.click(acceptBox());
         await waitFor(() => expect(alarmSwitch()).toBeEnabled());
@@ -319,7 +319,7 @@ describe('signed in', () => {
         const settingsLink = () => screen.queryByRole('link', { name: 'Verify it in Account Settings' });
 
         async function turnOn() {
-            await screen.findByLabelText('pt-gnn goes live ahead of the baseline');
+            await screen.findByLabelText('pt-gnn goes live ahead of its previous version');
 
             fireEvent.click(acceptBox());
             await waitFor(() => expect(alarmSwitch()).toBeEnabled());
@@ -369,7 +369,7 @@ describe('signed in', () => {
         subscribeModel.mockResolvedValue(null);
 
         await openSignedIn();
-        await screen.findByLabelText('pt-gnn goes live ahead of the baseline');
+        await screen.findByLabelText('pt-gnn goes live ahead of its previous version');
 
         fireEvent.click(acceptBox());
         await waitFor(() => expect(alarmSwitch()).toBeEnabled());
@@ -377,7 +377,7 @@ describe('signed in', () => {
         fireEvent.click(alarmSwitch());
 
         expect(await screen.findByText(/You need to login to subscribe to model alarms/)).toBeInTheDocument();
-        expect(screen.queryByLabelText('pt-gnn goes live ahead of the baseline')).toBeNull();
+        expect(screen.queryByLabelText('pt-gnn goes live ahead of its previous version')).toBeNull();
     });
 
     it('is shown the signed-out view when the subscriptions come back signed out', async () => {
@@ -543,7 +543,7 @@ describe('answers that land after the page has gone', () => {
             alarms.resolve(ALARMS);
         });
 
-        expect(screen.queryByLabelText('pt-gnn goes live ahead of the baseline')).toBeNull();
+        expect(screen.queryByLabelText('pt-gnn goes live ahead of its previous version')).toBeNull();
     });
 
     it('are let go when they fail', async () => {
