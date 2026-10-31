@@ -339,10 +339,10 @@ export const ATTEMPTS_NOTE = `Each night’s attempt is tested on the newest ${H
  * the Attempts card's rows on a wide screen (#267), as liveRows gives them: how
  * many nightly updates and weekly retrains went live, of how many, '3 of 7 went
  * live' -- a kind with no attempts has no row -- then the newest night, named for
- * the morning its test ran (#318), 'Wed Oct 28, took over', and when it started
- * and how long it took, where the history has its times. Last, for a model with
- * holds, `held`, that attempts are judged on the 1-day hold. None where there is
- * no history.
+ * the morning its test ran (#318), 'Wed Oct 28, took over', and when it started,
+ * its day before its time (#327), 'Wed Oct 28, 4:43 AM ET', and how long it
+ * took, where the history has its times. Last, for a model with holds, `held`,
+ * that attempts are judged on the 1-day hold. None where there is no history.
  *
  * Its time is the whole attempt (#318): from format 6 the new version's
  * fine-tuning counts too, and the info icon after it says what the time is made
