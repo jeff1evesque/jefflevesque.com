@@ -1824,13 +1824,31 @@ describe('an options model (#279)', () => {
             expect(onScore).toHaveBeenCalledWith('option-picks', 'profit_auc');
         });
 
-        it('show its own loss, beside its baseline\'s, under its task\'s note, and no parts of loss', async () => {
+        it('show its own loss, beside its baseline\'s, under its task\'s note, and its two parts at the card\'s foot (#322)', async () => {
             options();
             await open('pt-options');
 
+            const newest = optionsTrackOf(30).slice(-1)[0];
+            const card = stat('Loss, last 20 days');
+
+            expect(card.querySelector('.model-stat-value')).toHaveTextContent('0.840');
+            expect(card).toHaveTextContent('0.040 better than baseline, 0.880');
+            expect(within(card).getByText('Loss, last 20 days')).toHaveAccessibleDescription(noteOf('loss', OPTIONS_TASK));
+            expect(card.querySelector('.model-stat-group-head')).toHaveTextContent('Loss, part by part');
+            expect([...card.querySelectorAll('.model-part')].map((row) => [row.querySelector('.model-part-name').textContent, row.querySelector('.model-part-value').textContent]))
+                .toEqual([
+                    ['Makes money', formatScore(newest.average.profit_log_loss_1d, 'loss')],
+                    ['Size of the gain', formatScore(newest.average.gain_pinball_1d, 'loss')],
+                ]);
+        });
+
+        it('show no parts of loss for a track record without their columns (#322)', async () => {
+            const without = (scores) => Object.fromEntries(Object.entries(scores).filter(([key]) => !/^(profit_log_loss|gain_pinball)_/.test(key)));
+
+            options({ track: optionsTrackOf(30).map((row) => ({ ...row, average: without(row.average), baseline_average: without(row.baseline_average) })) });
+            await open('pt-options');
+
             expect(stat('Loss, last 20 days').querySelector('.model-stat-value')).toHaveTextContent('0.840');
-            expect(stat('Loss, last 20 days')).toHaveTextContent('0.040 better than baseline, 0.880');
-            expect(within(stat('Loss, last 20 days')).getByText('Loss, last 20 days')).toHaveAccessibleDescription(noteOf('loss', OPTIONS_TASK));
             expect(document.querySelector('.model-parts')).toBeNull();
         });
 
