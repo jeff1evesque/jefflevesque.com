@@ -362,7 +362,7 @@ describe('unsubscribeModel (#255)', () => {
 
 describe('modelAlarms (#255)', () => {
     it('asks the public list for the model, with no token at all', async () => {
-        const alarms = [{ id: 'live', name: 'pt-gnn goes live ahead of the baseline' }];
+        const alarms = [{ id: 'live', name: 'pt-gnn goes live ahead of its previous version' }];
         const fetcher = answering(200, alarms);
 
         await expect(modelAlarms('pt-gnn')).resolves.toEqual(alarms);
