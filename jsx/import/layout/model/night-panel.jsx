@@ -112,9 +112,10 @@ export function startedFrom(point) {
 /**
  * how long a night's attempt took, in all and in its parts, and when it started:
  * '54 min 10 s in all: 41 min 36 s training, 1 min 37 s scoring the test days,
- * then 10 min 58 s fine-tuning. Started 4:43 AM ET.' -- the fine-tuning by the
- * name the Live version card gives its check (#324). A night from before the
- * trainer kept times says so.
+ * then 10 min 58 s fine-tuning. Started Wed Oct 28, 4:43 AM ET.' -- the
+ * fine-tuning by the name the Live version card gives its check (#324), and the
+ * start with its day (#327), where the panel's title and the line under it name
+ * two. A night from before the trainer kept times says so.
  */
 export function tookWords(point) {
     if (point.took === null) {
