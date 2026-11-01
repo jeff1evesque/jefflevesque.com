@@ -19,7 +19,8 @@
  *                           night rather than said by the rule of its day, as
  *                           older nights were decided by older rules
  *     where it started      the version that took over before it, for a nightly
- *                           update, or from scratch
+ *                           update, or from scratch, with a note on what that
+ *                           means (#336)
  *     how long it took      the whole time and its parts, from format 6 its
  *                           fine-tuning among them (#324)
  *     which days it used    its days as a strip, a row for each month, a box for
@@ -105,6 +106,19 @@ export function resultWords(point) {
     return `On loss it ${said.join(' and ')}.`;
 }
 
+//
+// how a night's new version started: 'scratch' for a weekly full retrain and a
+// first version, 'update' for a nightly update from the version before it, and
+// null for a nightly update with no version before it
+//
+function startOf(point) {
+    if (point.first || point.kind === 'weekly') {
+        return 'scratch';
+    }
+
+    return point.from ? 'update' : null;
+}
+
 /**
  * where a night's new version started: from the version that took over before
  * it, for a nightly update -- 'Started from the version that took over Sat Oct
@@ -112,11 +126,36 @@ export function resultWords(point) {
  * Nothing for a nightly update with no version before it.
  */
 export function startedFrom(point) {
-    if (point.first || point.kind === 'weekly') {
+    const start = startOf(point);
+
+    if (start === 'scratch') {
         return 'Built from scratch.';
     }
 
-    return point.from ? `Started from the version that took over ${nightName(point.from)}.` : '';
+    return start ? `Started from the version that took over ${nightName(point.from)}.` : '';
+}
+
+/**
+ * what where a night's new version started means (#336), as the note after the
+ * line that says it, by how it started: a nightly update kept training the
+ * weights of the version before it, as that version was tested -- the trainer
+ * starts each update from them, since a fine-tune learns days the next night is
+ * tested on -- and a weekly full retrain and a first version started with new
+ * ones. No count of days: the strip under the line shows them, and a count goes
+ * stale when the trainer changes it.
+ */
+export const STARTED_NOTES = {
+    update: 'Instead of starting over, it took that version’s weights and kept training them. '
+        + 'If that version was fine-tuned, it took the weights from before the fine-tune.',
+    scratch: 'Instead of building on an earlier version, it started with new weights.',
+};
+
+/**
+ * the note after a night's line on where its new version started (#336), or
+ * nothing where there is no line.
+ */
+export function startedNote(point) {
+    return STARTED_NOTES[startOf(point)] || '';
 }
 
 /**
@@ -512,7 +551,11 @@ export default function NightPanel({ point, score, marks }) {
                 </span>
                 {result ? <><span className='visually-hidden'>.</span>{` ${result}`}</> : null}
             </p>
-            {from ? <p className='model-night-line'>{from}</p> : null}
+            {from ? (
+                <p className='model-night-line model-night-from'>
+                    <InfoNote note={startedNote(point)} className='model-noted'>{from}</InfoNote>
+                </p>
+            ) : null}
             <p className='model-night-line'>
                 <span className='model-night-line-name'>How long it took:</span>
                 {` ${tookWords(point)}`}

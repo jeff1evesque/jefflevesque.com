@@ -773,6 +773,20 @@ describe('the attempts\' nights and the panel of the one picked (#318)', () => {
         expect(declared(rule('.model-day'), 'box-sizing')).toBe('border-box');
     });
 
+    it('fills a skipped day a mid gray, its date a step further from the page, beside the page\'s white of a day not in yet (#336)', () => {
+        const skipped = rule('.model-day-skipped');
+
+        expect(declared(skipped, 'background-color')).toBe('$gray-5');
+        expect(declared(skipped, 'color')).toBe('$gray-8');
+        expect(declared(rule('.model-day-pending'), 'background-color')).toBe('$white-1');
+        expect(declared(rule('.model-day-pending'), 'color')).toBe('$gray-7');
+    });
+
+    it('breaks the line on where a night started into lines of about one length, so its note\'s icon never stands alone (#336)', () => {
+        expect(declared(rule('.model-night-from'), 'text-wrap')).toBe('balance');
+        expect(rulesOf('.model-night-from')).toHaveLength(1);
+    });
+
     it('gives each teal kind of day a pair of its own on a dark page', () => {
         ['.model-day-studied', '.model-day-stopping', '.model-day-unpicked'].forEach((selector) => {
             expect(whole(selector).body).toMatch(/@include dark \{/);

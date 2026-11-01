@@ -27,6 +27,15 @@ import { MemoryRouter } from 'react-router-dom';
 
 import DataLayout from '../../../import/layout/data/data.jsx';
 import { KEY, VERSION } from '../../../import/general/listing-preference.js';
+import { holdClockOn } from '../../../test-support/pinned-clock.js';
+
+//
+// the page opens on this month on a weekday, and on the one before on a weekend
+// that starts a month, so each case runs on a weekday in the middle of one
+// (#336) -- see pinned-clock.js. bls's two months back are counted from the
+// same day
+//
+holdClockOn();
 
 beforeEach(() => {
     window.localStorage.clear();

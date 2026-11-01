@@ -1779,6 +1779,17 @@ $model-parts-inset: clamp(0px, calc((100% - 21rem) / 2), 20%);
 }
 
 //
+// where the night's new version started, and the icon of its note after it
+// (#336): a phone breaks the line into lines of about one length, so the icon
+// never stands on a line of its own, as a name with a note does -- see
+// '.model-layout .model-noted'. The line holds the name, which stays inline, so
+// its note opens over its words and not the empty line beside them
+//
+.model-night-from {
+  text-wrap: balance;
+}
+
+//
 // which days a night used: a strip of its days, each a box with its date, after
 // the name of its month, a key of what each box's look means, and the same in
 // words. A test day is the strip's orange, with the darkest ink on it in either
@@ -1833,11 +1844,16 @@ $model-parts-inset: clamp(0px, calc((100% - 21rem) / 2), 20%);
 // the full strip, once a night's history lists its days (#318): a row for each
 // month, its name in a column of its own so the rows' days line up. A day
 // trained on is filled with a deep teal, and a validation day with a light one;
-// one skipped is struck through on the page's light gray, one whose result isn't
-// in yet sits inside a dashed gray, and one not picked this night is outlined in
-// the deep teal it would have been filled with. The grays are the theme's own,
-// and each teal a pair: on a dark page the deep teal sat too near the page, and
-// is lighter
+// one skipped is struck through on a mid gray, one whose result isn't in yet
+// sits inside a dashed gray, and one not picked this night is outlined in the
+// deep teal it would have been filled with. The grays are the theme's own, and
+// each teal a pair: on a dark page the deep teal sat too near the page, and is
+// lighter.
+//
+// Note: a skipped day was on the page's lightest gray, a step off the page,
+//       which a phone drew as the white of a day not in yet -- and the key's
+//       swatch has no date to strike through (#336). Its date is a step further
+//       from the page too: at night the step it had is 4.47:1 on the mid gray
 //
 $day-teal: #0f766e;
 $day-teal-light: #99f6e4;
@@ -1886,9 +1902,9 @@ $dark-day-teal: #14b8a6;
 }
 
 .model-day-skipped {
-  background-color: $gray-1;
+  background-color: $gray-5;
   border: 1px dashed $gray-6;
-  color: $gray-7;
+  color: $gray-8;
   text-decoration: line-through;
 }
 

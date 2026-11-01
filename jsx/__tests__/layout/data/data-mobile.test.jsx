@@ -39,6 +39,14 @@ const { render, fireEvent, screen, act } = require('@testing-library/react');
 const { MemoryRouter } = require('react-router-dom');
 const DataLayout = require('../../../import/layout/data/data.jsx').default;
 const { KEY, VERSION } = require('../../../import/general/listing-preference.js');
+const { holdClockOn } = require('../../../test-support/pinned-clock.js');
+
+//
+// the page opens on this month on a weekday, and on the one before on a weekend
+// that starts a month, so each case runs on a weekday in the middle of one
+// (#336) -- see pinned-clock.js
+//
+holdClockOn();
 
 //
 // a click keeps the stream it charts for the next visit, in localStorage, and

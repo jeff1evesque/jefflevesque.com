@@ -44,8 +44,8 @@ hold switches on with the retrain on Saturday, Nov 21, and its first grades, wit
 first Combined, come in on Dec 24. Until then, they have no grades to show.
 
 **Why a new version is judged on the 1-day hold:** each night the trainer tries a new
-version of every model, and it replaces the live one only if it does better on recent
-test days. Those days' 5 and 20-day holds haven't ended yet, so only their 1-day grades
+version of every model, and it replaces the live one only if it beats the baseline on
+recent test days. Those days' 5 and 20-day holds haven't ended yet, so only their 1-day grades
 are known. The longer holds are judged later, on the days the model really predicted, by
 the checks below.
 
@@ -102,6 +102,39 @@ average, it didn't learn anything useful from the data. Here it didn't: lower is
 and 1.712 is worse than 1.648. These are tables-gnn's real numbers from Oct 21, 2026.
 
 On /model, ▲ beside a score means the model beat the baseline, and ▼ means it didn't.
+
+## How a new version is trained
+
+Each night the trainer makes a new version of every model, and tests it on the newest 3
+days with results, which it never trains on. If it beats the baseline on them, it goes
+live and makes the next night's predictions. On a model's page, the panel under its
+attempts says how each night's version started.
+
+**Nightly update** ("Started from the version that took over Thu Oct 29."): most nights.
+It starts with the live version's weights, the numbers that version learned, and keeps
+training them, for up to 50 epochs (passes over its days). It trains on the newest day
+before the test days, plus 15 to 20 older days picked at random from the latest 100 with
+results. Its validation days are 3 more older days picked at random. It's scored on them
+after each epoch, and stops once that score stops getting better.
+
+**Weekly full retrain** ("Built from scratch."): Saturdays. It starts over with new
+weights, for up to 500 epochs. It uses the latest 100 days with results, less the 3 test
+days. Its validation days are the newest 3 of those, and it trains on the rest. A model's
+first version is built this way too.
+
+While a model is young, it has fewer older days than a nightly update picks, so the
+update trains on all of them, and its days look like a weekly retrain's. Days with
+incomplete data are skipped either way.
+
+**Fine-tuning:** once a new version beats the baseline, it trains for 5 more epochs on its
+3 test days, plus 3 older days it already trained on, picked at random. That way the
+version that goes live has learned the newest days. Then it's scored on its validation
+days again. If it does more than 0.005 worse there, the version from before the
+fine-tune goes live instead.
+
+The next night's update starts from the live version as it was before its fine-tune. The
+fine-tune learned days the next night tests on, and a version is never tested on days it
+learned.
 
 ## When a model is taken down
 
