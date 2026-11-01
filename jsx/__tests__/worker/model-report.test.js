@@ -509,6 +509,7 @@ describe('the history', () => {
                 day: '2026-10-12',
                 tested: '2026-10-13',
                 from: null,
+                from_tuned: false,
                 charge: null,
                 kind: 'weekly',
                 went_live: true,
@@ -596,6 +597,39 @@ describe('the history', () => {
             const rows = read(tested('2026-10-21'), tested('2026-10-22'), tested('2026-10-23', { kind: 'weekly' }));
 
             expect(rows.map((row) => row.from)).toEqual([null, null, null]);
+            expect(rows.map((row) => row.from_tuned)).toEqual([false, false, false]);
+        });
+
+        it('says whether the version a nightly update started from went live fine-tuned, as tables-options\' Oct 28 and 29 nights did not (#336)', () => {
+            const rows = read(
+                tested('2026-10-27', { went_live: 'true', trained_again: 'true', started: '2026-10-28T10:36:41+00:00' }),
+                tested('2026-10-28', { went_live: 'true', trained_again: 'false', started: '2026-10-29T10:12:33+00:00' }),
+                tested('2026-10-29', { went_live: 'true', trained_again: 'false', started: '2026-10-30T10:58:10+00:00' }),
+                tested('2026-10-30', { kind: 'weekly', went_live: 'true', trained_again: 'true', started: '2026-10-31T13:32:03+00:00' }),
+                tested('2026-11-02', { started: '2026-11-03T10:40:00+00:00' }),
+            );
+
+            expect(rows.map((row) => [row.from, row.from_tuned])).toEqual([
+                [null, false],
+                ['2026-10-28', true],
+                ['2026-10-29', false],
+                [null, false],
+                ['2026-10-31', true],
+            ]);
+        });
+
+        it('goes by the newest night that went live, not one kept back after it, fine-tuned or not (#336)', () => {
+            const rows = read(
+                tested('2026-10-27', { went_live: 'true', trained_again: 'true', started: '2026-10-28T10:36:41+00:00' }),
+                tested('2026-10-28', { went_live: 'false', trained_again: 'false', started: '2026-10-29T10:12:33+00:00' }),
+                tested('2026-10-29', { started: '2026-10-30T10:58:10+00:00' }),
+            );
+
+            expect(rows.map((row) => [row.from, row.from_tuned])).toEqual([
+                [null, false],
+                ['2026-10-28', true],
+                ['2026-10-28', true],
+            ]);
         });
 
         it('says for every night the morning the version in charge took over: the newest night before it that went live, for a weekly retrain too (#334)', () => {
@@ -804,6 +838,7 @@ describe('the history', () => {
                 day: '2026-10-13',
                 tested: '2026-10-14',
                 from: null,
+                from_tuned: false,
                 charge: null,
                 kind: 'weekly',
                 went_live: true,
