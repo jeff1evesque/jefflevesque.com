@@ -638,7 +638,10 @@ export default () => {
     // it started, each night is named for the morning its test ran, `tested` --
     // see testedOn -- and a nightly update says the morning the version it started
     // from took over, `from`: the newest earlier night that went live. A weekly
-    // retrain starts from scratch, and has none.
+    // retrain starts from scratch, and has none. And whether that version went
+    // live fine-tuned, `from_tuned` (#336): the trainer starts an update from the
+    // version as it was tested, so from its weights before the fine-tune -- false
+    // where it went live as it was tested, and where there is no `from`.
     //
     // Every night says the morning the version in charge took over, `charge`
     // (#334): the same newest earlier night that went live, the version the
@@ -674,13 +677,16 @@ export default () => {
             };
         });
         let tookOver = null;
+        let tunedOver = false;
 
         rows.forEach(function (row) {
             row.from = row.kind === 'nightly' ? tookOver : null;
+            row.from_tuned = row.from !== null && tunedOver;
             row.charge = tookOver;
 
             if (row.went_live) {
                 tookOver = row.tested;
+                tunedOver = row.trained_again === true;
             }
         });
 
