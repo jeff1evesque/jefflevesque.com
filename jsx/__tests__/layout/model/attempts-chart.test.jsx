@@ -253,6 +253,18 @@ describe('attemptPoints', () => {
         expect(points[2]).toMatchObject({ kind: 'weekly', from: null, charge: '2026-10-23' });
     });
 
+    it('carries whether the version a nightly update started from went live fine-tuned, and not where the history says nothing of it (#336)', () => {
+        const rows = ptOptionsHistory();
+
+        rows[4] = { ...rows[4], from_tuned: true };
+        rows[3] = { ...rows[3], from_tuned: false };
+
+        const points = attemptPoints(rows, 'loss');
+
+        expect(points.map((point) => point.fromTuned)).toEqual([false, false, false, false, true]);
+        expect(points[4]).toMatchObject({ from: '2026-10-27', fromTuned: true });
+    });
+
     it('calls a night with no version in charge a first version, and none from a history without the day lists (#318)', () => {
         const [first] = attemptPoints(historyOf(1, { 0: { live: NONE, held_out_days: undefined, training_days: undefined } }), 'loss');
 

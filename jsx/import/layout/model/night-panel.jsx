@@ -135,27 +135,39 @@ export function startedFrom(point) {
     return start ? `Started from the version that took over ${nightName(point.from)}.` : '';
 }
 
-/**
- * what where a night's new version started means (#336), as the note after the
- * line that says it, by how it started: a nightly update kept training the
- * weights of the version before it, as that version was tested -- the trainer
- * starts each update from them, since a fine-tune learns days the next night is
- * tested on -- and a weekly full retrain and a first version started with new
- * ones. No count of days: the strip under the line shows them, and a count goes
- * stale when the trainer changes it.
- */
-export const STARTED_NOTES = {
-    update: 'Instead of starting over, it took that version’s weights and kept training them. '
-        + 'If that version was fine-tuned, it took the weights from before the fine-tune.',
-    scratch: 'Instead of building on an earlier version, it started with new weights.',
-};
+//
+// the note on a weekly full retrain and a first version (#336), which started
+// with new weights
+//
+export const SCRATCH_NOTE = 'Instead of building on an earlier version, it started with new weights.';
 
 /**
- * the note after a night's line on where its new version started (#336), or
- * nothing where there is no line.
+ * what where a night's new version started means (#336), as the note after the
+ * line that says it. A weekly full retrain and a first version started with new
+ * weights. A nightly update began with the weights of the version that took over
+ * on `from`, named by its morning again: the note opens over the line that names
+ * it on a phone, and its 'that version' named nothing there. Where that version
+ * went live fine-tuned, the update began with its weights from before the
+ * fine-tune -- the trainer starts each update from the version as it was tested,
+ * since a fine-tune learns days the next night is tested on -- and the note says
+ * so only then: an 'if' left the reader to work out whether it had. No count of
+ * days: the strip under the line shows them, and a count goes stale when the
+ * trainer changes it. Nothing where there is no line.
  */
 export function startedNote(point) {
-    return STARTED_NOTES[startOf(point)] || '';
+    const start = startOf(point);
+
+    if (start === 'scratch') {
+        return SCRATCH_NOTE;
+    }
+
+    if (!start) {
+        return '';
+    }
+
+    const tuned = point.fromTuned ? ', from before its fine-tune' : '';
+
+    return `It began with the weights of the version that took over ${nightName(point.from)}${tuned}, and kept training them.`;
 }
 
 /**
@@ -570,6 +582,7 @@ NightPanel.propTypes = {
         day: PropTypes.string.isRequired,
         tested: PropTypes.string,
         from: PropTypes.string,
+        fromTuned: PropTypes.bool,
         charge: PropTypes.string,
         kind: PropTypes.string.isRequired,
         went_live: PropTypes.bool.isRequired,

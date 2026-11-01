@@ -11,7 +11,7 @@ import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 
 import NightPanel, {
-    STARTED_NOTES,
+    SCRATCH_NOTE,
     TUNED,
     chargeWords,
     dayList,
@@ -188,27 +188,33 @@ describe('startedFrom', () => {
 });
 
 describe('startedNote (#336)', () => {
-    const UPDATE = 'Instead of starting over, it took that version’s weights and kept training them. '
-        + 'If that version was fine-tuned, it took the weights from before the fine-tune.';
     const SCRATCH = 'Instead of building on an earlier version, it started with new weights.';
 
-    it('notes that a nightly update kept training the weights of the version before it, as that version was tested', () => {
-        expect(startedNote(optionsNight(3))).toBe(UPDATE);
-        expect(startedNote(optionsNight(4))).toBe(UPDATE);
+    it('names the version a nightly update began with by the morning it took over, as the line the note opens over does', () => {
+        expect(startedNote(optionsNight(3))).toBe('It began with the weights of the version that took over Sat Oct 24, and kept training them.');
+        expect(startedNote(optionsNight(4))).toBe('It began with the weights of the version that took over Tue Oct 27, and kept training them.');
+    });
+
+    it('says the update began from before that version\'s fine-tune where that version went live fine-tuned, and only there', () => {
+        expect(startedNote({ ...optionsNight(4), fromTuned: true }))
+            .toBe('It began with the weights of the version that took over Tue Oct 27, from before its fine-tune, and kept training them.');
+        expect(startedNote(optionsNight(4))).not.toMatch(/fine-tun|\bif\b/i);
     });
 
     it('notes that a weekly retrain and a first version started with new weights', () => {
+        expect(SCRATCH_NOTE).toBe(SCRATCH);
         expect(startedNote(optionsNight(2))).toBe(SCRATCH);
         expect(startedNote(optionsNight(0))).toBe(SCRATCH);
     });
 
     it('notes nothing for a nightly update with no version before it, as there is no line', () => {
         expect(startedNote({ ...optionsNight(3), from: null })).toBe('');
+        expect(startedNote({ ...optionsNight(3), from: null, fromTuned: true })).toBe('');
     });
 
     it('gives no count of days, which the strip shows, and which would go stale', () => {
-        expect(Object.values(STARTED_NOTES)).toEqual([UPDATE, SCRATCH]);
-        Object.values(STARTED_NOTES).forEach((note) => expect(note).not.toMatch(/\d/));
+        [optionsNight(3), { ...optionsNight(4), fromTuned: true }, optionsNight(2)]
+            .forEach((point) => expect(startedNote(point)).not.toMatch(/\d+ (older |earlier )?days?\b/));
     });
 });
 
@@ -390,7 +396,7 @@ describe('NightPanel', () => {
         expect(line).toHaveClass('model-night-line');
         expect(line.children).toHaveLength(1);
         expect(noted).toHaveTextContent(/^Started from the version that took over Sat Oct 24\.$/);
-        expect(noted).toHaveAccessibleDescription(STARTED_NOTES.update);
+        expect(noted).toHaveAccessibleDescription('It began with the weights of the version that took over Sat Oct 24, and kept training them.');
         expect(noted).toHaveAttribute('tabindex', '0');
         expect(noted.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
     });
@@ -401,10 +407,18 @@ describe('NightPanel', () => {
             const noted = container.querySelector('.model-night-from .model-noted');
 
             expect(noted).toHaveTextContent(/^Built from scratch\.$/);
-            expect(noted).toHaveAccessibleDescription(STARTED_NOTES.scratch);
+            expect(noted).toHaveAccessibleDescription(SCRATCH_NOTE);
             expect(noted.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
             unmount();
         });
+    });
+
+    it('says in the note of an update that began from a fine-tuned version that it began from before the fine-tune (#336)', () => {
+        const { container } = draw({ ...optionsNight(4), fromTuned: true });
+
+        expect(container.querySelector('.model-night-from .model-noted')).toHaveAccessibleDescription(
+            'It began with the weights of the version that took over Tue Oct 27, from before its fine-tune, and kept training them.',
+        );
     });
 
     it('gives pt-gnn\'s Oct 27 night\'s whole time, its fine-tuning among its parts (#318, #324)', () => {
