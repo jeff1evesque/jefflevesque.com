@@ -189,7 +189,8 @@ AttemptMark.propTypes = {
 /**
  * each night as the charts and the panel draw it: the morning its test ran,
  * `tested`, and for a nightly update the morning the version it started from
- * took over, `from` (#318) -- see worker/model/report.js -- its new version's
+ * took over, `from` (#318) -- see worker/model/report.js -- and whether that
+ * version went live fine-tuned, `fromTuned` (#336), its new version's
  * score on `score`, the version in charge's and the simple guess's, how much
  * better than each the new version was -- positive where it was better, whichever
  * way the score runs -- and the same on loss, `lossGaps`, which decides. A score
@@ -232,6 +233,7 @@ export function attemptPoints(rows, score) {
             day: row.day,
             tested: row.tested || null,
             from: row.from || null,
+            fromTuned: row.from_tuned === true,
             charge: row.charge || null,
             kind: row.kind,
             went_live: row.went_live,
@@ -968,6 +970,7 @@ AttemptsChart.propTypes = {
         day: PropTypes.string.isRequired,
         tested: PropTypes.string,
         from: PropTypes.string,
+        from_tuned: PropTypes.bool,
         charge: PropTypes.string,
         kind: PropTypes.string.isRequired,
         went_live: PropTypes.bool.isRequired,
