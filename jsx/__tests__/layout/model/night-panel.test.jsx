@@ -11,6 +11,7 @@ import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 
 import NightPanel, {
+    STARTED_NOTES,
     TUNED,
     chargeWords,
     dayList,
@@ -18,6 +19,7 @@ import NightPanel, {
     kindWords,
     resultWords,
     startedFrom,
+    startedNote,
     tookWords,
     tunedDays,
 } from '../../../import/layout/model/night-panel.jsx';
@@ -182,6 +184,31 @@ describe('startedFrom', () => {
 
     it('says nothing for a nightly update with no version before it', () => {
         expect(startedFrom({ ...optionsNight(3), from: null })).toBe('');
+    });
+});
+
+describe('startedNote (#336)', () => {
+    const UPDATE = 'Instead of starting over, it took that version’s weights and kept training them. '
+        + 'If that version was fine-tuned, it took the weights from before the fine-tune.';
+    const SCRATCH = 'Instead of building on an earlier version, it started with new weights.';
+
+    it('notes that a nightly update kept training the weights of the version before it, as that version was tested', () => {
+        expect(startedNote(optionsNight(3))).toBe(UPDATE);
+        expect(startedNote(optionsNight(4))).toBe(UPDATE);
+    });
+
+    it('notes that a weekly retrain and a first version started with new weights', () => {
+        expect(startedNote(optionsNight(2))).toBe(SCRATCH);
+        expect(startedNote(optionsNight(0))).toBe(SCRATCH);
+    });
+
+    it('notes nothing for a nightly update with no version before it, as there is no line', () => {
+        expect(startedNote({ ...optionsNight(3), from: null })).toBe('');
+    });
+
+    it('gives no count of days, which the strip shows, and which would go stale', () => {
+        expect(Object.values(STARTED_NOTES)).toEqual([UPDATE, SCRATCH]);
+        Object.values(STARTED_NOTES).forEach((note) => expect(note).not.toMatch(/\d/));
     });
 });
 
@@ -351,6 +378,33 @@ describe('NightPanel', () => {
         const { container } = draw({ ...optionsNight(3), from: null });
 
         expect([...container.querySelectorAll('.model-night-line')]).toHaveLength(1);
+        expect(container.querySelector('.model-night-from')).toBeNull();
+        expect(container.querySelector('.model-night-line .model-noted')).toBeNull();
+    });
+
+    it('puts an info icon after where a nightly update started, its note saying it kept training that version (#336)', () => {
+        const { container } = draw(optionsNight(3));
+        const line = container.querySelector('.model-night-from');
+        const noted = line.querySelector('.model-noted');
+
+        expect(line).toHaveClass('model-night-line');
+        expect(line.children).toHaveLength(1);
+        expect(noted).toHaveTextContent(/^Started from the version that took over Sat Oct 24\.$/);
+        expect(noted).toHaveAccessibleDescription(STARTED_NOTES.update);
+        expect(noted).toHaveAttribute('tabindex', '0');
+        expect(noted.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+    });
+
+    it('puts an info icon after "Built from scratch." on a weekly retrain and a first version, its note saying it started with new weights (#336)', () => {
+        [optionsNight(2), optionsNight(0)].forEach((point) => {
+            const { container, unmount } = draw(point);
+            const noted = container.querySelector('.model-night-from .model-noted');
+
+            expect(noted).toHaveTextContent(/^Built from scratch\.$/);
+            expect(noted).toHaveAccessibleDescription(STARTED_NOTES.scratch);
+            expect(noted.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
+            unmount();
+        });
     });
 
     it('gives pt-gnn\'s Oct 27 night\'s whole time, its fine-tuning among its parts (#318, #324)', () => {
