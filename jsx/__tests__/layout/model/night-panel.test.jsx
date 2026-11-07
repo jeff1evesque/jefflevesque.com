@@ -11,12 +11,14 @@ import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 
 import NightPanel, {
+    REASONS,
     SCRATCH_NOTE,
     TUNED,
     chargeWords,
     dayList,
     daysDrawn,
     kindWords,
+    reasonWords,
     resultWords,
     startedFrom,
     startedNote,
@@ -28,19 +30,62 @@ import { historyOf, ptGnnHistory, ptOptionsHistory, timedHistoryOf } from '../..
 
 //
 // pt-options' nights on `score`: its first version, Oct 21, its Oct 26 night,
-// which took over, and its Oct 27 night, kept back behind the simple guess
+// which went live, and its Oct 27 night, kept back behind the simple guess
 //
 function optionsNight(at, score = 'loss') {
     return attemptPoints(ptOptionsHistory(), score)[at];
 }
 
 //
-// pt-gnn's Oct 27 night, which trained again after its test, and took over
+// pt-gnn's Oct 27 night, which trained again after its test, and went live
 //
 function gnnNewest() {
     const points = attemptPoints(ptGnnHistory(), 'loss');
 
     return points[points.length - 1];
+}
+
+//
+// a night of pt-gnn's history as format 11 gives it (#339), each with what
+// decided it, `reason`, as the trainer works it out for every past night too:
+// its first version, Oct 9, and its Oct 23 weekly retrain, which went live
+// under the rule used until Oct 26, as the fixture has them
+//
+function gnnNight(at, reason) {
+    const rows = ptGnnHistory();
+
+    rows[at] = { ...rows[at], reason: reason };
+
+    return attemptPoints(rows, 'loss')[at];
+}
+
+//
+// pt-gnn's and tables-gnn's nights as the live histories had them on Nov 7, 2026
+// (#339), each on loss, which decides, to six places, as four moved a gap's third
+// place, and with what decided it: pt-gnn's Nov 3 and 4 nights went live by
+// beating the simple guess, beside a version in charge that did better, and its
+// Nov 6 weekly retrain was kept back behind it; tables-gnn's Oct 20 night was
+// kept back by the rule used until Oct 26, though it beat the simple guess
+//
+const LIVE_NIGHTS = {
+    gnnNov3: { day: '2026-11-03', tested: '2026-11-04', kind: 'nightly', went_live: true, attempt: 1.674208, live: 1.66075, baseline: 1.678618 },
+    gnnNov4: { day: '2026-11-04', tested: '2026-11-05', kind: 'nightly', went_live: true, attempt: 1.656524, live: 1.6534, baseline: 1.659488 },
+    gnnNov6: { day: '2026-11-06', tested: '2026-11-07', kind: 'weekly', went_live: false, attempt: 1.723774, live: 1.692991, baseline: 1.718282 },
+    tablesOct20: { day: '2026-10-20', tested: '2026-10-21', kind: 'nightly', went_live: false, attempt: 1.622965, live: 1.621556, baseline: 1.639529 },
+};
+
+function liveNight(name, reason) {
+    const { attempt, live, baseline, ...night } = LIVE_NIGHTS[name];
+    const [row] = ptGnnHistory().slice(-1);
+
+    return attemptPoints([{
+        ...row,
+        ...night,
+        reason: reason,
+        attempt: { loss: attempt },
+        live: { loss: live },
+        baseline: { loss: baseline },
+    }], 'loss')[0];
 }
 
 //
@@ -169,12 +214,86 @@ describe('resultWords', () => {
         expect(resultWords({ first: false, lossGaps: { guess: null, charge: 0.01 } })).toBe('On loss it beat the version in charge by 0.010.');
         expect(resultWords({ first: false, lossGaps: { guess: null, charge: null } })).toBe('');
     });
+
+    describe('on a night the simple guess decided, from format 11 (#339)', () => {
+        it('says the version in charge apart, shown for comparison only, by how much better it did: pt-gnn\'s Nov 3 and 4 nights', () => {
+            expect(resultWords(liveNight('gnnNov4', 'ahead_of_baseline')))
+                .toBe('On loss it beat the simple guess by 0.003. The version in charge, shown for comparison only, did 0.003 better.');
+            expect(resultWords(liveNight('gnnNov3', 'ahead_of_baseline')))
+                .toBe('On loss it beat the simple guess by 0.004. The version in charge, shown for comparison only, did 0.013 better.');
+        });
+
+        it('says so on a night kept back behind the simple guess, as pt-gnn\'s Nov 6 retrain was', () => {
+            expect(resultWords(liveNight('gnnNov6', 'behind_baseline')))
+                .toBe('On loss it lost to the simple guess by 0.005. The version in charge, shown for comparison only, did 0.031 better.');
+        });
+
+        it('says how much worse the version in charge did, or that it scored the same, from its own side', () => {
+            const night = (charge) => ({ first: false, reason: 'same_for_every_stock', lossGaps: { guess: 0.004, charge: charge } });
+
+            expect(resultWords(night(0.002))).toBe('On loss it beat the simple guess by 0.004. The version in charge, shown for comparison only, did 0.002 worse.');
+            expect(resultWords(night(0.0001))).toBe('On loss it beat the simple guess by 0.004. The version in charge, shown for comparison only, scored the same.');
+        });
+
+        it('says it tied the simple guess, where it printed level with it', () => {
+            expect(resultWords({ first: false, reason: 'behind_baseline', lossGaps: { guess: -0.0001, charge: -0.01 } }))
+                .toBe('On loss it tied the simple guess. The version in charge, shown for comparison only, did 0.010 better.');
+        });
+
+        it('says nothing of a version in charge a first version never had, nor of one it has no gap to', () => {
+            expect(resultWords({ ...optionsNight(0), reason: 'ahead_of_baseline' })).toBe('On loss it lost to the simple guess by 0.062.');
+            expect(resultWords({ first: false, reason: 'ahead_of_baseline', lossGaps: { guess: 0.004, charge: null } }))
+                .toBe('On loss it beat the simple guess by 0.004.');
+            expect(resultWords({ first: false, reason: 'ahead_of_baseline', lossGaps: { guess: null, charge: null } })).toBe('');
+        });
+    });
+
+    describe('on a night the version in charge decided, or that doesn\'t say, as before (#339)', () => {
+        it('says both as one, as the version in charge decided: tables-gnn\'s Oct 20 night, kept back though it beat the simple guess', () => {
+            expect(resultWords(liveNight('tablesOct20', 'behind_live')))
+                .toBe('On loss it beat the simple guess by 0.017 and lost to the version in charge by 0.001.');
+        });
+
+        it('says pt-gnn\'s Oct 23 retrain tied the simple guess, and beat the version in charge, which decided', () => {
+            expect(resultWords(gnnNight(10, 'ahead_of_live'))).toBe('On loss it tied the simple guess and beat the version in charge by 0.007.');
+        });
+
+        it('reads a night with no reason, as a history from before format 11 gives it, as it always did', () => {
+            expect(resultWords(liveNight('gnnNov4', null)))
+                .toBe('On loss it beat the simple guess by 0.003 and lost to the version in charge by 0.003.');
+        });
+    });
+});
+
+describe('REASONS and reasonWords (#339)', () => {
+    it('says what decided each kind of night, in the issue\'s words', () => {
+        expect(REASONS).toEqual({
+            ahead_of_baseline: 'Beat the simple guess on its 3 test days, which is all a new version needs. '
+                + 'The version in charge is shown for comparison: it has usually trained on some of those days already.',
+            behind_baseline: 'Didn’t beat the simple guess on its 3 test days.',
+            same_for_every_stock: 'Gave every stock the same answer, so it wasn’t really predicting, even though it beat the simple guess.',
+            ahead_of_live: 'Decided by the rule used until Oct 26: a new version had to beat the version in charge, not the simple guess.',
+            behind_live: 'Decided by the rule used until Oct 26: it beat the simple guess but not the version in charge.',
+            first: 'The model’s first version, which went live under an older rule without having to beat the simple guess.',
+        });
+    });
+
+    it('gives a night\'s line by its reason', () => {
+        Object.keys(REASONS).forEach((reason) => expect(reasonWords({ reason: reason })).toBe(REASONS[reason]));
+    });
+
+    it('gives none for a night that doesn\'t say, as a history from before format 11 doesn\'t, nor for a reason it doesn\'t know', () => {
+        expect(reasonWords(optionsNight(3))).toBe('');
+        expect(reasonWords({ reason: null })).toBe('');
+        expect(reasonWords({})).toBe('');
+        expect(reasonWords({ reason: 'toString' })).toBe('');
+    });
 });
 
 describe('startedFrom', () => {
-    it('says a nightly update started from the version that took over before it, by the morning it did', () => {
-        expect(startedFrom(optionsNight(3))).toBe('Started from the version that took over Sat Oct 24.');
-        expect(startedFrom(optionsNight(4))).toBe('Started from the version that took over Tue Oct 27.');
+    it('says a nightly update started from the version that went live before it, named by the morning it did (#339)', () => {
+        expect(startedFrom(optionsNight(3))).toBe('Started from the Sat Oct 24 version.');
+        expect(startedFrom(optionsNight(4))).toBe('Started from the Tue Oct 27 version.');
     });
 
     it('says a weekly retrain and a first version were built from scratch', () => {
@@ -190,14 +309,14 @@ describe('startedFrom', () => {
 describe('startedNote (#336)', () => {
     const SCRATCH = 'Instead of building on an earlier version, it started with new weights.';
 
-    it('names the version a nightly update began with by the morning it took over, as the line the note opens over does', () => {
-        expect(startedNote(optionsNight(3))).toBe('It began with the weights of the version that took over Sat Oct 24, and kept training them.');
-        expect(startedNote(optionsNight(4))).toBe('It began with the weights of the version that took over Tue Oct 27, and kept training them.');
+    it('names the version a nightly update began with by the morning it went live, as the line the note opens over does (#339)', () => {
+        expect(startedNote(optionsNight(3))).toBe('It began with the weights of the Sat Oct 24 version, and kept training them.');
+        expect(startedNote(optionsNight(4))).toBe('It began with the weights of the Tue Oct 27 version, and kept training them.');
     });
 
     it('says the update began from before that version\'s fine-tune where that version went live fine-tuned, and only there', () => {
         expect(startedNote({ ...optionsNight(4), fromTuned: true }))
-            .toBe('It began with the weights of the version that took over Tue Oct 27, from before its fine-tune, and kept training them.');
+            .toBe('It began with the weights of the Tue Oct 27 version, from before its fine-tune, and kept training them.');
         expect(startedNote(optionsNight(4))).not.toMatch(/fine-tun|\bif\b/i);
     });
 
@@ -219,9 +338,9 @@ describe('startedNote (#336)', () => {
 });
 
 describe('chargeWords (#334)', () => {
-    it('says the morning the version in charge took over, a weekly retrain\'s night as a nightly update\'s', () => {
-        expect(chargeWords({ ...optionsNight(3), charge: '2026-10-24' })).toBe('took over Sat Oct 24');
-        expect(chargeWords({ ...optionsNight(2), charge: '2026-10-23' })).toBe('took over Fri Oct 23');
+    it('says since which morning the version in charge was, a weekly retrain\'s night as a nightly update\'s (#339)', () => {
+        expect(chargeWords({ ...optionsNight(3), charge: '2026-10-24' })).toBe('since Sat Oct 24');
+        expect(chargeWords({ ...optionsNight(2), charge: '2026-10-23' })).toBe('since Fri Oct 23');
     });
 
     it('says nothing on a model\'s first night, which had no version in charge, nor where the night doesn\'t say', () => {
@@ -325,12 +444,12 @@ describe('NightPanel', () => {
         expect(screen.getByRole('heading', { name: 'Thu Oct 22 · first version' })).toBeInTheDocument();
     });
 
-    it('says under the version in charge\'s score the morning it took over, in that box alone (#334)', () => {
+    it('says under the version in charge\'s score since which morning it was, in that box alone (#334, #339)', () => {
         const { container } = draw({ ...optionsNight(3), charge: '2026-10-24' });
         const since = container.querySelectorAll('.model-night-box-since');
 
         expect(since).toHaveLength(1);
-        expect(since[0]).toHaveTextContent(/^took over Sat Oct 24$/);
+        expect(since[0]).toHaveTextContent(/^since Sat Oct 24$/);
         expect(since[0].parentElement).toHaveClass('model-night-box-live');
         expect(since[0].previousElementSibling).toHaveClass('model-night-box-value');
         expect(boxesOf(container)[1]).toEqual(['Version in charge', '0.577']);
@@ -347,26 +466,102 @@ describe('NightPanel', () => {
         expect(unsaid.container.querySelector('.model-night-box-since')).toBeNull();
     });
 
-    it('says the night took over, in a pill, and then by how much it stood from each on loss, as one sentence to a screen reader', () => {
+    it('says the night went live, in a pill, and then by how much it stood from each on loss, as one sentence to a screen reader (#339)', () => {
         const { container } = draw(optionsNight(3));
         const result = container.querySelector('.model-night-result');
 
-        expect(result.querySelector('.model-night-pill-took')).toHaveTextContent(/^Took over$/);
+        expect(result.querySelector('.model-night-pill-went')).toHaveTextContent(/^Went live$/);
         expect(result.querySelector('.visually-hidden')).toHaveTextContent(/^\.$/);
-        expect(result).toHaveTextContent(/^Took over\. On loss it beat the simple guess by 0\.046 and the version in charge by 0\.001\.$/);
+        expect(result).toHaveTextContent(/^Went live\. On loss it beat the simple guess by 0\.046 and the version in charge by 0\.001\.$/);
     });
 
     it('says a night was kept back in a pill of its own', () => {
         const { container } = draw(optionsNight(4));
 
         expect(container.querySelector('.model-night-pill-kept')).toHaveTextContent(/^Kept back$/);
-        expect(container.querySelector('.model-night-pill-took')).toBeNull();
+        expect(container.querySelector('.model-night-pill-went')).toBeNull();
     });
 
     it('says nothing after the pill where the night has no gap to say', () => {
         const { container } = draw({ ...optionsNight(3), lossGaps: { guess: null, charge: null } });
 
-        expect(container.querySelector('.model-night-result')).toHaveTextContent(/^Took over$/);
+        expect(container.querySelector('.model-night-result')).toHaveTextContent(/^Went live$/);
+        expect(container.querySelector('.model-night-result .visually-hidden')).toBeNull();
+    });
+
+    it('draws a night from before format 11, which doesn\'t say what decided it, as before: no line under the pill (#339)', () => {
+        const { container } = draw(liveNight('gnnNov4', null));
+
+        expect(container.querySelector('.model-night-reason')).toBeNull();
+        expect(container.querySelector('.model-night-result'))
+            .toHaveTextContent(/^Went live\. On loss it beat the simple guess by 0\.003 and lost to the version in charge by 0\.003\.$/);
+    });
+
+    it('says under the pill what decided pt-gnn\'s Nov 4 night, and then its loss, the version in charge for comparison only (#339)', () => {
+        const { container } = draw(liveNight('gnnNov4', 'ahead_of_baseline'));
+        const result = container.querySelector('.model-night-result');
+        const [pill, stop, reason] = result.children;
+
+        expect(pill).toHaveClass('model-night-pill-went');
+        expect(stop).toHaveClass('visually-hidden');
+        expect(reason).toHaveClass('model-night-reason');
+        expect(reason.textContent).toBe(REASONS.ahead_of_baseline);
+        expect(result).toHaveTextContent(
+            'Went live. Beat the simple guess on its 3 test days, which is all a new version needs. '
+            + 'The version in charge is shown for comparison: it has usually trained on some of those days already. '
+            + 'On loss it beat the simple guess by 0.003. The version in charge, shown for comparison only, did 0.003 better.',
+        );
+        expect(result.lastChild.textContent).toBe(' On loss it beat the simple guess by 0.003. The version in charge, shown for comparison only, did 0.003 better.');
+    });
+
+    it.each([
+        ['pt-gnn\'s Nov 3 night, which went live by beating the simple guess', () => liveNight('gnnNov3', 'ahead_of_baseline'), 'went', 'Went live', 'ahead_of_baseline'],
+        ['pt-gnn\'s Nov 6 retrain, kept back behind the simple guess', () => liveNight('gnnNov6', 'behind_baseline'), 'kept', 'Kept back', 'behind_baseline'],
+        ['tables-gnn\'s Oct 20 night, kept back by the rule used until Oct 26', () => liveNight('tablesOct20', 'behind_live'), 'kept', 'Kept back', 'behind_live'],
+        ['pt-gnn\'s Oct 23 retrain, which went live by the rule used until Oct 26', () => gnnNight(10, 'ahead_of_live'), 'went', 'Went live', 'ahead_of_live'],
+        ['pt-gnn\'s first version, Oct 9, which went live under an older rule', () => gnnNight(0, 'first'), 'went', 'Went live', 'first'],
+    ])('says what decided %s, under its pill (#339)', (name, night, look, pill, reason) => {
+        const { container } = draw(night());
+
+        expect(container.querySelector(`.model-night-pill-${look}`)).toHaveTextContent(new RegExp(`^${pill}$`));
+        expect(container.querySelector('.model-night-reason').textContent).toBe(REASONS[reason]);
+    });
+
+    it('says beside pt-gnn\'s Oct 23 retrain, which the version in charge decided, that it tied the simple guess (#339)', () => {
+        const { container } = draw(gnnNight(10, 'ahead_of_live'));
+
+        expect(container.querySelector('.model-night-result')).toHaveTextContent(
+            'Went live. Decided by the rule used until Oct 26: a new version had to beat the version in charge, not the simple guess. '
+            + 'On loss it tied the simple guess and beat the version in charge by 0.007.',
+        );
+    });
+
+    it('says a night that gave every stock the same answer was kept back, though it beat the simple guess (#339)', () => {
+        const { container } = draw({ ...liveNight('gnnNov4', 'same_for_every_stock'), went_live: false });
+
+        expect(container.querySelector('.model-night-pill-kept')).toHaveTextContent(/^Kept back$/);
+        expect(container.querySelector('.model-night-result')).toHaveTextContent(
+            'Kept back. Gave every stock the same answer, so it wasn’t really predicting, even though it beat the simple guess. '
+            + 'On loss it beat the simple guess by 0.003. The version in charge, shown for comparison only, did 0.003 better.',
+        );
+    });
+
+    it('says what decided a night under its pill even where it has no gap to say (#339)', () => {
+        const { container } = draw({ ...liveNight('gnnNov4', 'ahead_of_baseline'), lossGaps: { guess: null, charge: null } });
+
+        expect(container.querySelector('.model-night-result')).toHaveTextContent(`Went live. ${REASONS.ahead_of_baseline}`);
+        expect(container.querySelector('.model-night-result').lastChild).toHaveClass('model-night-reason');
+    });
+
+    it('says no "took over" anywhere in the panel (#339)', () => {
+        [optionsNight(3), optionsNight(4), gnnNewest(), { ...optionsNight(3), charge: '2026-10-24', fromTuned: true }, gnnNight(10, 'ahead_of_live')]
+            .forEach((point) => {
+                const { container, unmount } = draw(point);
+
+                expect(container.textContent).not.toMatch(/took over|take over|taking over/i);
+                container.querySelectorAll('[aria-label]').forEach((each) => expect(each.getAttribute('aria-label')).not.toMatch(/took over/i));
+                unmount();
+            });
     });
 
     it('says where the new version started, and how long it took', () => {
@@ -374,7 +569,7 @@ describe('NightPanel', () => {
         const lines = [...container.querySelectorAll('.model-night-line')].map((line) => line.textContent);
 
         expect(lines).toEqual([
-            'Started from the version that took over Sat Oct 24.',
+            'Started from the Sat Oct 24 version.',
             'How long it took: 41 min 0 s in all: 39 min 13 s training, then 1 min 47 s scoring the test days. Started Tue Oct 27, 5:32 AM ET.',
         ]);
         expect(container.querySelector('.model-night-line-name')).toHaveTextContent(/^How long it took:$/);
@@ -395,8 +590,8 @@ describe('NightPanel', () => {
 
         expect(line).toHaveClass('model-night-line');
         expect(line.children).toHaveLength(1);
-        expect(noted).toHaveTextContent(/^Started from the version that took over Sat Oct 24\.$/);
-        expect(noted).toHaveAccessibleDescription('It began with the weights of the version that took over Sat Oct 24, and kept training them.');
+        expect(noted).toHaveTextContent(/^Started from the Sat Oct 24 version\.$/);
+        expect(noted).toHaveAccessibleDescription('It began with the weights of the Sat Oct 24 version, and kept training them.');
         expect(noted).toHaveAttribute('tabindex', '0');
         expect(noted.querySelector('svg')).toHaveAttribute('data-testid', 'InfoOutlinedIcon');
     });
@@ -417,7 +612,7 @@ describe('NightPanel', () => {
         const { container } = draw({ ...optionsNight(4), fromTuned: true });
 
         expect(container.querySelector('.model-night-from .model-noted')).toHaveAccessibleDescription(
-            'It began with the weights of the version that took over Tue Oct 27, from before its fine-tune, and kept training them.',
+            'It began with the weights of the Tue Oct 27 version, from before its fine-tune, and kept training them.',
         );
     });
 
