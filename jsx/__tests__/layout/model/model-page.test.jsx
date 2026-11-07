@@ -52,6 +52,7 @@ import ModelPageRoute, {
     IN_CHARGE_SHORT,
     ModelPage,
     SCORED_LINE,
+    WENT_LIVE_WORDS,
     attemptRows,
     liveFigure,
     liveLine,
@@ -60,6 +61,7 @@ import ModelPageRoute, {
     placeAmong,
     rankAmong,
     sentence,
+    wentLiveWords,
 } from '../../../import/layout/model/model-page.jsx';
 import { TITLE as ATTEMPTS_TITLE } from '../../../import/layout/model/attempts-chart.jsx';
 import { loadListing, loadOptionPicks, loadReport } from '../../../import/layout/model/source.js';
@@ -614,7 +616,7 @@ describe('the summary', () => {
         const { unmount } = await open();
 
         expect(stat('Live version').querySelector('.model-stat-value')).toHaveTextContent(/^Mon Oct 12$/);
-        expect(rowsOf(stat('Attempts that went live'))).toContainEqual(['Last attempt', 'Mon Oct 12, took over']);
+        expect(rowsOf(stat('Attempts that went live'))).toContainEqual(['Last attempt', 'Mon Oct 12, went live']);
 
         unmount();
         await open('beater');
@@ -945,6 +947,56 @@ describe('the check of the live version\'s fine-tune, from format 6 (#315)', () 
 
         expect(screen.queryByText('Fine-tune check')).toBeNull();
         expect(document.querySelector('.model-fine-tune-line')).toBeNull();
+    });
+});
+
+describe('what decided the live version would go live, from format 11 (#339)', () => {
+    //
+    // pt-gnn's live version as the listing had it on Nov 7, 2026, which went live
+    // on Nov 5 by beating the baseline, fine-tuned and then failing the check, as
+    // a format 11 listing gives it, with what decided it
+    //
+    const decided = (reason) => modelOf({
+        live: { since: '2026-11-05', kind: 'nightly', days: TRAINED, fine_tune: { passed: false, by: -0.0182, slack: 0.005 }, reason: reason },
+    });
+    const keys = (rows) => rows.map((row) => row.key);
+
+    it('says it after Trained on and before the fine-tune\'s check, in the Live version card\'s rows and on a phone\'s line under the boxes', async () => {
+        answer({ listing: listingOf([decided('ahead_of_baseline')], 11) });
+        await open();
+
+        expect(rowsOf(cardOf('Live version'))).toEqual([
+            ['Trained on', 'Oct 5 – Oct 19'],
+            ['Went live', 'Beat the baseline on its 3 test days'],
+            ['Fine-tune check', 'Failed, 0.018 worse, past the 0.005 allowed'],
+        ]);
+        expect(document.querySelector('.model-went-live-line')).toHaveTextContent(/^Went liveBeat the baseline on its 3 test days$/);
+        expect(underBoxes().slice(-3)).toEqual(['model-trained-line', 'model-trained-line model-went-live-line', 'model-trained-line model-fine-tune-line']);
+    });
+
+    it('says a version that went live by the rule used until Oct 26, and a first version, went live as each did', () => {
+        expect(wentLiveWords(decided('ahead_of_live').live)).toBe('Beat the version it replaced, under the rule used until Oct 26');
+        expect(wentLiveWords(decided('first').live)).toBe('As its first version, without having to beat the baseline');
+        expect(Object.keys(WENT_LIVE_WORDS)).toEqual(['ahead_of_baseline', 'ahead_of_live', 'first']);
+    });
+
+    it('says nothing of it where the listing doesn\'t say, as before format 11, nor for a reason no live version has', async () => {
+        answer({ listing: listingOf([decided(null)], 10) });
+        await open();
+
+        expect(rowsOf(cardOf('Live version')).map(([name]) => name)).toEqual(['Trained on', 'Fine-tune check']);
+        expect(document.querySelector('.model-went-live-line')).toBeNull();
+        expect(keys(liveRows(decided(null)))).toEqual(['trained', 'fine-tune']);
+        expect(wentLiveWords(decided('behind_baseline').live)).toBe('');
+        expect(wentLiveWords(null)).toBe('');
+        expect(wentLiveWords({})).toBe('');
+    });
+
+    it('says it of one taken down or retired too, as it says what the version that predicted learned from', () => {
+        const live = decided('ahead_of_baseline').live;
+
+        expect(keys(liveRows(downModelOf({ live: live, behind: [] })))).toEqual(['trained', 'went-live', 'fine-tune']);
+        expect(keys(liveRows(modelOf({ live: live, retired: '2026-11-06' })))).toEqual(['trained', 'went-live', 'fine-tune']);
     });
 });
 
@@ -1518,17 +1570,17 @@ describe('each card\'s rows on a wide screen (#267)', () => {
             expect(card.querySelector('.model-stat-head')).toHaveTextContent(/of every nightly update and weekly retrain$/);
             expect(rowsOf(card)).toEqual([
                 ['Nightly updates', '1 of 5 went live'],
-                ['Last attempt', 'Sat Oct 17, took over'],
+                ['Last attempt', 'Sat Oct 17, went live'],
                 ['Started', 'Sat Oct 17, 3:58 AM ET'],
                 ['Took', '9 min 52 s'],
             ]);
         });
 
-        it('names the newest night for the morning its test ran, and says it took over or was kept back (#318)', () => {
+        it('names the newest night for the morning its test ran, and says it went live or was kept back (#318, #339)', () => {
             const rows = (history) => attemptRows(history).find((row) => row.key === 'last').value;
 
             expect(rows(historyOf(2))).toBe('Sat Oct 3, kept back');
-            expect(rows(historyOf(2, { 1: { went_live: true, tested: '2026-10-05' } }))).toBe('Mon Oct 5, took over');
+            expect(rows(historyOf(2, { 1: { went_live: true, tested: '2026-10-05' } }))).toBe('Mon Oct 5, went live');
         });
 
         it('says last that attempts are judged on the 1-day hold, for a stock model with holds (#300)', () => {
