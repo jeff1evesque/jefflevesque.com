@@ -841,13 +841,29 @@ describe('the attempts\' nights and the panel of the one picked (#318)', () => {
         expect(declared(corner, 'clip-path')).toBe('polygon(0 0, 100% 0, 100% 100%)');
     });
 
-    it('says under the version in charge\'s score when it took over in its box name\'s gray and size, a phone\'s a size smaller as its name\'s is (#334)', () => {
+    it('says under the version in charge\'s score since when it was in its box name\'s gray and size, a phone\'s a size smaller as its name\'s is (#334, #339)', () => {
         const [wide, phone] = rulesOf('.model-night-box-since');
 
         expect(declared(wide, 'color')).toBe(declared(rule('.model-night-box-name'), 'color'));
         expect(declared(wide, 'font-size')).toBe(declared(rule('.model-night-box-name'), 'font-size'));
         expect(declared(phone, 'font-size')).toBe(declared(rulesOf('.model-night-box-name')[1], 'font-size'));
         expect(declared(phone, 'font-size')).toBe('12px');
+    });
+
+    it('draws a night that went live on a tint of the better color, and one kept back on the light gray (#339)', () => {
+        expect(declared(rule('.model-night-pill-went'), 'background-color')).toBe('color-mix(in srgb, var(--stream-shade-0) 16%, transparent)');
+        expect(declared(rule('.model-night-pill-kept'), 'background-color')).toBe('$gray-1');
+        expect(rulesOf('.model-night-pill-took')).toEqual([]);
+    });
+
+    it('puts what decided a night on a line of its own under the pill, in the result\'s ink, on a phone too (#339)', () => {
+        const reason = rule('.model-night-reason');
+
+        expect(declared(reason, 'display')).toBe('block');
+        expect(declared(reason, 'margin')).toBe('4px 0 2px');
+        expect(declared(reason, 'color')).toBeNull();
+        expect(declared(reason, 'font-size')).toBeNull();
+        expect(rulesOf('.model-night-reason')).toHaveLength(1);
     });
 
     it('says under the score card\'s figure, and under a phone\'s score line, what its score is, in the muted gray', () => {
