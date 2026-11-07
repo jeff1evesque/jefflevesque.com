@@ -153,6 +153,36 @@ const DOWN_LINE = 'Nothing predicts until a new version beats the baseline on th
 const FINE_TUNE = 'Fine-tune check';
 
 //
+// the name of the Live version card's row, and of a phone's line under the
+// boxes, saying what decided the live version would go live (#339)
+//
+const WENT_LIVE = 'Went live';
+
+/**
+ * what decided the live version would go live, from the trainer's format 11
+ * (#339), as the Live version card's Went live row says it, by the listing's
+ * `live.held_out.reason`: the rule every night is decided by now, the rule used
+ * until Oct 26, or a model's first version, which went live under an older rule.
+ * In the card's word for the simple guess, the baseline, as its other lines say
+ * it. Short, as a row's value is: the night's panel says each at length.
+ */
+export const WENT_LIVE_WORDS = {
+    ahead_of_baseline: `Beat the baseline on its ${HELD_OUT} test days`,
+    ahead_of_live: 'Beat the version it replaced, under the rule used until Oct 26',
+    first: 'As its first version, without having to beat the baseline',
+};
+
+/**
+ * the Live version card's Went live row's value (#339) -- see WENT_LIVE_WORDS --
+ * or nothing where the listing doesn't say, as before format 11.
+ */
+export function wentLiveWords(live) {
+    const reason = live ? live.reason : null;
+
+    return Object.prototype.hasOwnProperty.call(WENT_LIVE_WORDS, reason) ? WENT_LIVE_WORDS[reason] : '';
+}
+
+//
 // the line under the Live version card's day while a version predicts, Live or
 // New (#334), and under a phone's box's: the attempts' chart and the panel of
 // the night picked call it the version in charge, and nothing on the card said
@@ -285,6 +315,9 @@ export function liveLine(model, history = null) {
  *                                         format 4 (#295), as its first and last
  *                                         days: 'Oct 5 – Oct 19' -- see
  *                                         scores.js's trainedOn
+ *     Went live                           what decided it would go live, from
+ *                                         format 11 (#339): 'Beat the baseline on
+ *                                         its 3 test days' -- see wentLiveWords
  *     Fine-tune check                     whether its fine-tune on its held-out
  *                                         days passed the trainer's check, and by
  *                                         how much, from format 6 (#315): 'Passed,
@@ -292,7 +325,8 @@ export function liveLine(model, history = null) {
  *                                         fineTuneWords
  *
  * No Predicts for a model without holds. No Trained on where the listing says
- * nothing of it, as before format 4, and no Fine-tune check where it gives no
+ * nothing of it, as before format 4, no Went live where it doesn't say what
+ * decided it, as before format 11, and no Fine-tune check where it gives no
  * check, as before format 6. The checks come after the rows, as a table (#300)
  * -- see ChecksTable.
  *
@@ -304,6 +338,7 @@ export function liveLine(model, history = null) {
 export function liveRows(model, predicts = '') {
     const rows = [];
     const trained = trainedOn(model.live);
+    const decided = wentLiveWords(model.live);
     const checked = fineTuneWords(model.live && model.live.fine_tune);
 
     if (predicts) {
@@ -312,6 +347,10 @@ export function liveRows(model, predicts = '') {
 
     if (trained) {
         rows.push({ key: 'trained', name: 'Trained on', value: trained });
+    }
+
+    if (decided) {
+        rows.push({ key: 'went-live', name: WENT_LIVE, value: decided });
     }
 
     if (checked) {
@@ -354,7 +393,7 @@ export const ATTEMPTS_NOTE = `Each night’s attempt is tested on the newest ${H
  * the Attempts card's rows on a wide screen (#267), as liveRows gives them: how
  * many nightly updates and weekly retrains went live, of how many, '3 of 7 went
  * live' -- a kind with no attempts has no row -- then the newest night, named for
- * the morning its test ran (#318), 'Wed Oct 28, took over', and when it started,
+ * the morning its test ran (#318), 'Wed Oct 28, went live' (#339), and when it started,
  * its day before its time (#327), 'Wed Oct 28, 4:43 AM ET', and how long it
  * took, where the history has its times. Last, for a model with holds, `held`,
  * that attempts are judged on the 1-day hold. None where there is no history.
@@ -392,7 +431,7 @@ export function attemptRows(history, held = false) {
     ];
 
     return rows.concat(
-        [{ key: 'last', name: 'Last attempt', value: `${nightName(last.tested)}, ${last.went_live ? 'took over' : 'kept back'}` }],
+        [{ key: 'last', name: 'Last attempt', value: `${nightName(last.tested)}, ${last.went_live ? 'went live' : 'kept back'}` }],
         more.filter((row) => row.value),
         held ? [{ key: 'judged', name: 'Judged on', value: 'the 1-day hold' }] : [],
     );
@@ -961,12 +1000,13 @@ class ModelPage extends Component {
         const checks = checksOf(model);
 
         //
-        // what the live version trained on, from format 4 (#295), and whether its
-        // fine-tune passed the trainer's check, from format 6 (#315), as a phone's
-        // lines under the boxes say them. A wide screen's card says them in its
-        // rows
+        // what the live version trained on, from format 4 (#295), what decided it
+        // would go live, from format 11 (#339), and whether its fine-tune passed
+        // the trainer's check, from format 6 (#315), as a phone's lines under the
+        // boxes say them. A wide screen's card says them in its rows
         //
         const trained = trainedOn(model.live);
+        const decided = wentLiveWords(model.live);
         const checked = fineTuneWords(model.live.fine_tune);
 
         //
@@ -1051,8 +1091,9 @@ class ModelPage extends Component {
         // version's own line (#334).
         //
         // On a phone, under the boxes, in this order (#300): the score's line,
-        // the parts (#265), why the live version was taken down, the checks, and
-        // what it trained on
+        // the parts (#265), why the live version was taken down, the checks,
+        // what it trained on, what decided it would go live (#339), and its
+        // fine-tune's check
         //
         return (
             <section className='model-summary' aria-label='Summary'>
@@ -1142,6 +1183,13 @@ class ModelPage extends Component {
                                 <p className='model-trained-line'>
                                     <span className='model-trained-name'>Trained on</span>
                                     <span className='model-trained-value'>{trained}</span>
+                                </p>
+                            ) : null}
+                        {decided
+                            ? (
+                                <p className='model-trained-line model-went-live-line'>
+                                    <span className='model-trained-name'>{WENT_LIVE}</span>
+                                    <span className='model-trained-value'>{decided}</span>
                                 </p>
                             ) : null}
                         {checked
