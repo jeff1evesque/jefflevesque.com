@@ -10,17 +10,18 @@
  *                           it was tested after
  *     three boxes           the new version's score, the version in charge's and
  *                           the simple guess's, on the score picked, and under
- *                           the version in charge's, the morning it took over
- *                           (#334): the one at the top of the page may be a later
+ *                           the version in charge's, since when it was (#334,
+ *                           #339): the one at the top of the page may be a later
  *                           version
- *     what came of it       took over or kept back, and how far the new version
- *                           beat or missed the simple guess and the version in
- *                           charge on loss, which decides. Worked out from the
- *                           night rather than said by the rule of its day, as
- *                           older nights were decided by older rules
- *     where it started      the version that took over before it, for a nightly
- *                           update, or from scratch, with a note on what that
- *                           means (#336)
+ *     what came of it       went live or kept back (#339), from format 11 what
+ *                           decided it, and how far the new version beat or
+ *                           missed the simple guess and the version in charge
+ *                           on loss, which decides. On a night the simple guess
+ *                           decided, the version in charge is said to be there
+ *                           for comparison only
+ *     where it started      the version before it, by the morning it went live,
+ *                           for a nightly update, or from scratch, with a note on
+ *                           what that means (#336)
  *     how long it took      the whole time and its parts, from format 6 its
  *                           fine-tuning among them (#324)
  *     which days it used    its days as a strip, a row for each month, a box for
@@ -84,18 +85,80 @@ function against(gap, name) {
 }
 
 /**
+ * what decided a night, from the trainer's format 11 (#339), as the line under
+ * its pill says it, by the night's `reason`. Every night is decided by the
+ * simple guess now; until Oct 26 a night was decided by the version in charge,
+ * and before that a model's first version went live without a test. Without a
+ * line, a night that went live beside 'lost to the version in charge', or one
+ * kept back beside 'beat the simple guess', read as a mistake.
+ */
+export const REASONS = {
+    ahead_of_baseline: `Beat the simple guess on its ${HELD_OUT} test days, which is all a new version needs. `
+        + 'The version in charge is shown for comparison: it has usually trained on some of those days already.',
+    behind_baseline: `Didn’t beat the simple guess on its ${HELD_OUT} test days.`,
+    same_for_every_stock: 'Gave every stock the same answer, so it wasn’t really predicting, even though it beat the simple guess.',
+    ahead_of_live: 'Decided by the rule used until Oct 26: a new version had to beat the version in charge, not the simple guess.',
+    behind_live: 'Decided by the rule used until Oct 26: it beat the simple guess but not the version in charge.',
+    first: 'The model’s first version, which went live under an older rule without having to beat the simple guess.',
+};
+
+/**
+ * the line under a night's pill (#339): what decided it -- see REASONS -- or
+ * nothing for a night that doesn't say, as a history from before format 11
+ * doesn't.
+ */
+export function reasonWords(point) {
+    return Object.prototype.hasOwnProperty.call(REASONS, point.reason) ? REASONS[point.reason] : '';
+}
+
+//
+// the reasons of the nights the simple guess decided (#339): the version in
+// charge took the same test, for comparison only
+//
+const BY_GUESS = ['ahead_of_baseline', 'behind_baseline', 'same_for_every_stock'];
+
+//
+// how the version in charge stood beside the new version on loss, from its own
+// side, on a night the simple guess decided (#339): 'did 0.003 better', 'did
+// 0.003 worse' or 'scored the same'. `gap` is how much better the new version
+// was
+//
+function compared(gap) {
+    const stands = standing(gap, 'loss');
+
+    if (stands === 'level') {
+        return 'scored the same';
+    }
+
+    return `did ${formatGap(gap, 'loss')} ${stands === 'better' ? 'worse' : 'better'}`;
+}
+
+/**
  * how far a night's new version beat or missed the simple guess and the version
  * in charge, on loss, whichever score is picked, as loss decides: 'On loss it
  * beat the simple guess by 0.046 and the version in charge by 0.001.', or 'On
  * loss it lost to the simple guess by 0.013 and beat the version in charge by
  * 0.014.' A first version has no version in charge to stand against. Nothing
  * where the night has neither gap.
+ *
+ * On a night the simple guess decided (#339), the version in charge is in a
+ * sentence of its own, said to be there for comparison only: 'On loss it beat
+ * the simple guess by 0.003. The version in charge, shown for comparison only,
+ * did 0.003 better.' A night the version in charge decided, and one that doesn't
+ * say what decided it, say both as one.
  */
 export function resultWords(point) {
-    const parts = [
-        point.lossGaps.guess === null ? null : against(point.lossGaps.guess, 'the simple guess'),
-        point.first || point.lossGaps.charge === null ? null : against(point.lossGaps.charge, 'the version in charge'),
-    ].filter(Boolean);
+    const guess = point.lossGaps.guess === null ? null : against(point.lossGaps.guess, 'the simple guess');
+    const charge = point.first ? null : point.lossGaps.charge;
+
+    if (BY_GUESS.includes(point.reason)) {
+        return [
+            guess ? `On loss it ${guess.verb} ${guess.said}.` : '',
+            charge === null ? '' : `The version in charge, shown for comparison only, ${compared(charge)}.`,
+        ].filter(Boolean).join(' ');
+    }
+
+    const parts = [guess, charge === null ? null : against(charge, 'the version in charge')].filter(Boolean);
 
     if (!parts.length) {
         return '';
@@ -120,10 +183,11 @@ function startOf(point) {
 }
 
 /**
- * where a night's new version started: from the version that took over before
- * it, for a nightly update -- 'Started from the version that took over Sat Oct
- * 24.' -- or from scratch, for a weekly full retrain and a first version.
- * Nothing for a nightly update with no version before it.
+ * where a night's new version started: from the version that went live before
+ * it, named by the morning it did, for a nightly update -- 'Started from the Sat
+ * Oct 24 version.' (#339), where 'took over' named a version by the words that
+ * name a night's result -- or from scratch, for a weekly full retrain and a first
+ * version. Nothing for a nightly update with no version before it.
  */
 export function startedFrom(point) {
     const start = startOf(point);
@@ -132,7 +196,7 @@ export function startedFrom(point) {
         return 'Built from scratch.';
     }
 
-    return start ? `Started from the version that took over ${nightName(point.from)}.` : '';
+    return start ? `Started from the ${nightName(point.from)} version.` : '';
 }
 
 //
@@ -144,9 +208,10 @@ export const SCRATCH_NOTE = 'Instead of building on an earlier version, it start
 /**
  * what where a night's new version started means (#336), as the note after the
  * line that says it. A weekly full retrain and a first version started with new
- * weights. A nightly update began with the weights of the version that took over
- * on `from`, named by its morning again: the note opens over the line that names
- * it on a phone, and its 'that version' named nothing there. Where that version
+ * weights. A nightly update began with the weights of the version that went live
+ * on `from`, named by its morning again, 'the Sat Oct 24 version' (#339): the
+ * note opens over the line that names it on a phone, and its 'that version'
+ * named nothing there. Where that version
  * went live fine-tuned, the update began with its weights from before the
  * fine-tune -- the trainer starts each update from the version as it was tested,
  * since a fine-tune learns days the next night is tested on -- and the note says
@@ -167,21 +232,22 @@ export function startedNote(point) {
 
     const tuned = point.fromTuned ? ', from before its fine-tune' : '';
 
-    return `It began with the weights of the version that took over ${nightName(point.from)}${tuned}, and kept training them.`;
+    return `It began with the weights of the ${nightName(point.from)} version${tuned}, and kept training them.`;
 }
 
 /**
- * which version was in charge on a night, by the morning it took over, as the
- * version in charge's box says it under its score (#334): 'took over Fri Oct 30'.
- * The page's Live version card names the version in charge now, and on an older
- * night, or the night a new version took over, the one in charge was an earlier
- * one, so the box said a score with no version to it. A bare date read as the
- * market day the line over the boxes names, 'Tested after the market closed on Fri
- * Oct 30.' Nothing on a model's first night, which had none, nor where the night
- * doesn't say.
+ * which version was in charge on a night, by the morning it went live, as the
+ * version in charge's box says it under its score (#334): 'since Fri Oct 30'
+ * (#339), where 'took over' named a version by the words that name a night's
+ * result. The page's Live version card names the version in charge now, and on
+ * an older night, or the night a new version went live, the one in charge was an
+ * earlier one, so the box said a score with no version to it. A bare date read
+ * as the market day the line over the boxes names, 'Tested after the market
+ * closed on Fri Oct 30.' Nothing on a model's first night, which had none, nor
+ * where the night doesn't say.
  */
 export function chargeWords(point) {
-    return !point.first && point.charge ? `took over ${nightName(point.charge)}` : '';
+    return !point.first && point.charge ? `since ${nightName(point.charge)}` : '';
 }
 
 /**
@@ -526,6 +592,7 @@ DaysUsed.propTypes = {
  */
 export default function NightPanel({ point, score, marks }) {
     const from = startedFrom(point);
+    const reason = reasonWords(point);
     const result = resultWords(point);
     const boxes = [
         { key: 'attempt', name: 'New version', mark: marks.attempt, value: formatScore(point.attempt, score) },
@@ -558,10 +625,12 @@ export default function NightPanel({ point, score, marks }) {
                 ))}
             </div>
             <p className='model-night-result'>
-                <span className={`model-night-pill model-night-pill-${point.went_live ? 'took' : 'kept'}`}>
-                    {point.went_live ? 'Took over' : 'Kept back'}
+                <span className={`model-night-pill model-night-pill-${point.went_live ? 'went' : 'kept'}`}>
+                    {point.went_live ? 'Went live' : 'Kept back'}
                 </span>
-                {result ? <><span className='visually-hidden'>.</span>{` ${result}`}</> : null}
+                {reason || result ? <span className='visually-hidden'>.</span> : null}
+                {reason ? <>{' '}<span className='model-night-reason'>{reason}</span></> : null}
+                {result ? ` ${result}` : null}
             </p>
             {from ? (
                 <p className='model-night-line model-night-from'>
@@ -586,6 +655,7 @@ NightPanel.propTypes = {
         charge: PropTypes.string,
         kind: PropTypes.string.isRequired,
         went_live: PropTypes.bool.isRequired,
+        reason: PropTypes.string,
         first: PropTypes.bool.isRequired,
         attempt: PropTypes.number,
         live: PropTypes.number,
