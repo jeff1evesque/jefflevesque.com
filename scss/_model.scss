@@ -1729,7 +1729,7 @@ $model-parts-inset: clamp(0px, calc((100% - 21rem) / 2), 20%);
 }
 
 //
-// under the version in charge's score, the morning it took over (#334), in its
+// under the version in charge's score, since when it was (#334, #339), in its
 // box name's gray and size, as a phone's is a size smaller
 //
 .model-night-box-since {
@@ -1745,8 +1745,8 @@ $model-parts-inset: clamp(0px, calc((100% - 21rem) / 2), 20%);
 }
 
 //
-// took over on a tint of the better color, as a new version that took over is
-// filled with it in the chart, and kept back on the page's light gray
+// went live on a tint of the better color, as a new version that went live is
+// filled with it in the chart, and kept back on the page's light gray (#339)
 //
 .model-night-pill {
   border-radius: 999px;
@@ -1758,12 +1758,22 @@ $model-parts-inset: clamp(0px, calc((100% - 21rem) / 2), 20%);
   padding: 1px 10px;
 }
 
-.model-night-pill-took {
+.model-night-pill-went {
   background-color: color-mix(in srgb, var(--stream-shade-0) 16%, transparent);
 }
 
 .model-night-pill-kept {
   background-color: $gray-1;
+}
+
+//
+// what decided the night, from format 11 (#339): a line of its own under the
+// pill, so the loss line after it starts on a line of its own too. A night that
+// doesn't say keeps its loss line beside the pill
+//
+.model-night-reason {
+  display: block;
+  margin: 4px 0 2px;
 }
 
 .model-night-line {
