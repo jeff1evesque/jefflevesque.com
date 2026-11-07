@@ -5,13 +5,13 @@
  * Every night the trainer builds a new version, and tests it and the version in
  * charge on the same days -- the newest few whose results are known, which the
  * new version never studied, see scores.js's HELD_OUT -- beside the simple guess
- * from averages, the baseline. From format 6 a new version takes over if it
+ * from averages, the baseline. From format 6 a new version goes live if it
  * beats the simple guess, and the version in charge's score is there to compare
  * (#315). The upper chart draws the version in charge's score as a line, the
  * simple guess's dashed, and each night's new version as a mark on them, in the
  * site's blue (#300):
  *
- *     a filled dot      a new version that took over
+ *     a filled dot      a new version that went live
  *     a hollow dot      one kept back
  *     a diamond         a weekly full retrain, filled or hollow the same way
  *
@@ -46,10 +46,15 @@
  * its attempts are the 1-day hold's scores, and the line under the title says the
  * hold picker does not move them.
  *
- * Note: what takes over is decided by loss alone. On another score, a new
+ * Every night says it went live or was kept back, by the words the panel's pill
+ * says it in (#339): 'took over' also named a version, the one a night started
+ * from and the one in charge, so the same words named a result and a version.
+ *
+ * Note: what goes live is decided by loss alone. On another score, a new
  *       version kept back can still be better than the simple guess, and the
  *       chart says so under its second title rather than leaving it to look
- *       wrong. The panel says what came of a night on loss whatever is picked.
+ *       wrong. The panel says what came of a night on loss whatever is picked,
+ *       and from format 11 what decided it (#339).
  */
 
 import React, { useContext, useRef, useState } from 'react';
@@ -146,7 +151,7 @@ const NO_BARS = <Bar dataKey='none' isAnimationActive={false} legendType='none' 
 
 /**
  * a new version's mark, as the chart draws it at (cx, cy): a dot, or a diamond
- * for a weekly retrain, in the better color, filled where it took over and
+ * for a weekly retrain, in the better color, filled where it went live and
  * hollow where it was kept back (#300). A ring of the page's color round it
  * keeps it clear of the line it sits on. Nothing where the night has no score.
  */
@@ -195,7 +200,9 @@ AttemptMark.propTypes = {
  * better than each the new version was -- positive where it was better, whichever
  * way the score runs -- and the same on loss, `lossGaps`, which decides. A score
  * the history has no column for is none (#279). `first` is a model's first
- * version, which had no version in charge.
+ * version, which had no version in charge. `reason` is what decided the night,
+ * from the trainer's format 11 (#339), or none for a history from before it --
+ * see night-panel.jsx's REASONS.
  *
  * `test` is its test days, and `studied` how many earlier days it studied or
  * used to decide when to stop, as the history gives them (#318), and `days` its
@@ -237,6 +244,7 @@ export function attemptPoints(rows, score) {
             charge: row.charge || null,
             kind: row.kind,
             went_live: row.went_live,
+            reason: row.reason || null,
             first: loss(row.live) === null,
             attempt: attempt,
             live: live,
@@ -286,7 +294,7 @@ export function durationUnit(points) {
 /**
  * the mark a night's new version is drawn with, as the legend draws it too: a
  * dot for a nightly update and a diamond for a weekly retrain, filled where it
- * took over and hollow where it was kept back.
+ * went live and hollow where it was kept back.
  */
 export function attemptKind(point) {
     if (point.kind === 'weekly') {
@@ -307,7 +315,7 @@ export function attemptsAbout(score, held = false) {
         `Every night a new version takes a test: the ${HELD_OUT} newest days whose results are known, which it never trained on.`,
         'The version in charge takes the same test, so you can compare.',
         `${scoreOf(score).lower ? 'Lower' : 'Higher'} is better.`,
-        'The new version takes over if it beats the simple guess.',
+        'The new version goes live if it beats the simple guess.',
     ].join(' ');
 
     return held
@@ -445,7 +453,7 @@ export function NightAxis({ points, picked, onPick }) {
                     className='model-night'
                     tabIndex={index === at ? 0 : -1}
                     aria-pressed={index === at}
-                    aria-label={`${nightName(point.tested)}, after ${nightName(point.day)}: ${point.went_live ? 'took over' : 'kept back'}`}
+                    aria-label={`${nightName(point.tested)}, after ${nightName(point.day)}: ${point.went_live ? 'went live' : 'kept back'}`}
                     onClick={() => onPick(point.day)}
                     onFocus={() => onPick(point.day)}
                     onMouseEnter={() => onPick(point.day)}
@@ -638,7 +646,7 @@ function AttemptsChart({ rows, score, held = false }) {
                         value: null,
                     },
                 ],
-                foot: point.went_live ? 'Took over' : 'Kept back',
+                foot: point.went_live ? 'Went live' : 'Kept back',
             };
         }
 
@@ -731,7 +739,7 @@ function AttemptsChart({ rows, score, held = false }) {
     //
     const drawn = (...kinds) => points.some((each) => each.attempt !== null && kinds.includes(attemptKind(each)));
     const legendItems = [
-        ...(drawn('dot', 'diamond') ? [{ key: 'went', kind: 'dot', color: colors.better, label: 'New version, took over' }] : []),
+        ...(drawn('dot', 'diamond') ? [{ key: 'went', kind: 'dot', color: colors.better, label: 'New version, went live' }] : []),
         ...(drawn('ring', 'hollow') ? [{ key: 'kept', kind: 'ring', color: colors.better, label: 'New version, kept back' }] : []),
         ...(drawn('diamond', 'hollow') ? [{ key: 'weekly', kind: 'diamond', color: colors.better, label: 'Weekly full retrain' }] : []),
         ...(points.some((each) => each.live !== null)
@@ -766,7 +774,7 @@ function AttemptsChart({ rows, score, held = false }) {
                     <div
                         className='model-chart'
                         role='img'
-                        aria-label={`${label} of each night’s new version, the version in charge and the simple guess, on ${rows.length} ${rows.length === 1 ? 'night' : 'nights'}. ${went} took over. The numbers are in the table below.`}
+                        aria-label={`${label} of each night’s new version, the version in charge and the simple guess, on ${rows.length} ${rows.length === 1 ? 'night' : 'nights'}. ${went} went live. The numbers are in the table below.`}
                     >
                         <ResponsiveContainer width='100%' height={HEIGHT + AXIS_HEIGHT}>
                             <ComposedChart data={points} syncId={SYNC} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} {...eventsOf('attempts')}>
@@ -812,7 +820,7 @@ function AttemptsChart({ rows, score, held = false }) {
                 ? null
                 : (
                     <p className='model-card-sub'>
-                        Taking over is decided by loss, so on this score a new version kept back can still show as better.
+                        Going live is decided by loss, so on this score a new version kept back can still show as better.
                     </p>
                 )}
             <ClickAwayListener onClickAway={popup.away('gap')}>
@@ -952,7 +960,7 @@ function AttemptsChart({ rows, score, held = false }) {
                         live: formatScore(each.live, score),
                         baseline: formatScore(each.baseline, score),
                         gap: each.baselineGap === null ? '' : (stands === 'level' ? 'level' : `${stands} by ${formatGap(each.baselineGap, score)}`),
-                        result: each.went_live ? 'Took over' : 'Kept back',
+                        result: each.went_live ? 'Went live' : 'Kept back',
                         took: <TookValue seconds={each.took} note={each.note} />,
                     };
                 })}
@@ -974,6 +982,7 @@ AttemptsChart.propTypes = {
         charge: PropTypes.string,
         kind: PropTypes.string.isRequired,
         went_live: PropTypes.bool.isRequired,
+        reason: PropTypes.string,
         trained_again: PropTypes.bool,
         held_out_days: PropTypes.arrayOf(PropTypes.string),
         training_days: PropTypes.number,
