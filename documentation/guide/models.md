@@ -110,7 +110,7 @@ days with results, which it never trains on. If it beats the baseline on them, i
 live and makes the next night's predictions. On a model's page, the panel under its
 attempts says how each night's version started.
 
-**Nightly update** ("Started from the version that took over Thu Oct 29."): most nights.
+**Nightly update** ("Started from the Thu Oct 29 version."): most nights.
 It starts with the live version's weights, the numbers that version learned, and keeps
 training them, for up to 50 epochs (passes over its days). It trains on the newest day
 before the test days, plus 15 to 20 older days picked at random from the latest 100 with
