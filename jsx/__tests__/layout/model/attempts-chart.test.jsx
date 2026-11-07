@@ -50,7 +50,7 @@ const TOOK = '.model-chart-took';
 // what the card says under its title for every model on loss, and what it adds
 // for a stock model with holds (#300, #318)
 //
-const ABOUT = 'Every night a new version takes a test: the 3 newest days whose results are known, which it never trained on. The version in charge takes the same test, so you can compare. Lower is better. The new version takes over if it beats the simple guess.';
+const ABOUT = 'Every night a new version takes a test: the 3 newest days whose results are known, which it never trained on. The version in charge takes the same test, so you can compare. Lower is better. The new version goes live if it beats the simple guess.';
 const HELD = 'These are the 1-day hold’s scores, since the test days have no 5 or 20-day results yet, so the hold picker doesn’t move this card.';
 
 //
@@ -251,6 +251,17 @@ describe('attemptPoints', () => {
 
         expect(points.map((point) => point.charge)).toEqual([null, null, '2026-10-23', '2026-10-24', null]);
         expect(points[2]).toMatchObject({ kind: 'weekly', from: null, charge: '2026-10-23' });
+    });
+
+    it('carries what decided each night, from format 11, and none where the history doesn\'t say (#339)', () => {
+        const rows = ptOptionsHistory();
+
+        rows[3] = { ...rows[3], reason: 'ahead_of_live' };
+        rows[4] = { ...rows[4], reason: 'behind_baseline' };
+
+        const points = attemptPoints(rows, 'loss');
+
+        expect(points.map((point) => point.reason)).toEqual([null, null, null, 'ahead_of_live', 'behind_baseline']);
     });
 
     it('carries whether the version a nightly update started from went live fine-tuned, and not where the history says nothing of it (#336)', () => {
@@ -458,7 +469,7 @@ describe('NightTick (#318)', () => {
 });
 
 describe('the chart', () => {
-    it('draws a mark for every night: filled where it took over, hollow where it was kept back, a diamond for a weekly retrain', () => {
+    it('draws a mark for every night: filled where it went live, hollow where it was kept back, a diamond for a weekly retrain', () => {
         const { container } = draw({
             rows: historyOf(4, { 1: { went_live: true }, 2: { kind: 'weekly' }, 3: { kind: 'weekly', went_live: true } }),
         });
@@ -562,13 +573,13 @@ describe('the chart', () => {
     it('says, on a score other than loss, that a new version kept back can still be better (#318)', () => {
         draw({ score: 'acc_up' });
 
-        expect(screen.getByText('Taking over is decided by loss, so on this score a new version kept back can still show as better.')).toBeInTheDocument();
+        expect(screen.getByText('Going live is decided by loss, so on this score a new version kept back can still show as better.')).toBeInTheDocument();
     });
 
     it('says nothing of it on loss, which is what decides', () => {
         draw({ score: 'loss' });
 
-        expect(screen.queryByText(/Taking over is decided by loss/)).toBeNull();
+        expect(screen.queryByText(/Going live is decided by loss/)).toBeNull();
     });
 
     it('draws in the dark theme\'s colors on a dark page', () => {
@@ -604,7 +615,7 @@ describe('the chart', () => {
         const colors = chartColors('light');
 
         expect(items.map((item) => item.textContent)).toEqual([
-            'New version, took over',
+            'New version, went live',
             'New version, kept back',
             'Weekly full retrain',
             'Version in charge',
@@ -633,13 +644,13 @@ describe('the chart', () => {
         expect(items[1].querySelector('polygon')).toHaveAttribute('fill', chartColors('light').better);
     });
 
-    it('names a new version that took over where only a weekly retrain did', () => {
+    it('names a new version that went live where only a weekly retrain did', () => {
         draw({ rows: historyOf(1, { 0: { kind: 'weekly', went_live: true } }) });
 
         const items = within(screen.getByRole('list', { name: 'Legend' })).getAllByRole('listitem');
 
         expect(items.map((item) => item.textContent)).toEqual([
-            'New version, took over',
+            'New version, went live',
             'Weekly full retrain',
             'Version in charge',
             'Simple guess from averages (the baseline)',
@@ -652,11 +663,11 @@ describe('the chart', () => {
         expect(within(screen.getByRole('list', { name: 'Legend' })).queryByText('Version in charge')).toBeNull();
     });
 
-    it('describes itself to a screen reader, with how many took over (#318)', () => {
+    it('describes itself to a screen reader, with how many went live (#318, #339)', () => {
         draw({ rows: historyOf(3, { 0: { went_live: true } }) });
 
         expect(screen.getByRole('img', {
-            name: 'Loss of each night’s new version, the version in charge and the simple guess, on 3 nights. 1 took over. The numbers are in the table below.',
+            name: 'Loss of each night’s new version, the version in charge and the simple guess, on 3 nights. 1 went live. The numbers are in the table below.',
         })).toBeInTheDocument();
         expect(screen.getByRole('img', { name: /^How much better or worse each new version scored than the simple guess on Loss\. 3 of 3 were better\.$/ })).toBeInTheDocument();
     });
@@ -664,7 +675,7 @@ describe('the chart', () => {
     it('counts a single night as one', () => {
         draw({ rows: historyOf(1) });
 
-        expect(screen.getByRole('img', { name: /on 1 night\. 0 took over\./ })).toBeInTheDocument();
+        expect(screen.getByRole('img', { name: /on 1 night\. 0 went live\./ })).toBeInTheDocument();
     });
 });
 
@@ -810,6 +821,18 @@ describe('the night picked (#318)', () => {
         expect(screen.getByRole('group', { name: 'Nights' }).closest('.model-chart-frame').querySelector(ATTEMPTS)).not.toBeNull();
     });
 
+    it('says to a screen reader that a night went live by the pill\'s words, as pt-options\' Oct 26 night did (#339)', () => {
+        draw({ rows: ptOptionsHistory() });
+
+        expect(nightButtons().map((button) => button.getAttribute('aria-label'))).toEqual([
+            'Thu Oct 22, after Wed Oct 21: went live',
+            'Fri Oct 23, after Thu Oct 22: went live',
+            'Sat Oct 24, after Fri Oct 23: went live',
+            'Tue Oct 27, after Mon Oct 26: went live',
+            'Wed Oct 28, after Tue Oct 27: kept back',
+        ]);
+    });
+
     it('picks a night tabbed to', () => {
         const { container } = draw({ rows: timedHistoryOf() });
 
@@ -898,7 +921,7 @@ describe('the panel of the night picked (#318)', () => {
         box.querySelector('.model-night-box-value').textContent,
     ]);
 
-    it('shows pt-options\' Oct 26 night, tested early Tue Oct 27: its three scores, that it took over, by how much on loss, and its test days', () => {
+    it('shows pt-options\' Oct 26 night, tested early Tue Oct 27: its three scores, that it went live, by how much on loss, and its test days', () => {
         const { container } = draw({ rows: ptOptionsHistory() });
 
         pointAt(container, 430);
@@ -908,8 +931,8 @@ describe('the panel of the night picked (#318)', () => {
         expect(pickedTitle(container)).toBe('Tue Oct 27 · nightly update');
         expect(panel.querySelector('.model-night-sub')).toHaveTextContent('Tested after the market closed on Mon Oct 26.');
         expect(boxesOf(container)).toEqual([['New version', '0.576'], ['Version in charge', '0.577'], ['Simple guess', '0.622']]);
-        expect(panel.querySelector('.model-night-result')).toHaveTextContent('Took over. On loss it beat the simple guess by 0.046 and the version in charge by 0.001.');
-        expect(panel).toHaveTextContent('Started from the version that took over Sat Oct 24.');
+        expect(panel.querySelector('.model-night-result')).toHaveTextContent('Went live. On loss it beat the simple guess by 0.046 and the version in charge by 0.001.');
+        expect(panel).toHaveTextContent('Started from the Sat Oct 24 version.');
         expect(panel.querySelector('.model-day-lists')).toHaveTextContent('Training and validation10 earlier days');
         expect(panel.querySelector('.model-day-lists')).toHaveTextContent('TestOct 20, 21 and 22');
     });
@@ -952,6 +975,35 @@ describe('the panel of the night picked (#318)', () => {
         expect(result).toHaveTextContent('Kept back. On loss it lost to the simple guess by 0.013 and beat the version in charge by 0.014.');
     });
 
+    it('says under the pill what decided the night, where a format 11 history says (#339)', () => {
+        const rows = ptOptionsHistory().map((row, at) => ({ ...row, reason: ['first', 'ahead_of_live', 'ahead_of_live', 'ahead_of_live', 'behind_baseline'][at] }));
+        const { container } = draw({ rows: rows });
+        const result = container.querySelector('.model-night-result');
+
+        expect(result.querySelector('.model-night-pill-kept')).toHaveTextContent(/^Kept back$/);
+        expect(result.querySelector('.model-night-reason')).toHaveTextContent(/^Didn’t beat the simple guess on its 3 test days\.$/);
+        expect(result).toHaveTextContent(
+            'Kept back. Didn’t beat the simple guess on its 3 test days. '
+            + 'On loss it lost to the simple guess by 0.013. The version in charge, shown for comparison only, did 0.014 worse.',
+        );
+
+        pointAt(container, 430);
+
+        expect(container.querySelector('.model-night-reason'))
+            .toHaveTextContent(/^Decided by the rule used until Oct 26: a new version had to beat the version in charge, not the simple guess\.$/);
+        expect(container.querySelector('.model-night-result'))
+            .toHaveTextContent(/On loss it beat the simple guess by 0\.046 and the version in charge by 0\.001\.$/);
+    });
+
+    it('says no line under the pill for a history from before format 11, and no "took over" anywhere on the card (#339)', () => {
+        const { container } = draw({ rows: ptOptionsHistory() });
+
+        expect(container.querySelector('.model-night-reason')).toBeNull();
+        expect(container.querySelector('.model-attempts').textContent).not.toMatch(/took over|takes over|taking over/i);
+        container.querySelectorAll('.model-attempts [aria-label]')
+            .forEach((each) => expect(each.getAttribute('aria-label')).not.toMatch(/took over/i));
+    });
+
     it('shows a model\'s first version with no version in charge, and no gap to one', () => {
         const { container } = draw({ rows: ptOptionsHistory() });
 
@@ -959,7 +1011,7 @@ describe('the panel of the night picked (#318)', () => {
 
         expect(pickedTitle(container)).toBe('Thu Oct 22 · first version');
         expect(boxesOf(container)[1]).toEqual(['Version in charge', 'none yet']);
-        expect(container.querySelector('.model-night-result')).toHaveTextContent('Took over. On loss it lost to the simple guess by 0.062.');
+        expect(container.querySelector('.model-night-result')).toHaveTextContent('Went live. On loss it lost to the simple guess by 0.062.');
         expect(container.querySelector('.model-night-result')).not.toHaveTextContent(/version in charge/);
         expect(container.querySelector('.model-night-panel')).toHaveTextContent('Built from scratch.');
     });
@@ -1253,7 +1305,7 @@ describe('the popups (#300)', () => {
 
     it.each([
         ['missed', { attempt: { loss: 1.7, auc_up: 0.6, auc_beats: 0.5, acc_up: 0.5 } }, chartColors('light').worse, '0.040 worse than the simple guess', '0.100 worse than the version in charge', 'Kept back'],
-        ['beat', { went_live: true }, chartColors('light').better, '0.050 better than the simple guess', '0.010 worse than the version in charge', 'Took over'],
+        ['beat', { went_live: true }, chartColors('light').better, '0.050 better than the simple guess', '0.010 worse than the version in charge', 'Went live'],
     ])('says over the bars how far a new version that %s the simple guess stood from it, after a bar in its color, and from the version in charge (#318)', (label, night, color, guess, charge, came) => {
         const { container } = draw({ rows: historyOf(1, { 0: night }) });
 
@@ -1283,7 +1335,7 @@ describe('the popups (#300)', () => {
         expect(readPopup(popupOf(container))).toEqual({
             title: 'Fri Oct 2 · first version',
             rows: [['0.050 better than the simple guess', ''], ['No version in charge to compare with', '']],
-            foot: 'Took over',
+            foot: 'Went live',
         });
     });
 
@@ -1367,7 +1419,7 @@ describe('the popups (#300)', () => {
         pointAt(container, 300);
 
         expect(readPopup(popupOf(container)).rows).toEqual([['New version', '0.600'], ['Version in charge', '0.560'], ['Simple guess', '0.500']]);
-        expect(screen.getByText(/Taking over is decided by loss/)).toBeInTheDocument();
+        expect(screen.getByText(/Going live is decided by loss/)).toBeInTheDocument();
     });
 
     it('draws none on a phone for a pointer: only a tap opens one', () => {
@@ -1554,7 +1606,7 @@ describe('the numbers', () => {
         expect(cellsOf(table).map((cells) => cells.map((cell) => cell.textContent))).toEqual([
             ['Tue Oct 6 after Mon Oct 5', 'Nightly update', '–', '1.600', '1.660', '', 'Kept back', ''],
             ['Sat Oct 3 after Fri Oct 2', 'Weekly full retrain', '1.600', '1.600', '1.660', 'better by 0.060', 'Kept back', ''],
-            ['Fri Oct 2 after Thu Oct 1', 'Nightly update', '1.550', '1.600', '1.660', 'better by 0.110', 'Took over', ''],
+            ['Fri Oct 2 after Thu Oct 1', 'Nightly update', '1.550', '1.600', '1.660', 'better by 0.110', 'Went live', ''],
         ]);
     });
 
