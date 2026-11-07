@@ -103,7 +103,7 @@ describe('the listing', () => {
             retired: null,
             scored_days: 30,
             average_days: 20,
-            live: { since: '2026-10-10', kind: 'nightly', days: null, fine_tune: null },
+            live: { since: '2026-10-10', kind: 'nightly', days: null, fine_tune: null, reason: null },
             attempts: { total: 30, went_live: 4 },
             score: { loss: 1.6, auc_up: 0.56, auc_beats: 0.53, acc_up: 0.54, ...NO_PARTS },
             baseline: { loss: 1.66, auc_up: 0.5, auc_beats: 0.5, acc_up: 0.52, ...NO_PARTS },
@@ -191,7 +191,7 @@ describe('the listing', () => {
     it('reads a live block or an attempts block that is not an object as empty', () => {
         const [model] = run({ kind: 'list', report: listingOf([entry({ live: 'x', attempts: null })]) }).models;
 
-        expect(model.live).toEqual({ since: null, kind: null, days: null, fine_tune: null });
+        expect(model.live).toEqual({ since: null, kind: null, days: null, fine_tune: null, reason: null });
         expect(model.attempts).toEqual({ total: 0, went_live: 0 });
     });
 
@@ -425,7 +425,7 @@ describe('the listing', () => {
         const read = (days) => run({ kind: 'list', report: listingOf([entry({ live: { since: '2026-10-23', kind: 'first', days: days } })]) }).models[0].live;
 
         it('keeps the days it trained on, those that decided when it stopped, and the first and last of them', () => {
-            expect(read(DAYS)).toEqual({ since: '2026-10-23', kind: 'first', days: DAYS, fine_tune: null });
+            expect(read(DAYS)).toEqual({ since: '2026-10-23', kind: 'first', days: DAYS, fine_tune: null, reason: null });
         });
 
         it('keeps a version that learned from one day, and trims the days it names, as every other day', () => {
@@ -483,6 +483,37 @@ describe('the listing', () => {
             expect(read(check)).toBeNull();
         });
     });
+
+    describe('what decided the live version would go live, from format 11 on (#339)', () => {
+        const HELD_OUT = { days: ['2026-11-02', '2026-11-03', '2026-11-04'], loss: 1.6936, replaced_loss: 1.7219, baseline_loss: 1.7188 };
+
+        //
+        // the reason a listing of one model whose live version's test was
+        // `heldOut` reads as
+        //
+        const read = (heldOut) => run({ kind: 'list', report: listingOf([entry({ live: { since: '2026-11-05', kind: 'nightly', held_out: heldOut } })]) }).models[0].live.reason;
+
+        it.each([['ahead_of_baseline'], ['ahead_of_live'], ['first']])('keeps a live version that went live as %s', (reason) => {
+            expect(read({ ...HELD_OUT, reason: reason })).toBe(reason);
+        });
+
+        it('reads the reason as the trainer writes it, whatever its case or the space round it', () => {
+            expect(read({ ...HELD_OUT, reason: ' Ahead_Of_Baseline ' })).toBe('ahead_of_baseline');
+        });
+
+        it.each([
+            ['gives no test, as before format 10', undefined],
+            ['gives a test with no reason, as format 10 does', HELD_OUT],
+            ['gives a test that is not an object', 'held out'],
+            ['gives a reason a version is kept back for', { ...HELD_OUT, reason: 'behind_baseline' }],
+            ['gives every stock the same answer', { ...HELD_OUT, reason: 'same_for_every_stock' }],
+            ['was behind the version in charge', { ...HELD_OUT, reason: 'behind_live' }],
+            ['gives a reason this does not know', { ...HELD_OUT, reason: 'lucky' }],
+            ['gives its reason as anything but text', { ...HELD_OUT, reason: 1 }],
+        ])('reads one that %s as none, rather than as a guess', (name, heldOut) => {
+            expect(read(heldOut)).toBeNull();
+        });
+    });
 });
 
 describe('the history', () => {
@@ -513,6 +544,7 @@ describe('the history', () => {
                 charge: null,
                 kind: 'weekly',
                 went_live: true,
+                reason: null,
                 trained_again: null,
                 held_out_days: [],
                 training_days: null,
@@ -743,6 +775,55 @@ describe('the history', () => {
         });
     });
 
+    describe('what decided each night, from the trainer\'s format 11 (#339)', () => {
+        const eleventh = ['day', 'kind', 'went_live', 'reason', ...header.slice(3)];
+
+        function decided(day, went, reason) {
+            return [day, 'nightly', went, reason, ...night(day, 'nightly', went, 1.6).slice(3)];
+        }
+
+        const read = (...nights) => run({ kind: 'history', report: csv(eleventh, nights) }).rows;
+
+        it.each([
+            ['ahead_of_baseline', 'true'],
+            ['behind_baseline', 'false'],
+            ['same_for_every_stock', 'false'],
+            ['ahead_of_live', 'true'],
+            ['behind_live', 'false'],
+            ['first', 'true'],
+        ])('keeps a night decided as %s', (reason, went) => {
+            const [row] = read(decided('2026-11-04', went, reason));
+
+            expect(row.reason).toBe(reason);
+        });
+
+        it('reads every night of a history, past nights too, as the trainer worked each out', () => {
+            const rows = read(
+                decided('2026-10-09', 'true', 'first'),
+                decided('2026-10-23', 'true', 'ahead_of_live'),
+                decided('2026-11-04', 'true', 'ahead_of_baseline'),
+                decided('2026-11-06', 'false', 'Behind_Baseline'),
+            );
+
+            expect(rows.map((row) => row.reason)).toEqual(['first', 'ahead_of_live', 'ahead_of_baseline', 'behind_baseline']);
+        });
+
+        it.each([['an empty cell', ''], ['a reason it does not know', 'unlucky'], ['a take-down\'s reason', 'not_ahead']])(
+            'reads %s as no reason',
+            (name, cell) => {
+                const [row] = read(decided('2026-11-04', 'true', cell));
+
+                expect(row.reason).toBeNull();
+            },
+        );
+
+        it('reads a history from before format 11, with no column, as giving no reason', () => {
+            const [row] = run({ kind: 'history', report: csv(header, [night('2026-11-04', 'nightly', 'true', 1.6)]) }).rows;
+
+            expect(row.reason).toBeNull();
+        });
+    });
+
     it.each([
         ['true', true], ['True', true], ['1', true],
         ['false', false], ['False', false], ['0', false], ['', false], ['yes', false],
@@ -842,6 +923,7 @@ describe('the history', () => {
                 charge: null,
                 kind: 'weekly',
                 went_live: true,
+                reason: null,
                 trained_again: null,
                 held_out_days: [],
                 training_days: 250,
@@ -1860,6 +1942,22 @@ describe('the worker as the bundle builds it', () => {
                         entry({ name: 'b', holds: 'all' }),
                     ],
                 },
+            },
+            {
+                kind: 'list',
+                report: {
+                    format_version: 11,
+                    average_days: 20,
+                    models: [
+                        entry({ live: { since: '2026-11-05', kind: 'nightly', held_out: { days: ['2026-11-04'], loss: 1.69, reason: 'ahead_of_baseline' } } }),
+                        entry({ name: 'b', live: { since: '2026-11-05', kind: 'nightly', held_out: { reason: 'behind_live' } } }),
+                        entry({ name: 'c', live: { since: '2026-11-05', kind: 'nightly', held_out: 'x' } }),
+                    ],
+                },
+            },
+            {
+                kind: 'history',
+                report: 'day,kind,went_live,reason,attempt_loss\n2026-10-09,weekly,true,first,1.69\n2026-11-04,nightly,true,ahead_of_baseline,1.66\n2026-11-06,weekly,false,odd,1.72',
             },
         ];
 
