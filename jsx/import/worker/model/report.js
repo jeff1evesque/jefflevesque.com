@@ -10,13 +10,15 @@
  *                     format 4, how many scored days a model's scores average
  *                     (#293), why a live version was taken down, and what it
  *                     learned from (#295). From format 5, each model's scores on
- *                     each of its holds (#300)
+ *                     each of its holds (#300). From format 11, what decided the
+ *                     live version would go live (#339)
  *     history         a model's csv, one row per nightly training attempt: the
  *                     attempt's scores, the live version's and the know-nothing
  *                     baseline's, on the same held-out days, and from 2026-10-15
  *                     on, when the attempt started and how long it took. Each
  *                     names the days it was tested on, the morning its test ran,
- *                     and how long a second pass trained from format 6 (#318)
+ *                     and how long a second pass trained from format 6 (#318),
+ *                     and from format 11 what decided it (#339)
  *     track-record    a model's csv, one row per day it predicted, written once
  *                     that day is scored: its scores and the baseline's, with each
  *                     day's averages worked out here, over the days it is sent
@@ -160,6 +162,17 @@ export default () => {
     // downOf
     //
     const REASONS = ['worse', 'not_ahead', 'track_record'];
+
+    //
+    // what decided a night's attempt, from the trainer's format 11 (#339): the
+    // baseline, as every night is decided now -- ahead of it, behind it, or
+    // behind for giving every stock the same answer -- the live version, as
+    // nights were decided until Oct 26, or nothing, for a model's first version,
+    // which went live under an older rule without having to beat the baseline.
+    // The first, fourth and last went live, and only those are a live version's
+    //
+    const NIGHT_REASONS = ['ahead_of_baseline', 'behind_baseline', 'same_for_every_stock', 'ahead_of_live', 'behind_live', 'first'];
+    const WENT_LIVE_REASONS = ['ahead_of_baseline', 'ahead_of_live', 'first'];
 
     const DAY = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 
@@ -342,6 +355,18 @@ export default () => {
         return by !== null && slack !== null && slack >= 0
             ? { passed: value.passed, by: by, slack: slack }
             : null;
+    }
+
+    //
+    // what decided a night, or the live version, from the trainer's format 11
+    // (#339): one of `known`, as the trainer writes it, or null -- for a history
+    // or a listing from before format 11, which gives none, an empty cell, and a
+    // reason this does not know
+    //
+    function reasonOf(value, known) {
+        const reason = textOf(value).toLowerCase();
+
+        return known.indexOf(reason) >= 0 ? reason : null;
     }
 
     //
@@ -558,6 +583,7 @@ export default () => {
                     kind: LIVE_KINDS.indexOf(live.kind) >= 0 ? live.kind : null,
                     days: liveDaysOf(live.days),
                     fine_tune: fineTuneOf(live.fine_tune),
+                    reason: reasonOf(isRecord(live.held_out) ? live.held_out.reason : null, WENT_LIVE_REASONS),
                 },
                 attempts: {
                     total: countOf(attempts.total),
@@ -649,6 +675,9 @@ export default () => {
     // update -- or none, where no night before it went live, as on a model's first
     // night
     //
+    // From the trainer's format 11, each night says what decided it, `reason`
+    // (#339) -- see NIGHT_REASONS -- every past night too, and none before
+    //
     function history(csv) {
         const rows = byDay(rowsOf(csv), function (row, day) {
             const started = textOf(row.started) || null;
@@ -657,6 +686,7 @@ export default () => {
                 day: day,
                 kind: String(row.kind).toLowerCase() === 'weekly' ? 'weekly' : 'nightly',
                 went_live: /^(true|1)$/i.test(String(row.went_live)),
+                reason: reasonOf(row.reason, NIGHT_REASONS),
                 trained_again: trainedAgain(row.trained_again),
                 started: started,
                 tested: testedOn(started, day),
