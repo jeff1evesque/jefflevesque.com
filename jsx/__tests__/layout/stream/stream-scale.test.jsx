@@ -186,10 +186,15 @@ describe('toggleChartScale bucketing', () => {
     it('folds rows in the same hour into one point', () => {
         const page = setup();
 
+        //
+        // Note: the points that carried something, as the window that has ended
+        //       below reads them. bls is due at 15:00, so after it, a 15:00 it
+        //       left empty the same day is drawn in as a zero (#341)
+        //
         const result = scale(page, 'hour', [
             row(thisHour(10), 1, 2),
             row(thisHour(20), 1, 2),
-        ]);
+        ]).filter((item) => item[THROUGHPUT] > 0);
 
         expect(result).toHaveLength(1);
         expect(result[0][SOURCE]).toBe(2);
@@ -297,7 +302,12 @@ describe('toggleChartScale windowing', () => {
     it('keeps a row inside the window', () => {
         const page = setup();
 
-        const result = scale(page, 'hour', [row(thisHour(10))]);
+        //
+        // Note: the points that carried something, as above: after 15:00, the
+        //       zero drawn in for a bls 15:00 left empty the same day is not
+        //       this row (#341)
+        //
+        const result = scale(page, 'hour', [row(thisHour(10))]).filter((item) => item[THROUGHPUT] > 0);
 
         expect(result).toHaveLength(1);
     });
