@@ -24,7 +24,7 @@
  */
 
 import THROUGHPUT_KEY from './throughput-key.js';
-import { coverageBucket, expectedIntervals } from './ingest-schedule.js';
+import { coverageBucket, expectedIntervals, intervalBegun, scheduleDay } from './ingest-schedule.js';
 import { intervalStart, stepInterval } from './rolling-window.js';
 
 
@@ -75,9 +75,10 @@ function presentIntervals(chart_data, stream, rate, field_datetime) {
 
     two ends of the window are excluded, for opposite reasons:
 
-      - anything older than the first row the report returned. a stream whose
-        artifacts only reach back five days would otherwise draw fifteen days of
-        zeros and read as a fortnight-long outage rather than as a young stream
+      - anything older than the first row the report returned, from before the
+        stream was running. a stream whose artifacts only reach back five days
+        would otherwise draw fifteen days of zeros and read as a fortnight-long
+        outage rather than as a young stream
 
       - the interval holding 'now', which is still filling. the daily chart
         would otherwise dip to zero every morning between midnight and the
@@ -96,6 +97,13 @@ function presentIntervals(chart_data, stream, rate, field_datetime) {
           window ending now. A window that has ended (#159) ends before the
           clock, so no interval of it is still filling, and its last can be
           missed like any other
+
+    Note: an interval older than the first row is missed all the same where
+          the stream was already running in it (#341): its schedule names the
+          date it began, or the report holds a row later that eastern day. The
+          S&P 500 lost its 09:40 run of 2026-11-23, its first of the day, so
+          the report began at 10:00 and the 9 o'clock hour read 'Nothing
+          reported yet' -- see intervalBegun in ingest-schedule.js
 
 */}
 export function missingIntervals(chart_data, stream, rate, field_datetime, now = new Date(), clock = now) {
@@ -118,10 +126,18 @@ export function missingIntervals(chart_data, stream, rate, field_datetime, now =
 
     const current = intervalStart(rate, clock);
 
+    //
+    // the eastern days the report holds a row on, read only when the oldest
+    // interval due, the first of them, is older than the first row
+    //
+    const ran = new Set(
+        expected[0].valueOf() < first ? [...present].map((t) => scheduleDay(new Date(t))) : []
+    );
+
     return expected.filter((v) => {
         const t = v.valueOf();
 
-        return t >= first
+        return (t >= first || intervalBegun(stream, rate, v, ran))
             && !present.has(t)
             && (!current || t < current.valueOf());
     });
