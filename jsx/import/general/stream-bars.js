@@ -26,7 +26,10 @@
  *                 its name, 'holiday', and says it (#261).
  *   - 'pending'   a run was due but cannot be called missed yet: the interval
  *                 holding now, or one older than the first row the report
- *                 returned. See 'missingIntervals' for why neither counts.
+ *                 returned from before the stream was running. See
+ *                 'missingIntervals' for why neither counts. An older one the
+ *                 stream was running in is missed (#341): the S&P 500's lost
+ *                 09:40 run of 2026-11-23 read 'Nothing reported yet'.
  *
  * Note: 'now' is where the window ends, and 'clock' the present. They are one
  *       instant for the window ending now. A window that has ended (#159) ends
