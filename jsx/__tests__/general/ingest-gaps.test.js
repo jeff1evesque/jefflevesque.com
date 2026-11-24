@@ -243,10 +243,11 @@ describe('missingIntervals', () => {
         const missing = missingIntervals(rows, 'stock-market', 'hour', FIELD, NOW);
 
         //
-        // 09:00 sits before the first row and 14:00 is the hour still filling, so the
-        // two gaps between the rows are all that is left.
+        // 14:00 is the hour still filling, so the two gaps between the rows are left,
+        // and 09:00: it sits before the first row, but the stream ran that day, so
+        // its run was lost rather than not yet begun (#341).
         //
-        expect(missing.map(d => d.getHours())).toEqual([11, 13]);
+        expect(missing.map(d => d.getHours())).toEqual([9, 11, 13]);
     });
 });
 
@@ -515,5 +516,109 @@ describe('a window that has ended (#159)', () => {
         expect(filled).toHaveLength(BEFORE_THE_LAST.length + 1);
         expect(filled[filled.length - 1][FIELD]).toEqual(day(2026, 3, 18));
         expect(filled[filled.length - 1].options).toBe(0);
+    });
+});
+
+
+describe('a run lost before the first row (#341)', () => {
+    //
+    // the S&P 500 lost its 09:40 run on Monday 2026-11-23, its first of the
+    // day, and wrote no row, so its report began at 10:00. Read on Tuesday at
+    // 15:50, by the hour, in the 24 hours ending at 14:00 Monday and in those
+    // ending at 23:00, its whole day. The window is older than the first row
+    // only by Sunday's hours, which owe nothing, and Monday's 09:00
+    //
+    const monday = (hour, minute = 0) => new Date(2026, 10, 23, hour, minute);
+    const tuesday = (hour) => new Date(2026, 10, 24, hour);
+    const CLOCK = new Date(2026, 10, 24, 15, 50);
+    const END_14 = new Date(2026, 10, 23, 14, 59, 59, 999);
+    const END_23 = new Date(2026, 10, 23, 23, 59, 59, 999);
+    const hours = (from, to) => Array.from({ length: to - from + 1 }, (v, i) => row(monday(from + i)));
+    const when = (intervals) => intervals.map((d) => [d.getDate(), d.getHours(), d.getMinutes()]);
+
+    it('names the lost hour, though it is older than the first row: the stream ran that day', () => {
+        expect(when(missingIntervals(hours(10, 14), 'stock-market', 'hour', FIELD, END_14, CLOCK)))
+            .toEqual([[23, 9, 0]]);
+        expect(when(missingIntervals(hours(10, 16), 'stock-market', 'hour', FIELD, END_23, CLOCK)))
+            .toEqual([[23, 9, 0]]);
+    });
+
+    it('draws it as a zero, the oldest row', () => {
+        const filled = fillMissingIntervals(hours(10, 14), 'stock-market', 'hour', FIELD, SOURCE, END_14, CLOCK);
+
+        expect(filled[0][FIELD]).toEqual(monday(9));
+        expect(filled[0].options).toBe(0);
+        expect(filled[0][`price${THROUGHPUT_KEY}`]).toBe(0);
+    });
+
+    it('names nothing once its rows are written', () => {
+        expect(missingIntervals(hours(9, 14), 'stock-market', 'hour', FIELD, END_14, CLOCK)).toEqual([]);
+    });
+
+    it('still names no hour of a day before the first row\'s', () => {
+        //
+        // a stream whose rows begin at 10:00 Tuesday, read in the 24 hours
+        // ending 14:00 Tuesday: Monday's hours from 15:00 are older than its
+        // first day and stay unnamed, and only Tuesday's 09:00 is a miss
+        //
+        const rows = [10, 11, 12, 13, 14].map((hour) => row(tuesday(hour)));
+        const missing = missingIntervals(rows, 'stock-market', 'hour', FIELD, new Date(2026, 10, 24, 14, 59, 59, 999), CLOCK);
+
+        expect(when(missing)).toEqual([[24, 9, 0]]);
+    });
+
+    it('still does not name the hour still filling', () => {
+        //
+        // read at 11:30 Monday, the window ending now: 09:00 was lost, and
+        // 11:00 has not finished
+        //
+        expect(when(missingIntervals(hours(10, 10), 'stock-market', 'hour', FIELD, monday(11, 30))))
+            .toEqual([[23, 9, 0]]);
+    });
+
+    it('names the lost 09:40 by the minute, and not the 09:00 and 09:20 the open skips', () => {
+        //
+        // an hour of minutes ending at 09:59 holds the day's first run alone,
+        // and one ending at 10:19 lost it, with the 10:00 run in
+        //
+        const ran = missingIntervals([row(monday(9, 40))], 'stock-market', 'minute', FIELD, monday(9, 59), CLOCK);
+        const lost = missingIntervals([row(monday(10, 0))], 'stock-market', 'minute', FIELD, monday(10, 19), CLOCK);
+
+        expect(ran).toEqual([]);
+        expect(lost).toEqual([monday(9, 40)]);
+    });
+
+    it('names a day lost before the first row of a stream whose schedule says when it began', () => {
+        //
+        // the company facts began on Sunday 2026-10-04 (#211). A report whose
+        // rows begin on Wednesday the 7th lost Monday's and Tuesday's runs,
+        // where it does not reach back before the stream
+        //
+        const night = (d) => new Date(2026, 9, d);
+        const facts = [7, 8, 9, 10].map((d) => ({
+            [FIELD]: night(d),
+            companyfacts: 6,
+            [`companyfacts${THROUGHPUT_KEY}`]: 6,
+        }));
+        const missing = missingIntervals(
+            facts, 'sec-companyfacts', 'day', FIELD, new Date(2026, 9, 10, 23, 59, 59, 999), new Date(2026, 9, 11, 12)
+        );
+
+        expect(dates(missing)).toEqual([[2026, 10, 5], [2026, 10, 6]]);
+    });
+
+    it('leaves a stream due from its first run as it was (#314)', () => {
+        //
+        // the stock tickers' first run here is the 10:32 poll: the minutes
+        // before it on the same day were not due, and are not named
+        //
+        const poll = (minute) => ({
+            [FIELD]: new Date(2026, 10, 2, 10, minute),
+            price: 503,
+            [`price${THROUGHPUT_KEY}`]: 503,
+        });
+
+        expect(missingIntervals([poll(32), poll(34)], 'stock-tickers', 'minute', FIELD, new Date(2026, 10, 2, 10, 35)))
+            .toEqual([new Date(2026, 10, 2, 10, 33)]);
     });
 });
