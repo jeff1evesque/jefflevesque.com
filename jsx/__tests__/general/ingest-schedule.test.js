@@ -37,7 +37,7 @@ const MON_1010_EDT = new Date('2026-03-16T14:10:00Z');   // Mon 10:10
 const MON_1020_EDT = new Date('2026-03-16T14:20:00Z');   // Mon 10:20
 const MON_1005_EDT = new Date('2026-03-16T14:05:00Z');   // Mon 10:05
 const SAT_1000_EDT = new Date('2026-03-21T14:00:00Z');   // Sat 10:00
-const MON_0900_EST = new Date('2026-01-19T14:00:00Z');   // Mon 09:00, winter
+const MON_0900_EST = new Date('2026-01-26T14:00:00Z');   // Mon 09:00, winter; not the 19th, Martin Luther King Jr. Day, a market holiday (#341)
 const SUN_2200_EST = new Date('2026-03-16T02:00:00Z');   // Sun 22:00
 const MON_1700_EDT = new Date('2026-03-16T21:00:00Z');   // Mon 17:00
 const MON_0800_EDT = new Date('2026-03-16T12:00:00Z');   // Mon 08:00
@@ -852,6 +852,45 @@ describe('the S&P 500 Options\' first run of the day (#341)', () => {
 
     it('owes one run in the hour of minutes that spans the open, where it owed three', () => {
         expect(expectedIntervals('stock-market', 'minute', at(9, 59))).toEqual([at(9, 40)]);
+    });
+});
+
+describe('the S&P 500 Options\' market holidays (#341)', () => {
+    //
+    // the 20-minute run reads the market's calendar, as the tickers' poll does:
+    // no run on a market holiday, and none from 13:00 on an early close. Local
+    // times, which jest.config.js pins to New York
+    //
+    const at = (month, d, h = 0, m = 0) => new Date(2026, month - 1, d, h, m);
+    const due = (rate, date) => intervalExpected('stock-market', rate, date);
+
+    it('reads the market calendar', () => {
+        expect(INGEST_SCHEDULE['stock-market'].holidays).toBe('market');
+    });
+
+    it('owes nothing on Thanksgiving, and names it', () => {
+        expect(due('day', at(11, 26))).toBe(false);
+        expect(due('hour', at(11, 26, 10))).toBe(false);
+        expect(due('minute', at(11, 26, 10, 0))).toBe(false);
+        expect(intervalHoliday('stock-market', 'day', at(11, 26))).toBe('Thanksgiving Day');
+        expect(intervalHoliday('stock-market', 'hour', at(11, 26, 10))).toBe('Thanksgiving Day');
+    });
+
+    it('owes nothing from 13:00 on the early close the day after', () => {
+        expect(due('day', at(11, 27))).toBe(true);
+        expect(due('hour', at(11, 27, 12))).toBe(true);
+        expect(due('minute', at(11, 27, 12, 40))).toBe(true);
+        expect(due('minute', at(11, 27, 13, 0))).toBe(false);
+        expect(due('hour', at(11, 27, 13))).toBe(false);
+        expect(due('hour', at(11, 27, 15))).toBe(false);
+        expect(intervalHoliday('stock-market', 'day', at(11, 27))).toBeNull();
+    });
+
+    it('stays due on a federal holiday the market trades through, and through a normal afternoon', () => {
+        expect(due('day', at(11, 11))).toBe(true);
+        expect(due('hour', at(11, 11, 10))).toBe(true);
+        expect(due('hour', at(11, 24, 13))).toBe(true);
+        expect(due('hour', at(11, 24, 15))).toBe(true);
     });
 });
 
