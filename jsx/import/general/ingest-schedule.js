@@ -121,6 +121,12 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
           runs would have been drawn as misses every morning too. The hour, day
           and month rates never consult minutes at all
 
+    Note: 'stock-market' reads the market's calendar, as 'stock-tickers' does
+          (#341): the run collects nothing on a market holiday, nor from 13:00
+          on an early close. Without 'holidays', Thanksgiving would read as a
+          day of misses, and the early close after it as three hours of them.
+          See market-calendar.js
+
     Note: 'sec' merges two feeds -- one hourly at :00, one every five minutes --
           and it was the merge that kept it ungraded: the 22:00 hour was thought
           to carry the hourly feed alone, where a five minute spacing expects
@@ -196,7 +202,7 @@ export const INGEST_SCHEDULE = {
         minutes_named: false,
         partition: 'day'
     },
-    [STOCK_MARKET]: { hours: [9, 15], opens: [9, 40], weekdays: true, every: 20, minutes_named: true, partition: 'day' },
+    [STOCK_MARKET]: { hours: [9, 15], opens: [9, 40], weekdays: true, holidays: 'market', every: 20, minutes_named: true, partition: 'day' },
     [STOCK_TICKERS]: {
         hours: [9, 16],
         opens: [9, 30],
