@@ -44,8 +44,8 @@ Two kinds of interval are not misses, and are drawn apart from them:
 
 - an interval no run was due in -- a weekend on a weekday-only stream, a federal
   holiday for the SEC filings, a market holiday or the afternoon of an early close for
-  the S&P 500 Tickers, an hour outside its hours, a minute between its runs -- is a thin
-  hatched strip;
+  the S&P 500 Tickers and Options, an hour outside its hours, a minute between its runs
+  -- is a thin hatched strip;
 - an interval older than the first row the report returned, or the one still filling,
   is left empty: neither can be called a miss yet. The first is a miss after all when
   the stream was already running then: its schedule began earlier, or the report holds
