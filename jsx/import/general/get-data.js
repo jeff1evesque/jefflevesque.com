@@ -26,11 +26,28 @@ import { noteResponse } from './rate-limit.js';
 //
 const answers = new Map();
 
+//
+// how each report is asked for (#341). The api has the browser keep a report for
+// an ended window a day, and one for the window ending now for minutes. But the
+// rows behind an ended window can still be written again, by a backfill of a past
+// run, and a copy the browser kept would go on drawing the old report after the
+// cdn had been cleared of it. 'no-cache' has the browser check with the cdn on
+// every load instead.
+//
+// Note: the answers carry no ETag or Last-Modified, so the check is never a 304:
+//       each load is the whole report, a small one, from the cdn.
+//
+// Note: a cache mode, not a 'Cache-Control' header. A header set here would make
+//       the request one the browser preflights, and the api refuses the
+//       preflight; the mode leaves it a plain GET.
+//
+const REPORT_REQUEST = {method: 'GET', cache: 'no-cache'};
+
 function answerOf(url) {
     const key = String(url);
 
     if (!answers.has(key)) {
-        const answer = fetch(url, {method: 'GET'})
+        const answer = fetch(url, REPORT_REQUEST)
             .then((response) => {
                 noteResponse(response);
 

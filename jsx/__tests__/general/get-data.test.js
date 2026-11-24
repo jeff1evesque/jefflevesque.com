@@ -30,6 +30,7 @@ import { readString } from 'react-papaparse';
 import { papaParseCsv, parseCsv } from '../../import/general/parse-csv.js';
 import getData from '../../import/general/get-data.js';
 import { limitedUntil, resetRateLimit } from '../../import/general/rate-limit.js';
+import { performanceUrl } from '../../import/general/api-url.js';
 import { blockedAnswer } from '../../test-support/blocked-answer.js';
 
 const URL = 'https://example.com/report.csv';
@@ -152,7 +153,7 @@ describe('the ingest types, through get_promise', () => {
 
         await getData('bls-ingest', URL, callback, false, 'bls', 'cpi');
 
-        expect(global.fetch).toHaveBeenCalledWith(URL, { method: 'GET' });
+        expect(global.fetch).toHaveBeenCalledWith(URL, { method: 'GET', cache: 'no-cache' });
         expect(callback).toHaveBeenCalledWith({
             data: ROWS,
             source: 'bls',
@@ -272,7 +273,7 @@ describe('the ingest types, through get_promise', () => {
 
         await getData(type, URL, callback);
 
-        expect(global.fetch).toHaveBeenCalledWith(URL, { method: 'GET' });
+        expect(global.fetch).toHaveBeenCalledWith(URL, { method: 'GET', cache: 'no-cache' });
         expect(callback).toHaveBeenCalled();
     });
 });
@@ -597,6 +598,60 @@ describe('one url asked twice at once (#211)', () => {
         await getData('sec-ingest', URL, jest.fn(), true, 'sec', 'sec', jest.fn());
 
         expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('a report asked for again on every load (#341)', () => {
+    //
+    // the api has the browser keep a report for an ended window a day, and a
+    // backfill can still write the rows behind one again. So every report is asked
+    // for with the cache mode 'no-cache': the browser checks with the cdn on every
+    // load, rather than drawing a copy it kept. Nothing else get-data asks for
+    // changes.
+    //
+    it.each([
+        ['a window that has ended', '2026-11-20T23:59:59-05:00'],
+        ['the window ending now', null],
+    ])('asks for %s, as /stream does, with no-cache', async (_, end) => {
+        const url = performanceUrl('bls', 'day', 'America/New_York', end);
+        mockFetch({ report: 'group_by,total_success\nbls,292' });
+
+        await getData('bls-ingest', url, jest.fn(), true, 'bls', 'bls');
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(String(global.fetch.mock.calls[0][0])).toBe(String(url));
+        expect(global.fetch.mock.calls[0][1]).toEqual({ method: 'GET', cache: 'no-cache' });
+    });
+
+    it('sets the cache mode, not a header, so the request stays a plain GET', async () => {
+        //
+        // a 'Cache-Control' header would make the request one the browser
+        // preflights, and the api refuses the preflight
+        //
+        mockFetch({ report: '' });
+
+        await getData('bls-ingest', URL, jest.fn());
+
+        expect(global.fetch.mock.calls[0][1]).not.toHaveProperty('headers');
+    });
+
+    it.each([
+        ['ticker-custom'],
+        ['ticker-nasdaq'],
+        ['stock-market-candlestick-triggers'],
+    ])('leaves %s as it was: a plain fetch of its csv', async (type) => {
+        //
+        // these csvs are read by parseCsv, which get-data hands the url alone.
+        // Driven through the real one here, once, so what is asserted is the
+        // request that goes out.
+        //
+        const { parseCsv: actual } = jest.requireActual('../../import/general/parse-csv.js');
+        parseCsv.mockImplementationOnce(actual);
+        global.fetch = jest.fn().mockResolvedValue({ text: () => Promise.resolve('Symbol,Name\nXOM,Exxon') });
+
+        await getData(type, URL);
+
+        expect(global.fetch.mock.calls).toEqual([[URL]]);
     });
 });
 

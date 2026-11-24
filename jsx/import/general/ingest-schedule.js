@@ -114,11 +114,12 @@ const SCHEDULE_TIMEZONE = 'America/New_York';
 
     Note: the 9 eastern hour carries ONE run rather than three, because
           collection gates on the market opening at 09:30 -- the 09:00 and 09:20
-          runs are skipped and only 09:40 collects. 'hours' cannot state that, so
-          a minute window spanning the open expects three runs where one was due.
-          the reach is bounded: 'ROLLING_WINDOW' gives the minute rate 60
-          minutes, so only a window overlapping 09:00-09:40 reads low, and the
-          hour, day and month rates never consult minutes at all
+          runs are skipped and only 09:40 collects. 'hours' cannot state that,
+          and 'opens' can (#341): a minute window spanning the open expected
+          three runs where one was due, and read low. Since a run due before the
+          first row of its day is missed (see intervalBegun), the two skipped
+          runs would have been drawn as misses every morning too. The hour, day
+          and month rates never consult minutes at all
 
     Note: 'sec' merges two feeds -- one hourly at :00, one every five minutes --
           and it was the merge that kept it ungraded: the 22:00 hour was thought
@@ -195,7 +196,7 @@ export const INGEST_SCHEDULE = {
         minutes_named: false,
         partition: 'day'
     },
-    [STOCK_MARKET]: { hours: [9, 15], weekdays: true, every: 20, minutes_named: true, partition: 'day' },
+    [STOCK_MARKET]: { hours: [9, 15], opens: [9, 40], weekdays: true, every: 20, minutes_named: true, partition: 'day' },
     [STOCK_TICKERS]: {
         hours: [9, 16],
         opens: [9, 30],
@@ -383,6 +384,19 @@ function minuteInSession(schedule, day, hour, minute) {
 
 {/*
 
+    whether the interval starting at 'date' had begun by 'since', at 'rate':
+    a month once any of it had, a finer interval from the one starting at
+    'since'. What intervalExpected and intervalBegun both ask of a schedule's
+    'since'
+
+*/}
+function begunBy(rate, date, since) {
+    return rate === 'month' ? stepInterval(date, rate) > since : date >= since;
+}
+
+
+{/*
+
     whether a run was due in the interval starting at 'date', for a chart drawn
     at 'rate'.
 
@@ -416,13 +430,7 @@ export function intervalExpected(stream, rate, date, first_run = null) {
     if (schedule.since) {
         const since = schedule.since === FIRST_RUN ? first_run : new Date(schedule.since);
 
-        if (!since) {
-            return false;
-        }
-
-        const begun = r === 'month' ? stepInterval(date, r) > since : date >= since;
-
-        if (!begun) {
+        if (!since || !begunBy(r, date, since)) {
             return false;
         }
     }
@@ -624,4 +632,53 @@ export function firstRun(rows, field_datetime, stream_source) {
     });
 
     return first ? new Date(first.valueOf()) : null;
+}
+
+
+{/*
+
+    the eastern day an instant falls on, as 'YYYY-MM-DD': the day on the
+    schedules' own clock, whatever the viewer's zone -- see intervalBegun
+
+*/}
+export function scheduleDay(date) {
+    return easternParts(date).day;
+}
+
+
+{/*
+
+    whether the stream was already running in the interval starting at 'date',
+    one older than the first row its report holds: a run due in it that left
+    no row was then lost, rather than due before the stream began (#341).
+    'ran' is the eastern days the report holds a row on -- see scheduleDay.
+
+      - a 'since' that is a date says when the stream began, and it was
+        running in every interval that date had begun by -- see begunBy
+      - otherwise, a row on the interval's own eastern day: the stream ran
+        that day, so its day had begun. The S&P 500's 09:40 run of 2026-11-23
+        wrote no row, so its report began at 10:00, and its 9 o'clock hour
+        read 'Nothing reported yet' rather than missed
+
+    Note: a row says nothing of the days before its own, so without a 'since'
+          a young stream's days before its first row are still not missed, nor
+          are their hours. Only the hours and minutes of the day its report
+          begins on are
+
+    Note: FIRST_RUN begins with the first run, so nothing older than the first
+          row was running
+
+*/}
+export function intervalBegun(stream, rate, date, ran = new Set()) {
+    const schedule = INGEST_SCHEDULE[canonicalStream(stream)];
+
+    if (!schedule || schedule.since === FIRST_RUN) {
+        return false;
+    }
+
+    if (schedule.since && begunBy(String(rate).toLowerCase(), date, new Date(schedule.since))) {
+        return true;
+    }
+
+    return ran.has(scheduleDay(date));
 }

@@ -47,7 +47,11 @@ Two kinds of interval are not misses, and are drawn apart from them:
   the S&P 500 Tickers, an hour outside its hours, a minute between its runs -- is a thin
   hatched strip;
 - an interval older than the first row the report returned, or the one still filling,
-  is left empty: neither can be called a miss yet.
+  is left empty: neither can be called a miss yet. The first is a miss after all when
+  the stream was already running then: its schedule began earlier, or the report holds
+  a row later that same Eastern day. So a day whose first run is lost draws that run's
+  hour as a miss, as 11-23's 09:40 S&P 500 Options run would have
+  ([#341](https://github.com/jeff1evesque/jefflevesque.com/issues/341)).
 
 A bar's shade is the stream's health in that interval, not its coverage. The report
 carries one row per interval, so a daily bar can say how many records a day brought

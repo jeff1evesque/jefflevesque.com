@@ -92,6 +92,13 @@ A complete report for a window that has ended no longer moves, and is sent
 A window that still holds now is kept for minutes, as before, and a short, empty or
 failed report is not kept at all.
 
+A backfill can still write an ended window's rows again, so `/stream` fetches every
+report with `cache: 'no-cache'`: the browser checks with the CDN on every load rather
+than drawing a copy it kept, and once the CDN's copy is cleared, the corrected report
+shows on the next load ([#341](https://github.com/jeff1evesque/jefflevesque.com/issues/341)).
+The answer carries no `ETag` or `Last-Modified`, so each check is a whole answer rather
+than a `304`, and it counts toward the [rate limit](index.md#what-they-share).
+
 ## Response
 
 `report` is a CSV string with a header row, one row per source and bucket:

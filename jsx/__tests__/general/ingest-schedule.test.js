@@ -20,9 +20,11 @@ import {
     coverageSupported,
     expectedIntervals,
     firstRun,
+    intervalBegun,
     intervalExpected,
     intervalHoliday,
-    runsContinuously
+    runsContinuously,
+    scheduleDay
 } from '../../import/general/ingest-schedule.js';
 import THROUGHPUT_KEY from '../../import/general/throughput-key.js';
 import { STREAMS } from '../../import/general/stream-id.js';
@@ -824,5 +826,79 @@ describe('firstRun', () => {
         expect(firstRun([], 'window_start', ['price'])).toBeNull();
         expect(firstRun(undefined, 'window_start', ['price'])).toBeNull();
         expect(firstRun([row(30, 503, 503)], 'window_start', undefined)).toBeNull();
+    });
+});
+
+describe('the S&P 500 Options\' first run of the day (#341)', () => {
+    //
+    // the 20-minute run is scheduled from 09:00, and collects nothing before
+    // the market opens at 09:30, so its first run of a day is 09:40. Monday
+    // 2026-11-23, in local times, which jest.config.js pins to New York
+    //
+    const at = (h, m = 0) => new Date(2026, 10, 23, h, m);
+
+    it('owes the 09:40 run, and not the 09:00 and 09:20 runs the open skips', () => {
+        expect(INGEST_SCHEDULE['stock-market'].opens).toEqual([9, 40]);
+        expect(intervalExpected('stock-market', 'minute', at(9, 0))).toBe(false);
+        expect(intervalExpected('stock-market', 'minute', at(9, 20))).toBe(false);
+        expect(intervalExpected('stock-market', 'minute', at(9, 40))).toBe(true);
+        expect(intervalExpected('stock-market', 'minute', at(10, 0))).toBe(true);
+    });
+
+    it('still owes the 9 o\'clock hour, which holds it', () => {
+        expect(intervalExpected('stock-market', 'hour', at(8))).toBe(false);
+        expect(intervalExpected('stock-market', 'hour', at(9))).toBe(true);
+    });
+
+    it('owes one run in the hour of minutes that spans the open, where it owed three', () => {
+        expect(expectedIntervals('stock-market', 'minute', at(9, 59))).toEqual([at(9, 40)]);
+    });
+});
+
+describe('scheduleDay', () => {
+    it('is the eastern day an instant falls on, however it is written', () => {
+        expect(scheduleDay(new Date('2026-11-24T03:30:00Z'))).toBe('2026-11-23');   // Mon 22:30
+        expect(scheduleDay(new Date('2026-11-23T05:00:00Z'))).toBe('2026-11-23');   // Mon 00:00
+        expect(scheduleDay(new Date('2026-11-23T04:59:00Z'))).toBe('2026-11-22');   // Sun 23:59
+    });
+});
+
+describe('intervalBegun (#341)', () => {
+    //
+    // whether a stream was running in an interval older than its report's first
+    // row. 'ran' is the eastern days its report holds a row on. Local times,
+    // which jest.config.js pins to New York
+    //
+    const at = (month, d, h = 0, m = 0) => new Date(2026, month - 1, d, h, m);
+    const MONDAY = new Set(['2026-11-23']);
+
+    it('is running on a day its report holds a row on: the day had begun', () => {
+        expect(intervalBegun('stock-market', 'hour', at(11, 23, 9), MONDAY)).toBe(true);
+        expect(intervalBegun('StockMarket', 'Minute', at(11, 23, 9, 40), MONDAY)).toBe(true);
+    });
+
+    it('is not on another day, nor with no day at all', () => {
+        expect(intervalBegun('stock-market', 'hour', at(11, 20, 15), MONDAY)).toBe(false);
+        expect(intervalBegun('stock-market', 'day', at(11, 20), MONDAY)).toBe(false);
+        expect(intervalBegun('stock-market', 'hour', at(11, 23, 9))).toBe(false);
+    });
+
+    it('is running from a since that is a date, with no row at all', () => {
+        //
+        // the company facts began on Sunday 2026-10-04 (#211), and a month is
+        // running once any of it is, as it is due once any of it is
+        //
+        expect(intervalBegun('sec-companyfacts', 'day', at(10, 5))).toBe(true);
+        expect(intervalBegun('sec-companyfacts', 'day', at(10, 3))).toBe(false);
+        expect(intervalBegun('sec-companyfacts', 'month', at(10, 1))).toBe(true);
+        expect(intervalBegun('sec-companyfacts', 'month', at(9, 1))).toBe(false);
+    });
+
+    it('is never running before the first run of a stream due from it (#314)', () => {
+        expect(intervalBegun('stock-tickers', 'minute', at(11, 23, 9, 31), MONDAY)).toBe(false);
+    });
+
+    it('is not for a stream it does not know', () => {
+        expect(intervalBegun('no-such-stream', 'hour', at(11, 23, 9), MONDAY)).toBe(false);
     });
 });

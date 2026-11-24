@@ -17,6 +17,7 @@ import {
     barSummary,
     scheduleLabel,
 } from '../../import/general/stream-bars.js';
+import { fillMissingIntervals } from '../../import/general/ingest-gaps.js';
 
 const FIELD = 'window_start';
 const NOW = new Date(2026, 8, 30, 12, 0, 0);
@@ -494,5 +495,101 @@ describe('a stream due from its first run (#314)', () => {
 
         expect(bars.length).toBeGreaterThan(0);
         expect(bars.every((bar) => bar.kind === 'off')).toBe(true);
+    });
+});
+
+describe('a run lost before the first row of its day (#341)', () => {
+    //
+    // the S&P 500 lost its 09:40 run on Monday 2026-11-23, its first of the
+    // day, and its report held no 9 o'clock row until the run's rows were
+    // written by hand on the 24th: the options it should have brought, and
+    // its 503 prices as failed. Read on the 24th at 15:50, by the hour, in the
+    // window ending at 14:00 and in the one ending at 23:00. The rows are the
+    // reports' as the page leaves them, with the missing hours zeroed -- see
+    // toggleChartScale in stream.jsx
+    //
+    const SERIES = ['options', 'price'];
+    const monday = (hour, minute = 0) => new Date(2026, 10, 23, hour, minute);
+    const tuesday = (hour) => new Date(2026, 10, 24, hour);
+    const CLOCK = new Date(2026, 10, 24, 15, 50);
+    const END = { 14: new Date(2026, 10, 23, 14, 59, 59, 999), 23: new Date(2026, 10, 23, 23, 59, 59, 999) };
+
+    //
+    // an hour's row: what succeeded of each series, and what failed of the
+    // prices
+    //
+    function quotes(date, options, price, failed = 0) {
+        return {
+            [FIELD]: date,
+            options: options,
+            price: price,
+            [`options${THROUGHPUT_KEY}`]: options,
+            [`price${THROUGHPUT_KEY}`]: price + failed,
+        };
+    }
+
+    //
+    // three runs an hour from 10:00, and the 16:00 run alone
+    //
+    const hours = (to) => Array.from({ length: to - 9 }, (v, i) => (
+        i === 6 ? quotes(monday(16), 549279, 503) : quotes(monday(10 + i), 1647837, 1509)
+    ));
+    const LOST = { 14: hours(14), 23: hours(16) };
+    const WRITTEN = {
+        14: [quotes(monday(9), 549279, 0, 503), ...hours(14)],
+        23: [quotes(monday(9), 549279, 0, 503), ...hours(16)],
+    };
+
+    function drawn(rows, end) {
+        const scaled = fillMissingIntervals(rows, 'stock-market', 'hour', FIELD, SERIES, END[end], CLOCK);
+
+        return streamBars(scaled, 'stock-market', 'hour', FIELD, SERIES, END[end], CLOCK);
+    }
+
+    it.each([14, 23])('draws the lost 9 o\'clock hour as missed, in the window ending at %i:00', (end) => {
+        const bars = drawn(LOST[end], end);
+
+        expect(barAt(bars, monday(9))).toEqual({ start: monday(9), kind: 'missed' });
+        expect(barSummary(barAt(bars, monday(9)))).toBe('Missed: a run was due, and nothing reported');
+        expect(barAt(bars, monday(8)).kind).toBe('off');
+        expect(barAt(bars, monday(10)).kind).toBe('reported');
+    });
+
+    it.each([14, 23])('draws it once written as a report whose 503 prices failed, in the window ending at %i:00', (end) => {
+        const bar = barAt(drawn(WRITTEN[end], end), monday(9));
+
+        expect(bar).toMatchObject({ start: monday(9), kind: 'reported', records: 549279, failed: 503 });
+        expect(barSummary(bar)).toBe('549,279 records, 503 failed (health 99.9%)');
+    });
+
+    it('still draws a day before the first row\'s as not reported yet', () => {
+        //
+        // a stream whose rows begin at 10:00 Tuesday, in the 24 hours ending
+        // 14:00 Tuesday: Monday's hours from 15:00 are older than its first
+        // day, and only Tuesday's 09:00 is a miss
+        //
+        const rows = [10, 11, 12, 13, 14].map((hour) => quotes(tuesday(hour), 1647837, 1509));
+        const bars = streamBars(rows, 'stock-market', 'hour', FIELD, SERIES, new Date(2026, 10, 24, 14, 59, 59, 999), CLOCK);
+
+        expect(barAt(bars, monday(15)).kind).toBe('pending');
+        expect(barAt(bars, tuesday(9)).kind).toBe('missed');
+    });
+
+    it('still draws the hour holding now as not reported yet', () => {
+        //
+        // read at 11:30 Monday: 09:00 was lost, and 11:00 has not finished
+        //
+        const bars = streamBars([quotes(monday(10), 1647837, 1509)], 'stock-market', 'hour', FIELD, SERIES, monday(11, 30));
+
+        expect(barAt(bars, monday(9)).kind).toBe('missed');
+        expect(barAt(bars, monday(11)).kind).toBe('pending');
+    });
+
+    it('draws the minutes the open skips as not scheduled, and a lost 09:40 as missed', () => {
+        const opened = streamBars([quotes(monday(9, 40), 549279, 503)], 'stock-market', 'minute', FIELD, SERIES, monday(9, 59), CLOCK);
+        const lost = streamBars([quotes(monday(10, 0), 549279, 503)], 'stock-market', 'minute', FIELD, SERIES, monday(10, 19), CLOCK);
+
+        expect([0, 20, 40].map((minute) => barAt(opened, monday(9, minute)).kind)).toEqual(['off', 'off', 'reported']);
+        expect(barAt(lost, monday(9, 40)).kind).toBe('missed');
     });
 });
